@@ -1,0 +1,147 @@
+import { useRouter } from "expo-router";
+import React, { useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { OnboardingStepper } from "@/components/OnboardingStepper";
+import { INTERESTS, MIN_INTERESTS } from "@/constants/onboarding";
+import { useAuth } from "@/contexts/AuthContext";
+import { useColors } from "@/hooks/useColors";
+import { setOnboardingStep, updateUser } from "@/lib/firestore-users";
+
+export default function InterestsScreen() {
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { firebaseUser, user } = useAuth();
+
+  const [picked, setPicked] = useState<string[]>(user?.interests ?? []);
+  const [saving, setSaving] = useState(false);
+
+  const canContinue = picked.length >= MIN_INTERESTS;
+
+  const toggle = (id: string) => {
+    setPicked((cur) =>
+      cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]
+    );
+  };
+
+  const next = async () => {
+    if (!firebaseUser || !canContinue || saving) return;
+    setSaving(true);
+    try {
+      await updateUser(firebaseUser.uid, { interests: picked });
+      await setOnboardingStep(firebaseUser.uid, "username");
+      router.replace("/(onboarding)/username");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const remaining = useMemo(
+    () => Math.max(0, MIN_INTERESTS - picked.length),
+    [picked.length]
+  );
+
+  return (
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
+      <View style={[styles.head, { paddingTop: insets.top + 16 }]}>
+        <OnboardingStepper step={2} />
+        <Text style={[styles.title, { color: colors.text }]}>
+          Kya interest karta hai?
+        </Text>
+        <Text style={[styles.sub, { color: colors.sub }]}>
+          {MIN_INTERESTS} ya zyada choose karo — issi se rooms aur Discover feed curate hoga.
+        </Text>
+      </View>
+
+      <ScrollView contentContainerStyle={styles.grid} showsVerticalScrollIndicator={false}>
+        {INTERESTS.map((it) => {
+          const active = picked.includes(it.id);
+          return (
+            <TouchableOpacity
+              key={it.id}
+              activeOpacity={0.8}
+              onPress={() => toggle(it.id)}
+              style={[
+                styles.chip,
+                {
+                  backgroundColor: active ? it.color + "28" : colors.surface,
+                  borderColor: active ? it.color : colors.border,
+                },
+              ]}
+            >
+              <Text style={styles.chipEmoji}>{it.emoji}</Text>
+              <Text
+                style={[
+                  styles.chipLabel,
+                  { color: active ? it.color : colors.text },
+                ]}
+              >
+                {it.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+
+      <View style={[styles.footer, { paddingBottom: insets.bottom + 14 }]}>
+        <Text style={[styles.counter, { color: colors.sub }]}>
+          {picked.length} selected
+          {remaining > 0 ? ` · ${remaining} aur choose karo` : " ✓"}
+        </Text>
+        <TouchableOpacity
+          style={[
+            styles.cta,
+            {
+              backgroundColor: canContinue ? colors.primary : colors.surface2,
+              opacity: saving ? 0.6 : 1,
+            },
+          ]}
+          disabled={!canContinue || saving}
+          activeOpacity={0.85}
+          onPress={next}
+        >
+          {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.ctaText}>Continue</Text>}
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+  head: { paddingHorizontal: 24, gap: 12, paddingBottom: 16 },
+  title: { fontSize: 26, fontWeight: "800", marginTop: 16 },
+  sub: { fontSize: 13, lineHeight: 19 },
+  grid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 16,
+    gap: 8,
+  },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderWidth: 1.5,
+    borderRadius: 22,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  chipEmoji: { fontSize: 16 },
+  chipLabel: { fontSize: 14, fontWeight: "600" },
+  footer: { paddingHorizontal: 24, paddingTop: 10, gap: 8 },
+  counter: { fontSize: 12, textAlign: "center" },
+  cta: { paddingVertical: 16, borderRadius: 14, alignItems: "center" },
+  ctaText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+});
