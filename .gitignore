@@ -39,3 +39,11 @@ yarn-error.*
 .vercel
 
 .env
+
+# Firebase — each dev/CI downloads from console
+google-services.json
+GoogleService-Info.plist
+
+# Firebase admin keys — NEVER commit, NEVER share
+*-firebase-adminsdk-*.json
+serviceAccountKey.json
