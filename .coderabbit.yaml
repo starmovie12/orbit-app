@@ -1,0 +1,11 @@
+# CodeRabbit Configuration for ORBIT v7.0
+version: "1"
+reviews:
+  profile: "technical"
+  instructions: >
+    Always use 'docs/orbit-blueprint-v7.html' as the source of truth for all reviews.
+    Verify that every change follows the ORBIT v7.0 core principles:
+    - Engine 6 (Promo Hub) MUST have a strict 30-second countdown timer logic.
+    - Hot Firestore documents MUST use sharded counters to avoid the 1 write/sec limit.
+    - All media uploads MUST go to Cloudflare R2 for zero egress costs.
+    - Ensure DPDP 2023 compliance for any user data handling.
