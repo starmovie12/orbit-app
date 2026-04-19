@@ -1,0 +1,818 @@
+================================================================================
+  ORBIT — NATIVE APP FEEL + NAVIGATION SURGERY PROMPT v1.0
+  "Website Se App Banao — Telegram Ki Tarah Clean, ORBIT Ki Tarah Unique"
+================================================================================
+
+  Complements  : ORBIT-Complete-Prompt-v3.0 + ORBIT_UI_REDESIGN_PROMPT_V2.md
+  Does NOT modify either. This is a SURGICAL FIX layer.
+  Generated    : April 2026 · Chandigarh
+  Built by     : Ail Noor Alam + Claude (Anthropic)
+
+  ONE-LINE MISSION:
+    "ORBIT ko website ki feeling se nikalo. Ek real mobile app banao —
+     Telegram jaisi 4-tab navigation ke saath, lekin ORBIT ki apni identity ke
+     saath. User open kare aur TURANT samjhe: yeh ek app hai, website nahi."
+
+================================================================================
+  TABLE OF CONTENTS
+================================================================================
+
+  PART 1 — THE HONEST AUDIT (What went wrong, screenshot by screenshot)
+  PART 2 — THE ROOT CAUSE (Why it feels like a website)
+  PART 3 — THE 4-TAB NAVIGATION SYSTEM (Telegram-inspired, ORBIT-unique)
+  PART 4 — APP-FEEL RULES (The 12 things that make an app feel native)
+  PART 5 — SCREEN-BY-SCREEN SURGERY (Exact fixes per screen)
+  PART 6 — THE "ROOMS" SCREEN FIX (Most critical)
+  PART 7 — THE "DISCOVER" SCREEN FIX
+  PART 8 — THE "RANKS" SCREEN FIX
+  PART 9 — THE "YOU" (PROFILE) SCREEN FIX
+  PART 10 — WHAT GETS MERGED/REMOVED
+  PART 11 — FINAL NAVIGATION STRUCTURE
+  PART 12 — 10 NON-NEGOTIABLES (This Layer)
+
+
+
+================================================================================
+  PART 1 — THE HONEST AUDIT
+  (Screenshot-by-screenshot: kya galat hua)
+================================================================================
+
+  ── SCREENSHOT 1: ROOMS SCREEN ───────────────────────────────────────────────
+
+  PROBLEM 1.1 — SIX TABS IN BOTTOM NAV (Critical)
+    Current nav shows: Rooms · Discover · Bazaar · Ranks · You · rooms
+    That's 5-6 tabs. Telegram ka success kya hai? SIRF 4 tabs.
+    Zyada tabs = confusion = user ka sar ghoomna = uninstall.
+    Fix: 4 tabs. No more. Details in Part 3.
+
+  PROBLEM 1.2 — ROOMS LIST = TELEGRAM CLONE
+    Icon | Name | Last Message | Timestamp | Unread Badge
+    Yeh exactly Telegram ki chat list hai. Copy-paste feel.
+    User ko turant pata chal jaata hai — "yaar yeh toh Telegram hai."
+    Fix: ORBIT-specific room card design. Part 6 mein.
+
+  PROBLEM 1.3 — SPOTLIGHT LIVE BANNER (Website widget feel)
+    The "SPOTLIGHT LIVE · Gaming Lounge · 38 min left · Bid" banner
+    looks like a website ad unit, not a native app component.
+    Fix: Integrate into Rooms list as first pinned item. Part 6 mein.
+
+  PROBLEM 1.4 — INCONSISTENT DENSITY
+    Room list items are too tall (web-card feel) vs Telegram's
+    tight, scannable density. App users scan fast. Lists should be dense.
+    Fix: Tighter list items, 68px max height per item.
+
+  ── SCREENSHOT 2: DISCOVER SCREEN ────────────────────────────────────────────
+
+  PROBLEM 2.1 — MOOD ROOMS = NEON CARD NIGHTMARE
+    Three cards with different background colors: purple, yellow, green.
+    This is exactly what v2 prompt bans. "Clashing neon backgrounds."
+    Looks like a kids' app. Not premium. Not calm.
+    Fix: All cards → same --bg-surface-1. Differentiation via 3px left stripe only.
+
+  PROBLEM 2.2 — WEEKLY CHALLENGES SECTION = WEBSITE FEATURE BOX
+    The challenge rows with blue prize amounts and "Enter" buttons
+    look like a web promo section, not a native mobile feature.
+    Fix: Tighter rows, smaller action, amount as badge not headline.
+
+  PROBLEM 2.3 — CREDITS PILL IN HEADER (Inconsistent placement)
+    "○ 142 credits" pill in top right of Discover only.
+    Why is credits showing only here? It should be consistent or not at all.
+    Fix: Move credits to permanent location. Part 3 mein.
+
+  ── SCREENSHOT 3: BAZAAR SCREEN ──────────────────────────────────────────────
+
+  PROBLEM 3.1 — "+ POST GIG" BUTTON = JARRING BLUE
+    Big bright blue CTA button in top right. Too loud. Too web.
+    Fix: Quieter button, or move to a FAB (floating action button) that
+    slides in only when scrolling up. Per v2 §2.3 button specs.
+
+  PROBLEM 3.2 — GIG CARDS = FIVERR CLONE
+    The card design with price at bottom left + "Contact →" button
+    looks like Fiverr. ORBIT is not Fiverr. Needs own identity.
+    Fix: ORBIT-specific gig card. Part 10 mein.
+
+  ── SCREENSHOT 4: LEADERBOARD SCREEN ─────────────────────────────────────────
+
+  PROBLEM 4.1 — "YOU" ROW = SOLID BLUE BLOCK (Critical)
+    The #1 "ghost_player [YOU]" row has a SOLID blue background.
+    v2 prompt explicitly bans this: "The blue WHISPERS, not screams."
+    Fix: --accent-soft (10% opacity blue) bg + 2px --accent left border.
+
+  PROBLEM 4.2 — TOP-3 PODIUM = AMATEURISH
+    The #1/#2/#3 avatar circles with floating rank badges look like a
+    gaming app from 2019. Not premium. Not calm.
+    Fix: Remove podium entirely. List-first design with special treatment
+    for top 3 via typography, not visual fireworks.
+
+  PROBLEM 4.3 — KARMA BARS = USELESS FILLER
+    The colored progress bars behind each person's tier name (LEGEND,
+    CHAMPION, etc.) don't carry information. They're decoration.
+    Fix: Remove bars. Tier shown as a small pill (per v2 §5.8).
+
+  ── SCREENSHOT 5: YOU (PROFILE) SCREEN ───────────────────────────────────────
+
+  PROBLEM 5.1 — "LEGEND" IN ORANGE-BORDERED PILL
+    Big orange pill with border says "● LEGEND"
+    Looks like a game achievement badge. Not a premium identity marker.
+    Fix: Small subtle pill, --bg-surface-2 bg, --text-secondary text.
+    (Per v2 §5.8: "Tier pill (subtle, per 4.8)")
+
+  PROBLEM 5.2 — "#1 Global" AS BLUE LINK TEXT NEXT TO STREAK
+    "#1 Global  ⚡ 7d streak" as raw inline text looks unstyled.
+    Fix: Structured hierarchy. Each piece of info has its place.
+
+  PROBLEM 5.3 — TRUST SCORE BAR = ALWAYS GREEN
+    No matter what score, it's green. v2 says: color-code per threshold.
+    Fix: Green if 80+, amber if 50–79, red if <50.
+
+  PROBLEM 5.4 — "ORBIT CARD" = CARD INSIDE A CARD
+    The ORBIT Card preview inside the profile creates card-in-card nesting.
+    Looks heavy and nested. Very web-like.
+    Fix: Orbit Card as a full-width section, not a nested preview.
+
+  ── SCREENSHOT 6: TELEGRAM REFERENCE ─────────────────────────────────────────
+
+  WHAT TELEGRAM DOES RIGHT (that we must learn from):
+    ✓ 4 clean tabs: Chats · Contacts · Settings · Profile
+    ✓ Each tab icon is clear, distinct, instantly recognizable
+    ✓ Active tab has a subtle indicator (not a giant highlighted block)
+    ✓ Tab labels are short (1 word max)
+    ✓ No badge clutter on every tab
+    ✓ The list density feels natural for a phone — not a website table
+
+
+
+================================================================================
+  PART 2 — THE ROOT CAUSE
+  (Why ORBIT feels like a website, not an app)
+================================================================================
+
+  Yeh sirf design ka sawaal nahi hai. Yeh FEELING ka sawaal hai.
+
+  ╔════════════════════════════════════════════════════════════════════╗
+  ║  WEBSITE FEEL =                                                    ║
+  ║  Too many navigation options + Section-header-heavy layout +       ║
+  ║  Padded cards that breathe like web articles +                     ║
+  ║  Too much color = information overload +                           ║
+  ║  No gestures, no swipe, no physics =                               ║
+  ║  Brain registers: "I'm browsing a website"                         ║
+  ╠════════════════════════════════════════════════════════════════════╣
+  ║  APP FEEL =                                                        ║
+  ║  4 clear destinations + Tight list density +                       ║
+  ║  Surfaces feel physical (cards you can swipe) +                    ║
+  ║  One accent, used sparingly =                                      ║
+  ║  Brain registers: "I'm using an app"                               ║
+  ╚════════════════════════════════════════════════════════════════════╝
+
+  THE 5 SPECIFIC REASONS ORBIT FEELS LIKE A WEBSITE:
+
+  REASON 1: 6 TABS (Websites have navbars with 5-7 items. Apps have 4.)
+  REASON 2: SECTION HEADERS EVERYWHERE ("GROUP ROOMS", "MOOD ROOMS",
+            "WEEKLY CHALLENGES", "SPOTLIGHT FEED" — all caps labels =
+            webpage section dividers, not app UI)
+  REASON 3: CARDS WITH TOO MUCH PADDING (Website article cards breathe.
+            App list items are dense and scannable.)
+  REASON 4: EVERY SECTION HAS A DIFFERENT COLOR LOGIC (Neon purple cards,
+            yellow badges, blue pills, orange LEGEND — visual chaos =
+            designer trying too hard = website aesthetic)
+  REASON 5: NO NATIVE GESTURES VISIBLE IN DESIGN (Where is swipe-to-reply?
+            Where is swipe-to-dismiss? Apps have physics. Websites don't.)
+
+
+
+================================================================================
+  PART 3 — THE 4-TAB NAVIGATION SYSTEM
+================================================================================
+
+  DECISION: ORBIT will have EXACTLY 4 tabs. No more. No less.
+
+  Telegram ka bottom nav: Chats | Contacts | Settings | Profile (4 tabs)
+  ORBIT ka bottom nav:    Rooms | Discover  | Ranks    | You     (4 tabs)
+
+  ── 3.1 · WHAT HAPPENED TO BAZAAR? ──────────────────────────────────────────
+
+  Bazaar (skill marketplace) does NOT deserve a permanent bottom tab.
+  Reason: Bazaar is a UTILITY, not a DESTINATION. Users go there
+  occasionally to post/find gigs — not as a daily habit.
+
+  Solution: Bazaar moves to Discover tab as a section.
+    Discover tab → top pill filters: [Hot 🔥] [Near You] [Challenges] [Bazaar]
+    Or: Bazaar accessible from Rooms screen via a top-right icon.
+    Either way: NOT a permanent bottom tab.
+
+  ── 3.2 · THE 4-TAB STRUCTURE ────────────────────────────────────────────────
+
+  TAB 1 — ROOMS (chat bubble icon)
+    What's here:
+      • All your rooms (conversations you're in)
+      • Spotlight Live pinned at top (inline, not a separate banner)
+      • DMs section below rooms
+    Icon: MessageSquare (Lucide)
+    Badge: Unread count (only if >0, max shows "99+")
+
+  TAB 2 — DISCOVER (compass/explore icon)
+    What's here:
+      • Mood Rooms (horizontal scroll)
+      • Hot Rooms feed (vertical list)
+      • Weekly Challenges
+      • Bazaar (accessible via top pill filter)
+      • "For You" personalized feed (from ZeroFriction prompt)
+    Icon: Compass (Lucide)
+    Badge: None (or dot if new challenge started)
+
+  TAB 3 — RANKS (trophy/medal icon)
+    What's here:
+      • Global leaderboard
+      • Weekly leaderboard
+      • Challenge leaderboard
+      • Your position (always visible at bottom of list, sticky)
+    Icon: Trophy (Lucide)
+    Badge: None
+
+  TAB 4 — YOU (person/circle icon)
+    What's here:
+      • Your profile + ORBIT Card
+      • Trust Score
+      • Stats (Karma, Posts, Watches, Credits)
+      • Settings access
+      • Cashout access
+    Icon: CircleUser (Lucide)
+    Badge: None
+
+  ── 3.3 · BOTTOM NAV COMPONENT SPEC ─────────────────────────────────────────
+
+  Height: 64px (not including safe area / home indicator)
+  Background: --bg-base with 1px --border-subtle top border
+  NO backdrop blur on bottom nav (adds lag on low-end Android)
+
+  Each tab item:
+    Width: 25% of screen
+    Touch target: 44×44px minimum
+    Layout: icon (22px) on top, label (11px, font-weight 500) below
+    Gap between icon and label: 4px
+
+  INACTIVE state:
+    Icon: --text-tertiary (#6B6B73)
+    Label: --text-tertiary
+    Background: transparent
+
+  ACTIVE state:
+    Icon: --accent (#5B7FFF) — filled variant if available, else stroke
+    Label: --accent, font-weight 600
+    Background: transparent (NO pill, NO box, NO underline)
+    Top indicator: 2px line at very top of tab area, --accent color,
+                   centered, 24px wide. This is the ONLY active indicator.
+
+  Unread badge (Rooms tab only):
+    8px × 8px red dot (--danger) when unread exists
+    OR "12" inside 18px circle when count > 1
+    Positioned: top-right of icon, -4px offset
+    NEVER show badge on Discover, Ranks, or You tabs.
+
+  ── 3.4 · CREDIT DISPLAY (Permanent Location) ───────────────────────────────
+
+  v2 prompt mein credits ka location inconsistent tha (only on Discover).
+  Fix: Credits are always visible in a SINGLE consistent place.
+
+  Location: App-level persistent top pill, visible on ALL screens.
+  BUT — not in the app bar (too crowded). Instead:
+    On Rooms/Discover/Ranks: credits pill appears subtly under app bar title.
+    On You (Profile): credits are in the stats row.
+
+  OR — simplest solution (recommended):
+    Credits pill moves to the "You" tab only.
+    On other screens: NOT visible. (Clean is better than consistent-but-noisy.)
+    User who wants to check credits → taps "You" tab.
+    This reduces visual noise on Rooms/Discover/Ranks screens.
+
+  ── 3.5 · NAVIGATION BEHAVIOR ────────────────────────────────────────────────
+
+  Tab switch animation: content fades (120ms out, 180ms in). No slide.
+  Back navigation: System back button / swipe-from-left.
+  Double-tap tab: Scroll to top of that screen (like Instagram/Telegram).
+  Long-press tab: No action (don't add complexity).
+
+
+
+================================================================================
+  PART 4 — APP-FEEL RULES
+  (The 12 things that make ORBIT feel native, not web)
+================================================================================
+
+  RULE AF-01 · LIST DENSITY IS SACRED
+    App lists are DENSE. Standard room list item: 68px tall.
+    (Telegram's chat items are ~72px. Keep it close.)
+    Website card: 120px+ with lots of padding. Kill that.
+    Every list item: 14px horizontal padding on content, 14px vertical.
+
+  RULE AF-02 · SECTION HEADERS ARE MINIMAL
+    Replace all-caps section headers with:
+      → Nothing (let context speak), OR
+      → A small 11px overline label, --text-tertiary, no bold, no tracking
+    "GROUP ROOMS" → delete it
+    "MOOD ROOMS" → tiny overline, or remove in favor of visual context
+    "WEEKLY CHALLENGES" → overline "This Week" max
+
+  RULE AF-03 · SWIPE GESTURES EVERYWHERE
+    Room list item: swipe LEFT → mute/leave options
+    Room list item: swipe RIGHT → quick-reply
+    Message in chat: swipe RIGHT → reply (like Telegram/WhatsApp)
+    These don't need to be built tomorrow — but the DESIGN must show
+    the intention (visual hint: subtle edge gradient when dragging)
+
+  RULE AF-04 · BOTTOM SHEET OVER MODAL
+    Any action that requires a decision: use a bottom sheet (slides up).
+    NOT a centered modal.
+    NOT a full-screen push.
+    Bottom sheets feel native. Centered modals feel web.
+    Bottom sheet: 24px top radius, drag handle, backdrop blur 8px.
+
+  RULE AF-05 · HAPTIC FEEDBACK INTENT
+    Design should note where haptic feedback fires:
+      → Button press: light impact
+      → Message send: light tap
+      → Credits received: medium impact
+      → Badge earned: heavy impact
+    Haptics = physical = native app feeling.
+
+  RULE AF-06 · SKELETON LOADING, NOT SPINNERS
+    Every list that loads shows skeleton cells (gray shimmer rectangles
+    where content will appear). NEVER a centered spinner on a list.
+    Spinner = web. Skeleton = app.
+
+  RULE AF-07 · STICKY HEADERS, NOT FLOATING ONES
+    App-bar sticks to top as user scrolls. Content scrolls under it.
+    The app-bar has a 1px --border-subtle bottom that appears when
+    content is under it (scroll-activated border — like iOS/Apple).
+
+  RULE AF-08 · PULL-TO-REFRESH IS STANDARD
+    Every list screen has pull-to-refresh.
+    Custom indicator: 20px Lucide RefreshCw icon, rotates with pull,
+    subtle spring when released. NOT a loading bar at top.
+
+  RULE AF-09 · EMPTY STATES ARE WARM, NOT BLANK
+    Empty room list: icon + "Your rooms will appear here" + CTA.
+    Empty search: icon + "Nothing found. Try something else."
+    NEVER a blank white/black screen. That's a bug feeling.
+
+  RULE AF-10 · TOUCH STATES ARE VISIBLE
+    Every tappable item: has a pressed state (background flash, 100ms).
+    --bg-surface-2 flash on press is enough. No scale needed on list items.
+    (Scale is for buttons. Flash is for list items. Distinguish them.)
+
+  RULE AF-11 · SYSTEM FONT FALLBACK READY
+    If Inter doesn't load (slow network), system font (-apple-system,
+    BlinkMacSystemFont) takes over with ZERO layout shift.
+    Sizes are defined in px, not rem, to match system font metrics.
+
+  RULE AF-12 · NO HORIZONTAL SCROLL ON MAIN LISTS
+    Horizontal scrolling carousels = websites.
+    EXCEPTION: Only Mood Rooms (horizontal scroll is intentional, compact).
+    Everything else: vertical, full-width.
+
+
+
+================================================================================
+  PART 5 — SCREEN-BY-SCREEN SURGERY
+  (Exact problems and exact fixes, screen level)
+================================================================================
+
+  This section gives pixel-level direction for each screen redesign.
+  Read this alongside v2 prompt §5 (which has the component library specs).
+  v2 = what to build. THIS PROMPT = what was wrong and how to fix it.
+
+
+
+================================================================================
+  PART 6 — ROOMS SCREEN FIX (MOST CRITICAL)
+================================================================================
+
+  ── 6.1 · WHAT IT LOOKS LIKE NOW ─────────────────────────────────────────────
+
+  [App bar: "Rooms" | notif badge | search | compose]
+  [Search bar]
+  [Spotlight Live banner — separate card]
+  "GROUP ROOMS" — all-caps header
+  [Room item: icon | name | last msg | time | unread]
+  [Room item]
+  [Room item]
+  ... repeating
+  [Bottom nav: Rooms | Discover | Bazaar | Ranks | You | rooms]
+
+  ── 6.2 · WHAT IT SHOULD LOOK LIKE ──────────────────────────────────────────
+
+  [App bar: "Rooms" | search icon | compose icon]
+  [Search bar — inline, same surface as screen]
+  [Pinned Live item: "LIVE  Gaming Lounge  38 min  Bid →" — inline list item]
+  — thin divider —
+  [Room list: ORBIT-style items (not Telegram clone)]
+  ...
+  [Bottom nav: 4 tabs]
+
+  ── 6.3 · THE ORBIT ROOM LIST ITEM (Specific Design) ─────────────────────────
+
+  OLD (Telegram clone):
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │ [icon 40px] │ Room Name (bold)          │ 2m        │
+  │             │ last_user: message text   │ 🔵12       │
+  │             │ 312 online                │           │
+  └─────────────────────────────────────────────────────────────────────┘
+
+  NEW (ORBIT native):
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │ [icon 40px]  Room Name                               2m            │
+  │              last message preview — truncated...      ●12          │
+  │              ○ 312 live                                             │
+  └─────────────────────────────────────────────────────────────────────┘
+
+  Difference seems small — but these are the critical changes:
+    • Icon: 40px, 12px radius (NOT circle). Rooms are not people. People =
+      circle. Rooms = rounded square (like apps on your home screen).
+    • Room name: 16px, weight 600, --text-primary
+    • Message preview: 13px (caption size), --text-secondary, max 1 line
+    • "312 live": caption, --text-tertiary. The ○ is a tiny 6px circle in
+      --success color. Not "312 online" in green. Just tiny green dot + number.
+    • Timestamp: 11px, --text-tertiary (same as always — this is fine)
+    • Unread badge: --danger filled circle. NOT blue. Blue = read receipt.
+      Red = unread. Don't copy Telegram's blue.
+    • Left padding: 20px. Right padding: 20px.
+    • Item height: 68px max.
+    • Divider: 1px --border-subtle, starts at icon's right edge (not full width)
+      — like iOS Messages app. This is a subtle app-native touch.
+
+  ── 6.4 · SPOTLIGHT LIVE (Inline Treatment) ──────────────────────────────────
+
+  Instead of a separate banner card (website widget), Spotlight Live becomes
+  the FIRST item in the room list, but with a special visual treatment:
+
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │ [●LIVE]  Gaming Lounge                         38 min left          │
+  │          Spotlight · Bidding now               Bid →               │
+  └─────────────────────────────────────────────────────────────────────┘
+
+  - Background: --bg-surface-1 (NOT a separate card)
+  - Left edge: 3px --warning (amber) vertical stripe
+  - "●LIVE" pill: --warning color, caption size, no border
+  - "Bid →" right side: --accent text, not a button
+
+
+
+================================================================================
+  PART 7 — DISCOVER SCREEN FIX
+================================================================================
+
+  ── 7.1 · MOOD ROOMS CARDS FIX ───────────────────────────────────────────────
+
+  OLD (Neon nightmare):
+    3 cards with different background colors (purple, yellow, green).
+    Each card has a different color scheme. Visual chaos.
+
+  NEW (Clean, consistent):
+    ALL cards: --bg-surface-1 background.
+    Differentiation ONLY via left edge 3px stripe (category color).
+    Icon: 24px Lucide icon (--text-secondary). NOT colorful emoji.
+    Name: 16px, weight 600.
+    Online count: 12px, --text-tertiary.
+    Vibe tag (e.g., "Venting OK"): small pill, --bg-surface-2 bg,
+    --text-tertiary text, 11px.
+
+  Horizontal scroll: KEEP IT. It works well for Mood Rooms.
+  But snap-scroll: add scroll snapping so cards feel physical.
+  Card width: 160px. Visible peek of next card: 24px.
+
+  ── 7.2 · WEEKLY CHALLENGES FIX ──────────────────────────────────────────────
+
+  OLD (Web promo boxes):
+    Each challenge with icon, name, entry count, countdown, big COLORED
+    prize amount ("1,000 Credits" in orange), and "Enter" button.
+    Looks like a website reward section.
+
+  NEW (App-native list):
+    Same LIST ITEM pattern as rooms. Dense. Scannable.
+
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │ [icon 36px]  Best Desi Rap Verse              ends 2d 14h          │
+  │              84 entries                         1K ◆ Enter         │
+  └─────────────────────────────────────────────────────────────────────┘
+
+    - "1K ◆": prize in compact format with diamond icon (--warning color)
+    - "Enter": small secondary button (not blue, --bg-surface-2, 10px/16px)
+    - Countdown: --text-tertiary, caption
+
+  ── 7.3 · BAZAAR (Inside Discover) ───────────────────────────────────────────
+
+  Bazaar moved from its own tab to a section inside Discover.
+  Access: Filter pill "Bazaar" in Discover's top pill row.
+
+  Gig card in Bazaar view:
+
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │ [icon 48px]  Professional Logo Design                               │
+  │              @designwala · ★ 4.9 (142) · 2 days                    │
+  │              [Logo] [Branding]                                      │
+  │              ₹500  ···················  Contact →                  │
+  └─────────────────────────────────────────────────────────────────────┘
+
+  - Price: 17px, weight 700, --text-primary (not colored)
+  - "Contact →" button: small, secondary style
+  - Card radius: 16px (per v2 §2.4)
+  - Card border: 1px --border-subtle (no shadow in dark mode — v2 rule)
+  - "+ Post Gig" becomes a FAB (bottom-right floating button, 52px circle,
+    --accent background, Plus icon 20px white) that appears ONLY on Bazaar
+    filter view. NOT a top-right header button.
+
+
+
+================================================================================
+  PART 8 — RANKS SCREEN FIX
+================================================================================
+
+  ── 8.1 · KILL THE PODIUM ────────────────────────────────────────────────────
+
+  The 3-avatar podium (#1 center elevated, #2 left, #3 right) looks like
+  a mobile game. Not ORBIT.
+
+  REMOVE the podium entirely.
+
+  ── 8.2 · LIST-FIRST LEADERBOARD ─────────────────────────────────────────────
+
+  Leaderboard = a list. Beautiful in its simplicity.
+
+  Top 3 special treatment (NOT podium, NOT color blocks):
+    → #1 row: rank number in --warning (amber), username in --text-primary
+      weight 700. That's it. No box, no background. Weight and color = hierarchy.
+    → #2 row: rank in --text-secondary, username weight 600.
+    → #3 row: rank in --text-tertiary, username weight 600.
+    → #4 and below: rank in --text-tertiary, username weight 400.
+
+  "YOU" row (wherever it appears):
+    OLD: Solid blue background block.
+    NEW: --accent-soft (rgba(91,127,255,0.10)) background + 2px --accent
+         left border. The row looks barely different from others — it just
+         softly glows. You notice it. It doesn't shout.
+
+  Remove progress bars (karma bars behind tier names). Pure decoration.
+
+  Tier name (LEGEND, CHAMPION, etc.):
+    Small pill: --bg-surface-2 bg, --text-secondary text, 11px font-weight 500.
+    Width: fit-content. No border. Not colored.
+
+  ── 8.3 · YOUR RANK STICKY BAR ───────────────────────────────────────────────
+
+  When user is not in visible area of leaderboard, a sticky bar appears
+  at BOTTOM of the list (above bottom nav):
+
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  YOU  #1  ghost_player          9,820 karma                        │
+  └─────────────────────────────────────────────────────────────────────┘
+
+  Background: --bg-surface-1, 1px --border-subtle top border.
+  Disappears when user's own row is visible in list.
+  This is a native app pattern (seen in Reddit, Strava, etc.)
+
+
+
+================================================================================
+  PART 9 — YOU (PROFILE) SCREEN FIX
+================================================================================
+
+  ── 9.1 · AVATAR AREA ────────────────────────────────────────────────────────
+
+  Avatar: 80px circle (DiceBear SVG or uploaded photo — per v2 §5.8)
+  Below avatar:
+    Name: 22px, weight 700, --text-primary
+    Handle: 14px, weight 400, --text-secondary
+
+  Bio: 14px, --text-secondary, max 2 lines.
+
+  ── 9.2 · IDENTITY ROW (Tier + Rank + Streak) ────────────────────────────────
+
+  OLD (Messy):
+  [● LEGEND (orange bordered pill)]  [#1 Global (blue link)]  [⚡ 7d streak (red pill)]
+
+  NEW (Structured):
+  [LEGEND]  ·  #1 Global  ·  🔥 7
+
+  Each piece as small, quiet text:
+    "LEGEND" → --bg-surface-2 bg, --text-secondary, 11px, weight 500, 4px/8px padding
+    "#1 Global" → --accent text, 12px, weight 600 (this is the ONLY accent here)
+    "7d" with Flame Lucide icon (16px, --warning color) → 12px, weight 500
+
+  All three in a single flex row, gap 12px, centered.
+  NO borders. NO glow. NO colorful backgrounds.
+
+  ── 9.3 · STATS ROW ──────────────────────────────────────────────────────────
+
+  4-column grid:
+    KARMA  |  POSTS  |  WATCHES  |  CREDITS
+    9,820    142       3,410        142
+
+  Per v2 §5.8:
+    - Number: 20px, weight 700, tabular-nums, --text-primary
+    - Label: 11px, weight 600, --text-tertiary, uppercase, tracking +0.04em
+    - Vertical dividers: 1px --border-subtle lines between columns
+    - Padding: 20px vertical, full width card --bg-surface-1, 16px radius
+
+  ── 9.4 · TRUST SCORE ────────────────────────────────────────────────────────
+
+  OLD: Always green progress bar.
+  NEW: Color-coded:
+    80–100: --success (green)
+    50–79:  --warning (amber)
+    0–49:   --danger (red)
+
+  Bar height: 6px. Track: --bg-surface-2.
+  Score number: right-aligned, h2 size, same color as bar.
+
+  ── 9.5 · ORBIT CARD ─────────────────────────────────────────────────────────
+
+  OLD: Card-inside-card nesting. Feels heavy.
+  NEW: Full-width section. No nested card frame.
+
+  Structure:
+    Overline: "ORBIT CARD" (11px, --text-tertiary, uppercase)
+    Below: ORBIT Card content in a single --bg-surface-1 block with
+    subtle gradient border (1px, very subtle, from --accent to --accent-soft).
+    The gradient border itself IS the card boundary. No double-card.
+
+  Inside Orbit Card:
+    Avatar (40px) + Name + Handle
+    Bio (1 line max)
+    Tags: ghost pills (--bg-surface-2 bg, --text-secondary, small)
+    Bottom strip: Karma | Rank | Posts (3 columns)
+
+  ── 9.6 · ACTION ROWS (Settings access etc.) ─────────────────────────────────
+
+  Per v2 §5.9: List rows with Lucide icons in 32px --bg-surface-2 squares.
+  Monochrome icons. NOT colorful icon tiles.
+
+  Rows:
+    [user icon] Edit Profile
+    [settings icon] Settings                              →
+    [bell icon] Notifications                             →
+    [shield icon] Privacy                                 →
+    [help icon] Help & Support                            →
+    — divider —
+    [logout icon in danger color] Sign Out               [danger text]
+
+
+
+================================================================================
+  PART 10 — WHAT GETS MERGED / REMOVED
+================================================================================
+
+  ── MERGED ───────────────────────────────────────────────────────────────────
+
+  Bazaar tab → Inside Discover (filter pill).
+  Spotlight Live banner → Inline pinned item in Rooms list.
+  Podium (top-3 visual) → Typography hierarchy in list.
+  "GROUP ROOMS" section header → Removed (no header needed).
+
+  ── REMOVED ──────────────────────────────────────────────────────────────────
+
+  6th nav tab ("rooms" duplicate) → Removed (was a bug/duplicate).
+  Karma progress bars in leaderboard → Removed (pure decoration).
+  "LEGEND" orange bordered pill → Replaced with subtle tier system.
+  Solid blue "YOU" row in leaderboard → Replaced with accent-soft.
+  Neon backgrounds on Mood Room cards → Replaced with left stripe only.
+  All-caps section headers (most of them) → Replaced with overline or removed.
+
+  ── KEPT ─────────────────────────────────────────────────────────────────────
+
+  Room list concept → Kept, just ORBIT-styled, not Telegram-styled.
+  Weekly Challenges → Kept, just as dense list items.
+  Horizontal Mood Rooms → Kept (works well, just color-fixed).
+  Trust Score → Kept, just color-coded properly.
+  Stats row (Karma/Posts/Watches/Credits) → Kept, just typo-fixed.
+
+
+
+================================================================================
+  PART 11 — FINAL NAVIGATION STRUCTURE
+================================================================================
+
+  ┌──────────────────────────────────────────────────────────────────────┐
+  │ ORBIT — 4-TAB NAVIGATION FINAL STRUCTURE                            │
+  ├──────────────────────────────────────────────────────────────────────┤
+  │                                                                      │
+  │  TAB 1: ROOMS                                                        │
+  │    • Joined group rooms (list)                                       │
+  │    • DMs section                                                     │
+  │    • Spotlight Live (pinned inline)                                  │
+  │    Icon: MessageSquare · Badge: unread count (red dot)               │
+  │                                                                      │
+  │  TAB 2: DISCOVER                                                     │
+  │    • Pills: [All] [Hot 🔥] [Near You] [Challenges] [Bazaar]         │
+  │    • Mood Rooms (horizontal scroll)                                  │
+  │    • Hot rooms feed                                                  │
+  │    • Challenges (on "Challenges" pill)                               │
+  │    • Gigs marketplace (on "Bazaar" pill)                             │
+  │    Icon: Compass · Badge: dot if new challenge available             │
+  │                                                                      │
+  │  TAB 3: RANKS                                                        │
+  │    • Leaderboard (Global / Weekly / Challenges tabs)                 │
+  │    • YOUR position sticky bar at bottom                              │
+  │    Icon: Trophy · Badge: None                                        │
+  │                                                                      │
+  │  TAB 4: YOU                                                          │
+  │    • Avatar + Name + Handle + Bio                                    │
+  │    • Identity row (tier + rank + streak)                             │
+  │    • Stats (Karma / Posts / Watches / Credits)                       │
+  │    • Trust Score                                                     │
+  │    • ORBIT Card                                                      │
+  │    • Action rows (Settings, Notifications, Privacy, etc.)            │
+  │    Icon: CircleUser · Badge: None                                    │
+  │                                                                      │
+  └──────────────────────────────────────────────────────────────────────┘
+
+  ┌──────────────────────────────────────────────────────────────────────┐
+  │  BOTTOM NAV VISUAL                                                   │
+  │                                                                      │
+  │  [  □ Rooms  ] [  ◎ Discover  ] [  ▷ Ranks  ] [  ○ You  ]          │
+  │  [  Active ← 2px top blue line on active tab only  ]                │
+  │                                                                      │
+  │  Height: 64px + system safe area                                     │
+  │  Background: --bg-base, 1px --border-subtle top                     │
+  │  No blur, no glass effect, no elevation shadow                       │
+  └──────────────────────────────────────────────────────────────────────┘
+
+
+
+================================================================================
+  PART 12 — 10 NON-NEGOTIABLES (This Navigation Layer)
+================================================================================
+
+  ── 1. FOUR TABS. EXACTLY FOUR. ───────────────────────────────────────────────
+  No one adds a 5th tab and calls it an "improvement."
+  Bazaar goes inside Discover. Full stop.
+
+  ── 2. ACTIVE TAB = TOP LINE INDICATOR ONLY ──────────────────────────────────
+  No pill background, no color fill, no box around active tab.
+  A 2px line at the top of the tab item. That's it.
+  Telegram does it. ORBIT does it better (2px vs Telegram's color fill).
+
+  ── 3. ROOM LIST ITEMS = 68PX MAX HEIGHT ─────────────────────────────────────
+  No website-card-style padding. Dense. Scannable. Native.
+
+  ── 4. NO NEON CARD BACKGROUNDS IN MOOD ROOMS ────────────────────────────────
+  All mood room cards: --bg-surface-1. Left stripe: max 3px.
+  Violating this makes the entire Discover screen look like a children's app.
+
+  ── 5. "YOU" ROW IN LEADERBOARD = ACCENT-SOFT ONLY ───────────────────────────
+  Not solid blue. Not blue with border. Accent-soft (10% opacity) + 2px line.
+  The blue whispers. It does not shout.
+
+  ── 6. SECTION HEADERS = OVERLINE OR NOTHING ─────────────────────────────────
+  "GROUP ROOMS" → gone.
+  "MOOD ROOMS" → tiny 11px overline max, or removed.
+  "WEEKLY CHALLENGES" → "This Week" as overline.
+  All-caps bold section headers = web design. Not here.
+
+  ── 7. BAZAAR FAB = ONLY ON BAZAAR VIEW ──────────────────────────────────────
+  The "+ Post Gig" FAB appears ONLY when user is on Bazaar filter in Discover.
+  It disappears on all other views.
+  Persistent FABs that aren't contextual = clutter.
+
+  ── 8. TIER LABELS = SUBTLE PILLS ONLY ───────────────────────────────────────
+  "LEGEND" is NOT an orange bordered badge.
+  "CHAMPION" is NOT a blue gradient pill.
+  They are quiet --bg-surface-2 pills with --text-secondary text.
+  The USER knows they're Legend. The app doesn't need to scream it.
+
+  ── 9. ROOM ICONS = ROUNDED SQUARES (NOT CIRCLES) ────────────────────────────
+  Circles = people (avatars). Rounded squares = rooms/groups.
+  This single distinction makes it immediately clear: room ≠ person.
+
+  ── 10. BUILD DISCOVER FIRST, ROOMS SECOND ───────────────────────────────────
+  Discover tab is the most complex (4 filter states, mood rooms,
+  challenges, bazaar). Build it first, get it right.
+  Then port the list item design system to Rooms.
+  The list item design is the same pattern — build once, use everywhere.
+
+
+
+================================================================================
+  SIGN-OFF
+================================================================================
+
+  v7 ne architecture di.
+  v3 ne psychology di.
+  ZeroFriction ne intelligence di.
+  v2 UI Prompt ne design system di.
+  YEH PROMPT nav surgery karta hai.
+
+  Paanch layers. Ek app.
+
+  Telegram se seekho: Simple navigation = powerful app.
+  Instagram se seekho: 4 tabs = enough to build a billion users.
+  ORBIT se seekho: Real humans first, features second.
+
+  "4 tabs. Dense lists. Quiet colors.
+   Open any screen — you KNOW you're in an app.
+   That's the test. Build till you pass it."
+
+                                                — Ail Noor Alam
+                                                  Chandigarh · April 2026
+                                                  Built with Claude (Anthropic)
+
+================================================================================

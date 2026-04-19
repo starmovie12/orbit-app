@@ -1,0 +1,1136 @@
+================================================================================
+  ORBIT — ZERO-FRICTION INTELLIGENCE LAYER
+  "Open Universe + Personalized Feed Engine"
+  Prompt v1.0
+================================================================================
+
+  Complements  : ORBIT-Complete-Prompt-v3.0 + orbit-blueprint-v7.html
+  Does NOT modify either. Runs as an ADDITIVE layer on top of v3.
+  Generated    : April 2026 · Chandigarh
+  Built by     : Ail Noor Alam + Claude (Anthropic)
+
+  ONE-LINE MISSION:
+    "Koi bhi banda kisi bhi group mein seedha ghuse — bina Join button ke —
+     aur system khud samjhe ki use kya dikhana hai, jaise TikTok aur YouTube
+     samajhte hain, lekin chat ke liye."
+
+================================================================================
+  TABLE OF CONTENTS
+================================================================================
+
+  PART A — THE CORE PROBLEM (Why this prompt exists)
+  PART B — THE 5 LAWS OF ZERO-FRICTION DESIGN
+  PART C — OPEN UNIVERSE ENTRY SYSTEM (No Join Button)
+  PART D — LIVE PRESENCE ENGINE (Real-Time User Count)
+  PART E — INTEREST GRAPH ENGINE (Shadow Algorithm)
+  PART F — DUAL-VIEW ROOM SYSTEM (Live Stream + For You)
+  PART G — TOP SPARKS FEED (Personalized Message Algorithm)
+  PART H — FIRESTORE SCHEMA (New Collections)
+  PART I — CLOUD FUNCTIONS (New Functions)
+  PART J — UI/UX SPECS (Screen-by-Screen)
+  PART K — ANTI-ABUSE GUARDS (For Open Entry)
+  PART L — INTEGRATION WITH v3 (How they connect)
+  PART M — WEEK-1 BUILD PLAN (This Feature Only)
+  PART N — 10 NON-NEGOTIABLES (This Layer)
+
+
+
+================================================================================
+  PART A — THE CORE PROBLEM
+================================================================================
+
+  PROBLEM STATEMENT (in Noor's words, preserved exactly):
+
+    "Jaise Instagram ya YouTube per hota hai — agar 1 lakh users hain aur
+     kisi group mein 10,000 log live hain, aur doosre mein 15,000 — to yeh
+     dikhna chahiye. Aur har banda alag-alag message karta hai, toh system
+     yeh dhyan rakhe ki user kaise post dekh raha hai, kaise message bhej
+     raha hai, kis cheez ko like kar raha hai, kise save kar raha hai,
+     kise share kar raha hai — aur waise hi use message dikhaye. Jaise
+     YouTube aur Instagram pe hoti hai filtered, personalized feed."
+
+  THE 3-PART PROBLEM:
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │ PROBLEM 1: JOIN BUTTON = FRICTION                                       │
+  │   User feed mein group dikha → usne click kiya → "Join this group?"     │
+  │   popup aaya → wo bounce kar gaya. Yeh Discord hai, ORBIT nahi.         │
+  │   Discord = professional tool. ORBIT = hang-out. Different psychology.  │
+  ├─────────────────────────────────────────────────────────────────────────┤
+  │ PROBLEM 2: USER KO PATA NAHI KI GROUP MEIN KITNE LOG HAIN              │
+  │   User discovery feed se koi group kholega toh andar jaake pata chalega │
+  │   ki wahan 3 log hain ya 3,000. Yeh uncertainty friction hai.           │
+  │   Instagram Reels show karta hai view count pehle — isiliye click hota. │
+  ├─────────────────────────────────────────────────────────────────────────┤
+  │ PROBLEM 3: 150 MESSAGES/MIN FLOOD = CHAOS, USELESS                     │
+  │   High-activity room mein messages itni tezi se aayen ki koi padh na    │
+  │   sake. Sab scroll karte rahen, koi engage na kare, bounce ho jayein.   │
+  │   YouTube ne iska solution nikala: algorithm. TikTok ne nikala: pure     │
+  │   algorithm. Hum nikalenge: Dual View (choice + algorithm dono).        │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+  ROOT PSYCHOLOGICAL TRUTH:
+
+    ╔════════════════════════════════════════════════════════════════════╗
+    ║  "Insaan tab engage karta hai jab content already uske liye       ║
+    ║   filtered ho. Unfiltered flood = overwhelm = exit.               ║
+    ║   Filtered relevance = flow state = hours gone."                  ║
+    ╚════════════════════════════════════════════════════════════════════╝
+
+  Was this solved in v3?
+    PARTIALLY. v3 Part 14 (Low-Effort Engagement) mentioned a
+    "Highlights Feed" concept. But that was 1 line. THIS prompt makes it
+    a complete, buildable system with schemas, functions, and UI specs.
+    v3 = philosophy. This prompt = the machine that runs it.
+
+
+
+================================================================================
+  PART B — THE 5 LAWS OF ZERO-FRICTION DESIGN
+================================================================================
+
+  Har feature is prompt mein in 5 laws se pass hona chahiye.
+  Agar ek bhi fail ho, feature redesign karo.
+
+  LAW ZF-01 · ZERO-CLICK ENTRY:
+    Entry to any content should require ZERO deliberate decisions.
+    Click = enter. No confirmation, no join, no "are you sure?".
+    Exception: Private rooms (invite-only). That's different.
+
+  LAW ZF-02 · SHOW DON'T ASK:
+    Never ask user what they want. Watch what they DO.
+    1 hour of behavior > 100 preference questionnaires.
+    Interest Graph builds from action, not survey.
+
+  LAW ZF-03 · CONTEXT BEFORE COMMITMENT:
+    User must see enough to decide BEFORE any commitment is asked.
+    Live count, last message preview, active topics — all visible
+    from feed card. No surprises after click.
+
+  LAW ZF-04 · ALGORITHM IS INVISIBLE:
+    User should feel the app "just gets me." Never say "Based on
+    your interests." Just show relevant content. Magic > explanation.
+
+  LAW ZF-05 · CONTROL IS OPTIONAL, NOT FORCED:
+    User can always choose to see ALL messages (Live Stream tab).
+    Algorithm is the DEFAULT but never the ONLY option.
+    Power users want control. Casual users want magic. Give both.
+
+
+
+================================================================================
+  PART C — OPEN UNIVERSE ENTRY SYSTEM
+================================================================================
+
+  CONCEPT: ORBIT app ek "Open Universe" hai. Rooms = public spaces.
+  Koi bhi public space mein baith ke sunne ke liye permission nahi chahiye.
+
+  ── C.1 · THE NEW ENTRY FLOW ─────────────────────────────────────────────────
+
+  OLD FLOW (Broken):
+    Discovery Feed → Room Card → [JOIN THIS GROUP? ✓ Cancel] → Enter
+
+  NEW FLOW (Zero-Friction):
+    Discovery Feed → Room Card → [ONE TAP] → Instantly Inside
+
+  Rules:
+    ✓ Any logged-in user can ENTER any public room.
+    ✓ No popup, no confirmation, no "join" button.
+    ✓ First thing they see: Room header + live count + Dual View tabs.
+    ✓ They can READ all messages immediately.
+    ✓ They can REACT (🔥 ❤ 😂) immediately — and earn micro-credits (v3).
+    ✓ They can SEND messages immediately.
+    ✓ Sending first message = auto-membership (silent, background).
+
+  ── C.2 · AUTO-MEMBERSHIP TRIGGER ───────────────────────────────────────────
+
+  "Membership" in ORBIT = notification opt-in + appears in "My Rooms."
+
+  Auto-membership fires when user does ANY of:
+    • Sends 1 message in the room.
+    • Reacts to 3+ messages in a single session.
+    • Spends >5 minutes in the room in one session.
+    • Bookmarks the room manually.
+
+  Auto-membership is SILENT. No popup, no toast. Just:
+    • Room appears in user's "My Rooms" tab (dimmed until they revisit).
+    • Notification bell on room header becomes "active" (not ringing).
+    • They start appearing in room's "member" count.
+
+  ── C.3 · THE NOTIFICATION BELL (Replaces "Join") ───────────────────────────
+
+  The ONLY explicit action available in room header = 🔔 Bell.
+
+  Bell states (3 states):
+    🔕 Muted     (not a member, no notifications)
+    🔔 Active    (auto-member, gets Daily Digest notification only)
+    🔔🔔 Live    (opted-in manually, gets all notifications, max 3/day per v3)
+
+  Bell tap cycles: Muted → Live → Active → Muted.
+  User never sees the word "Join." Only the bell.
+
+  ── C.4 · PRIVATE ROOM EXCEPTION ────────────────────────────────────────────
+
+  Private rooms (invite-only) KEEP a join gate. That's intentional.
+  Private = exclusive. Entry requires:
+    • Direct link from existing member, OR
+    • Room creator's approval.
+
+  Private rooms are clearly marked 🔒 on discovery cards.
+  This prompt does NOT apply to private rooms.
+
+  ── C.5 · FIRESTORE CHANGES FOR OPEN ENTRY ──────────────────────────────────
+
+  rooms/{roomId}:
+    isOpen: boolean        // true = no join required (default for public)
+    isPrivate: boolean     // true = invite only
+    openSince: timestamp   // when isOpen was enabled
+
+  users/{uid}/roomActivity/{roomId}:
+    // This is the new "soft membership" document
+    firstEnteredAt: timestamp
+    lastEnteredAt: timestamp
+    totalSessionsCount: number
+    totalTimeSpentSeconds: number
+    messagesSentCount: number
+    reactionsGivenCount: number
+    membershipStatus: "visitor" | "soft-member" | "member" | "creator"
+    notificationLevel: "muted" | "active" | "live"
+    // auto-member triggers:
+    autoMemberTriggeredBy: "message" | "reactions" | "time" | "bookmark" | null
+
+
+
+================================================================================
+  PART D — LIVE PRESENCE ENGINE
+================================================================================
+
+  CONCEPT: Jab user discovery feed dekhta hai, use pehle se pata hona chahiye
+  ki us room mein ab is waqt kitne log LIVE hain. Jaise stadium ke bahar
+  board lagta hai: "15,000 fans inside."
+
+  ── D.1 · WHAT "LIVE" MEANS ──────────────────────────────────────────────────
+
+  A user is "LIVE" in a room if:
+    • They have the room screen open AND
+    • App is in foreground AND
+    • Last interaction (scroll, tap, message) was <3 minutes ago.
+
+  A user is "WARM" (recently active) if:
+    • They were LIVE in the last 15 minutes.
+
+  We show: LIVE count (bright) + WARM count (dimmed).
+  Example card: "🔴 10,247 live  · 3,891 recently"
+
+  ── D.2 · REAL-TIME COUNT ARCHITECTURE ──────────────────────────────────────
+
+  Challenge: 1 lakh users × 10 rooms × 60s updates = Firestore write storm.
+  Solution: Use Pusher Presence Channels (already in v7 stack).
+
+  Implementation:
+
+    // Client-side: when user enters room
+    pusherClient.subscribe(`presence-room-${roomId}`)
+    // Pusher automatically tracks members in presence channel
+    // pusher:member_added / pusher:member_removed events fire
+    // Channel object gives count in real-time
+
+    // Cloud Function: sync Pusher count to Firestore every 30s
+    // (for persistence, for users who aren't subscribed to Pusher yet)
+    syncPresenceCount = scheduled("every 30 seconds")
+      for each active room:
+        pusherCount = await pusherServer.get(`/channels/presence-room-${id}`)
+        rooms/{id}.liveCount = pusherCount.user_count
+        rooms/{id}.liveCountUpdatedAt = now()
+        // Also update peakLiveCount (all-time high, for social proof)
+        if pusherCount.user_count > rooms/{id}.peakLiveCount:
+          rooms/{id}.peakLiveCount = pusherCount.user_count
+
+  ── D.3 · ROOM CARD UI (Discovery Feed) ─────────────────────────────────────
+
+  Every room card in Discovery shows (before user enters):
+
+  ┌──────────────────────────────────────────────────────────┐
+  │  🎭 Desi Comedy Adda                                     │
+  │  "Latest: Rahul ne aisa joke maara ki... 😂"            │
+  │  [Trending] [Memes] [Comedy]                             │
+  │                                                          │
+  │  🔴 14,823 live now  ·  📈 Peak: 31K                    │
+  │  💬 Last message: 2 seconds ago                         │
+  └──────────────────────────────────────────────────────────┘
+
+  Elements:
+    • Room name + emoji
+    • Last message preview (truncated, non-spoilery)
+    • Topic tags (from v7 Part 4 room schema)
+    • 🔴 LIVE COUNT (pulsing red dot animation)
+    • Peak ever count (social proof — "this room has seen 31K")
+    • Recency ("2 seconds ago" updates every 10s via Firestore listener)
+
+  ── D.4 · LIVE COUNT DISPLAY RULES ──────────────────────────────────────────
+
+  Raw count → Display:
+    0–9       : "Just you here" (warm, inviting, not empty-feeling)
+    10–99     : "12 live now"
+    100–999   : "247 live now"
+    1K–9.9K   : "4.2K live now" (abbreviated)
+    10K+      : "14K live now" (abbreviated, pulsing animation added)
+    50K+      : "🔥 52K live" (fire emoji, special styling — FOMO trigger)
+
+  Color coding:
+    0–50      : Gray dot (quiet)
+    51–500    : Yellow dot (warming up)
+    501–5K    : Orange dot (hot)
+    5K+       : Red pulsing dot (peak energy)
+
+  ── D.5 · FIRESTORE SCHEMA ADDITIONS ─────────────────────────────────────────
+
+  rooms/{roomId}:
+    // ADD these fields to existing room schema
+    liveCount: number              // updated every 30s by Cloud Function
+    liveCountUpdatedAt: timestamp
+    warmCount: number              // active in last 15 min
+    peakLiveCount: number          // all-time high (social proof)
+    peakLiveAt: timestamp          // when peak happened
+    msgVelocity: number            // messages per minute (last 5 min)
+    lastMessagePreview: string     // max 80 chars, for card display
+    lastMessageAt: timestamp
+
+
+
+================================================================================
+  PART E — INTEREST GRAPH ENGINE (Shadow Algorithm)
+================================================================================
+
+  CONCEPT: Har user ka ek invisible "Interest Graph" banta hai — based
+  on unke actions, words, reactions, and time — jo determine karta hai
+  ki unhe room ke andar kaun se messages dikhaye jayein.
+  User kabhi is graph ko directly nahi dekhta. App bas "magically" relevant
+  dikhta hai.
+
+  ── E.1 · THE 6 SIGNALS WE TRACK ─────────────────────────────────────────────
+
+  SIGNAL 1 · DWELL TIME (Most important — 35% weight)
+    Definition: User ne kisi message par scroll rokke kitna time diya?
+    Capture: IntersectionObserver on each message card in "For You" view.
+      → <1 second : "skip" signal (negative)
+      → 1–2 seconds : "glance" signal (neutral)
+      → 3–8 seconds : "read" signal (positive)
+      → 8+ seconds : "deep read" signal (very positive)
+    Why it matters: Jo cheez user padhe bina scroll kare = ussko pasand nahi.
+    Jo cheez wo rok ke padhe = ussse related aur content dikhao.
+
+  SIGNAL 2 · REACTIONS (25% weight)
+    Capture: Every reaction tap on every message.
+    Map:
+      🔥 = "high energy" interest
+      ❤  = "emotional" interest
+      😂 = "humor" interest
+      😮 = "shocking/surprising" interest
+      💯 = "agree/validate" interest
+      🫶 = "wholesome" interest
+    Cumulative: If user gives 15 🔥 reactions in Comedy Adda over 3 days →
+    Comedy + High Energy = strong interest node.
+
+  SIGNAL 3 · SAVES (20% weight)
+    Capture: Bookmark icon on messages (long-press → save option).
+    Why high weight: Saving = strong intentional signal. User wants to
+    come back to this. Highest quality indicator.
+
+  SIGNAL 4 · SHARES (15% weight)
+    Capture: Share icon on messages → any external share OR share to DM.
+    Why important: User shared it = user thought it was worth showing others.
+    Strong quality signal.
+
+  SIGNAL 5 · CREATION PATTERNS (5% weight initially, grows over time)
+    Capture: Keywords, length, topics of user's OWN messages.
+    Logic: Jo banda cricket ke baare mein likhta hai = cricket content dikhao.
+    Jo banda motivational quotes likhta hai = inspirational content dikhao.
+    NLP: Simple keyword extraction using Gemini Flash (free tier).
+
+  SIGNAL 6 · SESSION CONTEXT (Bonus signal, no fixed weight)
+    Time of day + day of week user is active.
+    Example: If user always opens app 10pm–11pm → they like late-night humor.
+    Adjust content tone for their active window.
+
+  ── E.2 · INTEREST GRAPH STRUCTURE ──────────────────────────────────────────
+
+  Each user has an Interest Graph = a weighted map of topics and vibes.
+
+  Structure:
+
+    users/{uid}/interestGraph/current:
+      topics: {
+        "comedy":        { score: 87, trend: "rising",  lastUpdated: ts },
+        "cricket":       { score: 65, trend: "stable",  lastUpdated: ts },
+        "motivational":  { score: 23, trend: "falling", lastUpdated: ts },
+        "bollywood":     { score: 71, trend: "rising",  lastUpdated: ts },
+        "politics":      { score: 12, trend: "stable",  lastUpdated: ts },
+        "tech":          { score: 45, trend: "stable",  lastUpdated: ts },
+        // ... up to 20 tracked topics
+      }
+      vibes: {
+        "high-energy":   { score: 78 },
+        "humor":         { score: 82 },
+        "serious":       { score: 31 },
+        "emotional":     { score: 56 },
+        "wholesome":     { score: 44 },
+      }
+      languages: {
+        "hindi":    { score: 90 },
+        "english":  { score: 60 },
+        "punjabi":  { score: 45 },
+      }
+      graphVersion: number       // incremented on each update
+      lastUpdatedAt: timestamp
+      totalSignalsProcessed: number
+
+  ── E.3 · HOW THE GRAPH IS BUILT ─────────────────────────────────────────────
+
+  updateInterestGraph Cloud Function:
+    Triggered: After every user action (reaction, save, share, dwell event)
+    Batch: Actions buffered in client localStorage, flushed every 60 seconds
+           as a single Firestore write (to save writes quota).
+
+    Action → Score Change:
+      skip signal       : topic.score -= 2
+      glance signal     : no change
+      read signal       : topic.score += 3
+      deep read signal  : topic.score += 7
+      reaction given    : topic.score += 5  (vibe-mapped)
+      save              : topic.score += 12
+      share             : topic.score += 10
+      own message topic : topic.score += 4
+
+    Decay: Every 72 hours, all scores decay by 5% (old interests fade).
+    This ensures graph stays FRESH — user's interests today, not last month.
+
+    Score bounds: 0–100 (cannot exceed, cannot go negative).
+    New topic node created when score would first cross 10.
+    Topic node deleted when score falls below 5 (no longer relevant).
+
+  ── E.4 · HOW TOPICS ARE DETECTED IN MESSAGES ────────────────────────────────
+
+  Each incoming message is tagged by topic (server-side).
+
+  For Phase 1 (0–10K users):
+    Rule-based keyword matching (fast, free):
+      cricket_keywords = ["IPL", "wicket", "match", "over", "bat", "Team India"...]
+      comedy_keywords = ["lol", "haha", "😂", "joke", "funny", "rofl"...]
+      // etc. — 15 topic categories × 20–50 keywords each
+
+    messages/{msgId}.topics = ["comedy", "bollywood"]   // array of matched topics
+    messages/{msgId}.vibe = "humor"                     // dominant vibe
+
+  For Phase 2 (10K+ users):
+    Gemini Flash API (free tier: 15 RPM):
+      Batch classify messages every 2 minutes.
+      Output: { topics: [], vibe: "", language: "" }
+      Store back to Firestore.
+
+
+
+================================================================================
+  PART F — DUAL-VIEW ROOM SYSTEM
+================================================================================
+
+  CONCEPT: Ek hi room ke andar 2 different ways to experience it.
+  Tab 1 = Raw, unfiltered chaos (for people who want to LIVE in the room).
+  Tab 2 = Curated, personalized (for people who want to CONSUME the room).
+
+  ── F.1 · THE TWO TABS ───────────────────────────────────────────────────────
+
+  Room Screen Header:
+    [🔴 14K Live]  [Desi Comedy Adda]  [🔔]
+    ┌──────────────────────────────────┐
+    │  LIVE STREAM  │  FOR YOU ✨      │  ← sticky tabs, toggle
+    └──────────────────────────────────┘
+
+  ── F.2 · TAB 1 — LIVE STREAM ────────────────────────────────────────────────
+
+  What it is:
+    Raw chronological feed of all messages. Every message appears as it
+    arrives. This is the "real-time chaos" experience.
+
+  Who it's for:
+    • Power users who want to feel the live energy.
+    • Users who want to have CONVERSATIONS (reply threads).
+    • Creators who want their message seen by everyone.
+
+  Behavior:
+    • Messages arrive via Pusher (already in v7).
+    • If velocity > 50 msgs/min: show "⚡ 87 messages/min — tap to auto-scroll."
+    • If velocity > 150 msgs/min: AUTO-BATCH — show latest 10 messages at once
+      every 5 seconds instead of individual streaming. (Prevents seizure-scroll.)
+    • User can pause stream: "⏸ Paused — 234 new" (click to resume).
+
+  ── F.3 · TAB 2 — FOR YOU ✨ ────────────────────────────────────────────────
+
+  What it is:
+    A curated, ranked feed of the BEST messages in this room in the last
+    2 hours — filtered and ranked specifically for THIS user's Interest Graph.
+
+  Who it's for:
+    • Casual lurkers who don't want to chase a fast feed.
+    • New users who are still figuring out the app.
+    • Anyone visiting a high-activity room from outside.
+
+  How it works:
+    • Every message in the room has a topicScore, vibeScore, qualityScore.
+    • System finds messages that match THIS user's interestGraph.
+    • Shows top 30 messages in the past 2 hours, ranked by relevance.
+    • Refreshes every 60 seconds (not real-time — intentionally slower).
+    • User scrolls at their own pace, like a personal highlights reel.
+
+  Default tab:
+    • NEW users (first 7 days): Default = "FOR YOU" (easier entry, less chaos).
+    • EXPERIENCED users (7+ days): Default = "LIVE STREAM" (they want the pulse).
+    • User can manually set their own preference in Settings.
+
+  ── F.4 · TAB PERSISTENCE ────────────────────────────────────────────────────
+
+  users/{uid}:
+    // ADD to existing schema
+    defaultRoomView: "live" | "foryou" | "auto"   // default: "auto"
+    // "auto" = use new-user logic described above
+
+
+
+================================================================================
+  PART G — TOP SPARKS FEED (Personalized Message Algorithm)
+================================================================================
+
+  CONCEPT: "Top Sparks" = har room ke andar ke vo messages jo
+  (a) best quality hain, aur (b) is specific user ke liye most relevant hain.
+
+  ── G.1 · MESSAGE SCORING FORMULA ────────────────────────────────────────────
+
+  Every message gets a "sparkScore" for each individual user.
+  (This is computed on-demand / cached per user per room.)
+
+  sparkScore = (
+    0.35 * interestRelevance(msg.topics, user.interestGraph)
+  + 0.20 * engagementScore(msg.reactionCount, msg.replyCount, msg.saveCount)
+  + 0.15 * qualityScore(msg.aiScore)           // from v3 Account Health system
+  + 0.15 * recencyScore(msg.createdAt)         // newer = higher (decays by hour)
+  + 0.10 * socialProofScore(msg.creatorHealth) // is sender a high-health user?
+  + 0.05 * diversityBonus(msg, lastShownMsgs)  // avoid showing same creator 3x
+  )
+
+  interestRelevance():
+    matchScore = 0
+    for each topic in msg.topics:
+      if topic in user.interestGraph:
+        matchScore += user.interestGraph.topics[topic].score * 0.01
+    for each vibe in msg.vibes:
+      if vibe in user.interestGraph.vibes:
+        matchScore += user.interestGraph.vibes[vibe].score * 0.005
+    return clamp(matchScore, 0, 1)
+
+  recencyScore():
+    hoursOld = (now - msg.createdAt) / 3600000
+    return max(0, 1 - (hoursOld / 2))  // Full score now, 0 at 2 hours old.
+    // Only messages from last 2 hours appear in "For You."
+
+  ── G.2 · WHAT USER SEES IN "FOR YOU" ────────────────────────────────────────
+
+  Message card in "For You" tab is slightly different from Live Stream:
+
+  ┌──────────────────────────────────────────────────────────────┐
+  │  😂 ComedyKing_Arjun   · 14 min ago   [Verified ✓]          │
+  │                                                              │
+  │  "Bhai tune jo 10th mein exam chhoda tha, usne bhi          │
+  │   topper ban gaya. Aur tu abhi bhi 'padh lega' bol raha" 💀 │
+  │                                                              │
+  │  🔥 2,341  ❤ 876  😂 1,203          💾 Save   ↗ Share      │
+  │                                                              │
+  │  [89 replies ▾]                                             │
+  └──────────────────────────────────────────────────────────────┘
+
+  Differences from Live Stream card:
+    • Bigger card (more readable, not speed-scrolling).
+    • Save and Share buttons are prominent (to capture signals).
+    • Reply count clickable (expands thread inline).
+    • "🎯 Why you see this" (small text, optional — on long-press):
+      "You enjoy comedy content in Hindi."
+      (Shows user we're paying attention. Builds trust. Never spammy.)
+
+  ── G.3 · "FOR YOU" FEED REFRESH LOGIC ───────────────────────────────────────
+
+  DO NOT auto-refresh while user is reading (unlike Live Stream).
+
+  Refresh trigger:
+    • User reaches bottom of feed: "Load more from last 2 hours"
+    • User manually pulls to refresh.
+    • User comes back after >5 minutes away.
+
+  On refresh:
+    • Recompute sparkScore for all messages in room (last 2 hrs).
+    • Remove messages user already saw (unless they've gotten much more
+      engagement since — trending resurface).
+    • Re-rank and show top 20–30.
+
+  ── G.4 · COLD START PROBLEM (New User, Empty Interest Graph) ────────────────
+
+  Problem: New user ka Interest Graph is empty. sparkScore can't compute.
+
+  Solution: Cold Start Phase (first 24 hours):
+
+  STEP 1 · Onboarding Interest Picker (5 choices, fast):
+    After signup, show 8 topic bubbles, user picks 3–5:
+    [🏏 Cricket] [😂 Comedy] [💪 Motivation] [🎵 Music] [💻 Tech]
+    [🌍 News] [🎬 Bollywood] [🍕 Food & Life]
+
+    These become initial Interest Graph nodes with score = 50 (medium).
+
+  STEP 2 · Onboarding Room Auto-Match:
+    System auto-selects 3 rooms matching their chosen interests.
+    User is placed in these rooms (soft-member, no notification).
+    These become their first "For You" content source.
+
+  STEP 3 · Rapid Graph Building (First Session):
+    During first session, Interest Graph updates EVERY ACTION (not batched).
+    This way, after 10 minutes of use, graph is already meaningful.
+
+  STEP 4 · Fallback (If still empty after 5 minutes):
+    Show "City + Hot + Comedy" content by default.
+    India defaults: comedy, cricket, bollywood always perform well.
+    These are the cultural defaults for cold-start.
+
+
+
+================================================================================
+  PART H — FIRESTORE SCHEMA (New Collections & Fields)
+================================================================================
+
+  ── H.1 · NEW FIELD ADDITIONS TO EXISTING COLLECTIONS ───────────────────────
+
+  rooms/{roomId}  [ADD TO EXISTING]:
+    isOpen: boolean                  // Default: true for public rooms
+    liveCount: number                // Current live users (Pusher-synced)
+    liveCountUpdatedAt: timestamp
+    warmCount: number                // Active in last 15 min
+    peakLiveCount: number
+    peakLiveAt: timestamp
+    msgVelocity: number              // Messages per minute (last 5 min)
+    lastMessagePreview: string       // Max 80 chars, for discovery card
+    lastMessageAt: timestamp
+    defaultView: "live" | "foryou"   // Admin-set per room type
+
+  messages/{roomId}/msgs/{msgId}  [ADD TO EXISTING]:
+    topics: string[]                 // ["comedy", "cricket"]
+    vibe: string                     // "humor" | "emotional" | "intense" etc.
+    language: string                 // "hi" | "en" | "pa" etc.
+    aiTopicVersion: number           // Which classifier version tagged this
+    topicTaggedAt: timestamp
+    reactionCount: { total: number, byType: { "🔥": n, "❤": n, ... } }
+    saveCount: number
+    shareCount: number
+    replyCount: number
+    sparkBaseScore: number           // Pre-computed base score (without user-specific)
+    sparkBaseUpdatedAt: timestamp
+
+  ── H.2 · NEW COLLECTIONS ─────────────────────────────────────────────────────
+
+  users/{uid}/interestGraph/current:
+    (Full schema in Part E.2)
+
+  users/{uid}/interestGraph/history:
+    snapshots: [{ date, topics, vibes, version }]  // Daily snapshot, 30 days
+
+  users/{uid}/roomActivity/{roomId}:
+    (Full schema in Part C.5)
+
+  users/{uid}/signalBuffer:
+    // Temporary buffer — flushed every 60 seconds to interestGraph
+    pending: [
+      {
+        type: "dwell" | "reaction" | "save" | "share" | "create",
+        messageId: string,
+        roomId: string,
+        topics: string[],
+        vibe: string,
+        strength: number,    // -2 to +12
+        capturedAt: timestamp
+      }
+    ]
+
+  forYouCache/{uid}/{roomId}:
+    // Pre-computed "For You" results (re-used for 60s to avoid re-scoring)
+    rankedMessageIds: string[]
+    computedAt: timestamp
+    graphVersion: number   // If graph version changes → cache invalid
+
+
+
+================================================================================
+  PART I — CLOUD FUNCTIONS (New Functions Required)
+================================================================================
+
+  ── I.1 · onMessageCreated ────────────────────────────────────────────────────
+
+  Trigger: onCreate of any new message in messages/{roomId}/msgs/{msgId}
+
+    async function onMessageCreated(snap, context):
+      const msg = snap.data()
+      const roomId = context.params.roomId
+
+      // 1. Update room metadata
+      await rooms/{roomId}.update({
+        lastMessagePreview: msg.text.slice(0, 80),
+        lastMessageAt: now(),
+        msgVelocity: await computeVelocity(roomId)  // count msgs last 5 min
+      })
+
+      // 2. Topic tagging (Phase 1: rule-based)
+      const { topics, vibe, language } = tagMessageTopics(msg.text)
+      await snap.ref.update({ topics, vibe, language, aiTopicVersion: 1 })
+
+      // 3. Compute sparkBaseScore (non-user-specific part)
+      const baseScore = computeBaseSparkScore(msg)
+      await snap.ref.update({ sparkBaseScore: baseScore })
+
+  ── I.2 · syncPresenceCount ───────────────────────────────────────────────────
+
+  Trigger: Scheduled every 30 seconds
+
+    for each room where status = "active":
+      pusherData = await pusher.get(`/channels/presence-room-${roomId}`)
+      liveCount = pusherData.user_count || 0
+      await rooms/{roomId}.update({
+        liveCount,
+        liveCountUpdatedAt: now(),
+        peakLiveCount: max(liveCount, current.peakLiveCount)
+      })
+
+  ── I.3 · flushSignalBuffer ───────────────────────────────────────────────────
+
+  Trigger: Scheduled every 60 seconds (low frequency to save writes)
+  Also trigger: On user app close/background
+
+    for each user with pending signals in signalBuffer:
+      batch all pending signals
+      compute delta updates to interestGraph
+      update interestGraph/current
+      clear signalBuffer
+      increment graphVersion
+
+  ── I.4 · computeForYouFeed ──────────────────────────────────────────────────
+
+  Trigger: On-demand HTTP callable function (called by client)
+  Input: { userId, roomId }
+  Output: { rankedMessageIds: string[], computedAt: timestamp }
+
+    Check forYouCache/{userId}/{roomId}:
+      if cache exists AND computedAt < 60s ago AND graphVersion matches:
+        return cache.rankedMessageIds
+
+    // Cache miss — compute fresh
+    user = await getUser(userId)
+    graph = user.interestGraph
+    msgs = await getRecentMessages(roomId, last2hours)
+
+    scored = msgs.map(msg => ({
+      id: msg.id,
+      score: computeSparkScore(msg, graph)
+    }))
+
+    ranked = scored.sort(desc by score).slice(0, 30)
+    rankedIds = ranked.map(m => m.id)
+
+    await forYouCache/{userId}/{roomId}.set({
+      rankedMessageIds: rankedIds,
+      computedAt: now(),
+      graphVersion: graph.graphVersion
+    })
+
+    return rankedIds
+
+  ── I.5 · onUserAction (Signal Capture) ──────────────────────────────────────
+
+  Trigger: Client-side event (IntersectionObserver dwell, reaction, save, share)
+  Method: Client buffers in memory → flushes to Firestore /signalBuffer
+          every 60 seconds OR on app background.
+
+    Client-side code:
+
+    const signalBuffer = []
+
+    function captureSignal(type, messageId, roomId, topics, vibe, strength):
+      signalBuffer.push({ type, messageId, roomId, topics, vibe, strength,
+                          capturedAt: Date.now() })
+
+    // Flush on 60s interval or app-background
+    async function flushSignals():
+      if signalBuffer.length === 0: return
+      const batch = [...signalBuffer]
+      signalBuffer.length = 0
+      await users/{uid}/signalBuffer.update({ pending: arrayUnion(...batch) })
+      // Cloud Function I.3 will process this within 60s
+
+
+
+================================================================================
+  PART J — UI/UX SPECS (Screen by Screen)
+================================================================================
+
+  ── J.1 · DISCOVERY FEED CARD (Updated) ──────────────────────────────────────
+
+  Width: Full width minus 16px padding each side.
+  Height: 100px min, auto-expand for longer preview.
+
+  Layout (top to bottom):
+  ┌──────────────────────────────────────────────────────────────────┐
+  │ LEFT: Room emoji (40px)  │  CENTER: Name + Tags  │  RIGHT: Bell  │
+  │                          │  [Comedy] [Hindi]      │               │
+  ├──────────────────────────────────────────────────────────────────┤
+  │ Last message preview (1 line, faded)                             │
+  ├──────────────────────────────────────────────────────────────────┤
+  │ 🔴 14,823 live  ·  💬 2s ago  ·  📈 Peak 31K                   │
+  └──────────────────────────────────────────────────────────────────┘
+
+  Tap anywhere on card = enter room (NO join button, zero friction).
+
+  ── J.2 · ROOM SCREEN HEADER (Updated) ────────────────────────────────────────
+
+  ┌──────────────────────────────────────────────────────────────────┐
+  │ ← Back  │  🎭 Desi Comedy Adda  │  🔴 14K live  │  🔔  │  ⋮   │
+  └──────────────────────────────────────────────────────────────────┘
+  ┌──────────────────────────────────────────────────────────────────┐
+  │            LIVE STREAM             │       FOR YOU ✨             │
+  └──────────────────────────────────────────────────────────────────┘
+
+  Live count:
+    - Pulsing red dot before number when count > 500.
+    - Tapping live count shows a mini-modal: "14,823 people are in
+      this room right now. Peak was 31,241 last Wednesday."
+
+  ── J.3 · FOR YOU TAB EMPTY STATE ────────────────────────────────────────────
+
+  If user is brand new and graph is cold (first 10 minutes):
+  ┌──────────────────────────────────────────────────────────────────┐
+  │         ✨ Building your vibe...                                  │
+  │  React to a few messages and we'll personalize this for you.     │
+  │                                                                  │
+  │  Meanwhile, here's what's 🔥 in this room right now:            │
+  │  [Shows top 10 by engagement — no personalization yet]           │
+  └──────────────────────────────────────────────────────────────────┘
+
+  ── J.4 · MESSAGE CARDS IN "FOR YOU" TAB ──────────────────────────────────────
+
+  Bigger padding than Live Stream (16px vs 8px).
+  Save and Share icons always visible (not on long-press only).
+  Reaction bar below message.
+  Reply count as tappable row (expands thread).
+
+  Long-press menu:
+    • 💾 Save this message
+    • ↗ Share
+    • 🚩 Report
+    • 🎯 Why am I seeing this?  → Shows 1-line reason.
+
+  ── J.5 · SETTINGS SCREEN (New Section) ──────────────────────────────────────
+
+  Under "Feed & Rooms" settings section (new):
+
+    Default room view:
+      ○ Smart (new users = For You, veterans = Live Stream)   ← Default
+      ○ Always Live Stream
+      ○ Always For You
+
+    Show "Why you see this":
+      ○ On long-press (recommended)
+      ○ Never
+
+    Interest Graph:
+      [View your interest graph →]   // Shows their topics with scores
+      [Reset interest graph]         // Clears all signals, fresh start
+
+    Notification level default:
+      ○ Muted (never notify from rooms)
+      ○ Active (daily digest only)
+      ○ Live (max 3/day per v3 rules)
+
+
+
+================================================================================
+  PART K — ANTI-ABUSE GUARDS (For Open Entry)
+================================================================================
+
+  Problem: No join button = anyone can flood a room or spam instantly.
+  Solution: Rate limits + progressive trust.
+
+  ── K.1 · MESSAGE RATE LIMITS ─────────────────────────────────────────────────
+
+  Visitor (never messaged before in this room):
+    First message: No limit (want to enable first contact easily).
+    Next 5 messages: Max 1 per 30 seconds.
+    After 5 messages: Normal limits apply.
+
+  Soft-member (auto-joined by time/reactions, no message yet):
+    First message: No limit.
+    After: Normal limits.
+
+  Normal limits (from v3, unchanged):
+    Max 30 msgs/5 min per user per room.
+    Spam detection: same message twice = warning, thrice = 1h mute.
+
+  ── K.2 · RATE-LIMIT UI ───────────────────────────────────────────────────────
+
+  If rate limit hit: input field shows "⏳ Slow down a bit (23s)"
+  Never hard block. Always show countdown.
+  (Per v3 Non-Negotiable #2: Never silent-penalize.)
+
+  ── K.3 · QUALITY GATE FOR OPEN ROOMS ────────────────────────────────────────
+
+  Any user with Account Health < 30 (very low, per v3 Part 6):
+    → Can still enter rooms (open entry preserved).
+    → BUT their messages are "shadow-reviewed" for first 10 in any new room.
+    → AI mod (OpenAI Moderation API, free) reviews before display.
+    → Pass: shown normally. Fail: dropped silently + user sees "message sent"
+      (soft ghosting for the duration of the quality recovery quest).
+
+  This is NOT a join gate. It's a quality gate. Open entry preserved.
+
+  ── K.4 · BOT PROTECTION ─────────────────────────────────────────────────────
+
+  Bot farms would abuse open entry. Guards:
+    • Firebase App Check (already in v7) — device attestation.
+    • Phone OTP required before any messaging.
+    • If same IP sends 5+ new users in 24h → all flagged for review.
+    • Interest Graph outliers: Bot behavior shows no "dwell time"
+      signals (bots don't read). Flag accounts with 0 dwell signals
+      after 50+ messages for human review.
+
+
+
+================================================================================
+  PART L — INTEGRATION WITH v3 & v7
+================================================================================
+
+  THIS PROMPT DOES NOT MODIFY v3 OR v7. It integrates alongside.
+
+  ── L.1 · HOW THIS CONNECTS TO v3 ────────────────────────────────────────────
+
+  v3 Part 5 (Credit Economy):
+    → "For You" tab reactions earn same micro-credits (0.5 💎 per reaction).
+    → Save signal also earns credits (1 💎 per save, counted in daily cap).
+    → Interest Graph data feeds v3's "Quality Score" in Account Health.
+
+  v3 Part 6 (Account Health):
+    → Originality metric uses message topics to detect copy-paste.
+    → Community metric uses reply patterns from Live Stream.
+
+  v3 Part 7 (Room Lifecycle):
+    → liveCount, msgVelocity feed into hotScore formula.
+    → For You feed only shows messages from "active" rooms (not dormant).
+
+  v3 Part 10 (Quality-Weighted Discovery):
+    → FOR YOU feed acts as the "personalized" variant of Part 10's discovery.
+    → Part 10 = room-level discovery. This prompt = message-level discovery.
+    → They are COMPLEMENTARY layers.
+
+  v3 Part 14 (Low-Effort Engagement):
+    → This prompt IS the full buildout of the "Highlights Feed" concept from v3 Part 14.
+    → FOR YOU tab = the highlights feed, now with full spec.
+
+  v3 Part 21 (India-Specific Cultural Fit):
+    → Cold Start defaults (comedy, cricket, bollywood) align with Part 21.
+    → Language detection in Interest Graph feeds vernacular surfacing (Part 21).
+
+  ── L.2 · v7 TECH STACK COMPATIBILITY ────────────────────────────────────────
+
+  Pusher Channels: Already in v7. Used for Live Stream (unchanged) +
+                   Presence Channels for live count (new use).
+
+  Gemini Flash: Already in v7 for quality scoring.
+                Now also used for topic tagging of messages.
+
+  Meilisearch: Already in v7. Can be extended to search within "For You" feed.
+
+  Firestore: All new collections/fields designed to fit v7's existing schema.
+             No existing document structure broken.
+
+  PostHog: All Interest Graph events should be tracked as PostHog events.
+           This creates rich analytics: "what topics drive retention?",
+           "which vibe has best D7 retention?"
+
+
+
+================================================================================
+  PART M — WEEK-1 BUILD PLAN (This Feature Only)
+================================================================================
+
+  Prerequisites: v7 + v3 Phase 0 complete (auth, rooms, messaging working).
+
+  ── M.1 · DAY 1 (Open Entry) ─────────────────────────────────────────────────
+
+  ⏰ MORNING (3 hrs):
+    □ Remove "Join" button from all room card components.
+    □ Add isOpen: true to all existing public room documents.
+    □ Implement Notification Bell (3 states) in room header.
+    □ Implement Auto-membership trigger (message sent → soft-member).
+
+  ⏰ EVENING (2 hrs):
+    □ users/{uid}/roomActivity/{roomId} collection implementation.
+    □ Auto-membership Cloud Function (onMessage triggers if first msg in room).
+    □ Test: Enter room → no popup → send message → check "My Rooms".
+
+  ── M.2 · DAY 2 (Live Presence Count) ────────────────────────────────────────
+
+  ⏰ MORNING (3 hrs):
+    □ Implement Pusher Presence Channel on room entry.
+    □ Display live count in room header (pulsing dot animation).
+    □ Display live count + last message preview on discovery cards.
+
+  ⏰ EVENING (2 hrs):
+    □ syncPresenceCount Cloud Function (every 30s).
+    □ peakLiveCount tracking logic.
+    □ Live count color coding (gray/yellow/orange/red based on count).
+
+  ── M.3 · DAY 3 (Interest Graph Foundation) ──────────────────────────────────
+
+  ⏰ MORNING (3 hrs):
+    □ Topic keyword lists: 15 categories × 30 keywords (rule-based).
+    □ tagMessageTopics() function.
+    □ onMessageCreated Cloud Function: topic tagging on new messages.
+
+  ⏰ EVENING (3 hrs):
+    □ users/{uid}/interestGraph/current Firestore structure.
+    □ Onboarding Interest Picker (5 topic bubbles after signup).
+    □ Cold start graph seeding from onboarding picks.
+
+  ── M.4 · DAY 4 (Signal Capture) ────────────────────────────────────────────
+
+  ⏰ MORNING (3 hrs):
+    □ IntersectionObserver for dwell time on message cards.
+    □ captureSignal() client-side function.
+    □ Signal buffer in client memory.
+    □ 60-second flush to users/{uid}/signalBuffer.
+
+  ⏰ EVENING (2 hrs):
+    □ flushSignalBuffer Cloud Function.
+    □ updateInterestGraph logic (delta computation from signals).
+    □ Graph decay (5% every 72 hours — scheduled function).
+
+  ── M.5 · DAY 5 (Dual View + For You Feed) ───────────────────────────────────
+
+  ⏰ MORNING (3 hrs):
+    □ Dual tab UI in Room Screen (LIVE STREAM | FOR YOU ✨).
+    □ Live Stream tab = existing Pusher feed (no change).
+    □ FOR YOU tab layout — bigger cards, save/share prominent.
+
+  ⏰ EVENING (3 hrs):
+    □ computeForYouFeed Cloud Function (HTTP callable).
+    □ sparkScore computation.
+    □ forYouCache collection implementation.
+    □ Client: call function on tab switch, render results.
+
+  ── M.6 · DAY 6 (Cold Start + Anti-Abuse) ────────────────────────────────────
+
+  ⏰ MORNING (2 hrs):
+    □ Cold start fallback UI ("Building your vibe..." state).
+    □ Default to top-by-engagement when graph is empty.
+    □ Visitor rate limiting (1 msg/30s for first 5 messages).
+
+  ⏰ EVENING (2 hrs):
+    □ Quality gate for low-health users in open rooms.
+    □ "Why am I seeing this?" long-press feature.
+    □ Settings screen: Default view preference, interest graph viewer.
+
+  ── M.7 · DAY 7 (Test + Polish) ──────────────────────────────────────────────
+
+  ⏰ ALL DAY (5 hrs):
+    □ Full simulation: 5 different user personas, each spend 10 minutes.
+    □ Verify Interest Graph is updating after reactions, saves, dwell.
+    □ Verify live count shows correctly on room cards.
+    □ Verify no "Join" button exists anywhere in app (search codebase).
+    □ Verify "For You" shows different content for different simulated users.
+    □ PostHog: add events for signal captures, tab switches, graph updates.
+    □ Bug fixes.
+
+  END-OF-WEEK:
+    Open Entry working. Live counts live. For You feed personalized.
+    Interest Graph building from Day 1. Ready for real user testing.
+
+
+
+================================================================================
+  PART N — 10 NON-NEGOTIABLES (This Layer Only)
+================================================================================
+
+  These 10 rules kabhi bhi break nahi honge for this feature layer.
+
+  ── 1. NEVER SHOW A JOIN BUTTON ON PUBLIC ROOMS ───────────────────────────────
+  Koi bhi designer, developer, ya AB test kabhi public room mein
+  "Join" button nahi lagayega. EVER.
+
+  ── 2. NEVER SHOW RAW LIVE COUNT WHEN ROOM IS EMPTY ──────────────────────────
+  If count < 10: Show "Just you here" — not "3 live."
+  Empty = embarrassment. (v3 Law ZF-16 alignment.)
+
+  ── 3. NEVER TELL USER WE'RE TRACKING THEM ────────────────────────────────────
+  Interest Graph is invisible. No "based on your interests" banner.
+  Exception: "Why am I seeing this?" only appears on long-press.
+
+  ── 4. NEVER FORCE "FOR YOU" AS THE ONLY OPTION ──────────────────────────────
+  Live Stream tab ALWAYS available. Algorithm is default, not prison.
+  User choice = always preserved.
+
+  ── 5. NEVER LET FOR YOU SHOW CONTENT > 2 HOURS OLD ─────────────────────────
+  Stale content in a "live" room is worse than no content.
+  2-hour hard cutoff for For You feed. No exceptions.
+
+  ── 6. NEVER SHOW THE SAME CREATOR > 3 TIMES IN ONE FOR YOU LOAD ─────────────
+  Even if one creator's messages all score high — cap at 3.
+  Diversity bonus in sparkScore enforces this.
+
+  ── 7. NEVER LOSE SIGNAL BUFFER DATA SILENTLY ─────────────────────────────────
+  If flush fails: retry with exponential backoff.
+  Signal data = user's interest learning. Losing it = degraded experience.
+
+  ── 8. NEVER SKIP COLD START EXPERIENCE ──────────────────────────────────────
+  No new user should see an empty "For You" tab.
+  Always show either: Onboarding picker result, or top-by-engagement fallback.
+
+  ── 9. NEVER LABEL AI COMPANIONS AS REAL USERS IN LIVE COUNT ─────────────────
+  If AI Companions (v3 Part 16) are present in a room, they are NOT
+  counted in liveCount. They get a separate "🤖 + 3 AI companions" label.
+  DPDP Act compliance. User trust.
+
+  ── 10. NEVER COMPROMISE OPEN ENTRY FOR MODERATION CONVENIENCE ───────────────
+  Quality gates and rate limits are designed to be INVISIBLE.
+  The feeling of "open door" must be preserved even while abuse is prevented.
+  Internal mechanism ≠ UX friction.
+
+
+
+================================================================================
+  END OF ORBIT ZERO-FRICTION INTELLIGENCE LAYER v1.0
+================================================================================
+
+  SIGN-OFF:
+
+    v7 blueprint ne technical monster banaya.
+    v3 prompt ne us monster ko insaan-friendly banaya.
+    YEH PROMPT us insaan ko "brilliant host" banata hai —
+    jo har visitor ko pehchane, unhe sahi jagah le jaaye,
+    aur unhe wahi dikhaaye jo unhe pasand aaye —
+    bina kabhi pooche.
+
+    Architecture: v7.
+    Psychology: v3.
+    Intelligence: v1.0 (This Prompt).
+
+    "Open door. Smart host. Invisible algorithm.
+     That's ORBIT."
+
+    Insaan ghar mein ghuse — bina ruke, bina soche.
+    System samjhe — bina bataye, bina pooche.
+    Content mile — bilkul wahi jo chahiye tha.
+
+                                                — Ail Noor Alam
+                                                  Chandigarh · April 2026
+                                                  Built with Claude (Anthropic)
+
+================================================================================
