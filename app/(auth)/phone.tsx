@@ -21,13 +21,23 @@ import {
   normalizeIndianPhone,
   sendOtp,
 } from "@/lib/auth";
-import { setPhoneHandle } from "./otp-handle";
 
-/* ------------------------------------------------------------------ */
-/*  WEB-ONLY Firebase config.                                          */
-/*  Values copied from your google-services.json (project orbit-app).  */
-/*  authDomain pattern is always: <projectId>.firebaseapp.com          */
-/* ------------------------------------------------------------------ */
+/* ============================================================================
+   GLOBAL OTP STORE
+   ----------------
+   `app/(auth)/otp-handle.ts` ko Expo Router (transform.reactCompiler=true)
+   kabhi-kabhi tree-shake kar deta hai aur named exports gum ho jaate hain.
+   Isliye handle ko module mein store karne ke bajaye seedha globalThis pe
+   rakhte hain. Dono screens (phone + otp) yahi reference dekhti hain.
+   ============================================================================ */
+declare global {
+  // eslint-disable-next-line no-var
+  var __orbitOtp: { handle: any; phone: string } | undefined;
+}
+
+/* ============================================================================
+   WEB-ONLY Firebase config (orbit-app-5b4b3 project — google-services.json)
+   ============================================================================ */
 const FIREBASE_WEB_CONFIG = {
   apiKey: "AIzaSyDPXJ6oj2ac-5QsgDWDSslN_AaVrM7KQ2w",
   authDomain: "orbit-app-5b4b3.firebaseapp.com",
@@ -41,7 +51,7 @@ const FIREBASE_WEB_CONFIG = {
 let webAuthRef: any = null;
 let webVerifierRef: any = null;
 
-/* -------- Web ka apna sendOtp -- @react-native-firebase web pe nahi chalta -------- */
+/* Web ka apna sendOtp -- @react-native-firebase web pe nahi chalta */
 async function sendOtpWeb(phoneE164: string): Promise<any> {
   console.log("[Firebase Web] sendOtpWeb start:", phoneE164);
 
@@ -125,11 +135,14 @@ export default function PhoneScreen() {
           ? await sendOtpWeb(e164)
           : await sendOtp(e164);
 
-      console.log("[PhoneScreen] handle received ✅:", handle);
-      setPhoneHandle(handle as any, e164);
+      console.log("[PhoneScreen] handle received ✅");
+
+      // Store on globalThis (no broken otp-handle module needed)
+      globalThis.__orbitOtp = { handle, phone: e164 };
+      console.log("[PhoneScreen] handle stored on globalThis. navigating to /otp");
+
       router.push("/(auth)/otp");
     } catch (e: any) {
-      /* ---- DETAILED error logging tere debugging ke liye ---- */
       console.error("════════ OTP SEND FAILED ════════");
       console.error("code   :", e?.code);
       console.error("message:", e?.message);
