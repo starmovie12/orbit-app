@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -23,6 +23,69 @@ import {
 } from "@/lib/auth";
 import { setPhoneHandle } from "./otp-handle";
 
+/* ------------------------------------------------------------------ */
+/*  WEB-ONLY Firebase config.                                          */
+/*  Values copied from your google-services.json (project orbit-app).  */
+/*  authDomain pattern is always: <projectId>.firebaseapp.com          */
+/* ------------------------------------------------------------------ */
+const FIREBASE_WEB_CONFIG = {
+  apiKey: "AIzaSyDPXJ6oj2ac-5QsgDWDSslN_AaVrM7KQ2w",
+  authDomain: "orbit-app-5b4b3.firebaseapp.com",
+  projectId: "orbit-app-5b4b3",
+  storageBucket: "orbit-app-5b4b3.firebasestorage.app",
+  messagingSenderId: "250454225022",
+  appId: "1:250454225022:android:44b3e0a7ac0268cfe6a82f",
+};
+
+/* Module-level cache so reCAPTCHA solve hota hai sirf ek baar */
+let webAuthRef: any = null;
+let webVerifierRef: any = null;
+
+/* -------- Web ka apna sendOtp -- @react-native-firebase web pe nahi chalta -------- */
+async function sendOtpWeb(phoneE164: string): Promise<any> {
+  console.log("[Firebase Web] sendOtpWeb start:", phoneE164);
+
+  // Dynamic import — sirf web pe load hoga, native bundling break nahi karega
+  const { initializeApp, getApps, getApp } = await import("firebase/app");
+  const { getAuth, RecaptchaVerifier, signInWithPhoneNumber } = await import(
+    "firebase/auth"
+  );
+
+  const app = getApps().length ? getApp() : initializeApp(FIREBASE_WEB_CONFIG);
+  webAuthRef = getAuth(app);
+  console.log("[Firebase Web] auth ready. project:", app.options.projectId);
+
+  // reCAPTCHA ke liye DOM container chahiye
+  let container = document.getElementById("recaptcha-container");
+  if (!container) {
+    container = document.createElement("div");
+    container.id = "recaptcha-container";
+    document.body.appendChild(container);
+  }
+
+  // Verifier ek baar bana — multiple times banane se "already rendered" error aata hai
+  if (!webVerifierRef) {
+    webVerifierRef = new RecaptchaVerifier(webAuthRef, "recaptcha-container", {
+      size: "invisible",
+      callback: () => console.log("[reCAPTCHA] solved ✅"),
+      "expired-callback": () => console.log("[reCAPTCHA] expired ⚠️"),
+    });
+    await webVerifierRef.render();
+    console.log("[Firebase Web] reCAPTCHA rendered");
+  }
+
+  const confirmation = await signInWithPhoneNumber(
+    webAuthRef,
+    phoneE164,
+    webVerifierRef
+  );
+  console.log(
+    "[Firebase Web] OTP sent ✅ verificationId:",
+    confirmation?.verificationId
+  );
+  return confirmation;
+}
+
 export default function PhoneScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -35,15 +98,59 @@ export default function PhoneScreen() {
   const e164 = normalizeIndianPhone(raw);
   const valid = isValidE164(e164);
 
+  /* Pre-mount reCAPTCHA container so first click feels snappy */
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    if (!document.getElementById("recaptcha-container")) {
+      const div = document.createElement("div");
+      div.id = "recaptcha-container";
+      document.body.appendChild(div);
+    }
+    console.log("[PhoneScreen] mounted. Platform =", Platform.OS);
+  }, []);
+
   const send = async () => {
     if (!valid || sending) return;
     setSending(true);
+    console.log(
+      "[PhoneScreen] Send OTP click. phone =",
+      e164,
+      "platform =",
+      Platform.OS
+    );
+
     try {
-      const handle = await sendOtp(e164);
-      setPhoneHandle(handle, e164);
+      const handle =
+        Platform.OS === "web"
+          ? await sendOtpWeb(e164)
+          : await sendOtp(e164);
+
+      console.log("[PhoneScreen] handle received ✅:", handle);
+      setPhoneHandle(handle as any, e164);
       router.push("/(auth)/otp");
-    } catch (e) {
-      Alert.alert("OTP send nahi hua", authErrorMessage(e));
+    } catch (e: any) {
+      /* ---- DETAILED error logging tere debugging ke liye ---- */
+      console.error("════════ OTP SEND FAILED ════════");
+      console.error("code   :", e?.code);
+      console.error("message:", e?.message);
+      console.error("name   :", e?.name);
+      console.error("stack  :", e?.stack);
+      console.error("raw err:", e);
+      console.error("═════════════════════════════════");
+
+      const detail =
+        (e?.code ? `[${e.code}]\n` : "") +
+        (e?.message ?? authErrorMessage(e) ?? String(e));
+
+      Alert.alert("OTP send nahi hua", detail);
+
+      /* Web pe verifier reset karo taaki next try fresh ho */
+      if (Platform.OS === "web" && webVerifierRef) {
+        try {
+          webVerifierRef.clear();
+        } catch {}
+        webVerifierRef = null;
+      }
     } finally {
       setSending(false);
     }
@@ -72,9 +179,7 @@ export default function PhoneScreen() {
             { backgroundColor: colors.surface, borderColor: colors.border },
           ]}
         >
-          <View
-            style={[styles.ccBox, { borderRightColor: colors.border }]}
-          >
+          <View style={[styles.ccBox, { borderRightColor: colors.border }]}>
             <Text style={[styles.cc, { color: colors.text }]}>🇮🇳  +91</Text>
           </View>
           <TextInput
