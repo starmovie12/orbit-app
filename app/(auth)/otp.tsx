@@ -16,12 +16,65 @@ import { Feather } from "@expo/vector-icons";
 
 import { useColors } from "@/hooks/useColors";
 import { authErrorMessage, confirmOtp, sendOtp } from "@/lib/auth";
-import {
-  clearPhoneHandle,
-  getPhone,
-  getPhoneHandle,
-  setPhoneHandle,
-} from "./otp-handle";
+
+/* ============================================================================
+   GLOBAL OTP STORE (shared with phone.tsx).
+   Same shape as phone.tsx — koi import nahi, taaki broken otp-handle module
+   se dependency hi na rahe.
+   ============================================================================ */
+declare global {
+  // eslint-disable-next-line no-var
+  var __orbitOtp: { handle: any; phone: string } | undefined;
+}
+
+/* ============================================================================
+   WEB-ONLY Firebase resend helper.
+   `lib/auth.ts` ka sendOtp web pe nahi chalta (@react-native-firebase native-only).
+   Resend ke liye yahi inline web variant chahiye.
+   ============================================================================ */
+const FIREBASE_WEB_CONFIG = {
+  apiKey: "AIzaSyDPXJ6oj2ac-5QsgDWDSslN_AaVrM7KQ2w",
+  authDomain: "orbit-app-5b4b3.firebaseapp.com",
+  projectId: "orbit-app-5b4b3",
+  storageBucket: "orbit-app-5b4b3.firebasestorage.app",
+  messagingSenderId: "250454225022",
+  appId: "1:250454225022:android:44b3e0a7ac0268cfe6a82f",
+};
+
+let webVerifierRef: any = null;
+
+async function sendOtpWeb(phoneE164: string): Promise<any> {
+  console.log("[OtpScreen/Web] sendOtpWeb (resend) start:", phoneE164);
+  const { initializeApp, getApps, getApp } = await import("firebase/app");
+  const { getAuth, RecaptchaVerifier, signInWithPhoneNumber } = await import(
+    "firebase/auth"
+  );
+
+  const app = getApps().length ? getApp() : initializeApp(FIREBASE_WEB_CONFIG);
+  const auth = getAuth(app);
+
+  let container = document.getElementById("recaptcha-container-resend");
+  if (!container) {
+    container = document.createElement("div");
+    container.id = "recaptcha-container-resend";
+    document.body.appendChild(container);
+  }
+
+  if (!webVerifierRef) {
+    webVerifierRef = new RecaptchaVerifier(auth, "recaptcha-container-resend", {
+      size: "invisible",
+    });
+    await webVerifierRef.render();
+  }
+
+  const confirmation = await signInWithPhoneNumber(
+    auth,
+    phoneE164,
+    webVerifierRef
+  );
+  console.log("[OtpScreen/Web] resend OTP sent ✅");
+  return confirmation;
+}
 
 const RESEND_SECONDS = 45;
 
@@ -34,7 +87,7 @@ export default function OtpScreen() {
   const [verifying, setVerifying] = useState(false);
   const [cooldown, setCooldown] = useState(RESEND_SECONDS);
   const [resending, setResending] = useState(false);
-  const phone = getPhone();
+  const phone = globalThis.__orbitOtp?.phone ?? "";
 
   const inputRef = useRef<TextInput>(null);
 
@@ -45,18 +98,26 @@ export default function OtpScreen() {
 
   // If user landed here without a handle (e.g. deep-link), push them back.
   useEffect(() => {
-    if (!getPhoneHandle()) router.replace("/(auth)/phone");
+    if (!globalThis.__orbitOtp?.handle) {
+      console.log("[OtpScreen] no handle in store — redirecting to /phone");
+      router.replace("/(auth)/phone");
+    } else {
+      console.log("[OtpScreen] handle present ✅ phone =", globalThis.__orbitOtp.phone);
+    }
   }, [router]);
 
   const verify = async (value: string) => {
-    const handle = getPhoneHandle();
+    const handle = globalThis.__orbitOtp?.handle;
     if (!handle || verifying) return;
     setVerifying(true);
+    console.log("[OtpScreen] verify click. code length =", value.length);
     try {
       await confirmOtp(handle, value);
-      clearPhoneHandle();
+      globalThis.__orbitOtp = undefined;
+      console.log("[OtpScreen] OTP verified ✅");
       // RouteGuard will push us to onboarding once user doc is ensured.
-    } catch (e) {
+    } catch (e: any) {
+      console.error("[OtpScreen] verify FAILED:", e?.code, e?.message);
       Alert.alert("Verify nahi hua", authErrorMessage(e));
       setCode("");
       inputRef.current?.focus();
@@ -74,12 +135,24 @@ export default function OtpScreen() {
   const resend = async () => {
     if (cooldown > 0 || resending) return;
     setResending(true);
+    console.log("[OtpScreen] resend click. platform =", Platform.OS);
     try {
-      const handle = await sendOtp(phone);
-      setPhoneHandle(handle, phone);
+      const handle =
+        Platform.OS === "web"
+          ? await sendOtpWeb(phone)
+          : await sendOtp(phone);
+      globalThis.__orbitOtp = { handle, phone };
       setCooldown(RESEND_SECONDS);
-    } catch (e) {
+      console.log("[OtpScreen] resend done ✅");
+    } catch (e: any) {
+      console.error("[OtpScreen] resend FAILED:", e?.code, e?.message);
       Alert.alert("Resend nahi hua", authErrorMessage(e));
+      if (Platform.OS === "web" && webVerifierRef) {
+        try {
+          webVerifierRef.clear();
+        } catch {}
+        webVerifierRef = null;
+      }
     } finally {
       setResending(false);
     }
@@ -99,8 +172,9 @@ export default function OtpScreen() {
       <View style={styles.body}>
         <Text style={[styles.title, { color: colors.text }]}>OTP daalo</Text>
         <Text style={[styles.sub, { color: colors.sub }]}>
-          6-digit code <Text style={{ color: colors.text, fontWeight: "700" }}>{phone}</Text> pe
-          bheja gaya hai.
+          6-digit code{" "}
+          <Text style={{ color: colors.text, fontWeight: "700" }}>{phone}</Text>{" "}
+          pe bheja gaya hai.
         </Text>
 
         <View style={styles.cells}>
