@@ -1,15 +1,22 @@
 /**
- * ORBIT — Room Chat Screen
+ * ORBIT — Room Chat Screen (Firestore-wired)
  *
- * Full group chat experience. Supports: text, voice notes, image previews.
- * Design tokens: orbit.* only. No hardcoded hex. No emojis in chrome.
- * Feather icons only. 4px spacing grid. One accent color.
+ * v2 changes from v1 (mock):
+ *   • Room header reads from /rooms/{id} via subscribeRoom.
+ *   • Messages load live from /rooms/{id}/messages via subscribeMessages.
+ *   • handleSend() writes to Firestore + bumps denormalized lastMessage*.
+ *   • MY_UID comes from AuthContext.
+ *   • Falls back to mock BASE_MSGS if the user is not signed in (splash).
+ *
+ * UI chrome, voice-note waveform, bubble clustering, date separators
+ * — all preserved bit-for-bit. No hardcoded hex added. Orbit tokens only.
  */
 
 import React, {
   useState,
   useRef,
   useCallback,
+  useEffect,
   useMemo,
 } from "react";
 import {
@@ -30,10 +37,21 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { ROOMS } from "@/constants/data";
 import { Avatar } from "@/components/shared";
 import { orbit } from "@/constants/colors";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  subscribeRoom,
+  touchRoomLastMessage,
+  type RoomDoc,
+} from "@/lib/firestore-rooms";
+import {
+  subscribeMessages,
+  sendTextMessage,
+  type MessageDoc,
+} from "@/lib/firestore-messages";
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   TYPES
-───────────────────────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────────────
+   TYPES (screen-local view model — keeps the Bubble renderer unchanged)
+───────────────────────────────────────────────────────────────────── */
 
 type MsgType = "text" | "voice" | "image";
 
@@ -43,42 +61,83 @@ interface ChatMessage {
   name: string;
   text?: string;
   type: MsgType;
-  /** Voice note duration in seconds */
   duration?: number;
-  /** Image caption */
   caption?: string;
   time: string;
-  /** ISO timestamp for date separators */
+  /** Numeric ts used ONLY to group date separators; seconds-since-epoch is fine. */
   ts: number;
 }
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   MOCK DATA — one conversation per room id, fallback to "default"
-───────────────────────────────────────────────────────────────────────────── */
-
-const MY_UID = "me";
-
-const BASE_MSGS: ChatMessage[] = [
-  { id: "1",  uid: "ghost_player", name: "ghost_player", text: "Kal ka plan kya hai yaar?",              type: "text",  time: "21:58", ts: 1 },
-  { id: "2",  uid: "neo_gamer",    name: "neo_gamer",    text: "Gaming session pakka?",                  type: "text",  time: "21:59", ts: 1 },
-  { id: "3",  uid: MY_UID,         name: "You",          text: "Haan chalega, kya time pe milna?",       type: "text",  time: "22:00", ts: 1 },
-  { id: "4",  uid: "ghost_player", name: "ghost_player", text: "Raat 10 baje ke baad? Server ready hai", type: "text",  time: "22:01", ts: 1 },
-  { id: "5",  uid: "noor_bhai",    name: "noor_bhai",                                                    type: "voice", duration: 12, time: "22:03", ts: 1 },
-  { id: "6",  uid: MY_UID,         name: "You",          text: "Perfect, main 10:15 pe aaunga",          type: "text",  time: "22:04", ts: 1 },
-  { id: "7",  uid: "neo_gamer",    name: "neo_gamer",    text: "Bhai aaj sad lag raha yaar…",            type: "text",  time: "22:10", ts: 2 },
-  { id: "8",  uid: "ghost_player", name: "ghost_player", text: "Kya hua bhai, sab theek?",               type: "text",  time: "22:11", ts: 2 },
-  { id: "9",  uid: MY_UID,         name: "You",          text: "Tension mat lo, will catch up!",         type: "text",  time: "22:12", ts: 2 },
-  { id: "10", uid: "noor_bhai",    name: "noor_bhai",    text: "Haha +1 bhai sab milke solve karenge",   type: "text",  time: "22:13", ts: 2 },
-  { id: "11", uid: "ghost_player", name: "ghost_player",                                                 type: "voice", duration: 8,  time: "22:14", ts: 2 },
-  { id: "12", uid: MY_UID,         name: "You",          text: "Ekdum sahi kaha",                        type: "text",  time: "22:15", ts: 2 },
-];
-
-/** Fixed waveform heights per index (no Math.random to avoid re-render flicker) */
+/* Fixed waveform heights (unchanged from v1) */
 const WAVE_HEIGHTS = [6, 12, 8, 16, 10, 18, 8, 14, 10, 16, 8, 12, 6, 14, 10, 18, 8, 12, 6, 10];
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   SUB-COMPONENTS
-───────────────────────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────────────
+   MOCK — used only when the user is signed out (e.g. during splash).
+───────────────────────────────────────────────────────────────────── */
+const FALLBACK_UID = "me";
+const BASE_MSGS: ChatMessage[] = [
+  { id: "1", uid: "ghost_player", name: "ghost_player", text: "Kal ka plan kya hai yaar?", type: "text", time: "21:58", ts: 1 },
+  { id: "2", uid: "neo_gamer", name: "neo_gamer", text: "Gaming session pakka?", type: "text", time: "21:59", ts: 1 },
+  { id: "3", uid: FALLBACK_UID, name: "You", text: "Haan chalega, kya time pe milna?", type: "text", time: "22:00", ts: 1 },
+];
+
+/* ─────────────────────────────────────────────────────────────────────
+   Helpers
+───────────────────────────────────────────────────────────────────── */
+
+function tsToSeconds(ts: any): number {
+  if (!ts) return 0;
+  if (typeof ts?.toDate === "function") return Math.floor(ts.toDate().getTime() / 1000);
+  if (ts instanceof Date) return Math.floor(ts.getTime() / 1000);
+  if (typeof ts === "number") return ts;
+  return 0;
+}
+
+function fmtHHMM(ts: any): string {
+  if (!ts) return "";
+  const d: Date | null =
+    typeof ts?.toDate === "function" ? ts.toDate() :
+    ts instanceof Date ? ts : null;
+  if (!d) return "";
+  return d.toLocaleTimeString("en-IN", {
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  });
+}
+
+/** Map a Firestore message doc → the screen's view model. */
+function mapMessage(m: MessageDoc, myUid: string): ChatMessage {
+  const isMe = m.uid === myUid;
+  return {
+    id: m.id,
+    uid: m.uid,
+    name: isMe ? "You" : m.username,
+    text: m.text ?? undefined,
+    type: (m.type === "system" ? "text" : m.type) as MsgType,
+    duration: m.duration ?? undefined,
+    caption: m.caption ?? undefined,
+    time: fmtHHMM(m.createdAt),
+    ts: tsToSeconds(m.createdAt),
+  };
+}
+
+/** Labels for the date separator above a message cluster. */
+function dateLabelFor(tsSeconds: number): string {
+  if (tsSeconds === 0) return "Today";
+  const d = new Date(tsSeconds * 1000);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const msgDay = new Date(d);
+  msgDay.setHours(0, 0, 0, 0);
+  const diffDays = Math.round((today.getTime() - msgDay.getTime()) / 86_400_000);
+  if (diffDays <= 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return d.toLocaleDateString("en-IN", { weekday: "long" });
+  return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   Sub-components (unchanged rendering)
+───────────────────────────────────────────────────────────────────── */
 
 function LiveBadge() {
   return (
@@ -113,10 +172,7 @@ function VoiceNote({ isMe, duration }: { isMe: boolean; duration: number }) {
             key={i}
             style={[
               styles.waveBar,
-              {
-                height: h,
-                backgroundColor: playing && i < 8 ? barActive : barColor,
-              },
+              { height: h, backgroundColor: playing && i < 8 ? barActive : barColor },
             ]}
           />
         ))}
@@ -129,23 +185,20 @@ function VoiceNote({ isMe, duration }: { isMe: boolean; duration: number }) {
   );
 }
 
-/** Single message bubble + metadata */
 function Bubble({
-  msg,
-  prevMsg,
-  nextMsg,
+  msg, prevMsg, nextMsg, myUid,
 }: {
   msg: ChatMessage;
   prevMsg?: ChatMessage;
   nextMsg?: ChatMessage;
+  myUid: string;
 }) {
-  const isMe = msg.uid === MY_UID;
+  const isMe = msg.uid === myUid;
   const prevSame = prevMsg?.uid === msg.uid;
   const nextSame = nextMsg?.uid === msg.uid;
   const isClusterStart = !prevSame;
   const isClusterEnd = !nextSame;
 
-  /* Border radius logic — clusters share radius on inner edges */
   const bubbleRadius = 18;
   const tailRadius = 4;
   const myBR = {
@@ -169,7 +222,6 @@ function Bubble({
         { marginTop: isClusterStart ? 10 : 2 },
       ]}
     >
-      {/* Avatar column (others) — visible only at cluster start */}
       {!isMe && (
         <View style={styles.avatarCol}>
           {isClusterEnd ? <Avatar name={msg.name} size={30} /> : null}
@@ -177,7 +229,6 @@ function Bubble({
       )}
 
       <View style={[styles.msgGroup, isMe ? styles.msgGroupMe : styles.msgGroupOther]}>
-        {/* Sender name — first in cluster, others only */}
         {!isMe && isClusterStart && (
           <Text style={styles.senderName}>{msg.name}</Text>
         )}
@@ -185,33 +236,20 @@ function Bubble({
         <View
           style={[
             styles.bubble,
-            isMe
-              ? [styles.bubbleMe, myBR]
-              : [styles.bubbleOther, otherBR],
+            isMe ? [styles.bubbleMe, myBR] : [styles.bubbleOther, otherBR],
           ]}
         >
           {msg.type === "voice" && msg.duration != null ? (
             <VoiceNote isMe={isMe} duration={msg.duration} />
           ) : (
-            <Text
-              style={[
-                styles.msgText,
-                isMe ? styles.msgTextMe : styles.msgTextOther,
-              ]}
-            >
+            <Text style={[styles.msgText, isMe ? styles.msgTextMe : styles.msgTextOther]}>
               {msg.text}
             </Text>
           )}
         </View>
 
-        {/* Timestamp — only at cluster end */}
         {isClusterEnd && (
-          <Text
-            style={[
-              styles.msgTime,
-              isMe ? styles.msgTimeRight : styles.msgTimeLeft,
-            ]}
-          >
+          <Text style={[styles.msgTime, isMe ? styles.msgTimeRight : styles.msgTimeLeft]}>
             {msg.time}
           </Text>
         )}
@@ -220,7 +258,6 @@ function Bubble({
   );
 }
 
-/** Date separator between message groups */
 function DateSeparator({ label }: { label: string }) {
   return (
     <View style={styles.dateSep}>
@@ -231,53 +268,92 @@ function DateSeparator({ label }: { label: string }) {
   );
 }
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   SCREEN
-───────────────────────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────────────
+   Screen
+───────────────────────────────────────────────────────────────────── */
 
 export default function RoomChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const listRef = useRef<FlatList<ChatMessage>>(null);
+  const listRef = useRef<FlatList<any>>(null);
+
+  const { firebaseUser, user } = useAuth();
+  const myUid = firebaseUser?.uid ?? FALLBACK_UID;
+  const myUsername = user?.username ?? "you";
 
   const [text, setText] = useState("");
-  const [messages, setMessages] = useState<ChatMessage[]>(BASE_MSGS);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [roomDoc, setRoomDoc] = useState<RoomDoc | null>(null);
+  const [sending, setSending] = useState(false);
 
-  const room = useMemo(
+  /* Room header — live. Falls back to mock ROOMS catalog so the header
+     never flashes empty while we wait for Firestore. */
+  const mockRoom = useMemo(
     () => ROOMS.find((r) => r.id === id) ?? ROOMS[0],
     [id]
   );
 
-  const handleSend = useCallback(() => {
-    const trimmed = text.trim();
-    if (!trimmed) return;
-    const newMsg: ChatMessage = {
-      id: Date.now().toString(),
-      uid: MY_UID,
-      name: "You",
-      text: trimmed,
-      type: "text",
-      time: new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: false }),
-      ts: 3,
-    };
-    setMessages((prev) => [...prev, newMsg]);
-    setText("");
-    setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 80);
-  }, [text]);
+  useEffect(() => {
+    if (!id) return;
+    const unsub = subscribeRoom(id, (doc) => setRoomDoc(doc));
+    return unsub;
+  }, [id]);
 
+  /* Live messages. */
+  useEffect(() => {
+    if (!id) return;
+    const unsub = subscribeMessages("room", id, (docs) => {
+      const mapped = docs.map((m) => mapMessage(m, myUid));
+      // If Firestore is empty AND user is signed out → show mock so screen isn't blank.
+      setMessages(mapped.length === 0 && !firebaseUser ? BASE_MSGS : mapped);
+    });
+    return unsub;
+  }, [id, myUid, firebaseUser]);
+
+  const handleSend = useCallback(async () => {
+    const trimmed = text.trim();
+    if (!trimmed || sending || !id) return;
+    if (!firebaseUser || !user) return;           // no optimistic send when signed-out
+
+    setSending(true);
+    const originalText = text;
+    setText("");                                   // optimistic UI
+
+    try {
+      await sendTextMessage("room", id, {
+        uid: myUid,
+        username: myUsername,
+        text: trimmed,
+      });
+      await touchRoomLastMessage(id, {
+        preview: trimmed,
+        uid: myUid,
+        username: myUsername,
+      });
+      // Live subscription will deliver the new doc and auto-scroll.
+      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 120);
+    } catch (e) {
+      // Put the text back so the user can retry.
+      setText(originalText);
+    } finally {
+      setSending(false);
+    }
+  }, [text, sending, id, firebaseUser, user, myUid, myUsername]);
+
+  /* Build list items with date separators at cluster boundaries. */
   type ListItem =
     | { kind: "separator"; label: string; key: string }
     | { kind: "msg"; msg: ChatMessage; prevMsg?: ChatMessage; nextMsg?: ChatMessage; key: string };
 
   const listData = useMemo<ListItem[]>(() => {
     const result: ListItem[] = [];
-    let lastTs: number | null = null;
+    let lastDayLabel: string | null = null;
     messages.forEach((msg, i) => {
-      if (msg.ts !== lastTs) {
-        const labels: Record<number, string> = { 1: "Yesterday", 2: "Today", 3: "Today" };
-        result.push({ kind: "separator", label: labels[msg.ts] ?? "Today", key: `sep-${msg.ts}` });
-        lastTs = msg.ts;
+      const label = dateLabelFor(msg.ts);
+      if (label !== lastDayLabel) {
+        result.push({ kind: "separator", label, key: `sep-${label}-${i}` });
+        lastDayLabel = label;
       }
       result.push({
         kind: "msg",
@@ -296,13 +372,23 @@ export default function RoomChatScreen() {
         return <DateSeparator label={item.label} />;
       }
       return (
-        <Bubble msg={item.msg} prevMsg={item.prevMsg} nextMsg={item.nextMsg} />
+        <Bubble
+          msg={item.msg}
+          prevMsg={item.prevMsg}
+          nextMsg={item.nextMsg}
+          myUid={myUid}
+        />
       );
     },
-    []
+    [myUid]
   );
 
   const topPad = insets.top + (Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) : 0);
+
+  /* Header display values (prefer live doc, fall back to mock). */
+  const headerName = roomDoc?.name ?? mockRoom.name;
+  const headerOnline = roomDoc?.memberCount ?? mockRoom.online;
+  const headerIsLive = roomDoc?.isLive ?? mockRoom.isLive;
 
   return (
     <KeyboardAvoidingView
@@ -330,12 +416,12 @@ export default function RoomChatScreen() {
         >
           <View style={styles.headerTitleRow}>
             <Text style={styles.headerName} numberOfLines={1}>
-              {room.name}
+              {headerName}
             </Text>
-            {room.isLive && <LiveBadge />}
+            {headerIsLive && <LiveBadge />}
           </View>
           <Text style={styles.headerSub}>
-            {room.online.toLocaleString("en-IN")} members online
+            {headerOnline.toLocaleString("en-IN")} members online
           </Text>
         </TouchableOpacity>
 
@@ -402,13 +488,15 @@ export default function RoomChatScreen() {
             returnKeyType="default"
             accessibilityLabel="Type a message"
             accessibilityRole="none"
+            editable={!sending}
           />
         </View>
 
         {text.trim().length > 0 ? (
           <TouchableOpacity
-            style={styles.sendBtn}
+            style={[styles.sendBtn, sending && { opacity: 0.5 }]}
             onPress={handleSend}
+            disabled={sending}
             activeOpacity={0.82}
             accessibilityRole="button"
             accessibilityLabel="Send message"
@@ -430,14 +518,13 @@ export default function RoomChatScreen() {
   );
 }
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   STYLES
-───────────────────────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────────────
+   STYLES (unchanged from v1)
+───────────────────────────────────────────────────────────────────── */
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
 
-  /* Header */
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -487,7 +574,6 @@ const styles = StyleSheet.create({
     backgroundColor: orbit.borderSubtle,
   },
 
-  /* Live badge */
   liveBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -510,14 +596,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
 
-  /* Messages list */
   msgList: {
     paddingHorizontal: 12,
     paddingTop: 8,
     paddingBottom: 12,
   },
 
-  /* Date separator */
   dateSep: {
     flexDirection: "row",
     alignItems: "center",
@@ -538,7 +622,6 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
 
-  /* Message row */
   msgRow: {
     flexDirection: "row",
     alignItems: "flex-end",
@@ -547,13 +630,12 @@ const styles = StyleSheet.create({
   msgRowMe: { justifyContent: "flex-end" },
   msgRowOther: { justifyContent: "flex-start" },
 
-  /* Avatar column — 34px wide, always takes space for alignment */
   avatarCol: {
     width: 34,
     alignItems: "center",
     marginRight: 6,
     alignSelf: "flex-end",
-    paddingBottom: 18, // clears timestamp
+    paddingBottom: 18,
   },
 
   msgGroup: { maxWidth: "74%" },
@@ -569,7 +651,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.1,
   },
 
-  /* Bubble */
   bubble: {
     paddingHorizontal: 14,
     paddingVertical: 10,
@@ -595,7 +676,6 @@ const styles = StyleSheet.create({
   msgTimeRight: { alignSelf: "flex-end" },
   msgTimeLeft: { alignSelf: "flex-start" },
 
-  /* Voice note */
   voiceRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -626,7 +706,6 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
 
-  /* Input bar */
   inputBar: {
     flexDirection: "row",
     alignItems: "flex-end",
