@@ -2,49 +2,56 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
-  FlatList,
   ScrollView,
   TouchableOpacity,
   StyleSheet,
   Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useColors } from '@/hooks/useColors';
+import { Feather } from '@expo/vector-icons';
 import { DISCOVER_POSTS, MOOD_ROOMS, WEEKLY_CHALLENGES, MY_PROFILE } from '@/constants/data';
-import { ScreenHeader, SearchBar, Divider, CreditPill, WalletDrawer } from '@/components/shared';
+import {
+  ScreenHeader,
+  SearchBar,
+  Divider,
+  CreditPill,
+  WalletDrawer,
+  IconBox,
+  Avatar,
+  TierPill,
+} from '@/components/shared';
+import { orbit } from '@/constants/colors';
 
 const FILTERS = ['All', 'Gaming', 'Music', 'Business', 'Art'];
 
 function MoodRoomsSection() {
-  const colors = useColors();
   return (
     <View style={styles.moodSection}>
       <View style={styles.sectionTitleRow}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>🌙 Mood Rooms</Text>
-        <TouchableOpacity>
-          <Text style={[styles.seeAll, { color: colors.blueLight }]}>See all</Text>
+        <Text style={styles.sectionTitle}>Mood Rooms</Text>
+        <TouchableOpacity hitSlop={6}>
+          <Text style={styles.seeAll}>See all</Text>
         </TouchableOpacity>
       </View>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 12, gap: 10, paddingVertical: 4 }}
+        contentContainerStyle={{ paddingHorizontal: 20, gap: 12, paddingVertical: 4 }}
       >
         {MOOD_ROOMS.map(m => (
-          <TouchableOpacity
-            key={m.id}
-            style={[styles.moodCard, { backgroundColor: m.color + '22', borderColor: m.color + '55' }]}
-            activeOpacity={0.75}
-          >
-            <Text style={styles.moodEmoji}>{m.emoji}</Text>
-            <Text style={[styles.moodName, { color: colors.text }]} numberOfLines={1}>{m.name}</Text>
-            <Text style={[styles.moodMembers, { color: colors.sub }]}>{m.members} online</Text>
-            <View style={[styles.moodTag, { backgroundColor: m.color + '33' }]}>
-              <Text style={[styles.moodTagText, { color: m.color }]}>{m.tag}</Text>
+          <TouchableOpacity key={m.id} style={styles.moodCard} activeOpacity={0.85}>
+            {/* 3px accent stripe — single subtle category cue */}
+            <View style={[styles.moodStripe, { backgroundColor: m.accent }]} />
+            <View style={styles.moodInner}>
+              <View style={styles.moodIconBox}>
+                <Feather name={m.icon as any} size={20} color={orbit.textPrimary} />
+              </View>
+              <Text style={styles.moodName} numberOfLines={2}>{m.name}</Text>
+              <Text style={styles.moodMembers}>{m.members} online</Text>
+              <View style={styles.moodTagPill}>
+                <Text style={styles.moodTagText}>{m.tag}</Text>
+              </View>
             </View>
-            <TouchableOpacity style={[styles.joinBtn, { backgroundColor: m.color }]} activeOpacity={0.8}>
-              <Text style={styles.joinBtnText}>Join</Text>
-            </TouchableOpacity>
           </TouchableOpacity>
         ))}
       </ScrollView>
@@ -53,39 +60,28 @@ function MoodRoomsSection() {
 }
 
 function WeeklyChallengesSection() {
-  const colors = useColors();
   return (
     <View style={styles.challengeSection}>
       <View style={styles.sectionTitleRow}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>🏆 Weekly Challenges</Text>
-        <View style={[styles.resetBadge, { backgroundColor: colors.red + '22', borderColor: colors.red + '44' }]}>
-          <Text style={[styles.resetText, { color: colors.red }]}>Resets Sun</Text>
-        </View>
+        <Text style={styles.sectionTitle}>Weekly Challenges</Text>
+        <Text style={styles.resetText}>Resets Sun</Text>
       </View>
       {WEEKLY_CHALLENGES.map((c, i) => (
         <React.Fragment key={c.id}>
-          <TouchableOpacity
-            style={[styles.challengeItem, { backgroundColor: colors.background }]}
-            activeOpacity={0.75}
-          >
-            <View style={[styles.challengeEmoji, { backgroundColor: colors.surface2, borderColor: colors.border }]}>
-              <Text style={{ fontSize: 22 }}>{c.emoji}</Text>
-            </View>
+          <TouchableOpacity style={styles.challengeItem} activeOpacity={0.7}>
+            <IconBox icon={c.icon} size={40} />
             <View style={styles.challengeBody}>
-              <Text style={[styles.challengeTitle, { color: colors.text }]} numberOfLines={1}>{c.title}</Text>
-              <View style={styles.challengeMeta}>
-                <Text style={[styles.challengeEntries, { color: colors.sub }]}>{c.entries} entries</Text>
-                <Text style={[styles.challengeEnds, { color: colors.mutedForeground }]}>· ends in {c.ends}</Text>
-              </View>
+              <Text style={styles.challengeTitle} numberOfLines={1}>{c.title}</Text>
+              <Text style={styles.challengeMeta}>
+                {c.entries} entries · ends in {c.ends}
+              </Text>
             </View>
             <View style={styles.challengeRight}>
-              <Text style={[styles.challengePrize, { color: colors.gold }]}>{c.prize}</Text>
-              <TouchableOpacity style={[styles.enterBtn, { backgroundColor: colors.primary }]} activeOpacity={0.8}>
-                <Text style={styles.enterBtnText}>Enter</Text>
-              </TouchableOpacity>
+              <Text style={styles.challengePrize}>{c.prize}</Text>
+              <Feather name="chevron-right" size={18} color={orbit.textTertiary} />
             </View>
           </TouchableOpacity>
-          {i < WEEKLY_CHALLENGES.length - 1 && <Divider indent={false} />}
+          {i < WEEKLY_CHALLENGES.length - 1 && <Divider />}
         </React.Fragment>
       ))}
     </View>
@@ -93,7 +89,6 @@ function WeeklyChallengesSection() {
 }
 
 export default function DiscoverScreen() {
-  const colors = useColors();
   const insets = useSafeAreaInsets();
   const [search, setSearch] = useState('');
   const [activeFilter, setFilter] = useState('All');
@@ -112,48 +107,49 @@ export default function DiscoverScreen() {
     setWatched(prev => ({ ...prev, [id]: true }));
   };
 
-  const renderPost = ({ item }: { item: typeof DISCOVER_POSTS[0] }) => (
-    <View style={[styles.discoverItem, { backgroundColor: colors.background }]}>
-      <View style={[styles.discoverThumb, { backgroundColor: item.color + '22', borderColor: item.color + '44' }]}>
-        <Text style={styles.discoverThumbEmoji}>{item.emoji}</Text>
-      </View>
-
+  const renderPost = (item: typeof DISCOVER_POSTS[0]) => (
+    <View style={styles.discoverItem}>
+      <IconBox icon={item.icon} size={48} />
       <View style={styles.discoverBody}>
-        <Text style={[styles.discoverTitle, { color: colors.text }]} numberOfLines={2}>
+        <Text style={styles.discoverTitle} numberOfLines={2}>
           {item.title}
         </Text>
-        <Text style={[styles.discoverSub, { color: colors.sub }]} numberOfLines={1}>
-          by {item.author} {item.tag} · {item.room} · {item.views} views
-        </Text>
-
+        <View style={styles.discoverMetaRow}>
+          <Text style={styles.discoverAuthor}>@{item.author}</Text>
+          <Text style={styles.discoverDot}>·</Text>
+          <Text style={styles.discoverMeta}>{item.views} views</Text>
+        </View>
         <View style={styles.discoverActions}>
           <TouchableOpacity
             style={[
               styles.btnWatch,
-              { backgroundColor: watchedIds[item.id] ? colors.green : colors.primary },
+              watchedIds[item.id] && styles.btnWatchDone,
             ]}
             onPress={() => handleWatch(item.id)}
-            activeOpacity={0.8}
+            activeOpacity={0.85}
           >
+            <Feather
+              name={watchedIds[item.id] ? 'check' : 'play'}
+              size={13}
+              color="#FFFFFF"
+            />
             <Text style={styles.btnWatchText}>
-              {watchedIds[item.id] ? '✓ Watched' : `▶ Watch (${item.duration})`}
+              {watchedIds[item.id] ? 'Watched' : `Watch · ${item.duration}`}
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.btnMsg, { borderColor: colors.border }]}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.btnMsgText, { color: colors.sub }]}>✉ Message</Text>
+          <TouchableOpacity style={styles.btnMsg} activeOpacity={0.8}>
+            <Feather name="message-circle" size={13} color={orbit.textSecond} />
+            <Text style={styles.btnMsgText}>Message</Text>
           </TouchableOpacity>
         </View>
       </View>
     </View>
   );
 
-  const bottomPad = Platform.OS === 'web' ? 34 : insets.bottom;
+  const bottomPad = Platform.OS === 'web' ? 90 : insets.bottom + 70;
 
   return (
-    <View style={[styles.screen, { backgroundColor: colors.background }]}>
+    <View style={[styles.screen, { backgroundColor: orbit.bg }]}>
       <ScreenHeader
         title="Discover"
         right={<CreditPill credits={MY_PROFILE.watchCredits} onPress={() => setWallet(true)} />}
@@ -166,49 +162,46 @@ export default function DiscoverScreen() {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: bottomPad + 16 }}
+        contentContainerStyle={{ paddingBottom: bottomPad }}
       >
         <MoodRoomsSection />
-
-        <Divider indent={false} />
-
         <WeeklyChallengesSection />
 
-        <Divider indent={false} />
+        <View style={styles.feedHeader}>
+          <Text style={styles.sectionTitle}>Spotlight Feed</Text>
+        </View>
 
-        <View style={[styles.feedHeader, { borderBottomColor: colors.border }]}>
-          <Text style={[styles.feedTitle, { color: colors.text }]}>📡 Spotlight Feed</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ gap: 8 }}
-          >
-            {FILTERS.map(f => (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 20, gap: 8, paddingBottom: 8 }}
+        >
+          {FILTERS.map(f => {
+            const active = activeFilter === f;
+            return (
               <TouchableOpacity
                 key={f}
                 style={[
                   styles.filterPill,
-                  { backgroundColor: colors.surface2, borderColor: colors.border },
-                  activeFilter === f && { backgroundColor: colors.primary, borderColor: colors.primary },
+                  active && styles.filterPillActive,
                 ]}
                 onPress={() => setFilter(f)}
-                activeOpacity={0.75}
+                activeOpacity={0.8}
               >
                 <Text style={[
                   styles.filterPillText,
-                  { color: colors.sub },
-                  activeFilter === f && { color: '#fff' },
+                  active && styles.filterPillTextActive,
                 ]}>
                   {f}
                 </Text>
               </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
+            );
+          })}
+        </ScrollView>
 
         {filtered.map((item, index) => (
           <React.Fragment key={item.id}>
-            {renderPost({ item })}
+            {renderPost(item)}
             {index < filtered.length - 1 && <Divider />}
           </React.Fragment>
         ))}
@@ -225,140 +218,216 @@ export default function DiscoverScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  moodSection: {
-    paddingTop: 14,
-    paddingBottom: 8,
+  sectionTitle: {
+    color: orbit.textPrimary,
+    fontSize: 17,
+    fontWeight: '600',
+    letterSpacing: -0.2,
   },
   sectionTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    marginBottom: 10,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
+    paddingHorizontal: 20,
+    marginBottom: 12,
   },
   seeAll: {
+    color: orbit.accent,
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  resetText: {
+    color: orbit.textTertiary,
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '500',
+  },
+
+  /* Mood Rooms — single shared surface, accent stripe instead of neon bg */
+  moodSection: {
+    paddingTop: 20,
+    paddingBottom: 16,
   },
   moodCard: {
-    width: 130,
-    borderRadius: 12,
+    width: 152,
+    height: 180,
+    borderRadius: 16,
+    backgroundColor: orbit.surface1,
     borderWidth: 1,
-    padding: 12,
-    alignItems: 'center',
-    gap: 4,
+    borderColor: orbit.borderSubtle,
+    overflow: 'hidden',
+    flexDirection: 'row',
   },
-  moodEmoji: { fontSize: 28, marginBottom: 2 },
-  moodName: { fontSize: 13, fontWeight: '600', textAlign: 'center' },
-  moodMembers: { fontSize: 11 },
-  moodTag: {
+  moodStripe: {
+    width: 3,
+    height: '100%',
+    opacity: 0.7,
+  },
+  moodInner: {
+    flex: 1,
+    padding: 14,
+  },
+  moodIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 9,
+    backgroundColor: orbit.surface2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  moodName: {
+    color: orbit.textPrimary,
+    fontSize: 14,
+    fontWeight: '600',
+    lineHeight: 18,
+  },
+  moodMembers: {
+    color: orbit.textTertiary,
+    fontSize: 12,
+    marginTop: 4,
+  },
+  moodTagPill: {
+    alignSelf: 'flex-start',
+    backgroundColor: orbit.surface2,
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 4,
-    marginVertical: 4,
-  },
-  moodTagText: { fontSize: 10, fontWeight: '700' },
-  joinBtn: {
-    paddingHorizontal: 20,
-    paddingVertical: 5,
     borderRadius: 6,
-    marginTop: 2,
+    marginTop: 'auto',
   },
-  joinBtnText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  moodTagText: {
+    color: orbit.textSecond,
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+
+  /* Weekly challenges */
   challengeSection: {
-    paddingTop: 14,
+    paddingTop: 16,
     paddingBottom: 8,
   },
-  resetBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 4,
-    borderWidth: 1,
-  },
-  resetText: { fontSize: 10, fontWeight: '700' },
   challengeItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    gap: 10,
-  },
-  challengeEmoji: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    gap: 12,
   },
   challengeBody: { flex: 1 },
-  challengeTitle: { fontSize: 13, fontWeight: '600', marginBottom: 3 },
-  challengeMeta: { flexDirection: 'row', alignItems: 'center' },
-  challengeEntries: { fontSize: 11 },
-  challengeEnds: { fontSize: 11 },
-  challengeRight: { alignItems: 'flex-end', gap: 6 },
-  challengePrize: { fontSize: 12, fontWeight: '700' },
-  enterBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 6,
+  challengeTitle: {
+    color: orbit.textPrimary,
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 4,
   },
-  enterBtnText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  challengeMeta: {
+    color: orbit.textTertiary,
+    fontSize: 12,
+  },
+  challengeRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  challengePrize: {
+    color: orbit.accent,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+
+  /* Feed */
   feedHeader: {
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 10,
-    gap: 10,
-    borderBottomWidth: 1,
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 12,
   },
-  feedTitle: { fontSize: 16, fontWeight: '700' },
   filterPill: {
     paddingHorizontal: 14,
-    paddingVertical: 5,
-    borderRadius: 20,
+    paddingVertical: 7,
+    borderRadius: 18,
+    backgroundColor: orbit.surface1,
     borderWidth: 1,
+    borderColor: orbit.borderSubtle,
   },
-  filterPillText: { fontSize: 12, fontWeight: '600' },
+  filterPillActive: {
+    backgroundColor: 'rgba(91, 127, 255, 0.10)',
+    borderColor: orbit.accent,
+  },
+  filterPillText: {
+    color: orbit.textSecond,
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  filterPillTextActive: {
+    color: orbit.accent,
+    fontWeight: '600',
+  },
+
+  /* Discover post */
   discoverItem: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    gap: 12,
   },
-  discoverThumb: {
-    width: 54,
-    height: 54,
-    borderRadius: 8,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  discoverThumbEmoji: { fontSize: 26 },
   discoverBody: { flex: 1 },
   discoverTitle: {
+    color: orbit.textPrimary,
     fontSize: 14,
     fontWeight: '600',
     lineHeight: 20,
-    marginBottom: 3,
+    marginBottom: 4,
   },
-  discoverSub: { fontSize: 12, marginBottom: 8 },
+  discoverMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    gap: 4,
+  },
+  discoverAuthor: {
+    color: orbit.textSecond,
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  discoverDot: {
+    color: orbit.textTertiary,
+    fontSize: 12,
+  },
+  discoverMeta: {
+    color: orbit.textTertiary,
+    fontSize: 12,
+  },
   discoverActions: { flexDirection: 'row', gap: 8 },
   btnWatch: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: orbit.accent,
     paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 6,
+    paddingVertical: 7,
+    borderRadius: 8,
+    gap: 5,
   },
-  btnWatchText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  btnWatchDone: {
+    backgroundColor: orbit.success,
+  },
+  btnWatchText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
   btnMsg: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: orbit.surface2,
     paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 6,
-    borderWidth: 1,
+    paddingVertical: 7,
+    borderRadius: 8,
+    gap: 5,
   },
-  btnMsgText: { fontSize: 12, fontWeight: '600' },
+  btnMsgText: {
+    color: orbit.textSecond,
+    fontSize: 12,
+    fontWeight: '500',
+  },
 });
