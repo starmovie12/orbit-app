@@ -96,7 +96,7 @@ const colors = {
   light: palette,
   dark:  palette,
   radius: 12,
+  orbit,
 };
 
 export default colors;
-export { orbit };
