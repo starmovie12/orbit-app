@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
-import { orbit } from "@/constants/colors";
+import colors from "@/constants/colors";
 import { authErrorMessage, confirmOtp, sendOtp } from "@/lib/auth";
 
 declare global {
@@ -86,6 +86,117 @@ function prettyPhone(e164: string): string {
 export default function OtpScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+
+  // ── Orbit tokens accessed at render-time, not module-init ──────
+  const orbit = useMemo(() => colors.orbit, []);
+
+  // ── Styles created lazily after orbit tokens are available ─────
+  const styles = useMemo(() => StyleSheet.create({
+    root: { flex: 1 },
+    header: { paddingHorizontal: 20, paddingBottom: 8 },
+    backBtn: {
+      width: 36,
+      height: 36,
+      alignItems: "center",
+      justifyContent: "center",
+      marginLeft: -8,
+    },
+    body: { flex: 1, paddingHorizontal: 20, paddingTop: 16 },
+    title: {
+      color: orbit.textPrimary,
+      fontSize: 24,
+      fontWeight: "700",
+      marginBottom: 8,
+      letterSpacing: -0.4,
+    },
+    sub: {
+      color: orbit.textSecond,
+      fontSize: 15,
+      marginBottom: 36,
+      lineHeight: 22,
+    },
+    phoneText: {
+      color: orbit.textPrimary,
+      fontWeight: "600",
+    },
+    otpWrap: { position: "relative" },
+    cells: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      gap: 8,
+    },
+    cell: {
+      flex: 1,
+      height: 56,
+      maxWidth: 52,
+      borderRadius: 12,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    cellText: {
+      fontSize: 22,
+      fontWeight: "600",
+    },
+    caret: {
+      position: "absolute",
+      width: 2,
+      height: 22,
+      backgroundColor: orbit.accent,
+      borderRadius: 1,
+    },
+    invisibleInput: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      color: "transparent",
+      backgroundColor: "transparent",
+      fontSize: 1,
+      textAlign: "center",
+      // @ts-ignore — web only
+      caretColor: "transparent",
+    },
+    resendRow: {
+      marginTop: 28,
+      alignItems: "center",
+    },
+    resend: {
+      color: orbit.accent,
+      fontSize: 14,
+      fontWeight: "600",
+    },
+    resendDim: {
+      color: orbit.textTertiary,
+      fontSize: 13,
+    },
+    resendDimBold: {
+      color: orbit.textSecond,
+      fontWeight: "600",
+    },
+    footer: { paddingHorizontal: 20, paddingTop: 8, gap: 12 },
+    cta: {
+      paddingVertical: 16,
+      borderRadius: 12,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    ctaText: {
+      fontSize: 15,
+      fontWeight: "600",
+      letterSpacing: 0.2,
+    },
+    recaptchaNote: {
+      color: orbit.textTertiary,
+      fontSize: 11,
+      textAlign: "center",
+      lineHeight: 16,
+    },
+    legalLink: {
+      color: orbit.textSecond,
+      fontWeight: "500",
+    },
+  }), [orbit]);
 
   const [code, setCode] = useState("");
   const [verifying, setVerifying] = useState(false);
@@ -292,110 +403,3 @@ export default function OtpScreen() {
     </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  root: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingBottom: 8 },
-  backBtn: {
-    width: 36,
-    height: 36,
-    alignItems: "center",
-    justifyContent: "center",
-    marginLeft: -8,
-  },
-  body: { flex: 1, paddingHorizontal: 20, paddingTop: 16 },
-  title: {
-    color: orbit.textPrimary,
-    fontSize: 24,
-    fontWeight: "700",
-    marginBottom: 8,
-    letterSpacing: -0.4,
-  },
-  sub: {
-    color: orbit.textSecond,
-    fontSize: 15,
-    marginBottom: 36,
-    lineHeight: 22,
-  },
-  phoneText: {
-    color: orbit.textPrimary,
-    fontWeight: "600",
-  },
-  otpWrap: { position: "relative" },
-  cells: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 8,
-  },
-  cell: {
-    flex: 1,
-    height: 56,
-    maxWidth: 52,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cellText: {
-    fontSize: 22,
-    fontWeight: "600",
-  },
-  caret: {
-    position: "absolute",
-    width: 2,
-    height: 22,
-    backgroundColor: orbit.accent,
-    borderRadius: 1,
-  },
-  invisibleInput: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    color: "transparent",
-    backgroundColor: "transparent",
-    fontSize: 1,
-    textAlign: "center",
-    // @ts-ignore — web only
-    caretColor: "transparent",
-  },
-  resendRow: {
-    marginTop: 28,
-    alignItems: "center",
-  },
-  resend: {
-    color: orbit.accent,
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  resendDim: {
-    color: orbit.textTertiary,
-    fontSize: 13,
-  },
-  resendDimBold: {
-    color: orbit.textSecond,
-    fontWeight: "600",
-  },
-  footer: { paddingHorizontal: 20, paddingTop: 8, gap: 12 },
-  cta: {
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  ctaText: {
-    fontSize: 15,
-    fontWeight: "600",
-    letterSpacing: 0.2,
-  },
-  recaptchaNote: {
-    color: orbit.textTertiary,
-    fontSize: 11,
-    textAlign: "center",
-    lineHeight: 16,
-  },
-  legalLink: {
-    color: orbit.textSecond,
-    fontWeight: "500",
-  },
-});
