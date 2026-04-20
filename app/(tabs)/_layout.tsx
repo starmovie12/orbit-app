@@ -109,6 +109,7 @@ export default function TabLayout() {
       />
       <Tabs.Screen name="rooms" options={{ href: null }} />
       <Tabs.Screen name="inbox" options={{ href: null }} />
+      <Tabs.Screen name="settings" options={{ href: null }} />
     </Tabs>
   );
 }
