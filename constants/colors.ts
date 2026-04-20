@@ -99,4 +99,5 @@ const colors = {
   orbit,
 };
 
+export { orbit };
 export default colors;
