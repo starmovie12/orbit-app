@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Platform,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { MY_PROFILE } from '@/constants/data';
@@ -94,7 +95,7 @@ function OrbitCard() {
 
       <View style={styles.cardActions}>
         <TouchableOpacity style={styles.cardShareBtn} activeOpacity={0.85}>
-          <Feather name="share-2" size={14} color="#FFFFFF" />
+          <Feather name="share-2" size={14} color={orbit.white} />
           <Text style={styles.cardShareText}>Share Card</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.cardQrBtn} activeOpacity={0.85}>
@@ -120,6 +121,7 @@ const SETTINGS: { icon: any; label: string; danger?: boolean }[] = [
 ];
 
 export default function ProfileScreen() {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const p = MY_PROFILE;
   const bottomPad = Platform.OS === 'web' ? 100 : insets.bottom + 80;
@@ -129,7 +131,12 @@ export default function ProfileScreen() {
       <ScreenHeader
         title="You"
         right={
-          <TouchableOpacity hitSlop={8}>
+          <TouchableOpacity
+            hitSlop={8}
+            onPress={() => router.push('/(tabs)/settings' as never)}
+            accessibilityRole="button"
+            accessibilityLabel="Open settings"
+          >
             <Feather name="settings" size={20} color={orbit.textSecond} />
           </TouchableOpacity>
         }
@@ -198,13 +205,19 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Settings */}
+        {/* Settings shortcut */}
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>SETTINGS</Text>
           <View style={styles.settingsCard}>
             {SETTINGS.map((opt, i) => (
               <React.Fragment key={i}>
-                <TouchableOpacity style={styles.settingsRow} activeOpacity={0.7}>
+                <TouchableOpacity
+                  style={styles.settingsRow}
+                  activeOpacity={0.7}
+                  onPress={() => router.push('/(tabs)/settings' as never)}
+                  accessibilityRole="button"
+                  accessibilityLabel={opt.label}
+                >
                   <View style={styles.settingsIconBox}>
                     <Feather
                       name={opt.icon}
@@ -259,7 +272,7 @@ const styles = StyleSheet.create({
   },
   profileBio: {
     color: orbit.textSecond,
-    fontSize: 13,
+    fontSize: 14,
     textAlign: 'center',
     marginTop: 8,
     lineHeight: 19,
@@ -409,12 +422,12 @@ const styles = StyleSheet.create({
   },
   orbitCardHandle: {
     color: orbit.textSecond,
-    fontSize: 13,
+    fontSize: 14,
     marginTop: 2,
   },
   orbitCardBio: {
     color: orbit.textSecond,
-    fontSize: 13,
+    fontSize: 14,
     lineHeight: 18,
     marginBottom: 14,
   },
@@ -480,7 +493,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   cardShareText: {
-    color: '#FFFFFF',
+    color: orbit.white,
     fontSize: 14,
     fontWeight: '600',
   },
