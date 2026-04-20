@@ -175,7 +175,7 @@ export default function UsernameScreen() {
           {saving ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={[styles.ctaText, { color: valid ? "#FFFFFF" : orbit.textTertiary }]}>
+            <Text style={[styles.ctaText, { color: valid ? orbit.white : orbit.textTertiary }]}>
               Continue
             </Text>
           )}
@@ -223,7 +223,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   avatarText: {
-    color: "#FFFFFF",
+    color: orbit.white,
     fontSize: 28,
     fontWeight: "700",
     letterSpacing: -0.5,
