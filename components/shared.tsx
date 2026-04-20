@@ -16,23 +16,26 @@ import {
   Platform,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import type { ComponentProps } from 'react';
 import { useColors } from '@/hooks/useColors';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { orbit } from '@/constants/colors';
+
+export type FeatherIconName = ComponentProps<typeof Feather>['name'];
 
 /* ============================================================================
    Avatar — deterministic initials in a colored circle. NO emoji avatars.
    ============================================================================ */
 
 const AVATAR_PALETTE = [
-  '#5B7FFF', // Orbit blue
-  '#8B5CF6', // violet
-  '#2BB673', // green
-  '#E8A33D', // amber
-  '#E5484D', // red
-  '#3B82F6', // blue
-  '#EC4899', // pink
-  '#06B6D4', // cyan
+  orbit.accent,    // #5B7FFF — Orbit blue
+  '#8B5CF6',       // violet (no orbit token)
+  orbit.success,   // #2BB673 — green
+  orbit.warning,   // #E8A33D — amber
+  orbit.danger,    // #E5484D — red
+  '#3B82F6',       // blue (no orbit token)
+  '#EC4899',       // pink (no orbit token)
+  '#06B6D4',       // cyan (no orbit token)
 ];
 
 function pickColor(seed: string): string {
@@ -110,7 +113,7 @@ export const Avatar = ({ name, size = 44, online, ringed }: AvatarProps) => {
    ============================================================================ */
 
 export type IconBoxProps = {
-  icon: any; // Feather icon name
+  icon: FeatherIconName;
   size?: number; // outer box size
   iconSize?: number;
   tint?: string; // optional accent — used SPARINGLY (icon color only, never as fill)
@@ -150,12 +153,12 @@ export const IconBox = ({
    ============================================================================ */
 
 const TIER_DOT: Record<string, string> = {
-  LEGEND:   '#E8A33D',
-  CHAMPION: '#8B5CF6',
-  MASTER:   '#5B7FFF',
-  PRO:      '#2BB673',
-  RISING:   '#A1A1AA',
-  ACTIVE:   '#6B6B73',
+  LEGEND:   orbit.warning,      // #E8A33D — amber gold
+  CHAMPION: '#8B5CF6',          // violet (no orbit token)
+  MASTER:   orbit.accent,       // #5B7FFF — Orbit blue
+  PRO:      orbit.success,      // #2BB673 — green
+  RISING:   orbit.textSecond,   // #A1A1AA — muted
+  ACTIVE:   orbit.textTertiary, // #6B6B73 — dim
 };
 
 export const TierPill = ({ tier }: { tier: string }) => {
