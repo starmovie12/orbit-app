@@ -3,6 +3,7 @@ import {
   View,
   Text,
   FlatList,
+  Image,
   ScrollView,
   TouchableOpacity,
   StyleSheet,
@@ -14,7 +15,10 @@ import { BAZAAR_GIGS, BAZAAR_CATEGORIES } from '@/constants/data';
 import { ScreenHeader, SearchBar } from '@/components/shared';
 import { orbit } from '@/constants/colors';
 
-function GigCard({ item }: { item: typeof BAZAAR_GIGS[0] }) {
+function GigCard({ item }: { item: typeof BAZAAR_GIGS[0] & { coverImage?: string } }) {
+  const [imgError, setImgError] = useState(false);
+  const showImage = !!item.coverImage && !imgError;
+
   return (
     <TouchableOpacity
       style={styles.gigCard}
@@ -22,9 +26,21 @@ function GigCard({ item }: { item: typeof BAZAAR_GIGS[0] }) {
       accessibilityRole="button"
       accessibilityLabel={`${item.title} by ${item.seller}, starting at ₹${item.price}`}
     >
-      {/* Cover area — icon on surface2, 16:10 aspect */}
+      {/* Cover area — real image if available, icon placeholder otherwise. 16:10 aspect. */}
       <View style={styles.gigCover}>
-        <Feather name={item.icon as any} size={28} color={orbit.textSecond} />
+        {showImage ? (
+          <Image
+            source={{ uri: item.coverImage }}
+            style={styles.gigCoverImage}
+            resizeMode="cover"
+            onError={() => setImgError(true)}
+            accessibilityLabel={item.title}
+          />
+        ) : (
+          <View style={styles.gigCoverPlaceholder}>
+            <Feather name={item.icon as any} size={28} color={orbit.textSecond} />
+          </View>
+        )}
       </View>
 
       <View style={styles.gigBody}>
@@ -193,6 +209,14 @@ const styles = StyleSheet.create({
     width: '100%',
     aspectRatio: 16 / 10,
     backgroundColor: orbit.surface2,
+    overflow: 'hidden',
+  },
+  gigCoverImage: {
+    width: '100%',
+    height: '100%',
+  },
+  gigCoverPlaceholder: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
