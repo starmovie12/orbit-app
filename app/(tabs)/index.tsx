@@ -140,7 +140,7 @@ export default function HomeScreen() {
       <ScreenHeader
         title={`Hey, ${firstName}`}
         right={
-          <CreditPill credits={credits} onPress={() => setWallet(true)} />
+          <CreditPill count={credits} onPress={() => setWallet(true)} />
         }
       />
 
@@ -150,7 +150,7 @@ export default function HomeScreen() {
       >
         {/* ── Daily Challenge ── */}
         <View style={styles.sectionPad}>
-          <DailyChallengeCard onPress={() => router.push('/(tabs)/discover')} />
+          <DailyChallengeCard onPress={() => router.push('/(tabs)/discover' as never)} />
         </View>
 
         {/* ── Mood Rooms ── */}
@@ -158,7 +158,7 @@ export default function HomeScreen() {
           <Text style={styles.sectionTitle}>Mood Rooms</Text>
           <TouchableOpacity
             hitSlop={8}
-            onPress={() => router.push('/(tabs)/discover')}
+            onPress={() => router.push('/(tabs)/discover' as never)}
             accessibilityRole="link"
             accessibilityLabel="See all mood rooms"
           >
@@ -176,7 +176,7 @@ export default function HomeScreen() {
               key={m.id}
               style={styles.moodCard}
               activeOpacity={0.85}
-              onPress={() => router.push('/(tabs)/rooms')}
+              onPress={() => router.push('/(tabs)/rooms' as never)}
             >
               {/* Accent stripe — category cue, never a neon background */}
               <View style={[styles.moodStripe, { backgroundColor: m.accent }]} />
@@ -199,7 +199,7 @@ export default function HomeScreen() {
           <Text style={styles.sectionTitle}>Trending Now</Text>
           <TouchableOpacity
             hitSlop={8}
-            onPress={() => router.push('/(tabs)/rooms')}
+            onPress={() => router.push('/(tabs)/rooms' as never)}
             accessibilityRole="link"
           >
             <Text style={styles.seeAll}>All rooms</Text>
@@ -217,7 +217,7 @@ export default function HomeScreen() {
                 <TouchableOpacity
                   style={styles.trendingRow}
                   activeOpacity={0.7}
-                  onPress={() => router.push(`/room/${room.id}`)}
+                  onPress={() => router.push(`/room/${room.id}` as never)}
                 >
                   <Text style={styles.trendingRank}>#{i + 1}</Text>
                   <IconBox icon={room.icon} size={40} />
