@@ -1,118 +1,138 @@
-import { BlurView } from "expo-blur";
-import { isLiquidGlassAvailable } from "expo-glass-effect";
 import { Tabs } from "expo-router";
-import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
 import React from "react";
-import { Platform, StyleSheet, View } from "react-native";
-import { useColors } from "@/hooks/useColors";
-import { useColorScheme } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { orbit } from "@/constants/colors";
 
-function NativeTabLayout() {
+/**
+ * Custom tab bar item — guarantees high contrast active/inactive states.
+ * Active: accent icon + primary-text label (weight 600) + 3px accent pill above.
+ * Inactive: tertiary-text icon + tertiary label.
+ */
+function TabIcon({
+  name,
+  focused,
+}: {
+  name: any;
+  focused: boolean;
+}) {
   return (
-    <NativeTabs>
-      <NativeTabs.Trigger name="index">
-        <Icon sf={{ default: "house", selected: "house.fill" }} />
-        <Label>Rooms</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="discover">
-        <Icon sf={{ default: "telescope", selected: "telescope.fill" }} />
-        <Label>Discover</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="bazaar">
-        <Icon sf={{ default: "briefcase", selected: "briefcase.fill" }} />
-        <Label>Bazaar</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="ranks">
-        <Icon sf={{ default: "trophy", selected: "trophy.fill" }} />
-        <Label>Ranks</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="profile">
-        <Icon sf={{ default: "person.circle", selected: "person.circle.fill" }} />
-        <Label>You</Label>
-      </NativeTabs.Trigger>
-    </NativeTabs>
+    <View style={styles.iconWrap}>
+      {focused && <View style={styles.activeIndicator} />}
+      <Feather
+        name={name}
+        size={22}
+        color={focused ? orbit.accent : orbit.textTertiary}
+      />
+    </View>
   );
 }
 
-function ClassicTabLayout() {
-  const colors = useColors();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
-  const isIOS = Platform.OS === "ios";
+function TabLabel({ label, focused }: { label: string; focused: boolean }) {
+  return (
+    <Text
+      style={[
+        styles.label,
+        {
+          color: focused ? orbit.textPrimary : orbit.textTertiary,
+          fontWeight: focused ? "600" : "500",
+        },
+      ]}
+    >
+      {label}
+    </Text>
+  );
+}
+
+export default function TabLayout() {
   const isWeb = Platform.OS === "web";
+  const isIOS = Platform.OS === "ios";
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.mutedForeground,
         headerShown: false,
+        tabBarShowLabel: true,
         tabBarStyle: {
-          position: "absolute",
-          backgroundColor: isIOS ? "transparent" : colors.surface,
+          backgroundColor: orbit.surface1,
           borderTopWidth: 1,
-          borderTopColor: colors.border,
+          borderTopColor: orbit.borderSubtle,
           elevation: 0,
-          height: isWeb ? 84 : isIOS ? 82 : 64,
-          paddingBottom: isWeb ? 34 : isIOS ? 22 : 6,
-          paddingTop: 6,
+          height: isWeb ? 84 : isIOS ? 82 : 68,
+          paddingBottom: isWeb ? 28 : isIOS ? 22 : 10,
+          paddingTop: 8,
         },
-        tabBarBackground: () =>
-          isIOS ? (
-            <BlurView
-              intensity={100}
-              tint={isDark ? "dark" : "systemChromeMaterial"}
-              style={StyleSheet.absoluteFill}
-            />
-          ) : isWeb ? (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.surface }]} />
-          ) : null,
+        tabBarItemStyle: {
+          paddingVertical: 4,
+        },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
           title: "Rooms",
-          tabBarIcon: ({ color }) => <Feather name="message-square" size={22} color={color} />,
+          tabBarIcon: ({ focused }) => <TabIcon name="message-square" focused={focused} />,
+          tabBarLabel: ({ focused }) => <TabLabel label="Rooms" focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="discover"
         options={{
           title: "Discover",
-          tabBarIcon: ({ color }) => <Feather name="compass" size={22} color={color} />,
+          tabBarIcon: ({ focused }) => <TabIcon name="compass" focused={focused} />,
+          tabBarLabel: ({ focused }) => <TabLabel label="Discover" focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="bazaar"
         options={{
           title: "Bazaar",
-          tabBarIcon: ({ color }) => <Feather name="briefcase" size={22} color={color} />,
+          tabBarIcon: ({ focused }) => <TabIcon name="briefcase" focused={focused} />,
+          tabBarLabel: ({ focused }) => <TabLabel label="Bazaar" focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="ranks"
         options={{
           title: "Ranks",
-          tabBarIcon: ({ color }) => <Feather name="award" size={22} color={color} />,
+          tabBarIcon: ({ focused }) => <TabIcon name="award" focused={focused} />,
+          tabBarLabel: ({ focused }) => <TabLabel label="Ranks" focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: "You",
-          tabBarIcon: ({ color }) => <Feather name="user" size={22} color={color} />,
+          tabBarIcon: ({ focused }) => <TabIcon name="user" focused={focused} />,
+          tabBarLabel: ({ focused }) => <TabLabel label="You" focused={focused} />,
         }}
       />
+      <Tabs.Screen name="rooms" options={{ href: null }} />
       <Tabs.Screen name="inbox" options={{ href: null }} />
+      <Tabs.Screen name="settings" options={{ href: null }} />
     </Tabs>
   );
 }
 
-export default function TabLayout() {
-  if (isLiquidGlassAvailable()) {
-    return <NativeTabLayout />;
-  }
-  return <ClassicTabLayout />;
-}
+const styles = StyleSheet.create({
+  iconWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: 48,
+    height: 32,
+    position: "relative",
+  },
+  activeIndicator: {
+    position: "absolute",
+    top: -4,
+    width: 24,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: orbit.accent,
+  },
+  label: {
+    fontSize: 11,
+    letterSpacing: 0.2,
+    marginTop: 2,
+  },
+});

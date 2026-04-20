@@ -14,8 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
-
-import { useColors } from "@/hooks/useColors";
+import { orbit } from "@/constants/colors";
 import {
   authErrorMessage,
   isValidE164,
@@ -23,17 +22,11 @@ import {
   sendOtp,
 } from "@/lib/auth";
 
-/* ============================================================================
-   GLOBAL OTP STORE — shared with otp.tsx via globalThis (no broken module).
-   ============================================================================ */
 declare global {
   // eslint-disable-next-line no-var
   var __orbitOtp: { handle: any; phone: string } | undefined;
 }
 
-/* ============================================================================
-   WEB-ONLY Firebase config (orbit-app-5b4b3 — google-services.json)
-   ============================================================================ */
 const FIREBASE_WEB_CONFIG = {
   apiKey: "AIzaSyDPXJ6oj2ac-5QsgDWDSslN_AaVrM7KQ2w",
   authDomain: "orbit-app-5b4b3.firebaseapp.com",
@@ -46,10 +39,7 @@ const FIREBASE_WEB_CONFIG = {
 let webAuthRef: any = null;
 let webVerifierRef: any = null;
 
-/* Web ka apna sendOtp -- @react-native-firebase web pe nahi chalta */
 async function sendOtpWeb(phoneE164: string): Promise<any> {
-  console.log("[Firebase Web] sendOtpWeb start:", phoneE164);
-
   const { initializeApp, getApps, getApp } = await import("firebase/app");
   const { getAuth, RecaptchaVerifier, signInWithPhoneNumber } = await import(
     "firebase/auth"
@@ -68,22 +58,17 @@ async function sendOtpWeb(phoneE164: string): Promise<any> {
   if (!webVerifierRef) {
     webVerifierRef = new RecaptchaVerifier(webAuthRef, "recaptcha-container", {
       size: "invisible",
-      callback: () => console.log("[reCAPTCHA] solved ✅"),
-      "expired-callback": () => console.log("[reCAPTCHA] expired ⚠️"),
     });
     await webVerifierRef.render();
   }
 
-  const confirmation = await signInWithPhoneNumber(
-    webAuthRef,
-    phoneE164,
-    webVerifierRef
-  );
-  console.log("[Firebase Web] OTP sent ✅");
-  return confirmation;
+  return await signInWithPhoneNumber(webAuthRef, phoneE164, webVerifierRef);
 }
 
-/* Hide reCAPTCHA badge on web (Google's terms allow if disclosure shown) */
+/**
+ * The reCAPTCHA badge MUST never overlap the CTA. We hide it via CSS and
+ * show the legally-required disclosure inline below the button.
+ */
 function useHideRecaptchaBadge() {
   useEffect(() => {
     if (Platform.OS !== "web") return;
@@ -103,7 +88,6 @@ function useHideRecaptchaBadge() {
 }
 
 export default function PhoneScreen() {
-  const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const inputRef = useRef<TextInput>(null);
@@ -131,14 +115,11 @@ export default function PhoneScreen() {
     setSending(true);
     try {
       const handle =
-        Platform.OS === "web"
-          ? await sendOtpWeb(e164)
-          : await sendOtp(e164);
+        Platform.OS === "web" ? await sendOtpWeb(e164) : await sendOtp(e164);
 
       globalThis.__orbitOtp = { handle, phone: e164 };
       router.push("/(auth)/otp");
     } catch (e: any) {
-      console.error("[Phone] sendOtp failed:", e?.code, e?.message);
       const detail =
         (e?.code ? `[${e.code}]\n` : "") +
         (e?.message ?? authErrorMessage(e) ?? String(e));
@@ -162,49 +143,41 @@ export default function PhoneScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.root, { backgroundColor: colors.background }]}
+      style={[styles.root, { backgroundColor: orbit.bg }]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          hitSlop={16}
-          style={styles.backBtn}
-        >
-          <Feather name="arrow-left" size={22} color={colors.text} />
+        <TouchableOpacity onPress={() => router.back()} hitSlop={12} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Go back">
+          <Feather name="arrow-left" size={22} color={orbit.textPrimary} />
         </TouchableOpacity>
       </View>
 
       <View style={styles.body}>
-        <Text style={[styles.title, { color: colors.text }]}>
-          Enter your phone
+        <Text style={styles.title}>Enter your number</Text>
+        <Text style={styles.sub}>
+          We'll send a 6-digit code to verify it's yours.
         </Text>
-        <Text style={[styles.sub, { color: colors.sub }]}>
-          We'll send a 6-digit code to verify your number.
-        </Text>
+
+        <Text style={styles.label}>PHONE NUMBER</Text>
 
         <View
           style={[
             styles.inputRow,
-            {
-              backgroundColor: colors.surface,
-              borderColor: focused ? colors.primary : colors.border,
-              shadowColor: focused ? colors.primary : "transparent",
-            },
+            { borderColor: focused ? orbit.accent : orbit.borderStrong },
+            focused && { backgroundColor: orbit.surface2 },
           ]}
         >
           <Pressable style={styles.ccBox}>
-            <Text style={styles.flag}>🇮🇳</Text>
-            <Text style={[styles.cc, { color: colors.text }]}>+91</Text>
+            <Text style={styles.cc}>+91</Text>
             <Feather
               name="chevron-down"
               size={14}
-              color={colors.mutedForeground}
+              color={orbit.textTertiary}
               style={{ marginLeft: 4 }}
             />
           </Pressable>
 
-          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+          <View style={styles.inlineDivider} />
 
           <TextInput
             ref={inputRef}
@@ -216,23 +189,19 @@ export default function PhoneScreen() {
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
             placeholder="98765 43210"
-            placeholderTextColor={colors.mutedForeground}
-            style={[styles.input, { color: colors.text }]}
+            placeholderTextColor={orbit.textTertiary}
+            style={styles.input}
           />
         </View>
 
         <View style={styles.hintRow}>
           {valid ? (
             <>
-              <Feather name="check-circle" size={14} color={colors.green} />
-              <Text style={[styles.hint, { color: colors.sub }]}>
-                We'll send a code to {e164}
-              </Text>
+              <Feather name="check-circle" size={13} color={orbit.success} />
+              <Text style={styles.hint}>We'll send a code to {e164}</Text>
             </>
           ) : (
-            <Text style={[styles.hint, { color: colors.mutedForeground }]}>
-              Enter your 10-digit mobile number
-            </Text>
+            <Text style={styles.hintMuted}>Enter your 10-digit mobile number</Text>
           )}
         </View>
       </View>
@@ -244,40 +213,30 @@ export default function PhoneScreen() {
           style={({ pressed }) => [
             styles.cta,
             {
-              backgroundColor: valid ? colors.primary : colors.surface2,
+              backgroundColor: valid ? orbit.accent : orbit.surface2,
               opacity: sending ? 0.7 : 1,
               transform: [{ scale: pressed && valid ? 0.98 : 1 }],
             },
           ]}
         >
           {sending ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color={orbit.white} />
           ) : (
-            <>
-              <Text
-                style={[
-                  styles.ctaText,
-                  { color: valid ? "#fff" : colors.mutedForeground },
-                ]}
-              >
-                Send Code
-              </Text>
-              {valid && (
-                <Feather
-                  name="arrow-right"
-                  size={18}
-                  color="#fff"
-                  style={{ marginLeft: 8 }}
-                />
-              )}
-            </>
+            <Text
+              style={[
+                styles.ctaText,
+                { color: valid ? orbit.white : orbit.textTertiary },
+              ]}
+            >
+              Send Code
+            </Text>
           )}
         </Pressable>
 
-        <Text style={[styles.recaptchaNote, { color: colors.mutedForeground }]}>
-          Protected by reCAPTCHA — Google's{" "}
-          <Text style={{ color: colors.primary }}>Privacy Policy</Text> and{" "}
-          <Text style={{ color: colors.primary }}>Terms</Text> apply.
+        <Text style={styles.recaptchaNote}>
+          Protected by reCAPTCHA. Google's{" "}
+          <Text style={styles.legalLink}>Privacy</Text> &{" "}
+          <Text style={styles.legalLink}>Terms</Text> apply.
         </Text>
       </View>
     </KeyboardAvoidingView>
@@ -286,69 +245,104 @@ export default function PhoneScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  header: { paddingHorizontal: 16, paddingBottom: 8 },
+  header: { paddingHorizontal: 20, paddingBottom: 8 },
   backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
     alignItems: "center",
     justifyContent: "center",
+    marginLeft: -8,
   },
-  body: { flex: 1, paddingHorizontal: 24, paddingTop: 24 },
+  body: { flex: 1, paddingHorizontal: 20, paddingTop: 16 },
   title: {
-    fontSize: 30,
-    fontWeight: "800",
-    marginBottom: 10,
-    letterSpacing: -0.5,
+    color: orbit.textPrimary,
+    fontSize: 24,
+    fontWeight: "700",
+    marginBottom: 8,
+    letterSpacing: -0.4,
   },
-  sub: { fontSize: 15, marginBottom: 36, lineHeight: 21 },
+  sub: {
+    color: orbit.textSecond,
+    fontSize: 15,
+    marginBottom: 32,
+    lineHeight: 22,
+  },
+  label: {
+    color: orbit.textTertiary,
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+    marginBottom: 8,
+  },
   inputRow: {
     flexDirection: "row",
     alignItems: "center",
-    borderWidth: 1.5,
-    borderRadius: 16,
+    height: 48,
+    backgroundColor: orbit.surface1,
+    borderWidth: 1,
+    borderRadius: 12,
     overflow: "hidden",
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 0 },
   },
   ccBox: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 18,
+    paddingHorizontal: 14,
+    height: "100%",
   },
-  flag: { fontSize: 20, marginRight: 8 },
-  cc: { fontSize: 16, fontWeight: "600" },
-  divider: { width: 1, alignSelf: "stretch", marginVertical: 12 },
+  cc: {
+    color: orbit.textPrimary,
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  inlineDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: orbit.borderSubtle,
+  },
   input: {
     flex: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 18,
-    fontSize: 17,
+    paddingHorizontal: 14,
+    color: orbit.textPrimary,
+    fontSize: 16,
     fontWeight: "500",
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
   hintRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    marginTop: 14,
+    marginTop: 12,
     paddingHorizontal: 4,
   },
-  hint: { fontSize: 13 },
-  footer: { paddingHorizontal: 24, paddingTop: 8, gap: 14 },
+  hint: {
+    color: orbit.textSecond,
+    fontSize: 14,
+  },
+  hintMuted: {
+    color: orbit.textTertiary,
+    fontSize: 14,
+  },
+  footer: { paddingHorizontal: 20, paddingTop: 8, gap: 12 },
   cta: {
-    flexDirection: "row",
-    paddingVertical: 17,
-    borderRadius: 14,
+    paddingVertical: 16,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
   },
-  ctaText: { fontSize: 16, fontWeight: "700", letterSpacing: 0.3 },
+  ctaText: {
+    fontSize: 15,
+    fontWeight: "600",
+    letterSpacing: 0.2,
+  },
   recaptchaNote: {
+    color: orbit.textTertiary,
     fontSize: 11,
     textAlign: "center",
-    lineHeight: 15,
+    lineHeight: 16,
+  },
+  legalLink: {
+    color: orbit.textSecond,
+    fontWeight: "500",
   },
 });

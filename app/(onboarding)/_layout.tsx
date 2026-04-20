@@ -1,5 +1,6 @@
 import { Stack } from "expo-router";
 import React from "react";
+import { orbit } from "@/constants/colors";
 
 export default function OnboardingLayout() {
   return (
@@ -8,7 +9,7 @@ export default function OnboardingLayout() {
         headerShown: false,
         animation: "slide_from_right",
         gestureEnabled: false, // prevent swipe-back mid-onboarding
-        contentStyle: { backgroundColor: "#17212B" },
+        contentStyle: { backgroundColor: orbit.bg },
       }}
     >
       <Stack.Screen name="language" />

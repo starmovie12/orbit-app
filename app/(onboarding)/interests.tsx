@@ -9,6 +9,8 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Feather } from "@expo/vector-icons";
+import { orbit } from "@/constants/colors";
 
 import { OnboardingStepper } from "@/components/OnboardingStepper";
 import { INTERESTS, MIN_INTERESTS } from "@/constants/onboarding";
@@ -68,21 +70,26 @@ export default function InterestsScreen() {
           return (
             <TouchableOpacity
               key={it.id}
-              activeOpacity={0.8}
+              activeOpacity={0.85}
               onPress={() => toggle(it.id)}
               style={[
                 styles.chip,
                 {
-                  backgroundColor: active ? it.color + "28" : colors.surface,
-                  borderColor: active ? it.color : colors.border,
+                  backgroundColor: active ? "rgba(91, 127, 255, 0.10)" : orbit.surface1,
+                  borderColor: active ? orbit.accent : orbit.borderSubtle,
                 },
               ]}
             >
-              <Text style={styles.chipEmoji}>{it.emoji}</Text>
+              <Feather
+                name={it.icon}
+                size={18}
+                color={active ? orbit.accent : orbit.textSecond}
+                style={{ marginRight: 8 }}
+              />
               <Text
                 style={[
                   styles.chipLabel,
-                  { color: active ? it.color : colors.text },
+                  { color: active ? orbit.accent : orbit.textPrimary },
                 ]}
               >
                 {it.label}
@@ -119,8 +126,8 @@ export default function InterestsScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   head: { paddingHorizontal: 24, gap: 12, paddingBottom: 16 },
-  title: { fontSize: 26, fontWeight: "800", marginTop: 16 },
-  sub: { fontSize: 13, lineHeight: 19 },
+  title: { fontSize: 24, fontWeight: "700", marginTop: 16, letterSpacing: -0.4 },
+  sub: { fontSize: 14, lineHeight: 19 },
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -132,13 +139,11 @@ const styles = StyleSheet.create({
   chip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderRadius: 22,
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
-  chipEmoji: { fontSize: 16 },
   chipLabel: { fontSize: 14, fontWeight: "600" },
   footer: { paddingHorizontal: 24, paddingTop: 10, gap: 8 },
   counter: { fontSize: 12, textAlign: "center" },

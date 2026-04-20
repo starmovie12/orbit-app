@@ -1,336 +1,771 @@
+/**
+ * ORBIT — Shared UI Components (v2)
+ *
+ * Premium component library. No emojis in chrome. Feather icons only.
+ * Quiet luxury — restraint, hierarchy by space and weight, ONE accent color.
+ * All colors via orbit.* tokens — zero hardcoded hex.
+ */
+
 import React from 'react';
-import { View, Text, TouchableOpacity, TextInput, StyleSheet, Modal, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  TextInput,
+  StyleSheet,
+  Modal,
+  Platform,
+  Animated,
+} from 'react-native';
+import { Feather } from '@expo/vector-icons';
+import type { ComponentProps } from 'react';
 import { useColors } from '@/hooks/useColors';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { orbit } from '@/constants/colors';
 
-export const CreditPill = ({ credits, onPress }: { credits: number; onPress: () => void }) => {
-  const colors = useColors();
+export type FeatherIconName = ComponentProps<typeof Feather>['name'];
+
+/* ============================================================================
+   Avatar — deterministic initials in a colored circle. NO emoji avatars.
+   All palette colors mapped to orbit.* tokens — zero hardcoded hex.
+   ============================================================================ */
+
+/**
+ * Palette uses only orbit tokens so every color stays inside the design system.
+ * We derive variety by mixing the semantic + accent tokens.
+ */
+const AVATAR_PALETTE: string[] = [
+  orbit.accent,       // #5B7FFF — Orbit blue
+  orbit.success,      // #2BB673 — green
+  orbit.warning,      // #E8A33D — amber
+  orbit.danger,       // #E5484D — red
+  orbit.accentHover,  // #4A6FF0 — slightly deeper blue
+];
+
+function pickColor(seed: string): string {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  return AVATAR_PALETTE[h % AVATAR_PALETTE.length];
+}
+
+function initialsOf(name: string): string {
+  const parts = name.trim().replace(/[@_]/g, ' ').split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+export type AvatarProps = {
+  name: string;
+  size?: number;
+  online?: boolean;
+  ringed?: boolean;
+};
+
+/**
+ * Usage:
+ *   <Avatar name="Arjun Singh" size={44} />
+ *   <Avatar name="ghost_player" size={56} online ringed />
+ */
+export const Avatar = ({ name, size = 44, online, ringed }: AvatarProps) => {
+  const bg = pickColor(name);
+  const initials = initialsOf(name);
+  const fontSize = Math.round(size * 0.38);
+  const dotSize = Math.max(8, Math.round(size * 0.22));
+
   return (
-    <TouchableOpacity
-      style={[styles.creditPill, { backgroundColor: colors.green + '20', borderColor: colors.green + '55' }]}
-      onPress={onPress}
-      activeOpacity={0.75}
+    <View style={{ width: size, height: size, position: 'relative' }}>
+      <View
+        style={{
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          backgroundColor: bg,
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderWidth: ringed ? 2 : 0,
+          borderColor: orbit.accent,
+        }}
+      >
+        <Text
+          style={{
+            color: orbit.white,
+            fontSize,
+            fontWeight: '700',
+            letterSpacing: -0.3,
+          }}
+        >
+          {initials}
+        </Text>
+      </View>
+      {online && (
+        <View
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            right: 0,
+            width: dotSize,
+            height: dotSize,
+            borderRadius: dotSize / 2,
+            backgroundColor: orbit.success,
+            borderWidth: 2,
+            borderColor: orbit.bg,
+          }}
+        />
+      )}
+    </View>
+  );
+};
+
+/* ============================================================================
+   IconBox — replaces emoji-in-square. Subtle surface with monochrome icon.
+   ============================================================================ */
+
+export type IconBoxProps = {
+  icon: FeatherIconName;
+  size?: number;
+  iconSize?: number;
+  tint?: string;
+  variant?: 'square' | 'circle';
+};
+
+/**
+ * Usage:
+ *   <IconBox icon="message-square" size={40} />
+ *   <IconBox icon="award" size={44} tint={orbit.accent} variant="circle" />
+ */
+export const IconBox = ({
+  icon,
+  size = 40,
+  iconSize,
+  tint,
+  variant = 'square',
+}: IconBoxProps) => {
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: variant === 'circle' ? size / 2 : 10,
+        backgroundColor: orbit.surface2,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
     >
-      <Text style={[styles.creditPillText, { color: colors.green }]}>🪙 {credits}</Text>
-    </TouchableOpacity>
-  );
-};
-
-export const Ticks = ({ state }: { state: string }) => {
-  const colors = useColors();
-  if (state === 'none') return null;
-  if (state === 'sent') return <Text style={[styles.tick, { color: colors.mutedForeground }]}>✓</Text>;
-  if (state === 'delivered') return <Text style={[styles.tick, { color: colors.mutedForeground }]}>✓✓</Text>;
-  if (state === 'read') return <Text style={[styles.tick, { color: colors.blueLight }]}>✓✓</Text>;
-  return null;
-};
-
-export const KarmaBadge = ({ badge }: { badge: string }) => {
-  const colors = useColors();
-  const badgeColor: Record<string, string> = {
-    LEGEND:   colors.gold,
-    CHAMPION: colors.purple,
-    MASTER:   colors.blueLight,
-    PRO:      colors.green,
-    RISING:   colors.primary,
-    ACTIVE:   colors.mutedForeground,
-  };
-  const bc = badgeColor[badge] || colors.mutedForeground;
-  return (
-    <View style={[styles.karmaBadge, { borderColor: bc + '55', backgroundColor: bc + '20' }]}>
-      <Text style={[styles.karmaBadgeText, { color: bc }]}>{badge}</Text>
-    </View>
-  );
-};
-
-export const ScreenHeader = ({ title, right }: { title: string; right?: React.ReactNode }) => {
-  const colors = useColors();
-  const insets = useSafeAreaInsets();
-  const topPad = Platform.OS === 'web' ? 67 : insets.top;
-  return (
-    <View style={[
-      styles.header,
-      {
-        backgroundColor: colors.surface,
-        borderBottomColor: colors.border,
-        paddingTop: topPad + 8,
-      }
-    ]}>
-      <Text style={[styles.headerTitle, { color: colors.text }]}>{title}</Text>
-      {right && <View style={styles.headerRight}>{right}</View>}
-    </View>
-  );
-};
-
-export const SearchBar = ({
-  placeholder,
-  value,
-  onChangeText,
-}: {
-  placeholder: string;
-  value: string;
-  onChangeText: (t: string) => void;
-}) => {
-  const colors = useColors();
-  return (
-    <View style={[
-      styles.searchContainer,
-      { backgroundColor: colors.surface2, borderColor: colors.border }
-    ]}>
-      <Text style={styles.searchIcon}>🔍</Text>
-      <TextInput
-        style={[styles.searchInput, { color: colors.text }]}
-        placeholder={placeholder}
-        placeholderTextColor={colors.mutedForeground}
-        value={value}
-        onChangeText={onChangeText}
+      <Feather
+        name={icon}
+        size={iconSize ?? Math.round(size * 0.5)}
+        color={tint ?? orbit.textSecond}
       />
     </View>
   );
 };
 
-export const Divider = ({ indent = true }: { indent?: boolean }) => {
-  const colors = useColors();
+/* ============================================================================
+   TierPill — subtle badge for LEGEND / MASTER / PRO / RISING.
+   No neon colors, no gradients. Tiny 6px dot + label. All orbit tokens.
+   ============================================================================ */
+
+export type TierLevel = 'LEGEND' | 'MASTER' | 'PRO' | 'RISING' | string;
+
+const TIER_DOT: Record<string, string> = {
+  LEGEND:  orbit.warning,
+  MASTER:  orbit.accent,
+  PRO:     orbit.success,
+  RISING:  orbit.danger,
+};
+
+/**
+ * Usage:
+ *   <TierPill tier="LEGEND" />
+ *   <TierPill tier="PRO" solid />
+ */
+export const TierPill = ({ tier, solid }: { tier: TierLevel; solid?: boolean }) => {
+  const dot = TIER_DOT[tier] ?? orbit.textTertiary;
   return (
-    <View style={[styles.divider, { backgroundColor: colors.border, marginLeft: indent ? 72 : 0 }]} />
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+        paddingHorizontal: 10,
+        paddingVertical: 3,
+        borderRadius: 99,
+        backgroundColor: solid ? orbit.accent : orbit.surface2,
+        alignSelf: 'flex-start',
+      }}
+    >
+      {!solid && (
+        <View
+          style={{
+            width: 6,
+            height: 6,
+            borderRadius: 3,
+            backgroundColor: dot,
+          }}
+        />
+      )}
+      <Text
+        style={{
+          color: solid ? orbit.textInverse : orbit.textSecond,
+          fontSize: 12,
+          fontWeight: '600',
+          letterSpacing: 0.2,
+        }}
+      >
+        {tier}
+      </Text>
+    </View>
   );
 };
 
-export const WalletDrawer = ({
-  visible,
-  onClose,
-  credits,
+/* ============================================================================
+   CreditPill — inline credits indicator. No coin emoji.
+   ============================================================================ */
+
+/**
+ * Usage:
+ *   <CreditPill count={1240} onPress={() => setDrawerOpen(true)} />
+ */
+export const CreditPill = ({
+  count,
+  onPress,
 }: {
+  count: number;
+  onPress?: () => void;
+}) => (
+  <TouchableOpacity
+    onPress={onPress}
+    style={sharedStyles.creditPill}
+    activeOpacity={0.75}
+    hitSlop={8}
+    accessibilityRole="button"
+    accessibilityLabel={`${count} credits`}
+  >
+    <Feather name="zap" size={13} color={orbit.accent} />
+    <Text style={sharedStyles.creditText}>
+      {count.toLocaleString()}
+    </Text>
+  </TouchableOpacity>
+);
+
+/* ============================================================================
+   ReadStatus — single/double Feather Check icons. No blue double-tick clone.
+   ============================================================================ */
+
+export type ReadState = 'sent' | 'delivered' | 'read';
+
+/**
+ * Usage:
+ *   <ReadStatus state="read" />
+ */
+export const ReadStatus = ({ state }: { state: ReadState }) => {
+  const color = state === 'read' ? orbit.accent : orbit.textTertiary;
+  if (state === 'sent') {
+    return <Feather name="check" size={12} color={color} />;
+  }
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: -4 }}>
+      <Feather name="check" size={12} color={color} />
+      <View style={{ marginLeft: -6 }}>
+        <Feather name="check" size={12} color={color} />
+      </View>
+    </View>
+  );
+};
+
+/* ============================================================================
+   Divider — 1px hairline, inset from left.
+   ============================================================================ */
+
+/**
+ * Usage:
+ *   <Divider inset={76} />
+ */
+export const Divider = ({ inset = 0 }: { inset?: number }) => (
+  <View
+    style={{
+      height: 1,
+      backgroundColor: orbit.borderSubtle,
+      marginLeft: inset,
+    }}
+  />
+);
+
+/* ============================================================================
+   ScreenHeader — Top App Bar §4.6.
+   56px, title left-aligned, action icons right.
+   ============================================================================ */
+
+export type ScreenHeaderProps = {
+  title: string;
+  onBack?: () => void;
+  right?: React.ReactNode;
+  borderOnScroll?: boolean;
+  scrolled?: boolean;
+};
+
+/**
+ * Usage:
+ *   <ScreenHeader title="Rooms" right={<Feather name="search" ... />} />
+ *   <ScreenHeader title="Settings" onBack={() => router.back()} scrolled={scrolled} />
+ */
+export const ScreenHeader = ({
+  title,
+  onBack,
+  right,
+  scrolled = false,
+}: ScreenHeaderProps) => {
+  const insets = useSafeAreaInsets();
+  return (
+    <View
+      style={[
+        sharedStyles.headerWrap,
+        {
+          paddingTop: insets.top,
+          borderBottomWidth: scrolled ? 1 : 0,
+          borderBottomColor: orbit.borderSubtle,
+        },
+      ]}
+    >
+      <View style={sharedStyles.headerInner}>
+        {onBack ? (
+          <TouchableOpacity
+            onPress={onBack}
+            style={sharedStyles.backBtn}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+          >
+            <Feather name="arrow-left" size={22} color={orbit.textPrimary} />
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: 4 }} />
+        )}
+        <Text style={sharedStyles.headerTitle}>{title}</Text>
+        <View style={sharedStyles.headerRight}>{right ?? null}</View>
+      </View>
+    </View>
+  );
+};
+
+/* ============================================================================
+   SearchBar — subtle, Feather search icon, focus ring on accent.
+   ============================================================================ */
+
+export type SearchBarProps = {
+  placeholder?: string;
+  value: string;
+  onChangeText: (t: string) => void;
+};
+
+/**
+ * Usage:
+ *   <SearchBar placeholder="Search rooms..." value={q} onChangeText={setQ} />
+ */
+export const SearchBar = ({
+  placeholder = 'Search…',
+  value,
+  onChangeText,
+}: SearchBarProps) => {
+  const [focused, setFocused] = React.useState(false);
+  return (
+    <View
+      style={[
+        sharedStyles.searchWrap,
+        focused && { borderColor: orbit.accent },
+      ]}
+    >
+      <Feather name="search" size={16} color={orbit.textTertiary} />
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor={orbit.textTertiary}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        style={sharedStyles.searchInput}
+        returnKeyType="search"
+        clearButtonMode="while-editing"
+        accessibilityRole="search"
+        accessibilityLabel={placeholder}
+      />
+      {value.length > 0 && (
+        <TouchableOpacity
+          onPress={() => onChangeText('')}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Clear search"
+        >
+          <Feather name="x" size={15} color={orbit.textTertiary} />
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+};
+
+/* ============================================================================
+   WalletDrawer — bottom sheet for credits balance. No emojis in chrome.
+   ============================================================================ */
+
+export type WalletDrawerProps = {
   visible: boolean;
   onClose: () => void;
   credits: number;
-}) => {
-  const colors = useColors();
+};
+
+/**
+ * Usage:
+ *   <WalletDrawer visible={open} onClose={() => setOpen(false)} credits={1240} />
+ */
+export const WalletDrawer = ({ visible, onClose, credits }: WalletDrawerProps) => {
   const insets = useSafeAreaInsets();
+  const slideAnim = React.useRef(new Animated.Value(300)).current;
+
+  React.useEffect(() => {
+    if (visible) {
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 240,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(slideAnim, {
+        toValue: 300,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [visible, slideAnim]);
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="none"
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
       <TouchableOpacity
-        style={[styles.modalOverlay]}
-        onPress={onClose}
+        style={sharedStyles.drawerBackdrop}
         activeOpacity={1}
+        onPress={onClose}
+        accessibilityRole="button"
+        accessibilityLabel="Close wallet"
       >
-        <View
+        <Animated.View
           style={[
-            styles.walletDrawer,
+            sharedStyles.drawerSheet,
             {
-              backgroundColor: colors.surface,
-              borderTopColor: colors.border,
-              paddingBottom: insets.bottom + 20,
+              paddingBottom: insets.bottom + 16,
+              transform: [{ translateY: slideAnim }],
             },
           ]}
         >
-          <View style={[styles.walletHandle, { backgroundColor: colors.mutedForeground }]} />
-          <Text style={[styles.walletTitle, { color: colors.text }]}>🪙 Credit Wallet</Text>
-          <Divider indent={false} />
+          <View style={sharedStyles.drawerHandle} />
+          <Text style={sharedStyles.drawerTitle}>Your Wallet</Text>
 
-          <View style={styles.walletBalanceRow}>
-            <Text style={[styles.walletBalanceLabel, { color: colors.sub }]}>Available Credits</Text>
-            <Text style={[styles.walletBalance, { color: colors.green }]}>{credits}</Text>
-          </View>
-
-          <View style={[styles.walletInfoCard, { backgroundColor: colors.surface2, borderColor: colors.border }]}>
-            <Text style={[styles.walletInfoText, { color: colors.sub }]}>
-              💡 Watch a 15s promo to earn +1 credit. Daily limit: 20 credits/day.
+          <View style={sharedStyles.balanceRow}>
+            <Feather name="zap" size={28} color={orbit.accent} />
+            <Text style={sharedStyles.balanceNum}>
+              {credits.toLocaleString()}
             </Text>
+            <Text style={sharedStyles.balanceLbl}>credits</Text>
           </View>
 
-          <View style={[styles.walletStatsRow, { backgroundColor: colors.surface2, borderColor: colors.border }]}>
-            {[
-              { val: '20', lbl: 'Daily Cap' },
-              { val: '8',  lbl: 'Used Today' },
-              { val: '12', lbl: 'Remaining' },
-            ].map((s, i) => (
-              <React.Fragment key={i}>
-                {i > 0 && <View style={[styles.walletStatDivider, { backgroundColor: colors.border }]} />}
-                <View style={styles.walletStat}>
-                  <Text style={[styles.walletStatVal, { color: colors.text }]}>{s.val}</Text>
-                  <Text style={[styles.walletStatLbl, { color: colors.mutedForeground }]}>{s.lbl}</Text>
-                </View>
-              </React.Fragment>
-            ))}
+          <View style={sharedStyles.drawerActions}>
+            <TouchableOpacity
+              style={sharedStyles.drawerActionBtn}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel="Top up credits"
+            >
+              <Feather name="plus-circle" size={18} color={orbit.accent} />
+              <Text style={sharedStyles.drawerActionText}>Top Up</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={sharedStyles.drawerActionBtn}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel="Transaction history"
+            >
+              <Feather name="list" size={18} color={orbit.textSecond} />
+              <Text style={sharedStyles.drawerActionText}>History</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={sharedStyles.drawerActionBtn}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel="Send credits"
+            >
+              <Feather name="send" size={18} color={orbit.textSecond} />
+              <Text style={sharedStyles.drawerActionText}>Send</Text>
+            </TouchableOpacity>
           </View>
-
-          <TouchableOpacity style={[styles.walletTopUpBtn, { backgroundColor: colors.primary }]} activeOpacity={0.8}>
-            <Text style={[styles.walletTopUpText, { color: '#fff' }]}>⚡ Top Up — ₹49 for 50 Credits</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.walletCloseBtn, { borderColor: colors.border }]}
-            onPress={onClose}
-            activeOpacity={0.75}
-          >
-            <Text style={[styles.walletCloseTxt, { color: colors.sub }]}>Close</Text>
-          </TouchableOpacity>
-        </View>
+        </Animated.View>
       </TouchableOpacity>
     </Modal>
   );
 };
 
-const styles = StyleSheet.create({
+/* ============================================================================
+   NotificationBadge — circular unread count. Caps at 99+.
+   ============================================================================ */
+
+/**
+ * Usage:
+ *   <NotificationBadge count={5} />
+ *   <NotificationBadge count={120} />  → shows "99+"
+ */
+export const NotificationBadge = ({ count }: { count: number }) => {
+  if (count <= 0) return null;
+  const label = count > 99 ? '99+' : String(count);
+  const minW = label.length > 2 ? 26 : 18;
+  return (
+    <View
+      style={{
+        minWidth: minW,
+        height: 18,
+        borderRadius: 9,
+        backgroundColor: orbit.accent,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 4,
+      }}
+    >
+      <Text
+        style={{
+          color: orbit.textInverse,
+          fontSize: 11,
+          fontWeight: '700',
+          lineHeight: 14,
+        }}
+      >
+        {label}
+      </Text>
+    </View>
+  );
+};
+
+/* ============================================================================
+   EmptyState — §4.10. Centered, max 320px, Feather icon.
+   ============================================================================ */
+
+export type EmptyStateProps = {
+  icon: FeatherIconName;
+  title: string;
+  description: string;
+  ctaLabel?: string;
+  onCta?: () => void;
+};
+
+/**
+ * Usage:
+ *   <EmptyState
+ *     icon="message-square"
+ *     title="No rooms yet"
+ *     description="Join a room or create your own to get started."
+ *     ctaLabel="Browse Rooms"
+ *     onCta={() => router.push('/(tabs)/discover')}
+ *   />
+ */
+export const EmptyState = ({
+  icon,
+  title,
+  description,
+  ctaLabel,
+  onCta,
+}: EmptyStateProps) => (
+  <View style={sharedStyles.emptyWrap}>
+    <Feather name={icon} size={64} color={orbit.textTertiary} />
+    <Text style={sharedStyles.emptyTitle}>{title}</Text>
+    <Text style={sharedStyles.emptyDesc}>{description}</Text>
+    {ctaLabel && onCta && (
+      <TouchableOpacity
+        onPress={onCta}
+        style={sharedStyles.emptyCta}
+        accessibilityRole="button"
+        accessibilityLabel={ctaLabel}
+      >
+        <Text style={sharedStyles.emptyCtaText}>{ctaLabel}</Text>
+      </TouchableOpacity>
+    )}
+  </View>
+);
+
+/* ============================================================================
+   Shared StyleSheet
+   ============================================================================ */
+
+const sharedStyles = StyleSheet.create({
+  /* CreditPill */
   creditPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 99,
+    backgroundColor: orbit.surface2,
   },
-  creditPillText: {
+  creditText: {
+    color: orbit.textPrimary,
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: 0.1,
   },
-  tick: {
-    fontSize: 13,
-    marginRight: 2,
+
+  /* ScreenHeader */
+  headerWrap: {
+    backgroundColor: orbit.bg,
   },
-  karmaBadge: {
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 4,
-    borderWidth: 1,
-  },
-  karmaBadgeText: {
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  header: {
+  headerInner: {
+    height: 56,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
+    paddingHorizontal: 20,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: -8,
+    marginRight: 4,
   },
   headerTitle: {
-    fontSize: 18,
+    flex: 1,
+    color: orbit.textPrimary,
+    fontSize: 24,
     fontWeight: '700',
-    letterSpacing: -0.3,
+    letterSpacing: -0.4,
   },
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 16,
   },
-  searchContainer: {
+
+  /* SearchBar */
+  searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginHorizontal: 12,
-    marginVertical: 8,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    gap: 10,
+    height: 44,
+    marginHorizontal: 20,
+    marginBottom: 12,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: orbit.surface2,
     borderWidth: 1,
-  },
-  searchIcon: {
-    fontSize: 14,
-    marginRight: 8,
+    borderColor: orbit.borderStrong,
   },
   searchInput: {
     flex: 1,
-    fontSize: 14,
-    padding: 0,
+    color: orbit.textPrimary,
+    fontSize: 15,
+    paddingVertical: 0,
   },
-  divider: {
-    height: 1,
-  },
-  modalOverlay: {
+
+  /* WalletDrawer */
+  drawerBackdrop: {
     flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.6)',
   },
-  walletDrawer: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+  drawerSheet: {
+    backgroundColor: orbit.surface3,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 12,
     paddingHorizontal: 20,
-    paddingTop: 14,
-    borderTopWidth: 1,
   },
-  walletHandle: {
-    width: 40,
+  drawerHandle: {
+    width: 36,
     height: 4,
     borderRadius: 2,
+    backgroundColor: orbit.borderStrong,
     alignSelf: 'center',
-    marginBottom: 18,
+    marginBottom: 20,
   },
-  walletTitle: {
-    fontSize: 18,
+  drawerTitle: {
+    color: orbit.textPrimary,
+    fontSize: 20,
+    fontWeight: '600',
+    letterSpacing: -0.3,
+    marginBottom: 20,
+  },
+  balanceRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 8,
+    marginBottom: 28,
+  },
+  balanceNum: {
+    color: orbit.textPrimary,
+    fontSize: 40,
     fontWeight: '700',
-    marginBottom: 14,
+    letterSpacing: -1,
+    fontVariant: ['tabular-nums'],
   },
-  walletBalanceRow: {
+  balanceLbl: {
+    color: orbit.textSecond,
+    fontSize: 17,
+    fontWeight: '400',
+  },
+  drawerActions: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 16,
+    gap: 12,
   },
-  walletBalanceLabel: {
-    fontSize: 14,
-  },
-  walletBalance: {
-    fontSize: 28,
-    fontWeight: '800',
-  },
-  walletInfoCard: {
-    borderWidth: 1,
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 14,
-  },
-  walletInfoText: {
-    fontSize: 13,
-    lineHeight: 20,
-  },
-  walletStatsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    borderRadius: 10,
-    borderWidth: 1,
-    paddingVertical: 14,
-    marginBottom: 16,
-  },
-  walletStat: {
-    alignItems: 'center',
+  drawerActionBtn: {
     flex: 1,
-  },
-  walletStatVal: {
-    fontSize: 22,
-    fontWeight: '800',
-  },
-  walletStatLbl: {
-    fontSize: 10,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginTop: 3,
-  },
-  walletStatDivider: {
-    width: 1,
-    height: 36,
-  },
-  walletTopUpBtn: {
-    borderRadius: 12,
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 8,
     paddingVertical: 14,
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  walletTopUpText: {
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  walletCloseBtn: {
+    borderRadius: 16,
+    backgroundColor: orbit.surface2,
     borderWidth: 1,
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: 'center',
+    borderColor: orbit.borderSubtle,
   },
-  walletCloseTxt: {
-    fontSize: 14,
+  drawerActionText: {
+    color: orbit.textSecond,
+    fontSize: 13,
+    fontWeight: '500',
+  },
+
+  /* EmptyState */
+  emptyWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    maxWidth: 320,
+    alignSelf: 'center',
+    gap: 12,
+  },
+  emptyTitle: {
+    color: orbit.textPrimary,
+    fontSize: 20,
+    fontWeight: '700',
+    textAlign: 'center',
+    letterSpacing: -0.3,
+  },
+  emptyDesc: {
+    color: orbit.textSecond,
+    fontSize: 15,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  emptyCta: {
+    marginTop: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    backgroundColor: orbit.accent,
+  },
+  emptyCtaText: {
+    color: orbit.textInverse,
+    fontSize: 15,
     fontWeight: '600',
   },
 });

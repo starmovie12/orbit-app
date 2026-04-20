@@ -1,0 +1,3954 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ORBIT v7.0 — The Final Blueprint · Build Once, Scale to 10M</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* ============================================================
+       ORBIT v7.0 — DESIGN SYSTEM
+       (Extended from v6 — adds cost-curve, gap-audit, compliance,
+        mockup, phase-v7, and timeline components)
+       ============================================================ */
+    :root {
+      --bg:         #0a0c10;
+      --bg-card:    #0f1219;
+      --bg-card2:   #141820;
+      --bg-elev:    #1a1f2b;
+      --border:     #1e2535;
+      --border-dim: #161c28;
+      --border-hi:  #2a3348;
+      --accent:     #4f8fff;   /* blue */
+      --accent2:    #7c3aed;   /* purple */
+      --accent3:    #f59e0b;   /* amber */
+      --accent4:    #10b981;   /* green */
+      --accent5:    #ef4444;   /* red */
+      --accent6:    #ec4899;   /* pink */
+      --accent7:    #06b6d4;   /* cyan */
+      --text:       #e8ecf4;
+      --text-dim:   #8b96ad;
+      --text-muted: #4a5568;
+      --glow:       rgba(79,143,255,0.15);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 14px; line-height: 1.7;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 999;
+      opacity: .4;
+    }
+
+    ::-webkit-scrollbar { width: 4px; height:4px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+    /* ── TOPBAR ─────────────────────────────── */
+    .topbar {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(10,12,16,0.88);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-dim);
+      padding: 12px 0;
+    }
+    .topbar-inner {
+      display: flex; align-items: center; justify-content: space-between;
+      max-width: 1100px; margin: 0 auto; padding: 0 24px;
+    }
+    .topbar-brand {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800; font-size: 16px;
+      letter-spacing: .04em;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .topbar-brand .orbit-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 10px var(--accent);
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+    @keyframes pulse-dot {
+      0%,100% { box-shadow: 0 0 10px var(--accent); }
+      50%     { box-shadow: 0 0 20px var(--accent), 0 0 40px rgba(79,143,255,0.3); }
+    }
+    .topbar-meta { display:flex; align-items:center; gap:16px; }
+    .badge-version {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px; font-weight: 700;
+      padding: 3px 10px; border-radius: 20px;
+      background: linear-gradient(135deg,#4f8fff22,#7c3aed22);
+      border: 1px solid #4f8fff44;
+      color: var(--accent);
+      letter-spacing: .08em; text-transform: uppercase;
+    }
+    .topbar-date { font-family:'Space Mono',monospace; font-size:10px; color:var(--text-muted); }
+
+    /* ── JUMP NAV ───────────────────────────── */
+    .jumpnav {
+      border-bottom: 1px solid var(--border-dim);
+      background: rgba(10,12,16,0.75);
+      overflow-x: auto;
+    }
+    .jumpnav-inner {
+      display: flex; gap: 4px; padding: 8px 24px;
+      max-width: 1100px; margin: 0 auto;
+      white-space: nowrap;
+    }
+    .jumpnav a {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px; text-transform: uppercase; letter-spacing: .1em;
+      color: var(--text-dim);
+      padding: 5px 10px; border-radius: 4px;
+      text-decoration: none;
+      transition: background .15s, color .15s;
+    }
+    .jumpnav a:hover { background: var(--bg-card); color: var(--text); }
+
+    /* ── HERO ────────────────────────────────── */
+    .hero {
+      padding: 80px 0 50px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute; top: -100px; left: 50%; transform: translateX(-50%);
+      width: 700px; height: 700px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(79,143,255,0.06) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero::after {
+      content:'';
+      position:absolute; bottom:0; left:0; right:0; height:1px;
+      background: linear-gradient(90deg, transparent, var(--border), transparent);
+    }
+    .hero-eyebrow {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px; letter-spacing: .2em; text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 20px;
+      display:flex; align-items:center; gap:12px;
+    }
+    .hero-eyebrow::before {
+      content:''; display:inline-block;
+      width: 32px; height: 1px; background: var(--accent);
+    }
+    .hero-title {
+      font-family: 'Syne', sans-serif;
+      font-size: clamp(34px, 6vw, 70px);
+      font-weight: 800; line-height: 1.05;
+      letter-spacing: -.02em;
+      margin-bottom: 24px;
+    }
+    .hero-title .highlight {
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero-subtitle {
+      font-size: 16px;
+      color: var(--text-dim);
+      max-width: 720px;
+      line-height: 1.7;
+      margin-bottom: 32px;
+    }
+    .hero-subtitle strong { color: var(--text); font-weight: 600; }
+    .hero-tags {
+      display: flex; flex-wrap: wrap; gap: 8px;
+      margin-bottom: 40px;
+    }
+    .tag {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px; padding: 4px 10px; border-radius: 4px;
+      letter-spacing: .05em;
+    }
+    .tag-blue   { background: rgba(79,143,255,.1); color: var(--accent);  border: 1px solid rgba(79,143,255,.25);}
+    .tag-purple { background: rgba(124,58,237,.1); color: #a78bfa;         border: 1px solid rgba(124,58,237,.25);}
+    .tag-amber  { background: rgba(245,158,11,.1); color: var(--accent3); border: 1px solid rgba(245,158,11,.25);}
+    .tag-green  { background: rgba(16,185,129,.1); color: var(--accent4); border: 1px solid rgba(16,185,129,.25);}
+    .tag-red    { background: rgba(239,68,68,.1);  color: var(--accent5); border: 1px solid rgba(239,68,68,.25);}
+    .tag-pink   { background: rgba(236,72,153,.1); color: var(--accent6); border: 1px solid rgba(236,72,153,.25);}
+    .tag-cyan   { background: rgba(6,182,212,.1);  color: var(--accent7); border: 1px solid rgba(6,182,212,.25);}
+    .hero-stat-row {
+      display: grid; grid-template-columns: repeat(4,1fr); gap: 20px;
+      margin-top: 32px;
+      padding: 24px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--bg-card);
+    }
+    .hero-stat-val {
+      font-family: 'Syne', sans-serif;
+      font-size: 28px; font-weight: 800;
+      margin-bottom: 4px;
+    }
+    .hero-stat-val.blue   { color: var(--accent); }
+    .hero-stat-val.purple { color: #a78bfa; }
+    .hero-stat-val.amber  { color: var(--accent3); }
+    .hero-stat-val.green  { color: var(--accent4); }
+    .hero-stat-val.red    { color: var(--accent5); }
+    .hero-stat-label {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px; text-transform: uppercase; letter-spacing: .08em;
+      color: var(--text-muted);
+    }
+
+    /* ── SECTIONS ───────────────────────────── */
+    section { padding: 60px 0; border-bottom: 1px solid var(--border-dim); }
+    .section-header {
+      display: flex; align-items: flex-start; gap: 20px;
+      margin-bottom: 36px;
+    }
+    .section-number {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px; color: var(--text-muted); letter-spacing: .2em;
+      padding-top: 12px; min-width: 44px;
+    }
+    .section-title-group { flex: 1; }
+    .section-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 30px; font-weight: 700; line-height: 1.15;
+      letter-spacing: -.01em;
+      margin-bottom: 10px;
+    }
+    .section-title .accent-blue   { color: var(--accent); }
+    .section-title .accent-purple { color: #a78bfa; }
+    .section-title .accent-amber  { color: var(--accent3); }
+    .section-title .accent-green  { color: var(--accent4); }
+    .section-title .accent-red    { color: var(--accent5); }
+    .section-title .accent-pink   { color: var(--accent6); }
+    .section-title .accent-cyan   { color: var(--accent7); }
+    .section-desc {
+      font-size: 14px;
+      color: var(--text-dim);
+      max-width: 760px;
+      line-height: 1.7;
+    }
+    .section-desc em { color: var(--text); font-style: normal; font-weight: 500; }
+
+    /* ── GRIDS ───────────────────────────── */
+    .grid       { display: grid; gap: 16px; }
+    .grid-2     { grid-template-columns: repeat(2, 1fr); }
+    .grid-3     { grid-template-columns: repeat(3, 1fr); }
+    .grid-4     { grid-template-columns: repeat(4, 1fr); }
+    .grid-5     { grid-template-columns: repeat(5, 1fr); }
+    @media (max-width: 860px) {
+      .grid-2, .grid-3, .grid-4, .grid-5 { grid-template-columns: 1fr; }
+      .hero-stat-row { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    /* ── CARDS ────────────────────────────── */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 22px;
+      transition: border-color .2s, transform .2s;
+    }
+    .card:hover { border-color: var(--border-hi); }
+    .card-blue   { border-color: rgba(79,143,255,.3); }
+    .card-purple { border-color: rgba(124,58,237,.3); }
+    .card-amber  { border-color: rgba(245,158,11,.3); }
+    .card-green  { border-color: rgba(16,185,129,.3); }
+    .card-red    { border-color: rgba(239,68,68,.3); }
+    .card-pink   { border-color: rgba(236,72,153,.3); }
+    .card-cyan   { border-color: rgba(6,182,212,.3); }
+    .card-glow-blue   { box-shadow: 0 0 0 1px rgba(79,143,255,.1), 0 4px 20px rgba(79,143,255,.08); }
+    .card-glow-green  { box-shadow: 0 0 0 1px rgba(16,185,129,.1), 0 4px 20px rgba(16,185,129,.08); }
+    .card-glow-amber  { box-shadow: 0 0 0 1px rgba(245,158,11,.1), 0 4px 20px rgba(245,158,11,.08); }
+    .card-glow-purple { box-shadow: 0 0 0 1px rgba(124,58,237,.1), 0 4px 20px rgba(124,58,237,.08); }
+    .card-glow-red    { box-shadow: 0 0 0 1px rgba(239,68,68,.1),  0 4px 20px rgba(239,68,68,.08); }
+    .card-icon {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 40px; height: 40px;
+      background: var(--bg-card2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 14px;
+      font-size: 20px;
+    }
+    .card-label {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px; text-transform: uppercase; letter-spacing: .12em;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .card-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 18px; font-weight: 700;
+      margin-bottom: 10px;
+      color: var(--text);
+    }
+    .card-body {
+      font-size: 13px; color: var(--text-dim); line-height: 1.65;
+    }
+    .card-body strong { color: var(--text); font-weight: 600; }
+    .card-footer {
+      margin-top: 14px; padding-top: 12px;
+      border-top: 1px solid var(--border-dim);
+      font-family: 'Space Mono', monospace;
+      font-size: 10px; color: var(--text-muted);
+    }
+
+    /* ── CALLOUTS ───────────────────────────── */
+    .callout {
+      padding: 16px 18px;
+      border-radius: 10px;
+      border-left: 3px solid;
+      background: var(--bg-card);
+      font-size: 13px;
+      line-height: 1.7;
+      margin: 0;
+    }
+    .callout strong { color: var(--text); }
+    .callout-blue   { border-color: var(--accent);  background: rgba(79,143,255,.04); }
+    .callout-purple { border-color: #a78bfa;         background: rgba(124,58,237,.04); }
+    .callout-amber  { border-color: var(--accent3); background: rgba(245,158,11,.04); }
+    .callout-green  { border-color: var(--accent4); background: rgba(16,185,129,.04); }
+    .callout-red    { border-color: var(--accent5); background: rgba(239,68,68,.04); }
+    .callout-pink   { border-color: var(--accent6); background: rgba(236,72,153,.04); }
+
+    /* ── TASK LIST ──────────────────────────── */
+    .task-list { display: flex; flex-direction: column; gap: 10px; }
+    .task {
+      display: flex; align-items: flex-start; gap: 10px;
+      font-size: 13px; color: var(--text-dim); line-height: 1.55;
+    }
+    .task .dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      margin-top: 7px; flex-shrink: 0;
+    }
+    .task .task-text { flex: 1; }
+    .task .task-text strong { color: var(--text); font-weight: 600; }
+    .task.done .task-text { color: var(--text-dim); }
+    .dot-blue   { background: var(--accent); }
+    .dot-purple { background: #a78bfa; }
+    .dot-amber  { background: var(--accent3); }
+    .dot-green  { background: var(--accent4); }
+    .dot-red    { background: var(--accent5); }
+    .dot-pink   { background: var(--accent6); }
+    .dot-cyan   { background: var(--accent7); }
+
+    /* ── CODE BLOCK ─────────────────────────── */
+    .code-block {
+      background: #070a0f;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+      font-family: 'Space Mono', monospace;
+      font-size: 12px;
+      color: var(--text-dim);
+      overflow-x: auto;
+      line-height: 1.75;
+      white-space: pre-wrap;
+    }
+    .code-block .kw  { color: #a78bfa; }
+    .code-block .fn  { color: var(--accent); }
+    .code-block .str { color: var(--accent4); }
+    .code-block .num { color: var(--accent3); }
+    .code-block .cmt { color: var(--text-muted); font-style: italic; }
+    .code-block .fld { color: var(--accent6); }
+
+    /* ── DATA TABLE ─────────────────────────── */
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .data-table thead th {
+      background: var(--bg-card2);
+      padding: 12px 14px;
+      text-align: left;
+      font-family: 'Space Mono', monospace;
+      font-size: 10px; text-transform: uppercase; letter-spacing: .1em;
+      color: var(--text-muted); font-weight: 400;
+      border-bottom: 1px solid var(--border);
+    }
+    .data-table tbody td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border-dim);
+      color: var(--text-dim);
+      vertical-align: top;
+    }
+    .data-table tbody tr:last-child td { border-bottom: none; }
+    .data-table tbody tr:hover { background: rgba(255,255,255,.02); }
+    .data-table strong { color: var(--text); }
+
+    /* ── ARCHITECTURE FLOW ──────────────────── */
+    .arch-flow {
+      display: flex;
+      align-items: center; justify-content: space-between;
+      gap: 6px;
+      padding: 24px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow-x: auto;
+    }
+    .arch-node {
+      flex: 1;
+      text-align: center;
+      padding: 14px 10px;
+      background: var(--bg-card2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      min-width: 140px;
+    }
+    .arch-node-icon { font-size: 24px; margin-bottom: 6px; }
+    .arch-node-name {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px; font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+    .arch-node-detail {
+      font-size: 10px; color: var(--text-muted); line-height: 1.45;
+    }
+    .arch-arrow {
+      color: var(--accent); font-size: 16px;
+      flex-shrink: 0;
+    }
+
+    /* ── COST CURVE TABLE (NEW v7) ──────────── */
+    .cost-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      font-size: 12px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .cost-table thead th {
+      background: linear-gradient(180deg,#0f1219,#13182198);
+      padding: 14px 12px;
+      text-align: center;
+      font-family: 'Syne', sans-serif;
+      font-size: 13px; font-weight: 700;
+      color: var(--text);
+      border-bottom: 1px solid var(--border);
+      border-right: 1px solid var(--border-dim);
+    }
+    .cost-table thead th:last-child { border-right: none; }
+    .cost-table thead th:first-child {
+      background: var(--bg-card);
+      font-family: 'Space Mono', monospace;
+      font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+      color: var(--text-muted);
+      font-weight: 400;
+      text-align: left;
+    }
+    .cost-table thead th .scale-tier {
+      display:block;
+      font-family:'Space Mono', monospace;
+      font-size: 10px; color: var(--text-muted);
+      font-weight: 400; margin-top: 4px;
+      letter-spacing: .1em; text-transform: uppercase;
+    }
+    .cost-table tbody td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border-dim);
+      border-right: 1px solid var(--border-dim);
+      color: var(--text-dim);
+      vertical-align: top;
+    }
+    .cost-table tbody td:first-child {
+      background: var(--bg-card2);
+      color: var(--text);
+      font-weight: 500;
+      border-right: 1px solid var(--border);
+    }
+    .cost-table tbody td:last-child { border-right: none; }
+    .cost-table tbody tr:last-child td { border-bottom: none; }
+    .cost-table tbody tr.total-row td {
+      background: var(--bg-elev);
+      color: var(--text);
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 14px;
+    }
+    .cost-table tbody tr.total-row td:first-child {
+      color: var(--accent);
+      background: var(--bg-elev);
+    }
+    .cost-cell-sub {
+      display: block;
+      font-family: 'Space Mono', monospace;
+      font-size: 9px; color: var(--text-muted);
+      margin-top: 2px;
+    }
+    .scale-badge {
+      display: inline-block;
+      font-family: 'Space Mono', monospace;
+      font-size: 10px; font-weight: 700;
+      padding: 2px 8px; border-radius: 4px;
+      letter-spacing: .05em;
+    }
+    .scale-badge.s1 { background: rgba(16,185,129,.12);  color: var(--accent4); }
+    .scale-badge.s2 { background: rgba(79,143,255,.12);  color: var(--accent); }
+    .scale-badge.s3 { background: rgba(245,158,11,.12);  color: var(--accent3); }
+    .scale-badge.s4 { background: rgba(124,58,237,.12);  color: #a78bfa; }
+    .scale-badge.s5 { background: rgba(239,68,68,.12);   color: var(--accent5); }
+
+    /* ── UI MOCKUPS (Telegram-style) ─────────── */
+    .mockup-frame {
+      background: #17212B;
+      border: 1px solid #222e3b;
+      border-radius: 18px;
+      padding: 0;
+      overflow: hidden;
+      font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 13px;
+      box-shadow: 0 10px 40px rgba(0,0,0,.4);
+    }
+    .mockup-frame.light {
+      background: #FFFFFF;
+      border: 1px solid #E0E5EA;
+      color: #000;
+    }
+    .mockup-statusbar {
+      display: flex;
+      align-items: center; justify-content: space-between;
+      padding: 8px 14px;
+      background: #17212B;
+      border-bottom: 1px solid #0E1621;
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      color: #7A8A99;
+    }
+    .mockup-frame.light .mockup-statusbar {
+      background: #FFFFFF;
+      border-bottom: 1px solid #E8EDF2;
+      color: #6C7A8A;
+    }
+    .mockup-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 14px;
+      border-bottom: 1px solid #0E1621;
+    }
+    .mockup-frame.light .mockup-header { border-bottom: 1px solid #E8EDF2; }
+    .mockup-header-title {
+      font-size: 15px; font-weight: 600;
+      color: #F5F5F5;
+    }
+    .mockup-frame.light .mockup-header-title { color: #000; }
+    .mockup-room-list {
+      padding: 4px 0;
+    }
+    .mockup-room {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 14px;
+      border-bottom: 1px solid #0E1621;
+    }
+    .mockup-frame.light .mockup-room { border-bottom: 1px solid #F0F4F8; }
+    .mockup-room-avatar {
+      width: 44px; height: 44px;
+      border-radius: 50%;
+      background: linear-gradient(135deg,#4f8fff,#7c3aed);
+      flex-shrink: 0;
+      display:flex; align-items:center; justify-content:center;
+      font-size: 18px;
+    }
+    .mockup-room-info { flex: 1; min-width: 0; }
+    .mockup-room-top {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 3px;
+    }
+    .mockup-room-name {
+      color: #F5F5F5; font-size: 14px; font-weight: 500;
+    }
+    .mockup-frame.light .mockup-room-name { color: #000; }
+    .mockup-room-time {
+      color: #6C7A8A; font-size: 11px;
+    }
+    .mockup-room-bottom {
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .mockup-room-msg {
+      color: #7A8A99; font-size: 12px;
+      overflow: hidden; text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 200px;
+    }
+    .mockup-frame.light .mockup-room-msg { color: #6C7A8A; }
+    .mockup-room-badge {
+      min-width: 18px; height: 18px;
+      background: #4E9FFF;
+      color: #fff;
+      font-size: 11px; font-weight: 600;
+      border-radius: 9px;
+      padding: 0 6px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .mockup-nav {
+      display: flex;
+      border-top: 1px solid #0E1621;
+      background: #17212B;
+    }
+    .mockup-frame.light .mockup-nav {
+      background: #FFFFFF;
+      border-top: 1px solid #E8EDF2;
+    }
+    .mockup-nav-tab {
+      flex: 1;
+      padding: 10px 4px 8px;
+      text-align: center;
+      font-size: 9px;
+      color: #6C7A8A;
+    }
+    .mockup-nav-tab .mockup-nav-icon {
+      display: block;
+      font-size: 20px;
+      margin-bottom: 2px;
+    }
+    .mockup-nav-tab.active { color: #4E9FFF; }
+
+    /* ── GAP AUDIT CARD (NEW v7) ────────────── */
+    .gap-card {
+      background: var(--bg-card);
+      border: 1px solid rgba(239,68,68,.25);
+      border-left: 3px solid var(--accent5);
+      border-radius: 10px;
+      padding: 20px;
+      margin-top: 16px;
+    }
+    .gap-card-head {
+      display: flex; align-items: flex-start; gap: 14px;
+      margin-bottom: 12px;
+    }
+    .gap-num {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px; font-weight: 700;
+      color: var(--accent5);
+      background: rgba(239,68,68,.08);
+      border: 1px solid rgba(239,68,68,.3);
+      padding: 4px 10px; border-radius: 4px;
+      letter-spacing: .1em;
+      flex-shrink: 0;
+    }
+    .gap-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 16px; font-weight: 700;
+      color: var(--text);
+      flex: 1;
+      line-height: 1.3;
+    }
+    .gap-severity {
+      font-family: 'Space Mono', monospace;
+      font-size: 9px; letter-spacing: .12em; text-transform: uppercase;
+      padding: 3px 8px; border-radius: 4px;
+    }
+    .gap-severity.crit   { background: rgba(239,68,68,.15);   color: var(--accent5); }
+    .gap-severity.high   { background: rgba(245,158,11,.12);  color: var(--accent3); }
+    .gap-severity.med    { background: rgba(79,143,255,.1);   color: var(--accent); }
+    .gap-body {
+      font-size: 13px; color: var(--text-dim);
+      line-height: 1.65;
+      margin-bottom: 12px;
+    }
+    .gap-body strong { color: var(--text); font-weight: 600; }
+    .gap-fix {
+      background: rgba(16,185,129,.04);
+      border: 1px solid rgba(16,185,129,.2);
+      border-radius: 6px;
+      padding: 12px 14px;
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+    .gap-fix-label {
+      font-family: 'Space Mono', monospace;
+      font-size: 9px; letter-spacing: .15em; text-transform: uppercase;
+      color: var(--accent4);
+      margin-bottom: 5px;
+    }
+    .gap-fix strong { color: var(--accent4); font-weight: 600; }
+
+    /* ── IDEA CARD (retention mechanics) ────── */
+    .idea-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .idea-card-header {
+      display: flex; align-items: center; gap: 14px;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-dim);
+    }
+    .idea-number {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px; letter-spacing: .15em;
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+    .idea-emoji { font-size: 24px; }
+    .idea-name {
+      font-family: 'Syne', sans-serif;
+      font-size: 16px; font-weight: 700;
+      color: var(--text);
+    }
+    .idea-tagline {
+      font-size: 11px; color: var(--text-dim);
+      margin-top: 2px;
+    }
+    .idea-pill {
+      margin-left: auto;
+      font-family: 'Space Mono', monospace;
+      font-size: 10px; padding: 4px 10px; border-radius: 4px;
+      letter-spacing: .05em;
+    }
+    .pill-p1 { background: rgba(16,185,129,.12); color: var(--accent4); border:1px solid rgba(16,185,129,.25); }
+    .pill-p2 { background: rgba(245,158,11,.12); color: var(--accent3); border:1px solid rgba(245,158,11,.25); }
+    .pill-p3 { background: rgba(124,58,237,.12); color: #a78bfa;         border:1px solid rgba(124,58,237,.25); }
+    .pill-p0 { background: rgba(79,143,255,.12); color: var(--accent);  border:1px solid rgba(79,143,255,.25); }
+    .idea-card-body { padding: 20px; }
+    .idea-desc {
+      font-size: 13px; color: var(--text-dim);
+      line-height: 1.65;
+      margin-bottom: 16px;
+    }
+    .idea-desc strong { color: var(--text); }
+    .idea-why {
+      background: rgba(79,143,255,.04);
+      border: 1px solid rgba(79,143,255,.2);
+      border-radius: 8px;
+      padding: 14px 16px;
+      font-size: 12px;
+      color: var(--text-dim);
+      line-height: 1.65;
+    }
+    .idea-why strong { color: var(--text); }
+    .idea-why-title {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px; letter-spacing: .15em; text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 6px;
+    }
+
+    /* ── PHASE CARDS (v7 adds Phase 0 & 4) ──── */
+    .phase-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .phase-card-head {
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--border-dim);
+    }
+    .phase-badge {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px; font-weight: 700;
+      letter-spacing: .1em; text-transform: uppercase;
+      padding: 4px 10px; border-radius: 4px;
+      display: inline-block;
+      margin-bottom: 12px;
+    }
+    .pb-blue   { background: rgba(79,143,255,.15); color: var(--accent);  border: 1px solid rgba(79,143,255,.3); }
+    .pb-green  { background: rgba(16,185,129,.15); color: var(--accent4); border: 1px solid rgba(16,185,129,.3); }
+    .pb-amber  { background: rgba(245,158,11,.15); color: var(--accent3); border: 1px solid rgba(245,158,11,.3); }
+    .pb-purple { background: rgba(124,58,237,.15); color: #a78bfa;         border: 1px solid rgba(124,58,237,.3); }
+    .pb-red    { background: rgba(239,68,68,.15);  color: var(--accent5); border: 1px solid rgba(239,68,68,.3); }
+    .phase-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 18px; font-weight: 700;
+      line-height: 1.2;
+      margin-bottom: 6px;
+    }
+    .phase-sub {
+      font-size: 11px; color: var(--text-muted);
+      font-family: 'Space Mono', monospace;
+    }
+    .phase-card-body { padding: 16px 20px 20px; }
+    .phase-items { display: flex; flex-direction: column; gap: 12px; }
+    .phase-item {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 10px;
+      background: var(--bg-card2);
+      border: 1px solid var(--border-dim);
+      border-radius: 8px;
+    }
+    .phase-item-icon {
+      font-size: 18px; flex-shrink: 0;
+    }
+    .phase-item-text { flex: 1; }
+    .phase-item-name {
+      font-size: 13px; font-weight: 600;
+      color: var(--text);
+      margin-bottom: 3px;
+    }
+    .phase-item-detail {
+      font-size: 11px; color: var(--text-dim);
+      line-height: 1.5;
+    }
+    .phase-effort {
+      font-family: 'Space Mono', monospace;
+      font-size: 9px; letter-spacing: .08em;
+      padding: 3px 7px; border-radius: 3px;
+      flex-shrink: 0;
+      background: var(--bg-elev);
+      color: var(--text-muted);
+    }
+    .pe-low  { color: var(--accent4); background: rgba(16,185,129,.08); }
+    .pe-med  { color: var(--accent3); background: rgba(245,158,11,.08); }
+    .pe-high { color: #a78bfa;        background: rgba(124,58,237,.08); }
+
+    /* ── COMPLIANCE GRID (NEW v7) ───────────── */
+    .compliance-grid {
+      display: grid; grid-template-columns: repeat(auto-fit,minmax(240px,1fr));
+      gap: 12px;
+    }
+    .compliance-item {
+      background: var(--bg-card2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+    }
+    .compliance-item-head {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 8px;
+    }
+    .compliance-check {
+      width: 16px; height: 16px; border-radius: 50%;
+      background: var(--accent4);
+      color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 700;
+      flex-shrink: 0;
+    }
+    .compliance-name {
+      font-size: 12px; font-weight: 600; color: var(--text);
+    }
+    .compliance-desc {
+      font-size: 11px; color: var(--text-dim); line-height: 1.5;
+    }
+
+    /* ── THEME PALETTE (NEW v7) ─────────────── */
+    .palette-grid {
+      display: grid; grid-template-columns: repeat(auto-fit,minmax(120px,1fr));
+      gap: 8px;
+    }
+    .palette-swatch {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .palette-color {
+      height: 48px;
+      display: flex; align-items: flex-end;
+      padding: 6px 10px;
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      font-weight: 600;
+    }
+    .palette-meta {
+      padding: 8px 10px;
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      color: var(--text-muted);
+      background: var(--bg-card2);
+      border-top: 1px solid var(--border);
+    }
+    .palette-meta strong {
+      display: block;
+      font-size: 11px;
+      color: var(--text);
+      font-weight: 500;
+      margin-bottom: 2px;
+    }
+
+    /* ── ORBIT CARD PREVIEW ─────────────────── */
+    .orbit-card-preview {
+      background: linear-gradient(135deg, #0a0e1a, #1a1a3e);
+      border: 2px solid #4f8fff;
+      border-radius: 18px;
+      padding: 24px 20px;
+      text-align: center;
+      position: relative;
+      box-shadow: 0 8px 40px rgba(79,143,255,.2);
+    }
+    .ocp-crown {
+      position: absolute; top: 12px; right: 14px;
+      font-size: 18px;
+    }
+    .ocp-name {
+      font-family: 'Syne', sans-serif;
+      font-size: 22px; font-weight: 800;
+      color: #fff;
+      margin-bottom: 4px;
+    }
+    .ocp-handle {
+      font-size: 11px; color: #7A8A99;
+      margin-bottom: 14px;
+      font-family: 'Space Mono', monospace;
+    }
+    .ocp-stats {
+      display: grid; grid-template-columns: repeat(3,1fr);
+      gap: 10px;
+      padding: 14px 0;
+      margin-bottom: 14px;
+      border-top: 1px solid rgba(79,143,255,.2);
+      border-bottom: 1px solid rgba(79,143,255,.2);
+    }
+    .ocp-stat-val {
+      font-family: 'Syne', sans-serif;
+      font-size: 18px; font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 3px;
+    }
+    .ocp-stat-lbl {
+      font-size: 9px;
+      font-family: 'Space Mono', monospace;
+      color: #7A8A99;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+    .ocp-badges { font-size: 18px; margin-bottom: 10px; letter-spacing: 3px; }
+    .ocp-skills {
+      font-size: 11px; color: #8b96ad;
+      margin-bottom: 12px;
+      font-family: 'Space Mono', monospace;
+    }
+    .ocp-cta {
+      background: linear-gradient(135deg,#4f8fff,#7c3aed);
+      padding: 8px 16px; border-radius: 20px;
+      color: #fff;
+      font-size: 11px; font-weight: 600;
+      display: inline-block;
+    }
+
+    /* ── MOAT ─────────────────────────────── */
+    .moat-center {
+      text-align: center;
+      padding: 40px 24px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      margin-top: 24px;
+    }
+    .moat-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 16px; letter-spacing: .15em;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      margin-bottom: 20px;
+    }
+    .moat-equation {
+      font-family: 'Syne', sans-serif;
+      font-size: 14px; line-height: 2.4;
+      margin: 18px 0;
+    }
+    .eq-term {
+      display: inline-block;
+      padding: 8px 14px;
+      border-radius: 6px;
+      margin: 4px 6px;
+      font-size: 16px; font-weight: 700;
+    }
+    .eq-community { background: rgba(79,143,255,.15); color: var(--accent); border: 1px solid rgba(79,143,255,.3); }
+    .eq-economy   { background: rgba(245,158,11,.15); color: var(--accent3); border: 1px solid rgba(245,158,11,.3); }
+    .eq-identity  { background: rgba(124,58,237,.15); color: #a78bfa;         border: 1px solid rgba(124,58,237,.3); }
+    .eq-commerce  { background: rgba(16,185,129,.15); color: var(--accent4); border: 1px solid rgba(16,185,129,.3); }
+    .moat-op { font-size: 20px; color: var(--text-muted); margin: 0 6px; }
+    .moat-result-text {
+      font-family: 'Syne', sans-serif;
+      font-size: 18px; line-height: 1.55;
+      color: var(--text);
+    }
+    .moat-result-text strong { color: var(--accent); }
+
+    /* ── LANGUAGE CHIPS ──────────────────── */
+    .lang-row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .lang-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-family: 'Space Mono', monospace;
+      font-size: 11px; padding: 5px 10px; border-radius: 20px;
+      background: var(--bg-card2);
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    /* ── PRINCIPLE CARD (NEW v7) ──────────── */
+    .principle-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+    }
+    .principle-card {
+      padding: 18px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      border-top: 2px solid var(--accent);
+    }
+    .principle-num {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px; letter-spacing: .15em;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+    .principle-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 14px; font-weight: 700;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+    .principle-body {
+      font-size: 12px; color: var(--text-dim); line-height: 1.6;
+    }
+
+    /* ── FOOTER ──────────────────────────── */
+    .footer {
+      background: var(--bg-card);
+      border-top: 1px solid var(--border-dim);
+      padding: 32px 0;
+      margin-top: 40px;
+    }
+    .footer-inner {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 40px;
+      align-items: center;
+    }
+    @media (max-width: 760px) {
+      .footer-inner { grid-template-columns: 1fr; text-align: center; }
+    }
+    .footer-brand {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800; font-size: 16px;
+      letter-spacing: .04em;
+    }
+    .footer-meta {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px; color: var(--text-muted);
+      line-height: 1.7;
+    }
+
+    /* ── UTILITIES ───────────────────────── */
+    .mt-8  { margin-top: 8px; }
+    .mt-12 { margin-top: 12px; }
+    .mt-16 { margin-top: 16px; }
+    .mt-24 { margin-top: 24px; }
+    .mt-32 { margin-top: 32px; }
+    .mb-8  { margin-bottom: 8px; }
+    .mb-12 { margin-bottom: 12px; }
+    .mb-16 { margin-bottom: 16px; }
+    .mb-24 { margin-bottom: 24px; }
+    .mb-32 { margin-bottom: 32px; }
+    .font-mono { font-family: 'Space Mono', monospace; }
+    .text-muted { color: var(--text-muted); }
+    .text-dim { color: var(--text-dim); }
+    .text-center { text-align: center; }
+    code { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--accent); background: rgba(79,143,255,.06); padding: 1px 6px; border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════
+     TOPBAR
+══════════════════════════════════════ -->
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="topbar-brand">
+      <span class="orbit-dot"></span>
+      ORBIT · BLUEPRINT
+    </div>
+    <div class="topbar-meta">
+      <span class="badge-version">v7.0 — FINAL</span>
+      <span class="topbar-date">Apr 2026 · Chandigarh</span>
+    </div>
+  </div>
+</header>
+
+<!-- ══════════════════════════════════════
+     JUMP NAV
+══════════════════════════════════════ -->
+<nav class="jumpnav">
+  <div class="jumpnav-inner">
+    <a href="#principles">Principles</a>
+    <a href="#cost">Cost Curve</a>
+    <a href="#architecture">Architecture</a>
+    <a href="#stack">Stack</a>
+    <a href="#ui">UI Design</a>
+    <a href="#shell">App Shell</a>
+    <a href="#schema">Data Schema</a>
+    <a href="#engines">Engines</a>
+    <a href="#retention">Retention</a>
+    <a href="#realtime">Realtime</a>
+    <a href="#media">Media</a>
+    <a href="#gaps">CTO Gaps</a>
+    <a href="#compliance">Compliance</a>
+    <a href="#observe">Observe</a>
+    <a href="#money">Money</a>
+    <a href="#admin">Admin</a>
+    <a href="#phases">Phases</a>
+    <a href="#matrix">Matrix</a>
+    <a href="#moat">Moat</a>
+    <a href="#actions">Day 1</a>
+  </div>
+</nav>
+
+<div class="container">
+
+  <!-- ══════════════════════════════════════
+       HERO
+  ══════════════════════════════════════ -->
+  <div class="hero">
+    <div class="hero-eyebrow">ORBIT · The Final Build Blueprint</div>
+    <h1 class="hero-title">
+      ORBIT <span class="highlight">v7.0</span><br>
+      Build once. Scale to 10M. <br>
+      Zero rewrites.
+    </h1>
+    <p class="hero-subtitle">
+      <strong>1,000 users today. 10,000,000 tomorrow.</strong> Yeh blueprint ek solo developer ke liye hai — sasta subscription se start karo (₹0–₹500/mo), revenue ke saath upgrade karo, aur code ko <em>ek baar</em> likho jo entire journey handle kar le. Teen previous blueprints (v4 CTO audit, v5 Telegram UI, v6 retention engine) ka best + DPDP 2026 compliance + Firebase Dynamic Links deprecation ka real fix + 17 production gaps jo pehle miss the — sab covered.
+    </p>
+    <div class="hero-tags">
+      <span class="tag tag-blue">Next.js 15</span>
+      <span class="tag tag-purple">Firebase / Firestore</span>
+      <span class="tag tag-amber">Cloudflare R2</span>
+      <span class="tag tag-green">Vercel Edge</span>
+      <span class="tag tag-pink">Pusher → Ably</span>
+      <span class="tag tag-red">Agora RTC</span>
+      <span class="tag tag-cyan">FCM + APNs</span>
+      <span class="tag tag-blue">Branch.io</span>
+      <span class="tag tag-purple">Meilisearch</span>
+      <span class="tag tag-amber">Gemini API</span>
+      <span class="tag tag-green">Razorpay UPI</span>
+      <span class="tag tag-red">PostHog + Sentry</span>
+    </div>
+    <div class="hero-stat-row">
+      <div>
+        <div class="hero-stat-val blue">10M+</div>
+        <div class="hero-stat-label">Scale Target</div>
+      </div>
+      <div>
+        <div class="hero-stat-val green">₹0</div>
+        <div class="hero-stat-label">Infra @ Day 1</div>
+      </div>
+      <div>
+        <div class="hero-stat-val amber">17</div>
+        <div class="hero-stat-label">Gaps Fixed</div>
+      </div>
+      <div>
+        <div class="hero-stat-val purple">0</div>
+        <div class="hero-stat-label">Rewrites Ever</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       SECTION 01 — THE 7 PRINCIPLES
+  ══════════════════════════════════════ -->
+  <section id="principles">
+    <div class="section-header">
+      <div class="section-number">01 ──</div>
+      <div class="section-title-group">
+        <h2 class="section-title">The 7 <span class="accent-blue">Foundational Principles</span></h2>
+        <p class="section-desc">Every decision in this blueprint follows these 7 laws. If a new idea breaks a principle, it doesn't go in. <em>Yeh architecture ki constitution hai.</em></p>
+      </div>
+    </div>
+
+    <div class="principle-grid">
+      <div class="principle-card">
+        <div class="principle-num">PRINCIPLE 01</div>
+        <div class="principle-title">Serverless by Default</div>
+        <div class="principle-body">Koi khud ka server nahi. Vercel Edge + Firebase + R2 = auto-scale. Kabhi bhi DevOps hire nahi karna padega Phase 3 tak.</div>
+      </div>
+      <div class="principle-card">
+        <div class="principle-num">PRINCIPLE 02</div>
+        <div class="principle-title">Managed First, Self-Host Later</div>
+        <div class="principle-body">Pusher, Agora, Gemini — sab managed. Jab scale aa jaaye (1M+ MAU) tab migrate specific hot paths. Never premature optimization.</div>
+      </div>
+      <div class="principle-card">
+        <div class="principle-num">PRINCIPLE 03</div>
+        <div class="principle-title">Cost = f(Revenue)</div>
+        <div class="principle-body">Infra cost user count ke saath automatic scale hota hai. Subscription upgrade karo jab revenue milne lage, pehle nahi.</div>
+      </div>
+      <div class="principle-card">
+        <div class="principle-num">PRINCIPLE 04</div>
+        <div class="principle-title">Denormalize for Reads</div>
+        <div class="principle-body">Firestore reads cheap hain, joins nahi. Har feed/profile/room me counter aur cached fields pre-compute karo. Read = 1 doc.</div>
+      </div>
+      <div class="principle-card">
+        <div class="principle-num">PRINCIPLE 05</div>
+        <div class="principle-title">Ship, Measure, Iterate</div>
+        <div class="principle-body">PostHog har event track karta hai Day 1 se. Bina analytics ke ek bhi feature ship nahi karna. Blind flying = death.</div>
+      </div>
+      <div class="principle-card">
+        <div class="principle-num">PRINCIPLE 06</div>
+        <div class="principle-title">Compliance from Day 0</div>
+        <div class="principle-body">DPDP 2023 aur IT Rules 2021 baked-in. Delete account, data export, consent — first build hi mein, baad mein add karna 10x mehenga.</div>
+      </div>
+      <div class="principle-card">
+        <div class="principle-num">PRINCIPLE 07</div>
+        <div class="principle-title">One Codebase, All Platforms</div>
+        <div class="principle-body">Next.js 15 = web + PWA. Capacitor = native iOS/Android wrapper (push + deep links + Play Store). Zero duplicate code.</div>
+      </div>
+    </div>
+
+    <div class="callout callout-blue mt-24">
+      <strong>💡 Why these 7 matter:</strong> Kayi apps Phase 1 mein ship kar dete hain but Phase 3 mein rewrite karte hain (complete code dobara) kyunki foundation kamzor thi. Yeh 7 principles rewrite rokte hain. Agar kal ko koi naya feature "lagta hai cheap hai lekin principle break kar raha hai" — toh mat karo, baad mein dard hoga.
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════
+       SECTION 02 — SCALING COST CURVE
+  ══════════════════════════════════════ -->
+  <section id="cost">
+    <div class="section-header">
+      <div class="section-number">02 ──</div>
+      <div class="section-title-group">
+        <h2 class="section-title">The <span class="accent-green">Scaling Cost Curve</span> — ₹0 → ₹40L/mo</h2>
+        <p class="section-desc">Yeh section sabse important hai. <em>Exact monthly infra cost at 1K / 10K / 100K / 1M / 10M MAU.</em> Kaunsa subscription kab upgrade karna hai, break-even kab aata hai, aur kab self-host pe migrate karna hai — sab yahan.</p>
+      </div>
+    </div>
+
+    <div class="callout callout-green mb-24">
+      <strong>🎯 The "1K → 10M" Reality:</strong> Neeche table mein <strong>har ek vendor ka exact tier + cost hai</strong>. Day 1 pe sab free tiers mein fit ho jaate hain. Har 10x user growth pe ~10x cost nahi hoti — economies of scale se per-user cost actually <em>ghatti hai</em> (₹0.85/user at 100K → ₹0.80 at 1M → ₹0.40 at 10M after self-hosting migration).
+    </div>
+
+    <div style="overflow-x:auto;">
+      <table class="cost-table">
+        <thead>
+          <tr>
+            <th>Layer</th>
+            <th>1K MAU <span class="scale-tier">Free Tiers</span></th>
+            <th>10K MAU <span class="scale-tier">Paid Hobby</span></th>
+            <th>100K MAU <span class="scale-tier">Growth</span></th>
+            <th>1M MAU <span class="scale-tier">Enterprise</span></th>
+            <th>10M MAU <span class="scale-tier">Hybrid Self-host</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Hosting</strong><span class="cost-cell-sub">Vercel</span></td>
+            <td>₹0<span class="cost-cell-sub">Hobby (free)</span></td>
+            <td>₹1,700<span class="cost-cell-sub">Pro $20</span></td>
+            <td>₹1,700<span class="cost-cell-sub">Pro + overage</span></td>
+            <td>₹50,000<span class="cost-cell-sub">Enterprise</span></td>
+            <td>₹3,00,000<span class="cost-cell-sub">Enterprise + GKE</span></td>
+          </tr>
+          <tr>
+            <td><strong>Database + Auth</strong><span class="cost-cell-sub">Firebase/Firestore</span></td>
+            <td>₹0<span class="cost-cell-sub">Spark (free)</span></td>
+            <td>₹800<span class="cost-cell-sub">Blaze pay-as-go</span></td>
+            <td>₹15,000<span class="cost-cell-sub">Blaze at scale</span></td>
+            <td>₹1,50,000<span class="cost-cell-sub">Blaze + BigQuery</span></td>
+            <td>₹8,00,000<span class="cost-cell-sub">Firestore + self-host hot paths</span></td>
+          </tr>
+          <tr>
+            <td><strong>Media Storage</strong><span class="cost-cell-sub">Cloudflare R2</span></td>
+            <td>₹0<span class="cost-cell-sub">10GB free</span></td>
+            <td>₹100<span class="cost-cell-sub">~50GB</span></td>
+            <td>₹1,000<span class="cost-cell-sub">~500GB</span></td>
+            <td>₹10,000<span class="cost-cell-sub">~5TB</span></td>
+            <td>₹2,00,000<span class="cost-cell-sub">~100TB + Workers</span></td>
+          </tr>
+          <tr>
+            <td><strong>WebSocket / Realtime</strong><span class="cost-cell-sub">Pusher → Ably</span></td>
+            <td>₹0<span class="cost-cell-sub">Pusher Sandbox</span></td>
+            <td>₹4,100<span class="cost-cell-sub">Pusher Startup $49</span></td>
+            <td>₹25,000<span class="cost-cell-sub">Pusher Pro / Ably Std</span></td>
+            <td>₹1,50,000<span class="cost-cell-sub">Ably Enterprise</span></td>
+            <td>₹3,00,000<span class="cost-cell-sub">Self-host Soketi on K8s</span></td>
+          </tr>
+          <tr>
+            <td><strong>Live Audio/Video</strong><span class="cost-cell-sub">Agora RTC</span></td>
+            <td>₹0<span class="cost-cell-sub">10K min/mo free</span></td>
+            <td>₹500<span class="cost-cell-sub">minor overage</span></td>
+            <td>₹8,000<span class="cost-cell-sub">~100K min</span></td>
+            <td>₹80,000<span class="cost-cell-sub">volume discount</span></td>
+            <td>₹10,00,000<span class="cost-cell-sub">negotiated enterprise</span></td>
+          </tr>
+          <tr>
+            <td><strong>AI (Gemini Flash)</strong><span class="cost-cell-sub">Smart Reply + Post Gen</span></td>
+            <td>₹0<span class="cost-cell-sub">15 RPM free tier</span></td>
+            <td>₹200<span class="cost-cell-sub">rate-limited</span></td>
+            <td>₹3,000<span class="cost-cell-sub">paid tier</span></td>
+            <td>₹30,000<span class="cost-cell-sub">Vertex AI enterprise</span></td>
+            <td>₹3,00,000<span class="cost-cell-sub">fine-tuned model on GCP</span></td>
+          </tr>
+          <tr>
+            <td><strong>Push Notifications</strong><span class="cost-cell-sub">FCM + APNs</span></td>
+            <td>₹0<span class="cost-cell-sub">Fully free</span></td>
+            <td>₹0<span class="cost-cell-sub">Fully free</span></td>
+            <td>₹0<span class="cost-cell-sub">Fully free</span></td>
+            <td>₹0<span class="cost-cell-sub">Fully free</span></td>
+            <td>₹0<span class="cost-cell-sub">Always free from Google/Apple</span></td>
+          </tr>
+          <tr>
+            <td><strong>Deep Links</strong><span class="cost-cell-sub">Branch.io (FDL shut)</span></td>
+            <td>₹0<span class="cost-cell-sub">Branch free tier</span></td>
+            <td>₹0<span class="cost-cell-sub">Free to 10K MAU</span></td>
+            <td>₹8,000<span class="cost-cell-sub">Branch 100K MAU</span></td>
+            <td>₹40,000<span class="cost-cell-sub">Branch 1M</span></td>
+            <td>₹1,50,000<span class="cost-cell-sub">Migrate to custom server</span></td>
+          </tr>
+          <tr>
+            <td><strong>Search</strong><span class="cost-cell-sub">Meilisearch Cloud</span></td>
+            <td>₹0<span class="cost-cell-sub">Not needed yet</span></td>
+            <td>₹0<span class="cost-cell-sub">Tiny indexes, self-host</span></td>
+            <td>₹2,500<span class="cost-cell-sub">Cloud Build $30</span></td>
+            <td>₹10,000<span class="cost-cell-sub">Cloud Pro</span></td>
+            <td>₹1,00,000<span class="cost-cell-sub">Self-host Meilisearch cluster</span></td>
+          </tr>
+          <tr>
+            <td><strong>Analytics</strong><span class="cost-cell-sub">PostHog + Firebase</span></td>
+            <td>₹0<span class="cost-cell-sub">1M events/mo free</span></td>
+            <td>₹0<span class="cost-cell-sub">Still in free tier</span></td>
+            <td>₹37,500<span class="cost-cell-sub">PostHog $450</span></td>
+            <td>₹1,00,000<span class="cost-cell-sub">Scale plan</span></td>
+            <td>₹2,50,000<span class="cost-cell-sub">Self-host PostHog OSS</span></td>
+          </tr>
+          <tr>
+            <td><strong>Error Monitoring</strong><span class="cost-cell-sub">Sentry</span></td>
+            <td>₹0<span class="cost-cell-sub">5K events free</span></td>
+            <td>₹2,200<span class="cost-cell-sub">Team $26</span></td>
+            <td>₹6,700<span class="cost-cell-sub">Business $80</span></td>
+            <td>₹25,000<span class="cost-cell-sub">Enterprise</span></td>
+            <td>₹50,000<span class="cost-cell-sub">Self-host Sentry OSS</span></td>
+          </tr>
+          <tr>
+            <td><strong>Payments</strong><span class="cost-cell-sub">Razorpay</span></td>
+            <td>₹0<span class="cost-cell-sub">No txns yet</span></td>
+            <td>₹0<span class="cost-cell-sub">2% per txn only</span></td>
+            <td>₹0<span class="cost-cell-sub">2% per txn</span></td>
+            <td>₹0<span class="cost-cell-sub">1.8% negotiated</span></td>
+            <td>₹0<span class="cost-cell-sub">1.5% at volume</span></td>
+          </tr>
+          <tr>
+            <td><strong>Moderation</strong><span class="cost-cell-sub">Hive AI / OpenAI Mod</span></td>
+            <td>₹0<span class="cost-cell-sub">OpenAI Mod free</span></td>
+            <td>₹0<span class="cost-cell-sub">OpenAI Mod free</span></td>
+            <td>₹5,000<span class="cost-cell-sub">Hive image/video</span></td>
+            <td>₹50,000<span class="cost-cell-sub">Hive full suite</span></td>
+            <td>₹2,00,000<span class="cost-cell-sub">Custom model + Hive</span></td>
+          </tr>
+          <tr>
+            <td><strong>Domain + Email + Misc</strong><span class="cost-cell-sub">Namecheap + Resend</span></td>
+            <td>₹100<span class="cost-cell-sub">Domain only</span></td>
+            <td>₹1,600<span class="cost-cell-sub">Resend $20</span></td>
+            <td>₹8,000<span class="cost-cell-sub">Resend Business</span></td>
+            <td>₹40,000<span class="cost-cell-sub">SES + support</span></td>
+            <td>₹2,50,000<span class="cost-cell-sub">Transactional email scale</span></td>
+          </tr>
+          <tr class="total-row">
+            <td>MONTHLY TOTAL</td>
+            <td>₹100<span class="cost-cell-sub">essentially free</span></td>
+            <td>₹11,200<span class="cost-cell-sub">~₹1.12/user</span></td>
+            <td>₹1,20,400<span class="cost-cell-sub">~₹1.20/user</span></td>
+            <td>₹8,25,000<span class="cost-cell-sub">~₹0.82/user</span></td>
+            <td>₹40,10,000<span class="cost-cell-sub">~₹0.40/user</span></td>
+          </tr>
+          <tr class="total-row">
+            <td>REQUIRED REVENUE<span class="cost-cell-sub">to break even</span></td>
+            <td>₹100<span class="cost-cell-sub">0.01% paid</span></td>
+            <td>₹11,200<span class="cost-cell-sub">~6 Pro subs</span></td>
+            <td>₹1,20,400<span class="cost-cell-sub">~60 Pro @₹2K</span></td>
+            <td>₹8,25,000<span class="cost-cell-sub">~400 Pro</span></td>
+            <td>₹40,10,000<span class="cost-cell-sub">~2,000 Pro</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout callout-amber mt-24">
+      <strong>⚠️ Upgrade Triggers — Aap subscription tabhi upgrade karo jab:</strong>
+      <span style="display:block;margin-top:8px;">
+        <strong style="color:var(--accent4)">→ Vercel Hobby → Pro:</strong> Jab <code>bandwidth > 100GB/mo</code> ya <code>serverless fn count > 100K/day</code>.<br>
+        <strong style="color:var(--accent4)">→ Firebase Spark → Blaze:</strong> Jab <code>reads > 50K/day</code>. Blaze pay-as-go, free tier still applies.<br>
+        <strong style="color:var(--accent4)">→ Pusher Sandbox → Startup:</strong> Jab <code>concurrent > 200</code> OR <code>msg > 200K/day</code>.<br>
+        <strong style="color:var(--accent4)">→ Sentry Free → Team:</strong> Jab <code>errors > 5K/mo</code>. Waste nahi karna, real signal chahiye.<br>
+        <strong style="color:var(--accent4)">→ PostHog Free → Scale:</strong> Jab <code>events > 1M/mo</code>. Usually around 50K MAU.<br>
+        <strong style="color:var(--accent5)">→ Self-host migration (Phase 4):</strong> Jab <code>Pusher bill > ₹2,00,000/mo</code> — Soketi on Fly.io se 80% saving.
+      </span>
+    </div>
+
+    <div class="grid grid-3 mt-24">
+      <div class="card card-green card-glow-green">
+        <div class="card-label">Day 1 — Free</div>
+        <div class="card-title">₹0–₹200/mo</div>
+        <div class="card-body">
+          Sab free tiers mein fit. Sirf domain + Resend free plan. <strong>0 se 1,000 users</strong> tak absolutely zero subscription cost.
+        </div>
+        <div class="card-footer">Break-even: 1 user × ₹200 = impossible to lose money</div>
+      </div>
+      <div class="card card-amber card-glow-amber">
+        <div class="card-label">Sweet Spot — 10K MAU</div>
+        <div class="card-title">₹11K/mo</div>
+        <div class="card-body">
+          6 ORBIT Pro subs (₹2,000/mo each) = break-even. <strong>50 Pro subs (0.5% conversion)</strong> = ₹1L/mo profit. Realistic target.
+        </div>
+        <div class="card-footer">First real revenue milestone</div>
+      </div>
+      <div class="card card-blue card-glow-blue">
+        <div class="card-label">Scale — 1M MAU</div>
+        <div class="card-title">₹8.25L/mo</div>
+        <div class="card-body">
+          Per-user cost actually <em>ghatti hai</em> (₹0.82). <strong>Ad revenue + Spotlight auction + 25% creator cut</strong> se easily ₹15–25L/mo ho sakta hai.
+        </div>
+        <div class="card-footer">Phase 3 target — Year 1 achievable</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════
+       SECTION 03 — SYSTEM ARCHITECTURE
+  ══════════════════════════════════════ -->
+  <section id="architecture">
+    <div class="section-header">
+      <div class="section-number">03 ──</div>
+      <div class="section-title-group">
+        <h2 class="section-title">System <span class="accent-blue">Architecture</span> — The Whole Map</h2>
+        <p class="section-desc">Production-grade serverless stack. Har box managed service hai. <em>Koi EC2, koi Kubernetes, koi DevOps nahi Phase 3 tak.</em></p>
+      </div>
+    </div>
+
+    <div class="arch-flow mb-24">
+      <div class="arch-node">
+        <div class="arch-node-icon">📱</div>
+        <div class="arch-node-name">Client</div>
+        <div class="arch-node-detail">Next.js 15 PWA<br>+ Capacitor wrapper<br>iOS · Android · Web</div>
+      </div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-node">
+        <div class="arch-node-icon">⚡</div>
+        <div class="arch-node-name">Vercel Edge</div>
+        <div class="arch-node-detail">App Router<br>API Routes<br>ISR + SSR + CDN</div>
+      </div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-node">
+        <div class="arch-node-icon">🔥</div>
+        <div class="arch-node-name">Firestore</div>
+        <div class="arch-node-detail">NoSQL + Auth<br>Realtime sync<br>Security rules</div>
+      </div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-node">
+        <div class="arch-node-icon">📦</div>
+        <div class="arch-node-name">R2 + CDN</div>
+        <div class="arch-node-detail">Media · Voice<br>ORBIT Cards<br>Zero egress</div>
+      </div>
+    </div>
+
+    <div class="arch-flow mb-24">
+      <div class="arch-node">
+        <div class="arch-node-icon">🔌</div>
+        <div class="arch-node-name">Realtime</div>
+        <div class="arch-node-detail">Pusher → Ably<br>Presence + Typing<br>WS + Ticks</div>
+      </div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-node">
+        <div class="arch-node-icon">🎤</div>
+        <div class="arch-node-name">Agora RTC</div>
+        <div class="arch-node-detail">ORBIT Live<br>&lt;300ms audio<br>Credit gate</div>
+      </div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-node">
+        <div class="arch-node-icon">🔔</div>
+        <div class="arch-node-name">Push + Links</div>
+        <div class="arch-node-detail">FCM + APNs<br>Branch.io<br>Deep link server</div>
+      </div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-node">
+        <div class="arch-node-icon">🔍</div>
+        <div class="arch-node-name">Search + AI</div>
+        <div class="arch-node-detail">Meilisearch<br>Gemini Flash<br>OpenAI Mod</div>
+      </div>
+    </div>
+
+    <div class="grid grid-3">
+      <div class="card card-blue card-glow-blue">
+        <span class="card-icon">⚡</span>
+        <div class="card-label">Client Layer</div>
+        <div class="card-title">Next.js 15 + Capacitor</div>
+        <div class="card-body">
+          <strong>Next.js 15 App Router</strong> — web/PWA primary, <strong>Capacitor</strong> wraps same code into iOS/Android native shell. One codebase = three platforms. Push via <code>@capacitor/push-notifications</code>, deep links via <code>@capacitor/app</code>. Zero duplicate logic.
+        </div>
+        <div class="card-footer">Why: Solo dev can't maintain 3 codebases</div>
+      </div>
+      <div class="card card-amber card-glow-amber">
+        <span class="card-icon">🔥</span>
+        <div class="card-label">Data + Auth Layer</div>
+        <div class="card-title">Firebase / Firestore</div>
+        <div class="card-body">
+          NoSQL with realtime listeners. Phone OTP + Google Auth managed. Security Rules replace backend auth logic entirely. Auto-scales to millions of documents. <strong>Bottleneck: 1 write/sec per doc</strong> — solve via denormalization (Section 07).
+        </div>
+        <div class="card-footer">Spark (free) → Blaze (pay-as-go)</div>
+      </div>
+      <div class="card card-purple card-glow-purple">
+        <span class="card-icon">📦</span>
+        <div class="card-label">Media Layer</div>
+        <div class="card-title">Cloudflare R2</div>
+        <div class="card-body">
+          S3-compatible, <strong>zero egress fees</strong>. Profile pics, voice notes, ORBIT Cards. Signed URLs for private access. Cloudflare CDN global edge = sub-50ms delivery. Massive cost saving vs AWS at scale.
+        </div>
+        <div class="card-footer">10GB free · $0.015/GB after</div>
+      </div>
+      <div class="card card-pink card-glow-red">
+        <span class="card-icon">🔌</span>
+        <div class="card-label">Realtime Layer</div>
+        <div class="card-title">Pusher (→Ably @1M)</div>
+        <div class="card-body">
+          Pusher Sandbox free (200 concurrent, 200K msg/day). Migrate to Ably at 1M MAU (globally distributed, better latency). At 10M, self-host Soketi on Fly.io for 80% cost saving.
+        </div>
+        <div class="card-footer">Pusher→Ably→Soketi migration path</div>
+      </div>
+      <div class="card card-red">
+        <span class="card-icon">🎤</span>
+        <div class="card-label">Live Audio Layer</div>
+        <div class="card-title">Agora RTC</div>
+        <div class="card-body">
+          &lt;300ms latency for ORBIT Live audio rooms. <strong>10,000 min/mo free</strong> — enough for ~50 one-hour rooms monthly. Credit-gated entry + host revenue flow via Firestore transactions.
+        </div>
+        <div class="card-footer">Best SDK for India-scale voice</div>
+      </div>
+      <div class="card card-green">
+        <span class="card-icon">🔔</span>
+        <div class="card-label">Push + Deep Links</div>
+        <div class="card-title">FCM + APNs + Branch</div>
+        <div class="card-body">
+          FCM (Android) + APNs (iOS) via Firebase Cloud Messaging. <strong>Firebase Dynamic Links DEPRECATED (Aug 2025)</strong> — using Branch.io free tier (10K MAU) for deep links. Critical for ORBIT Card virality.
+        </div>
+        <div class="card-footer">Non-negotiable for retention</div>
+      </div>
+      <div class="card card-cyan">
+        <span class="card-icon">🔍</span>
+        <div class="card-label">Search Layer</div>
+        <div class="card-title">Meilisearch</div>
+        <div class="card-body">
+          Firestore has NO full-text search — huge gap in v4–v6. Meilisearch self-hosted Phase 1 (Railway ₹500), Cloud Build at 10K users. Typo-tolerant, Hindi-aware, instant.
+        </div>
+        <div class="card-footer">Critical for user/room discovery</div>
+      </div>
+      <div class="card card-blue">
+        <span class="card-icon">🤖</span>
+        <div class="card-label">AI Layer</div>
+        <div class="card-title">Gemini Flash + OpenAI Mod</div>
+        <div class="card-body">
+          Gemini 1.5 Flash for Smart Replies + post generation (15 RPM free). <strong>OpenAI Moderation API</strong> (free) for text abuse detection. Hive AI added at 100K+ for image/video moderation.
+        </div>
+        <div class="card-footer">Cost-controlled: user-triggered only</div>
+      </div>
+      <div class="card card-purple">
+        <span class="card-icon">💳</span>
+        <div class="card-label">Payments + Cash-Out</div>
+        <div class="card-title">Razorpay UPI</div>
+        <div class="card-body">
+          Razorpay Standard Plan for credit purchases + creator payouts via UPI. <strong>RBI-compliant</strong> for peer-to-peer credit-to-cash at scale. Integrated webhooks for Firestore sync.
+        </div>
+        <div class="card-footer">Indian-market payment standard</div>
+      </div>
+    </div>
+
+    <div class="callout callout-blue mt-24">
+      <strong>💡 The "Hands-Off" Architecture:</strong> Yeh sab managed services ka matlab hai <em>tumhare paas Phase 3 (1M users) tak koi DevOps-style kaam nahi aayega</em>. Na server reboot, na DB patching, na CDN config. Tumhara focus sirf product code + Firestore rules + Firebase console pe hona chahiye. <strong>Scaling is someone else's problem until ₹2L/mo bills start coming — tab strategy migrate karte hain (Section 17 Phase 4).</strong>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════
+       SECTION 04 — COMPLETE TECH STACK
+  ══════════════════════════════════════ -->
+  <section id="stack">
+    <div class="section-header">
+      <div class="section-number">04 ──</div>
+      <div class="section-title-group">
+        <h2 class="section-title">Complete <span class="accent-purple">Tech Stack</span> — Every Layer</h2>
+        <p class="section-desc">20+ vendors, har ek ka specific purpose, free tier, upgrade tier, aur migration exit plan. <em>Yeh list wholesale copy-paste karne ke liye hai.</em></p>
+      </div>
+    </div>
+
+    <div style="overflow-x:auto;">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Layer</th>
+            <th>Vendor</th>
+            <th>Free Tier Limit</th>
+            <th>Paid Tier Start</th>
+            <th>Exit Strategy @ Scale</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>01</td>
+            <td><strong>Frontend Framework</strong></td>
+            <td>Next.js 15 (App Router)</td>
+            <td>Open source, free forever</td>
+            <td>—</td>
+            <td>Stays — never migrate</td>
+          </tr>
+          <tr>
+            <td>02</td>
+            <td><strong>Native Wrapper</strong></td>
+            <td>Capacitor (Ionic)</td>
+            <td>Open source</td>
+            <td>Appflow $75/mo (optional)</td>
+            <td>Stays — or rewrite in Expo</td>
+          </tr>
+          <tr>
+            <td>03</td>
+            <td><strong>Hosting + Edge</strong></td>
+            <td>Vercel</td>
+            <td>100GB bw / 100K fn/day</td>
+            <td>Pro $20/mo</td>
+            <td>Enterprise or migrate to Cloudflare Pages</td>
+          </tr>
+          <tr>
+            <td>04</td>
+            <td><strong>Database</strong></td>
+            <td>Firebase Firestore</td>
+            <td>Spark: 50K reads, 20K writes/day</td>
+            <td>Blaze pay-as-go</td>
+            <td>Stay or move hot paths to Supabase/Planetscale</td>
+          </tr>
+          <tr>
+            <td>05</td>
+            <td><strong>Auth</strong></td>
+            <td>Firebase Auth</td>
+            <td>10K MAU free verification</td>
+            <td>$0.01/verification after</td>
+            <td>Clerk ($25/mo) at scale</td>
+          </tr>
+          <tr>
+            <td>06</td>
+            <td><strong>Realtime DB (presence)</strong></td>
+            <td>Firebase Realtime DB</td>
+            <td>100 concurrent, 1GB free</td>
+            <td>Blaze pay-as-go</td>
+            <td>Self-host Redis at 1M</td>
+          </tr>
+          <tr>
+            <td>07</td>
+            <td><strong>Object Storage</strong></td>
+            <td>Cloudflare R2</td>
+            <td>10GB storage, Class A ops free</td>
+            <td>$0.015/GB/mo</td>
+            <td>Stays — cheapest option</td>
+          </tr>
+          <tr>
+            <td>08</td>
+            <td><strong>CDN + WAF</strong></td>
+            <td>Cloudflare (bundled)</td>
+            <td>Unlimited bandwidth free</td>
+            <td>Pro $20/mo optional</td>
+            <td>Enterprise at 10M</td>
+          </tr>
+          <tr>
+            <td>09</td>
+            <td><strong>WebSocket / Pub-Sub</strong></td>
+            <td>Pusher Channels</td>
+            <td>Sandbox: 200 concurrent, 200K msg/day</td>
+            <td>Startup $49/mo</td>
+            <td>Migrate to Ably $29+ at 100K; self-host Soketi at 1M+</td>
+          </tr>
+          <tr>
+            <td>10</td>
+            <td><strong>Voice/Video RTC</strong></td>
+            <td>Agora RTC</td>
+            <td>10K min/mo free</td>
+            <td>$0.99/1K min after</td>
+            <td>Stays — best India coverage</td>
+          </tr>
+          <tr>
+            <td>11</td>
+            <td><strong>Push Notifications</strong></td>
+            <td>FCM + APNs (via Firebase)</td>
+            <td>Completely free forever</td>
+            <td>—</td>
+            <td>Stays</td>
+          </tr>
+          <tr>
+            <td>12</td>
+            <td><strong>Deep Links</strong></td>
+            <td>Branch.io</td>
+            <td>Free up to 10K MAU</td>
+            <td>$500+/mo at 100K</td>
+            <td>Self-host universal links server at 1M (save ₹40K+/mo)</td>
+          </tr>
+          <tr>
+            <td>13</td>
+            <td><strong>Search Engine</strong></td>
+            <td>Meilisearch</td>
+            <td>Self-host free OR Cloud Build $30/mo</td>
+            <td>Cloud Pro $200/mo</td>
+            <td>Self-hosted cluster at 1M+</td>
+          </tr>
+          <tr>
+            <td>14</td>
+            <td><strong>AI — Smart Reply</strong></td>
+            <td>Google Gemini 1.5 Flash</td>
+            <td>15 RPM + 1M tokens/day free</td>
+            <td>$0.075/1M input tokens</td>
+            <td>Vertex AI or fine-tuned OSS at 10M</td>
+          </tr>
+          <tr>
+            <td>15</td>
+            <td><strong>Text Moderation</strong></td>
+            <td>OpenAI Moderation API</td>
+            <td>Completely free forever</td>
+            <td>—</td>
+            <td>Stays + Hive AI for advanced</td>
+          </tr>
+          <tr>
+            <td>16</td>
+            <td><strong>Image / Video Moderation</strong></td>
+            <td>Hive AI</td>
+            <td>None free, pay per image</td>
+            <td>$0.001–$0.01/image</td>
+            <td>Stays</td>
+          </tr>
+          <tr>
+            <td>17</td>
+            <td><strong>Error Monitoring</strong></td>
+            <td>Sentry</td>
+            <td>5K errors/mo</td>
+            <td>Team $26/mo</td>
+            <td>Self-host Sentry OSS at 10M</td>
+          </tr>
+          <tr>
+            <td>18</td>
+            <td><strong>Product Analytics</strong></td>
+            <td>PostHog Cloud</td>
+            <td>1M events/mo + feature flags free</td>
+            <td>$0.00031/event after</td>
+            <td>Self-host PostHog OSS at 10M</td>
+          </tr>
+          <tr>
+            <td>19</td>
+            <td><strong>Business Analytics</strong></td>
+            <td>Firebase Analytics + BigQuery</td>
+            <td>Unlimited events free</td>
+            <td>BigQuery $5/TB query</td>
+            <td>Stays</td>
+          </tr>
+          <tr>
+            <td>20</td>
+            <td><strong>Transactional Email</strong></td>
+            <td>Resend</td>
+            <td>3K emails/mo free</td>
+            <td>$20/mo 50K emails</td>
+            <td>AWS SES at scale (₹0.001/email)</td>
+          </tr>
+          <tr>
+            <td>21</td>
+            <td><strong>Payments + Payouts</strong></td>
+            <td>Razorpay Standard</td>
+            <td>2% per txn, no fixed fee</td>
+            <td>—</td>
+            <td>Negotiate to 1.5% at ₹1Cr/mo volume</td>
+          </tr>
+          <tr>
+            <td>22</td>
+            <td><strong>Uptime Monitoring</strong></td>
+            <td>Better Stack (Uptime)</td>
+            <td>10 monitors free</td>
+            <td>$24/mo 50 monitors</td>
+            <td>Stays</td>
+          </tr>
+          <tr>
+            <td>23</td>
+            <td><strong>Rate Limiting</strong></td>
+            <td>Upstash Redis</td>
+            <td>10K commands/day free</td>
+            <td>Pay-as-go after</td>
+            <td>Self-host Redis at scale</td>
+          </tr>
+          <tr>
+            <td>24</td>
+            <td><strong>Scheduled Jobs</strong></td>
+            <td>Vercel Cron</td>
+            <td>Free on Pro plan (2+ daily)</td>
+            <td>Included</td>
+            <td>Stays</td>
+          </tr>
+          <tr>
+            <td>25</td>
+            <td><strong>Feature Flags + A/B</strong></td>
+            <td>PostHog (bundled)</td>
+            <td>Included in PostHog free</td>
+            <td>—</td>
+            <td>Stays</td>
+          </tr>
+          <tr>
+            <td>26</td>
+            <td><strong>Domain Registrar</strong></td>
+            <td>Cloudflare Registrar</td>
+            <td>At-cost pricing (~₹800/yr)</td>
+            <td>—</td>
+            <td>Stays</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout callout-green mt-24">
+      <strong>✅ Day 1 Total Monthly Cost Using These 26 Vendors:</strong>
+      <span style="display:block;margin-top:6px;font-family:'Space Mono',monospace;">
+        Domain + Resend + Cloudflare Registrar = ₹100 + ₹0 + ₹0 = <strong style="color:var(--accent4);font-size:14px;">~₹100/mo TOTAL</strong>.
+      </span>
+      <span style="display:block;margin-top:6px;">
+        Aap ek Netflix subscription ke paise mein pura production stack chala sakte ho — for first 1,000 users. <em>Yeh serverless architecture ka poora point hai.</em>
+      </span>
+    </div>
+
+    <div class="code-block mt-16">
+<span class="cmt">// package.json — core dependencies (Phase 1)</span>
+{
+  "dependencies": {
+    "next": "^15.1.0",
+    "react": "^19.0.0",
+    "firebase": "^11.0.0",
+    "firebase-admin": "^13.0.0",
+    "pusher": "^5.2.0",
+    "pusher-js": "^8.4.0",
+    "agora-rtc-sdk-ng": "^4.21.0",
+    "@capacitor/core": "^7.0.0",
+    "@capacitor/ios": "^7.0.0",
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/push-notifications": "^7.0.0",
+    "@capacitor/app": "^7.0.0",
+    "branch-sdk": "^2.80.0",
+    "meilisearch": "^0.45.0",
+    "@google/generative-ai": "^0.24.0",
+    "razorpay": "^2.9.5",
+    "resend": "^4.0.0",
+    "@sentry/nextjs": "^8.55.0",
+    "posthog-js": "^1.200.0",
+    "zod": "^3.24.0",
+    "lucide-react": "^0.470.0",
+    "date-fns": "^4.1.0",
+    "react-hook-form": "^7.54.0",
+    "swr": "^2.3.0",
+    "html-to-image": "^1.11.0"
+  }
+}
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════
+       SECTION 05 — UI DESIGN SYSTEM
+  ══════════════════════════════════════ -->
+  <section id="ui">
+    <div class="section-header">
+      <div class="section-number">05 ──</div>
+      <div class="section-title-group">
+        <h2 class="section-title">UI Design System — <span class="accent-cyan">Telegram × Discord × WhatsApp</span></h2>
+        <p class="section-desc">V5 ka UI philosophy extend karke + Discord ki casual energy + WhatsApp ki familiarity. <em>Dual theme (Dark default + Light). Consistent spacing, bold typography, zero clutter.</em></p>
+      </div>
+    </div>
+
+    <!-- DESIGN PHILOSOPHY -->
+    <div class="callout callout-purple mb-24">
+      <strong>🎨 Design Principle:</strong> "Telegram ki clean structure, Discord ki personality, WhatsApp ki ease-of-use." Matlab: Telegram-style room lists, Discord-style tags/roles/vibes, WhatsApp-style ticks & presence. No Instagram-style gradient overload. No Material Design plasticness. <em>Desi minimalism.</em>
+    </div>
+
+    <!-- COLOR PALETTE — DARK -->
+    <div class="mt-16 mb-16">
+      <div class="card-label mb-12">Dark Mode Palette (Default)</div>
+      <div class="palette-grid">
+        <div class="palette-swatch">
+          <div class="palette-color" style="background:#17212B;color:#F5F5F5">#17212B</div>
+          <div class="palette-meta"><strong>BG Primary</strong>Chat/list background</div>
+        </div>
+        <div class="palette-swatch">
+          <div class="palette-color" style="background:#0E1621;color:#F5F5F5">#0E1621</div>
+          <div class="palette-meta"><strong>BG Deep</strong>Sidebar / Nav</div>
+        </div>
+        <div class="palette-swatch">
+          <div class="palette-color" style="background:#2B3B4D;color:#F5F5F5">#2B3B4D</div>
+          <div class="palette-meta"><strong>BG Elevated</strong>Cards, input</div>
+        </div>
+        <div class="palette-swatch">
+          <div class="palette-color" style="background:#4E9FFF;color:#fff">#4E9FFF</div>
+          <div class="palette-meta"><strong>Primary</strong>CTA, tabs</div>
+        </div>
+        <div class="palette-swatch">
+          <div class="palette-color" style="background:#F5F5F5;color:#000">#F5F5F5</div>
+          <div class="palette-meta"><strong>Text Primary</strong>Main content</div>
+        </div>
+        <div class="palette-swatch">
+          <div class="palette-color" style="background:#7A8A99;color:#fff">#7A8A99</div>
+          <div class="palette-meta"><strong>Text Muted</strong>Timestamps</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- COLOR PALETTE — LIGHT -->
+    <div class="mb-24">
+      <div class="card-label mb-12">Light Mode Palette (WhatsApp-inspired)</div>
+      <div class="palette-grid">
+        <div class="palette-swatch">
+          <div class="palette-color" style="background:#FFFFFF;color:#000">#FFFFFF</div>
+          <div class="palette-meta"><strong>BG Primary</strong>Chat background</div>
+        </div>
+        <div class="palette-swatch">
+          <div class="palette-color" style="background:#F0F4F8;color:#000">#F0F4F8</div>
+          <div class="palette-meta"><strong>BG Deep</strong>Sidebar, sections</div>
+        </div>
+        <div class="palette-swatch">
+          <div class="palette-color" style="background:#E8EDF2;color:#000">#E8EDF2</div>
+          <div class="palette-meta"><strong>Border</strong>Dividers</div>
+        </div>
+        <div class="palette-swatch">
+          <div class="palette-color" style="background:#2481CC;color:#fff">#2481CC</div>
+          <div class="palette-meta"><strong>Primary</strong>Telegram blue</div>
+        </div>
+        <div class="palette-swatch">
+          <div class="palette-color" style="background:#000000;color:#fff">#000000</div>
+          <div class="palette-meta"><strong>Text Primary</strong>Main content</div>
+        </div>
+        <div class="palette-swatch">
+          <div class="palette-color" style="background:#6C7A8A;color:#fff">#6C7A8A</div>
+          <div class="palette-meta"><strong>Text Muted</strong>Timestamps</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TYPOGRAPHY -->
+    <div class="grid grid-2 mb-24">
+      <div class="card">
+        <div class="card-label">Typography Stack</div>
+        <div class="card-title">System-native First</div>
+        <div class="card-body">
+          <div class="code-block mt-12" style="font-size:11px;">
+<span class="cmt">/* Primary — UI text */</span>
+<span class="fn">font-family</span>: <span class="kw">-apple-system</span>, <span class="kw">BlinkMacSystemFont</span>,
+    <span class="str">'Segoe UI'</span>, <span class="kw">Roboto</span>, <span class="str">'Noto Sans'</span>,
+    <span class="str">sans-serif</span>;
+
+<span class="cmt">/* Display — hero / section headers */</span>
+<span class="fn">font-family</span>: <span class="str">'Syne'</span>, <span class="kw">sans-serif</span>;
+
+<span class="cmt">/* Mono — credits, numbers, timestamps */</span>
+<span class="fn">font-family</span>: <span class="str">'Space Mono'</span>, <span class="kw">monospace</span>;
+
+<span class="cmt">/* Scale */</span>
+<span class="fn">h1</span>: 28/32px  <span class="cmt">(chat title)</span>
+<span class="fn">h2</span>: 20/24px
+<span class="fn">body</span>: 15/22px
+<span class="fn">small</span>: 12/16px  <span class="cmt">(timestamps)</span>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-label">Spacing + Radius + Motion</div>
+        <div class="card-title">8pt Grid System</div>
+        <div class="task-list mt-12">
+          <div class="task"><span class="dot dot-blue"></span><span class="task-text"><strong>Spacing:</strong> 4 · 8 · 12 · 16 · 20 · 24 · 32 · 48 · 64 · 80</span></div>
+          <div class="task"><span class="dot dot-purple"></span><span class="task-text"><strong>Radius:</strong> 4 (tags), 8 (cards), 12 (modals), 50% (avatars, buttons)</span></div>
+          <div class="task"><span class="dot dot-green"></span><span class="task-text"><strong>Shadow (dark):</strong> <code>0 2px 8px rgba(0,0,0,0.4)</code></span></div>
+          <div class="task"><span class="dot dot-amber"></span><span class="task-text"><strong>Motion:</strong> 150ms ease (hover), 300ms cubic-bezier (page), 450ms (modal)</span></div>
+          <div class="task"><span class="dot dot-pink"></span><span class="task-text"><strong>Touch target min:</strong> 44×44px (iOS HIG)</span></div>
+          <div class="task"><span class="dot dot-red"></span><span class="task-text"><strong>Max content width:</strong> 480px mobile, 760px tablet</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MOCKUPS SIDE-BY-SIDE -->
+    <div class="mt-24 mb-16">
+      <div class="card-label mb-12">Rooms List — Dark & Light Mockup Side-by-Side</div>
+      <div class="grid grid-2" style="gap:20px;">
+        <!-- DARK MOCKUP -->
+        <div class="mockup-frame" style="max-width:380px;">
+          <div class="mockup-statusbar">
+            <span>9:41</span>
+            <span>ORBIT</span>
+            <span>•••</span>
+          </div>
+          <div class="mockup-header">
+            <div class="mockup-header-title">Rooms</div>
+            <div style="color:#4E9FFF;font-size:20px;">✎</div>
+          </div>
+          <div class="mockup-room-list">
+            <div class="mockup-room">
+              <div class="mockup-room-avatar" style="background:linear-gradient(135deg,#ec4899,#7c3aed);">💔</div>
+              <div class="mockup-room-info">
+                <div class="mockup-room-top">
+                  <div class="mockup-room-name">Late Night Feels</div>
+                  <div class="mockup-room-time">now</div>
+                </div>
+                <div class="mockup-room-bottom">
+                  <div class="mockup-room-msg">ghost_player: bhai sad lag raha...</div>
+                  <div class="mockup-room-badge">12</div>
+                </div>
+              </div>
+            </div>
+            <div class="mockup-room">
+              <div class="mockup-room-avatar" style="background:linear-gradient(135deg,#f59e0b,#ef4444);">🎮</div>
+              <div class="mockup-room-info">
+                <div class="mockup-room-top">
+                  <div class="mockup-room-name">Gaming Clutch Week</div>
+                  <div class="mockup-room-time">2m</div>
+                </div>
+                <div class="mockup-room-bottom">
+                  <div class="mockup-room-msg">neo_gamer: ye kya tha yrr 😂</div>
+                  <div class="mockup-room-badge">4</div>
+                </div>
+              </div>
+            </div>
+            <div class="mockup-room">
+              <div class="mockup-room-avatar" style="background:linear-gradient(135deg,#10b981,#06b6d4);">💼</div>
+              <div class="mockup-room-info">
+                <div class="mockup-room-top">
+                  <div class="mockup-room-name">Skill Bazaar</div>
+                  <div class="mockup-room-time">5m</div>
+                </div>
+                <div class="mockup-room-bottom">
+                  <div class="mockup-room-msg">react freelancer chahiye ₹800/day</div>
+                  <div class="mockup-room-badge">3</div>
+                </div>
+              </div>
+            </div>
+            <div class="mockup-room">
+              <div class="mockup-room-avatar" style="background:linear-gradient(135deg,#4f8fff,#7c3aed);">🔴</div>
+              <div class="mockup-room-info">
+                <div class="mockup-room-top">
+                  <div class="mockup-room-name">🔴 Live: Pitch Night</div>
+                  <div class="mockup-room-time">LIVE</div>
+                </div>
+                <div class="mockup-room-bottom">
+                  <div class="mockup-room-msg" style="color:#4E9FFF;">48 listening · host earning 96₵</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="mockup-nav">
+            <div class="mockup-nav-tab active">
+              <div class="mockup-nav-icon">💬</div>
+              Rooms
+            </div>
+            <div class="mockup-nav-tab">
+              <div class="mockup-nav-icon">🔍</div>
+              Discover
+            </div>
+            <div class="mockup-nav-tab">
+              <div class="mockup-nav-icon">💼</div>
+              Bazaar
+            </div>
+            <div class="mockup-nav-tab">
+              <div class="mockup-nav-icon">🏆</div>
+              Leaderboard
+            </div>
+            <div class="mockup-nav-tab">
+              <div class="mockup-nav-icon">👤</div>
+              You
+            </div>
+          </div>
+        </div>
+
+        <!-- LIGHT MOCKUP -->
+        <div class="mockup-frame light" style="max-width:380px;">
+          <div class="mockup-statusbar" style="background:#FFFFFF;color:#6C7A8A;border-bottom:1px solid #E8EDF2;">
+            <span>9:41</span>
+            <span style="color:#000;font-weight:600;">ORBIT</span>
+            <span>•••</span>
+          </div>
+          <div class="mockup-header">
+            <div class="mockup-header-title">Rooms</div>
+            <div style="color:#2481CC;font-size:20px;">✎</div>
+          </div>
+          <div class="mockup-room-list">
+            <div class="mockup-room">
+              <div class="mockup-room-avatar" style="background:linear-gradient(135deg,#ec4899,#7c3aed);">💔</div>
+              <div class="mockup-room-info">
+                <div class="mockup-room-top">
+                  <div class="mockup-room-name">Late Night Feels</div>
+                  <div class="mockup-room-time">now</div>
+                </div>
+                <div class="mockup-room-bottom">
+                  <div class="mockup-room-msg">ghost_player: bhai sad lag raha...</div>
+                  <div class="mockup-room-badge" style="background:#2481CC;">12</div>
+                </div>
+              </div>
+            </div>
+            <div class="mockup-room">
+              <div class="mockup-room-avatar" style="background:linear-gradient(135deg,#f59e0b,#ef4444);">🎮</div>
+              <div class="mockup-room-info">
+                <div class="mockup-room-top">
+                  <div class="mockup-room-name">Gaming Clutch Week</div>
+                  <div class="mockup-room-time">2m</div>
+                </div>
+                <div class="mockup-room-bottom">
+                  <div class="mockup-room-msg">neo_gamer: ye kya tha yrr 😂</div>
+                  <div class="mockup-room-badge" style="background:#2481CC;">4</div>
+                </div>
+              </div>
+            </div>
+            <div class="mockup-room">
+              <div class="mockup-room-avatar" style="background:linear-gradient(135deg,#10b981,#06b6d4);">💼</div>
+              <div class="mockup-room-info">
+                <div class="mockup-room-top">
+                  <div class="mockup-room-name">Skill Bazaar</div>
+                  <div class="mockup-room-time">5m</div>
+                </div>
+                <div class="mockup-room-bottom">
+                  <div class="mockup-room-msg">react freelancer chahiye ₹800/day</div>
+                  <div class="mockup-room-badge" style="background:#2481CC;">3</div>
+                </div>
+              </div>
+            </div>
+            <div class="mockup-room">
+              <div class="mockup-room-avatar" style="background:linear-gradient(135deg,#4f8fff,#7c3aed);">🔴</div>
+              <div class="mockup-room-info">
+                <div class="mockup-room-top">
+                  <div class="mockup-room-name">🔴 Live: Pitch Night</div>
+                  <div class="mockup-room-time">LIVE</div>
+                </div>
+                <div class="mockup-room-bottom">
+                  <div class="mockup-room-msg" style="color:#2481CC;">48 listening · host earning 96₵</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="mockup-nav">
+            <div class="mockup-nav-tab active" style="color:#2481CC;">
+              <div class="mockup-nav-icon">💬</div>
+              Rooms
+            </div>
+            <div class="mockup-nav-tab">
+              <div class="mockup-nav-icon">🔍</div>
+              Discover
+            </div>
+            <div class="mockup-nav-tab">
+              <div class="mockup-nav-icon">💼</div>
+              Bazaar
+            </div>
+            <div class="mockup-nav-tab">
+              <div class="mockup-nav-icon">🏆</div>
+              Leaderboard
+            </div>
+            <div class="mockup-nav-tab">
+              <div class="mockup-nav-icon">👤</div>
+              You
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout callout-blue mt-24">
+      <strong>Implementation notes:</strong> Theme handled via CSS vars + <code>next-themes</code> package. Default = dark (more in line with desi user preference). Toggle lives in Profile tab. Auto-switch based on <code>prefers-color-scheme</code>. All images use SVG or dark-transparent PNG so they work in both themes.
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════
+       SECTION 06 — APP SHELL & NAVIGATION
+  ══════════════════════════════════════ -->
+  <section id="shell">
+    <div class="section-header">
+      <div class="section-number">06 ──</div>
+      <div class="section-title-group">
+        <h2 class="section-title">App Shell & <span class="accent-amber">Navigation</span></h2>
+        <p class="section-desc">5-tab bottom navigation (Telegram-style). Each tab = ek clear mental model. No nested tabs, no hidden hamburger menus.</p>
+      </div>
+    </div>
+
+    <div style="overflow-x:auto;">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Tab</th>
+            <th>Purpose</th>
+            <th>Primary Action</th>
+            <th>Badge Logic</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>01</td>
+            <td><strong>💬 Rooms</strong></td>
+            <td>Joined rooms + DMs inbox (Telegram-style)</td>
+            <td>Tap a room → chat view</td>
+            <td>Total unread across all rooms + DMs</td>
+          </tr>
+          <tr>
+            <td>02</td>
+            <td><strong>🔍 Discover</strong></td>
+            <td>Public rooms, Mood Rooms, Challenges, Spotlight feed</td>
+            <td>Swipe posts, join rooms</td>
+            <td>Red dot for "new mood room active"</td>
+          </tr>
+          <tr>
+            <td>03</td>
+            <td><strong>💼 Bazaar</strong></td>
+            <td>Skill Bazaar — freelance listings, gig search</td>
+            <td>Browse / Post gig</td>
+            <td>New messages on your gig posts</td>
+          </tr>
+          <tr>
+            <td>04</td>
+            <td><strong>🏆 Leaderboard</strong></td>
+            <td>Global Top 100, Weekly Challenge winners, Karma rankings</td>
+            <td>Tap user → profile</td>
+            <td>Only when user enters top 100 (once)</td>
+          </tr>
+          <tr>
+            <td>05</td>
+            <td><strong>👤 You</strong></td>
+            <td>Profile, credits wallet, settings, DPDP privacy controls</td>
+            <td>Edit profile, buy credits</td>
+            <td>Settings changes, payment needs attention</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="code-block mt-16">
+<span class="cmt">// app/(tabs)/layout.tsx — bottom tab bar (Next.js 15 App Router)</span>
+<span class="kw">export default function</span> <span class="fn">TabsLayout</span>({ children }) {
+  <span class="kw">return</span> (
+    &lt;<span class="kw">div</span> className=<span class="str">"h-screen flex flex-col"</span>&gt;
+      &lt;<span class="kw">main</span> className=<span class="str">"flex-1 overflow-y-auto"</span>&gt;{children}&lt;/<span class="kw">main</span>&gt;
+      &lt;<span class="kw">BottomNav</span> /&gt;
+    &lt;/<span class="kw">div</span>&gt;
+  );
+}
+
+<span class="cmt">// Bottom nav = sticky, 64px height, safe-area-inset for iPhone notch</span>
+<span class="kw">const</span> <span class="fn">tabs</span> = [
+  { <span class="fld">path</span>: <span class="str">"/rooms"</span>,    <span class="fld">icon</span>: MessagesSquare, <span class="fld">label</span>: <span class="str">"Rooms"</span> },
+  { <span class="fld">path</span>: <span class="str">"/discover"</span>, <span class="fld">icon</span>: Search,         <span class="fld">label</span>: <span class="str">"Discover"</span> },
+  { <span class="fld">path</span>: <span class="str">"/bazaar"</span>,   <span class="fld">icon</span>: Briefcase,      <span class="fld">label</span>: <span class="str">"Bazaar"</span> },
+  { <span class="fld">path</span>: <span class="str">"/ranks"</span>,    <span class="fld">icon</span>: Trophy,         <span class="fld">label</span>: <span class="str">"Ranks"</span> },
+  { <span class="fld">path</span>: <span class="str">"/me"</span>,       <span class="fld">icon</span>: User,           <span class="fld">label</span>: <span class="str">"You"</span> },
+];
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════
+       SECTION 07 — DATABASE SCHEMA AT SCALE
+  ══════════════════════════════════════ -->
+  <section id="schema">
+    <div class="section-number" style="display:none"></div>
+    <div class="section-header">
+      <div class="section-number">07 ──</div>
+      <div class="section-title-group">
+        <h2 class="section-title">Database Schema at <span class="accent-purple">10M Scale</span></h2>
+        <p class="section-desc">Firestore ka dark side: 1 write/sec per doc limit, no joins, reads = money. <em>Denormalize or die.</em> Yeh schema pre-computed counters + cached fields ka use karti hai to hit 10M without rewriting.</p>
+      </div>
+    </div>
+
+    <div class="callout callout-red mb-24">
+      <strong>⚠️ Firestore Limits Jo Beginners Miss Karte Hain:</strong>
+      <span style="display:block;margin-top:8px;">
+        <strong style="color:var(--accent5)">→</strong> 1 write/sec <em>per document</em> (hot counter problem)<br>
+        <strong style="color:var(--accent5)">→</strong> 1 MB max document size<br>
+        <strong style="color:var(--accent5)">→</strong> 100 levels deep max nesting<br>
+        <strong style="color:var(--accent5)">→</strong> No full-text search (need Meilisearch — see Section 04)<br>
+        <strong style="color:var(--accent5)">→</strong> No SQL JOINs (denormalize everything)<br>
+        <strong style="color:var(--accent5)">→</strong> Reads charged per document, not per query
+      </span>
+    </div>
+
+    <div class="code-block">
+<span class="cmt">// ════════════════════════════════════════════════</span>
+<span class="cmt">// ORBIT v7 — Firestore Collection Structure</span>
+<span class="cmt">// Denormalized for read performance at 10M scale</span>
+<span class="cmt">// ════════════════════════════════════════════════</span>
+
+<span class="kw">users</span>/<span class="str">{uid}</span>
+  ├─ <span class="fld">phone</span>: <span class="str">"+919876543210"</span>  <span class="cmt">// OTP verified</span>
+  ├─ <span class="fld">username</span>: <span class="str">"ghost_player"</span>  <span class="cmt">// unique, lowercase</span>
+  ├─ <span class="fld">displayName</span>: <span class="str">"Ghost Player"</span>
+  ├─ <span class="fld">avatar</span>: <span class="str">"https://r2.../avatars/xyz.webp"</span>
+  ├─ <span class="fld">bio</span>: <span class="str">"DM for collabs 🤝"</span>
+  ├─ <span class="fld">karma</span>: <span class="num">9820</span>              <span class="cmt">// denormalized</span>
+  ├─ <span class="fld">trustScore</span>: <span class="num">96</span>          <span class="cmt">// computed nightly</span>
+  ├─ <span class="fld">watchCredits</span>: <span class="num">142</span>
+  ├─ <span class="fld">region</span>: <span class="str">"punjab"</span>
+  ├─ <span class="fld">language</span>: <span class="str">"hindi"</span>
+  ├─ <span class="fld">tier</span>: <span class="str">"legend"</span>          <span class="cmt">// computed from karma</span>
+  ├─ <span class="fld">joinedRoomIds</span>: [<span class="str">"r1"</span>, <span class="str">"r2"</span>]  <span class="cmt">// max 500, fan-out limit</span>
+  ├─ <span class="fld">fcmTokens</span>: { <span class="str">"deviceA"</span>: <span class="str">"tok..."</span> }
+  ├─ <span class="fld">createdAt</span>: <span class="num">timestamp</span>
+  ├─ <span class="fld">lastActiveAt</span>: <span class="num">timestamp</span>   <span class="cmt">// for inactive user cleanup</span>
+  └─ <span class="fld">dpdpConsent</span>: { <span class="fld">v</span>: <span class="str">"2026-04"</span>, <span class="fld">acceptedAt</span>: <span class="num">ts</span> }
+
+<span class="kw">rooms</span>/<span class="str">{roomId}</span>
+  ├─ <span class="fld">name</span>: <span class="str">"Late Night Feels"</span>
+  ├─ <span class="fld">description</span>: <span class="str">"Raat ko baat karo"</span>
+  ├─ <span class="fld">type</span>: <span class="str">"mood"</span>              <span class="cmt">// mood | topic | live | private</span>
+  ├─ <span class="fld">moodType</span>: <span class="str">"late_night"</span>
+  ├─ <span class="fld">language</span>: <span class="str">"hindi"</span>          <span class="cmt">// for regional filter</span>
+  ├─ <span class="fld">activeUntil</span>: <span class="num">ts</span>           <span class="cmt">// for mood room auto-deactivate</span>
+  ├─ <span class="fld">memberCount</span>: <span class="num">2341</span>         <span class="cmt">// denormalized counter (shard if &gt;1000 writes/sec)</span>
+  ├─ <span class="fld">messageCount</span>: <span class="num">98234</span>
+  ├─ <span class="fld">lastMessage</span>: { <span class="fld">text</span>: <span class="str">"bhai sad..."</span>, <span class="fld">author</span>: <span class="str">"ghost_player"</span>, <span class="fld">ts</span>: <span class="num">ts</span> }
+  └─ <span class="fld">createdAt</span>: <span class="num">timestamp</span>
+
+<span class="kw">rooms</span>/<span class="str">{roomId}</span>/<span class="kw">messages</span>/<span class="str">{msgId}</span>
+  ├─ <span class="fld">text</span>: <span class="str">"bhai sad lag raha..."</span>
+  ├─ <span class="fld">author</span>: { <span class="fld">uid</span>: <span class="str">"..."</span>, <span class="fld">username</span>: <span class="str">"ghost_player"</span>, <span class="fld">avatar</span>: <span class="str">"..."</span> }
+  ├─ <span class="fld">type</span>: <span class="str">"text"</span>              <span class="cmt">// text | voice | image | quote_reply</span>
+  ├─ <span class="fld">quotedMsg</span>: { <span class="fld">id</span>: <span class="str">"..."</span>, <span class="fld">text</span>: <span class="str">"..."</span> } <span class="cmt">// optional</span>
+  ├─ <span class="fld">media</span>: { <span class="fld">url</span>: <span class="str">"r2/..."</span>, <span class="fld">type</span>: <span class="str">"voice"</span>, <span class="fld">duration</span>: <span class="num">12</span> }
+  ├─ <span class="fld">reactions</span>: { <span class="fld">fire</span>: <span class="num">12</span>, <span class="fld">heart</span>: <span class="num">8</span> }
+  ├─ <span class="fld">editedAt</span>: <span class="num">ts?</span>
+  └─ <span class="fld">createdAt</span>: <span class="num">ts</span>
+
+<span class="kw">dms</span>/<span class="str">{chatId}</span>                  <span class="cmt">// chatId = sorted(uid1, uid2).join("_")</span>
+  ├─ <span class="fld">participants</span>: [<span class="str">"uid1"</span>, <span class="str">"uid2"</span>]
+  ├─ <span class="fld">lastMessage</span>: { ... }
+  ├─ <span class="fld">lastReadBy</span>: { <span class="str">"uid1"</span>: <span class="num">ts</span>, <span class="str">"uid2"</span>: <span class="num">ts</span> }
+  └─ <span class="kw">messages</span>/<span class="str">{msgId}</span>
+       ├─ <span class="fld">text</span>, <span class="fld">author</span>, <span class="fld">type</span>, <span class="fld">media</span>, <span class="fld">createdAt</span>
+       └─ <span class="fld">deliveredAt</span>, <span class="fld">readAt</span>  <span class="cmt">// for tick system</span>
+
+<span class="kw">challenges</span>/<span class="str">{weekId}</span>           <span class="cmt">// e.g. "2026-W16"</span>
+  ├─ <span class="fld">category</span>: <span class="str">"gaming"</span>
+  ├─ <span class="fld">prompt</span>: <span class="str">"Best clutch moment"</span>
+  ├─ <span class="fld">prizeKarma</span>: <span class="num">500</span>
+  ├─ <span class="fld">endsAt</span>: <span class="num">ts</span>
+  └─ <span class="kw">entries</span>/<span class="str">{entryId}</span>
+       ├─ <span class="fld">author</span>, <span class="fld">media</span>, <span class="fld">votes</span>: <span class="num">234</span>
+
+<span class="kw">bazaar</span>/<span class="str">{listingId}</span>            <span class="cmt">// Skill Bazaar listings</span>
+  ├─ <span class="fld">title</span>: <span class="str">"Logo design karta hoon"</span>
+  ├─ <span class="fld">priceINR</span>: <span class="num">500</span>
+  ├─ <span class="fld">category</span>: <span class="str">"design"</span>
+  ├─ <span class="fld">author</span>: { <span class="fld">uid</span>, <span class="fld">username</span>, <span class="fld">karma</span>, <span class="fld">trust</span> }  <span class="cmt">// denormalized</span>
+  └─ <span class="fld">createdAt</span>: <span class="num">ts</span>
+
+<span class="kw">spotlights</span>/<span class="str">{hourlyId}</span>         <span class="cmt">// e.g. "2026-04-18-14"</span>
+  ├─ <span class="fld">winnerUid</span>, <span class="fld">bidCredits</span>: <span class="num">42</span>
+  ├─ <span class="fld">content</span>: { ... }           <span class="cmt">// the promoted post</span>
+  └─ <span class="fld">startedAt</span>, <span class="fld">endsAt</span>
+
+<span class="kw">karmaLoans</span>/<span class="str">{loanId}</span>
+  ├─ <span class="fld">borrowerUid</span>, <span class="fld">amount</span>: <span class="num">25</span>
+  ├─ <span class="fld">dueAt</span>: <span class="num">ts</span>
+  ├─ <span class="fld">status</span>: <span class="str">"active"</span>        <span class="cmt">// active | repaid | defaulted</span>
+  └─ <span class="fld">penaltyKarma</span>: <span class="num">500</span>
+
+<span class="kw">reports</span>/<span class="str">{reportId}</span>             <span class="cmt">// user-submitted reports</span>
+  ├─ <span class="fld">reportedUid</span>, <span class="fld">reporterUid</span>
+  ├─ <span class="fld">reason</span>: <span class="str">"spam"</span>           <span class="cmt">// spam | abuse | csam | impersonation</span>
+  ├─ <span class="fld">context</span>: { <span class="fld">type</span>: <span class="str">"message"</span>, <span class="fld">id</span>: <span class="str">"..."</span> }
+  ├─ <span class="fld">status</span>: <span class="str">"pending"</span>        <span class="cmt">// pending | reviewed | actioned</span>
+  └─ <span class="fld">createdAt</span>: <span class="num">ts</span>
+
+<span class="kw">adminQueue</span>/<span class="str">{itemId}</span>            <span class="cmt">// auto-flagged content</span>
+  ├─ <span class="fld">source</span>: <span class="str">"openai_mod"</span>     <span class="cmt">// | hive | user_report</span>
+  ├─ <span class="fld">severity</span>: <span class="str">"high"</span>
+  ├─ <span class="fld">content</span>: { ... }
+  └─ <span class="fld">status</span>: <span class="str">"pending"</span>
+
+<span class="kw">_counters</span>/<span class="str">{counterName}</span>        <span class="cmt">// sharded counters for hot rooms</span>
+  └─ <span class="kw">shards</span>/<span class="str">{shardId}</span>
+       └─ <span class="fld">count</span>: <span class="num">int</span>            <span class="cmt">// random shard write = no lock</span>
+    </div>
+
+    <div class="grid grid-2 mt-24">
+      <div class="card card-amber">
+        <div class="card-label">Denormalization Strategy</div>
+        <div class="card-title">Why author data is copied</div>
+        <div class="card-body">
+          Har message mein <code>author.username</code> aur <code>author.avatar</code> copied hote hain. Kyun? Kyunki agar sirf <code>authorUid</code> store karein toh feed render karne ke liye 100 messages = 100 user doc reads = 100x cost. <strong>Denormalization mein "stale data" ka problem hota hai — but ORBIT mein usernames rarely change, aur avatar change pe we do batch update</strong> via Cloud Function.
+        </div>
+      </div>
+      <div class="card card-purple">
+        <div class="card-label">Sharded Counters</div>
+        <div class="card-title">Hot Room Problem Solve</div>
+        <div class="card-body">
+          Agar ek room mein 1000 log ek saath message karte hain, sab <code>memberCount++</code> karna chahte hain = 1 write/sec limit fail. <strong>Solution: 10 shards banao</strong> — har write random shard pe ho, read time pe sum kar do. <code>_counters/roomX/shards/s1-s10</code> = 10 writes/sec safe.
+        </div>
+      </div>
+      <div class="card card-green">
+        <div class="card-label">Required Composite Indexes</div>
+        <div class="card-title">firestore.indexes.json</div>
+        <div class="code-block mt-8" style="font-size:10px;">
+<span class="kw">rooms</span>: [<span class="str">language</span>, <span class="str">activeUntil</span> DESC]
+<span class="kw">rooms</span>: [<span class="str">type</span>, <span class="str">memberCount</span> DESC]
+<span class="kw">messages</span>: [<span class="str">author.uid</span>, <span class="str">createdAt</span> DESC]
+<span class="kw">bazaar</span>: [<span class="str">category</span>, <span class="str">createdAt</span> DESC]
+<span class="kw">bazaar</span>: [<span class="str">language</span>, <span class="str">priceINR</span> ASC]
+<span class="kw">reports</span>: [<span class="str">status</span>, <span class="str">createdAt</span> DESC]
+<span class="kw">challenges</span>: [<span class="str">category</span>, <span class="str">endsAt</span> DESC]
+        </div>
+      </div>
+      <div class="card card-red">
+        <div class="card-label">TTL + Cleanup</div>
+        <div class="card-title">Auto-delete old data</div>
+        <div class="task-list">
+          <div class="task done"><span class="dot dot-red"></span><span class="task-text">Messages older than 1 year auto-archive to R2 (via nightly Cloud Function)</span></div>
+          <div class="task done"><span class="dot dot-red"></span><span class="task-text">Inactive mood rooms (<code>activeUntil &lt; now</code>) mark <code>archived: true</code></span></div>
+          <div class="task done"><span class="dot dot-red"></span><span class="task-text">Ended challenges archived after 30 days</span></div>
+          <div class="task done"><span class="dot dot-red"></span><span class="task-text">Deleted user data purged 30 days after deletion (DPDP req)</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════════
+       SECTION 08 — CORE ECONOMIC ENGINES
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <section id="s08" class="section">
+    <div class="section-num">08 ──</div>
+    <h2 class="section-title">Core Economic Engines</h2>
+    <p class="section-sub">5 engines jo app ko <strong>self-sustaining economy</strong> banate hain. Har engine ka apna purpose, apna flywheel.</p>
+
+    <div class="grid grid-2">
+      <div class="card card-amber has-glow">
+        <div class="card-label">Engine 1 · Currency</div>
+        <div class="card-title">⚡ Watch Credits</div>
+        <div class="card-body">
+          Platform ki <strong>primary currency</strong>. Ad dekho → Credits milein. Credits kharcho → Reward milein. Ya direct UPI se kharido.
+          <div class="code-block mt-12">
+<span class="cmt">// Earning rates</span>
+Ad 30s watch        = <span class="num">+5</span> credits
+Daily streak login  = <span class="num">+2</span> credits
+Challenge win       = <span class="num">+50</span> credits
+Skill Bazaar sale   = <span class="num">85%</span> seller + <span class="num">15%</span> platform
+
+<span class="cmt">// Spending rates</span>
+Spotlight (1 hour)  = <span class="num">-20</span> credits
+Send gift sticker   = <span class="num">-5</span> credits
+Premium room access = <span class="num">-10</span> credits/day
+Skip ad permanently = <span class="num">-200</span> credits (1 week)
+
+<span class="cmt">// Cashout</span>
+<span class="num">500</span> credits = <span class="num">₹50</span> UPI (via Razorpay Payout)
+Min cashout: <span class="num">₹50</span> | Max/day: <span class="num">₹5,000</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-purple has-glow">
+        <div class="card-label">Engine 2 · Reputation</div>
+        <div class="card-title">✨ Karma Multiplier</div>
+        <div class="card-body">
+          Karma = <strong>behavior score</strong>. High karma = more earnings + more privileges.
+          <div class="code-block mt-12">
+<span class="cmt">// Karma events (delta)</span>
+Upvote received       = <span class="num">+1</span>
+Answer marked helpful = <span class="num">+10</span>
+Report upheld vs you  = <span class="num">-25</span>
+Ban                   = <span class="num">-100</span>
+Verified identity     = <span class="num">+50</span> (one-time)
+
+<span class="cmt">// Multiplier tiers</span>
+<span class="num">0-100</span>    : 1.0x earnings (default)
+<span class="num">101-500</span>  : 1.25x earnings + blue dot
+<span class="num">501-2K</span>   : 1.5x earnings + priority support
+<span class="num">2K+</span>      : 2.0x earnings + verified badge
+
+<span class="cmt">// Feature gates</span>
+Create room         : karma ≥ 50
+DM strangers        : karma ≥ 100
+Spotlight eligible  : karma ≥ 200
+Moderator eligible  : karma ≥ 1000
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-cyan has-glow">
+        <div class="card-label">Engine 3 · Anti-Abuse</div>
+        <div class="card-title">🛡 Trust Score (0-100)</div>
+        <div class="card-body">
+          Karma <strong>public</strong> hai, Trust Score <strong>internal</strong> hai. Moderation actions is score pe based hote hain.
+          <div class="code-block mt-12">
+<span class="cmt">// Trust factors (weighted)</span>
+Phone verified      : +15
+Account age &gt; 30d   : +10
+Karma &gt; 500         : +20
+Daily active &gt; 7d   : +10
+Zero reports        : +15
+Skill Bazaar sales  : +10 (per 10 sales)
+Referral accepted   : +5 (per referral)
+
+<span class="cmt">// Penalties</span>
+Report upheld       : -20 (each)
+Shadow-ban trigger  : -40
+IP switch frequent  : -10
+Multi-account signal: -30
+
+<span class="cmt">// Thresholds</span>
+&gt;= 70 : normal user, no friction
+50-69 : rate limits enforced
+30-49 : shadow-ban (posts hidden)
+&lt; 30  : manual review queue
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-pink has-glow">
+        <div class="card-label">Engine 4 · Monetization</div>
+        <div class="card-title">🏆 Spotlight Auction</div>
+        <div class="card-body">
+          Top of Discover feed = <strong>auctioned every hour</strong>. Highest credit bid wins the slot.
+          <div class="code-block mt-12">
+<span class="cmt">// Auction mechanics</span>
+Auction runs       : every hour, 24×7
+Slot duration      : 1 hour (top of Discover)
+Min bid            : 20 credits
+Bid increments     : +5 credits
+Max concurrent bids: 50 users/hour
+
+<span class="cmt">// Revenue split</span>
+Winner pays bid credits → platform
+Platform cost  = credits × 0.1 (10% burn)
+Platform keeps = credits × 0.9
+
+<span class="cmt">// Weekly avg @ 100K MAU</span>
+24 slots/day × 7 = 168 slots/week
+Avg winning bid = 80 credits
+= 13,440 credits/week platform rev
+= ₹1,344 / week (₹5,376/mo)
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-green has-glow">
+        <div class="card-label">Engine 5 · Retention + Growth</div>
+        <div class="card-title">💸 Karma Loan System</div>
+        <div class="card-body">
+          New users ko <strong>50 credit advance</strong> diya jata hai — bina koi ad dekhe. Yeh commitment device hai.
+          <div class="code-block mt-12">
+<span class="cmt">// Loan issuance</span>
+Eligibility        : Phone verified + Day 0 signup
+Amount             : 50 credits (advance)
+Repayment          : first 10 ad views auto-deducted
+Interest           : 0% (no interest)
+Default penalty    : karma -10, loan feature locked
+
+<span class="cmt">// Psychology</span>
+Day 0 value delivered      → retention boost
+Commitment consistency bias → users stay to repay
+Feature adoption forced     → watch ads to repay
+Conversion funnel           → free → paid credit pack
+
+<span class="cmt">// Metrics (expected)</span>
+Loan uptake rate    : ~70% of signups
+Repayment rate      : ~85% within 7 days
+Default rate        : ~15% (acceptable)
+Retention Day 7     : +18% vs control
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-blue has-glow">
+        <div class="card-label">Engine Integration</div>
+        <div class="card-title">🔄 Flywheel Effect</div>
+        <div class="card-body">
+          Har engine ek-dusre ko feed karta hai — single flywheel banata hai:
+          <div class="mt-12" style="font-family: 'Space Mono', monospace; font-size: 11px; line-height: 1.8;">
+            <div style="color: var(--accent-amber);">1. User signs up → Karma Loan (50⚡)</div>
+            <div style="color: var(--accent-purple);">2. Watches ads → earns Credits → repays Loan</div>
+            <div style="color: var(--accent-cyan);">3. Posts quality content → Karma rises → Trust up</div>
+            <div style="color: var(--accent-pink);">4. Bids for Spotlight → visibility → more followers</div>
+            <div style="color: var(--accent-green);">5. Sells Skill Bazaar service → 85% → cashes out UPI</div>
+            <div style="color: var(--accent-blue);">6. Invites friends → referral credits → flywheel restarts</div>
+          </div>
+          <div class="callout callout-blue mt-12">
+            <div class="callout-title">Network Effect</div>
+            <div class="callout-body">
+              Jitne users, utni credits ki supply. Jitni supply, utni bidding. Jitna revenue, utne features. <strong>Solo dev ke liye perfect.</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════════
+       SECTION 09 — 10 RETENTION MECHANICS
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <section id="s09" class="section">
+    <div class="section-num">09 ──</div>
+    <h2 class="section-title">10 Retention Mechanics</h2>
+    <p class="section-sub">Ye woh features hain jo user ko <strong>rok ke rakhte hain</strong>. Har feature ek specific retention loop ko target karta hai.</p>
+
+    <div class="grid grid-3">
+      <div class="card card-purple">
+        <div class="card-label">1 · Emotional Hook</div>
+        <div class="card-title">🎭 Mood Rooms</div>
+        <div class="card-body">
+          "Aaj mood kya hai?" — 6 moods (Happy, Sad, Anxious, Creative, Lonely, Hyped). Instant chat match. <strong>24hr mein auto-archive</strong> — FOMO creates daily check-in habit.
+          <div class="mt-8" style="font-size:10px; color:var(--text-dim);">Trigger: <strong>Morning (6-10 AM)</strong>. DAU lift: +22%</div>
+        </div>
+      </div>
+
+      <div class="card card-green">
+        <div class="card-label">2 · Commitment Device</div>
+        <div class="card-title">💸 Karma Loan</div>
+        <div class="card-body">
+          Day 0 pe 50 credit advance. Repayment sirf ads dekhne se. <strong>"Karz hai toh chukana padega"</strong> — users return karte hain repayment ke liye.
+          <div class="mt-8" style="font-size:10px; color:var(--text-dim);">Trigger: <strong>Day 1-7</strong> activation window</div>
+        </div>
+      </div>
+
+      <div class="card card-pink">
+        <div class="card-label">3 · FOMO + Live</div>
+        <div class="card-title">🔴 ORBIT Live (Audio)</div>
+        <div class="card-body">
+          Clubhouse-style audio rooms, <strong>desi twist</strong>: Hinglish, regional language, topic-locked rooms. Agora RTC. Push notif jab favorite creator live.
+          <div class="mt-8" style="font-size:10px; color:var(--text-dim);">Trigger: <strong>Evening (8-11 PM)</strong>. DAU lift: +15%</div>
+        </div>
+      </div>
+
+      <div class="card card-amber">
+        <div class="card-label">4 · Earnings Loop</div>
+        <div class="card-title">🛒 Skill Bazaar</div>
+        <div class="card-body">
+          Users skills bechte hain — logo design ₹500, resume review ₹200. Platform 15% commission. <strong>Real UPI payouts</strong>. Fiverr desi version.
+          <div class="mt-8" style="font-size:10px; color:var(--text-dim);">Trigger: <strong>Earnings</strong>. Sellers 60d retention: 85%+</div>
+        </div>
+      </div>
+
+      <div class="card card-blue">
+        <div class="card-label">5 · Social Proof</div>
+        <div class="card-title">🏆 Weekly Challenges</div>
+        <div class="card-body">
+          Har hafte 5 challenges. Winners ko 1000 credit + Verified badge + top of Discover. <strong>Leaderboard weekly reset</strong> — comeback mechanic.
+          <div class="mt-8" style="font-size:10px; color:var(--text-dim);">Trigger: <strong>Weekend (Fri-Sun)</strong>. Engagement: +35%</div>
+        </div>
+      </div>
+
+      <div class="card card-cyan">
+        <div class="card-label">6 · Identity</div>
+        <div class="card-title">💳 ORBIT Card</div>
+        <div class="card-body">
+          Profile = <strong>digital business card</strong> — shareable link, QR, skills, karma, testimonials. LinkedIn × Instagram fusion.
+          <div class="mt-8" style="font-size:10px; color:var(--text-dim);">Trigger: <strong>Identity</strong>. Profile edits/week: 3.2</div>
+        </div>
+      </div>
+
+      <div class="card card-red">
+        <div class="card-label">7 · Offline Resilience</div>
+        <div class="card-title">📡 Offline Mode</div>
+        <div class="card-body">
+          <strong>IndexedDB mein last 500 messages cache</strong>. Offline mein bhi read + compose — connect pe auto-sync. India network flaky hai — major differentiator.
+          <div class="mt-8" style="font-size:10px; color:var(--text-dim);">Trigger: <strong>Reliability</strong>. Tier 2/3 retention: +28%</div>
+        </div>
+      </div>
+
+      <div class="card card-purple">
+        <div class="card-label">8 · Conversational AI</div>
+        <div class="card-title">🧠 AI Smart Replies</div>
+        <div class="card-body">
+          Chat mein 3 smart reply suggestions — <strong>Hindi + English + Hinglish</strong>. Gemini 1.5 Flash (sasta, fast). Low friction = more messages.
+          <div class="mt-8" style="font-size:10px; color:var(--text-dim);">Trigger: <strong>Friction</strong>. Msgs/user/day: +42%</div>
+        </div>
+      </div>
+
+      <div class="card card-green">
+        <div class="card-label">9 · Trust Signal</div>
+        <div class="card-title">✅ Trust Score Display</div>
+        <div class="card-body">
+          Selective users ko Trust Score show (opt-in). <strong>Good behavior incentivize</strong> — score badhane ke liye daily check-in, reports se bachav.
+          <div class="mt-8" style="font-size:10px; color:var(--text-dim);">Trigger: <strong>Gamification</strong>. Login streak: +51%</div>
+        </div>
+      </div>
+
+      <div class="card card-amber">
+        <div class="card-label">10 · Localization</div>
+        <div class="card-title">🌐 Regional Languages</div>
+        <div class="card-body">
+          Hindi, Punjabi, Tamil, Telugu, Bengali, Marathi, Gujarati — <strong>Day 1 pe 7 languages</strong>. Native translations, not machine. Moat banega.
+          <div class="mt-8" style="font-size:10px; color:var(--text-dim);">Trigger: <strong>Inclusivity</strong>. Non-Eng DAU: +46%</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout callout-amber mt-32">
+      <div class="callout-title">Retention Math — 10 Mechanics Combined</div>
+      <div class="callout-body">
+        Har mechanic +15-50% lift. <strong>Combined compounding effect</strong>: Day 30 retention industry avg 6%, ORBIT target <strong>22%+</strong>. 100K signups → 22K 30-day active = CAC break-even 3x faster.
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════════
+       SECTION 10 — REAL-TIME INFRASTRUCTURE
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <section id="s10" class="section">
+    <div class="section-num">10 ──</div>
+    <h2 class="section-title">Real-Time Infrastructure</h2>
+    <p class="section-sub">Presence, typing, WhatsApp-style ticks, push — yeh sab <strong>real-time layer</strong> pe depend karta hai. Sahi architecture nahi hua toh 100K users pe crash.</p>
+
+    <table class="cost-table">
+      <thead>
+        <tr><th>Feature</th><th>Tech</th><th>How it works</th><th>Cost @ 1M DAU</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>WebSocket chat</strong></td>
+          <td>Pusher Channels</td>
+          <td>Client subscribe → channel → Cloud Function trigger pe broadcast</td>
+          <td class="cell-num">₹4,900/mo</td>
+        </tr>
+        <tr>
+          <td><strong>Presence</strong></td>
+          <td>Pusher Presence + Upstash Redis</td>
+          <td>Redis SET 60s TTL → heartbeat 30s → disconnect = key expires</td>
+          <td class="cell-num">₹800/mo</td>
+        </tr>
+        <tr>
+          <td><strong>Typing indicators</strong></td>
+          <td>Pusher client events</td>
+          <td>Debounced 500ms → "typing" event → 3s clear → <strong>client-to-client</strong></td>
+          <td class="cell-num">₹0 free</td>
+        </tr>
+        <tr>
+          <td><strong>WhatsApp ticks</strong></td>
+          <td>Firestore + Cloud Function</td>
+          <td>Sent ✓ → Delivered ✓✓ → Read ✓✓ blue (recipient opens chat)</td>
+          <td class="cell-num">Incl Firestore</td>
+        </tr>
+        <tr>
+          <td><strong>Push (FCM Android)</strong></td>
+          <td>Firebase Cloud Messaging</td>
+          <td>Cloud Function on new msg → FCM HTTP v1 API → device</td>
+          <td class="cell-num">₹0 forever</td>
+        </tr>
+        <tr>
+          <td><strong>Push (APNs iOS)</strong></td>
+          <td>Apple Push via FCM bridge</td>
+          <td>Same FCM SDK, bridges to APNs — single codebase</td>
+          <td class="cell-num">₹0 forever</td>
+        </tr>
+        <tr>
+          <td><strong>Offline queue</strong></td>
+          <td>IndexedDB + Service Worker</td>
+          <td>Offline → msgs queued local → online → flush with retry</td>
+          <td class="cell-num">₹0 client-side</td>
+        </tr>
+        <tr>
+          <td><strong>Live audio rooms</strong></td>
+          <td>Agora RTC</td>
+          <td>SDK: WebRTC, STUN/TURN, audio codec, jitter buffer</td>
+          <td class="cell-num">₹15,000/mo</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="grid grid-2 mt-24">
+      <div class="card card-cyan">
+        <div class="card-label">Critical Pattern</div>
+        <div class="card-title">WebSocket Reconnection</div>
+        <div class="card-body">
+          v4 gap — Pusher disconnect toh kya? India network 20-30% sessions reconnect. Mandatory code:
+          <div class="code-block mt-12">
+<span class="cmt">// src/lib/pusher-client.ts</span>
+<span class="kw">import</span> Pusher <span class="kw">from</span> <span class="str">'pusher-js'</span>;
+
+<span class="kw">const</span> pusher = <span class="kw">new</span> Pusher(KEY, {
+  cluster: <span class="str">'ap2'</span>, <span class="cmt">// Mumbai</span>
+  forceTLS: <span class="kw">true</span>,
+  activityTimeout: <span class="num">30000</span>,
+  pongTimeout: <span class="num">6000</span>,
+  unavailableTimeout: <span class="num">10000</span>,
+});
+
+pusher.connection.bind(<span class="str">'state_change'</span>, (s) =&gt; {
+  <span class="kw">if</span> (s.current === <span class="str">'unavailable'</span>) {
+    showBanner(<span class="str">'Connecting...'</span>);
+  }
+  <span class="kw">if</span> (s.current === <span class="str">'connected'</span>) {
+    hideBanner();
+    flushOfflineQueue();
+    syncMissedMessages(lastSeenAt);
+  }
+});
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-green">
+        <div class="card-label">Push Strategy</div>
+        <div class="card-title">FCM Cloud Function</div>
+        <div class="card-body">
+          Har message pe Cloud Function trigger. Recipient offline → FCM push. Online → skip (WebSocket handled).
+          <div class="code-block mt-12">
+<span class="cmt">// functions/sendPush.ts</span>
+<span class="kw">export const</span> onMessageCreate = functions
+  .firestore.document(<span class="str">'rooms/{rid}/messages/{mid}'</span>)
+  .onCreate(<span class="kw">async</span> (snap, ctx) =&gt; {
+    <span class="kw">const</span> msg = snap.data();
+    <span class="kw">const</span> offline = <span class="kw">await</span> getOfflineMembers(ctx.params.rid);
+    <span class="kw">const</span> tokens = offline.map(u =&gt; u.fcmToken);
+    
+    <span class="kw">if</span> (!tokens.length) <span class="kw">return</span>;
+    
+    <span class="kw">await</span> admin.messaging().sendEachForMulticast({
+      tokens,
+      notification: {
+        title: msg.author.username,
+        body: msg.text.slice(<span class="num">0</span>, <span class="num">100</span>),
+      },
+      data: {
+        roomId: ctx.params.rid,
+        deepLink: <span class="str">`orbit://room/</span>${ctx.params.rid}<span class="str">`</span>,
+      },
+      android: { priority: <span class="str">'high'</span> },
+      apns: { payload: { aps: { sound: <span class="str">'default'</span> } } },
+    });
+  });
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout callout-red mt-24">
+      <div class="callout-title">Critical Fix: Pusher Channel Naming</div>
+      <div class="callout-body">
+        <strong>Do NOT</strong> use <code>private-room-{roomId}</code> for public rooms — auth overhead wasteful. Use <code>presence-room-{roomId}</code> for rooms with presence, <code>room-{roomId}</code> for public broadcast. Private sirf DMs: <code>private-dm-{uA}-{uB}</code>.
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════════
+       SECTION 11 — MEDIA PIPELINE
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <section id="s11" class="section">
+    <div class="section-num">11 ──</div>
+    <h2 class="section-title">Media Pipeline (Zero Egress Cost)</h2>
+    <p class="section-sub">Images, voice, videos — <strong>cost ka biggest killer</strong> scale pe. Firebase Storage ₹0.85/GB egress = 10M users pe ₹50L/mo. Cloudflare R2 = ₹0 egress forever. <strong>Mandatory.</strong></p>
+
+    <div class="grid grid-2">
+      <div class="card card-amber">
+        <div class="card-label">Upload Flow</div>
+        <div class="card-title">Signed URL Pattern</div>
+        <div class="card-body">
+          Client <strong>directly uploads to R2</strong> — backend file kabhi touch nahi karta. Zero bandwidth, zero compute cost.
+          <div class="code-block mt-12">
+<span class="cmt">// Step 1: Client requests URL</span>
+POST /api/upload/sign
+body: { filename, size, type }
+
+<span class="cmt">// Step 2: Server validates + signs</span>
+- Check user auth
+- Check daily quota (100/user/day)
+- Size limit: 25MB img, 10MB voice, 100MB video
+- Generate S3-compat signed PUT URL (5min expiry)
+
+<span class="cmt">// Step 3: Client uploads to R2</span>
+PUT https://{bucket}.r2.cloudflarestorage.com/...
+
+<span class="cmt">// Step 4: Client notifies completion</span>
+POST /api/upload/complete
+body: { key, messageId }
+
+<span class="cmt">// Step 5: Server updates Firestore + moderation</span>
+</div>
+        </div>
+      </div>
+
+      <div class="card card-purple">
+        <div class="card-label">Image Processing</div>
+        <div class="card-title">Cloudflare Images (or Sharp)</div>
+        <div class="card-body">
+          Raw upload done. Ab <strong>3 variants chahiye</strong>: thumb (48px), preview (256px), full (1080px). Plus WebP.
+          <div class="code-block mt-12">
+<span class="cmt">// Phase 1-2: Sharp (free-ish)</span>
+<span class="kw">import</span> sharp <span class="kw">from</span> <span class="str">'sharp'</span>;
+<span class="kw">const</span> buf = <span class="kw">await</span> r2.getObject(key);
+
+<span class="kw">await</span> Promise.all([
+  sharp(buf).resize(<span class="num">48</span>).webp().toBuffer(),
+  sharp(buf).resize(<span class="num">256</span>).webp().toBuffer(),
+  sharp(buf).resize(<span class="num">1080</span>).webp().toBuffer(),
+]);
+
+<span class="cmt">// Phase 3+: Cloudflare Images ($5/100K/mo)</span>
+- URL variants: /thumb, /preview, /full
+- WebP auto-conversion
+- Global CDN included
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-cyan">
+        <div class="card-label">Voice Notes</div>
+        <div class="card-title">WhatsApp-Style Voice UX</div>
+        <div class="card-body">
+          Press-hold record → release to send. Waveform + playback speed (1x/1.5x/2x). <strong>Opus codec client-side</strong> = 50KB/min vs MP3 1MB/min.
+          <div class="code-block mt-12">
+<span class="cmt">// VoiceRecorder.tsx</span>
+<span class="kw">const</span> recorder = <span class="kw">new</span> MediaRecorder(stream, {
+  mimeType: <span class="str">'audio/webm;codecs=opus'</span>,
+  audioBitsPerSecond: <span class="num">32000</span>,
+});
+
+<span class="cmt">// Waveform via wavesurfer.js</span>
+<span class="kw">const</span> ws = WaveSurfer.create({
+  container: <span class="str">'#waveform'</span>,
+  waveColor: <span class="str">'#4f8fff'</span>,
+  progressColor: <span class="str">'#7c3aed'</span>,
+  barWidth: <span class="num">2</span>,
+  barGap: <span class="num">1</span>,
+});
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-green">
+        <div class="card-label">Cost Math</div>
+        <div class="card-title">Firebase Storage vs R2</div>
+        <div class="card-body">
+          10M users × 500MB = <strong>5 PB</strong>. At 1M DAU × 100MB/day view:
+          <div class="code-block mt-12">
+<span class="cmt">// Firebase Storage (DON'T USE)</span>
+Storage: 5000 TB × ₹2.30 = <span class="num">₹1.17 Cr</span>
+Egress:  100 TB/d × ₹9.8 = <span class="num">₹29.4 Cr</span>/mo
+<span class="kw">Total</span>: <span class="num">₹30.57 Cr</span>/mo 😱
+
+<span class="cmt">// Cloudflare R2 (USE THIS)</span>
+Storage: 5000 TB × ₹1.25 = <span class="num">₹63.5 L</span>
+Egress:  FREE            = <span class="num">₹0</span>
+Ops writes:              = <span class="num">₹3.6 L</span>
+<span class="kw">Total</span>: <span class="num">₹67.1 L</span>/mo
+
+<span class="cmt">// Savings: ₹29.9 Cr/mo at 10M scale</span>
+          </div>
+          <div class="callout callout-red mt-12">
+            <div class="callout-title">R2 is Non-Negotiable</div>
+            <div class="callout-body">
+              Firebase Storage Phase 1 thik hai (free tier). Migration <strong>Phase 2 start hote hi</strong> (10K MAU). Baad mein migrate 100x costlier.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════════════
+       SECTION 12 — CTO GAP AUDIT (17 GAPS FIXED)
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <section id="s12" class="section">
+    <div class="section-num">12 ──</div>
+    <h2 class="section-title">CTO Gap Audit — 17 Gaps Fixed</h2>
+    <p class="section-sub">v4, v5, v6 blueprints mein jo gaps the, sab yaha explicitly addressed hain. <strong>Ek bhi gap chhoda toh production mein explode hoga.</strong></p>
+
+    <div class="grid grid-2">
+
+      <div class="card card-red has-glow">
+        <div class="card-label">Gap 1 · CRITICAL</div>
+        <div class="card-title">🔔 Push Notifications</div>
+        <div class="card-body">
+          <strong>Problem:</strong> Next.js PWA mein iOS push unreliable hai. WhatsApp-style retention impossible bina push ke.<br><br>
+          <strong>Fix:</strong> Capacitor wrap Day 1 se. Native FCM (Android) + APNs bridge (iOS). Single codebase, native push.
+          <div class="code-block mt-12" style="font-size:10px;">
+<span class="kw">npx</span> cap add ios android
+<span class="kw">npm</span> i @capacitor/push-notifications
+<span class="cmt">// Cost: ₹0 (FCM free forever)</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-red has-glow">
+        <div class="card-label">Gap 2 · CRITICAL</div>
+        <div class="card-title">🔗 Deep Links (FDL is DEAD)</div>
+        <div class="card-body">
+          <strong>Problem:</strong> Firebase Dynamic Links <strong>shutdown Aug 25, 2025</strong>. Share link clicked → app open chahiye. Old plans broken.<br><br>
+          <strong>Fix:</strong> Branch.io (free 10K MAU), ya custom server with App Links (Android) + Universal Links (iOS).
+          <div class="code-block mt-12" style="font-size:10px;">
+<span class="cmt">// .well-known/assetlinks.json (Android)</span>
+<span class="cmt">// .well-known/apple-app-site-association (iOS)</span>
+<span class="cmt">// Host on Cloudflare Pages = ₹0</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-red has-glow">
+        <div class="card-label">Gap 3 · HIGH</div>
+        <div class="card-title">📡 Offline Mode Gap</div>
+        <div class="card-body">
+          <strong>Problem:</strong> India mein 30% users flaky network. Offline = no app = no retention.<br><br>
+          <strong>Fix:</strong> IndexedDB last 500 msgs cached. Service Worker intercepts failed requests → queue → flush on reconnect. Firestore offline persistence enabled.
+          <div class="code-block mt-12" style="font-size:10px;">
+enableIndexedDbPersistence(db, {
+  cacheSizeBytes: <span class="num">40</span> * <span class="num">1024</span> * <span class="num">1024</span>
+});
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-amber">
+        <div class="card-label">Gap 4 · HIGH</div>
+        <div class="card-title">👋 Onboarding UX</div>
+        <div class="card-body">
+          <strong>Problem:</strong> Signup ke baad user confused — "ab kya karu?"<br><br>
+          <strong>Fix:</strong> 4-screen onboarding: (1) Welcome + language pick, (2) Interest selection (6 tiles), (3) First mood room auto-join, (4) 50 Karma Loan drop. <strong>Time-to-first-chat &lt; 60s.</strong>
+        </div>
+      </div>
+
+      <div class="card card-amber">
+        <div class="card-label">Gap 5 · HIGH</div>
+        <div class="card-title">🆔 Username Collision</div>
+        <div class="card-body">
+          <strong>Problem:</strong> 10M users = 10M unique handles. Popular names pe race conditions.<br><br>
+          <strong>Fix:</strong> Firestore transaction: check-then-reserve atomically. Reserved prefixes list (admin, support, orbit, official). Suffix auto-suggest: @rahul → @rahul.official, @rahul_chd.
+        </div>
+      </div>
+
+      <div class="card card-red has-glow">
+        <div class="card-label">Gap 6 · CRITICAL</div>
+        <div class="card-title">🗄 Database Scale @ 100K+</div>
+        <div class="card-body">
+          <strong>Problem:</strong> Firestore "hot document" limit = 1 write/sec. 1000 likes/sec on viral post = crash.<br><br>
+          <strong>Fix:</strong> Sharded counters (10 shards per counter). Materialized feeds (fanout on write). Composite indexes pre-deployed.
+        </div>
+      </div>
+
+      <div class="card card-amber">
+        <div class="card-label">Gap 7 · HIGH</div>
+        <div class="card-title">📊 Analytics Blind Spot</div>
+        <div class="card-body">
+          <strong>Problem:</strong> Bina analytics, tum andhe ho. Konsa feature kaam kar raha, kaun drop off ho raha — kuch pata nahi.<br><br>
+          <strong>Fix:</strong> PostHog (product analytics, session replay, feature flags, A/B testing) — all-in-one. Free 1M events/mo.
+        </div>
+      </div>
+
+      <div class="card card-red has-glow">
+        <div class="card-label">Gap 8 · CRITICAL</div>
+        <div class="card-title">🔌 WebSocket Reconnect</div>
+        <div class="card-body">
+          <strong>Problem:</strong> Pusher disconnect = "Connecting..." spinner forever. User leaves.<br><br>
+          <strong>Fix:</strong> Exponential backoff (built-in Pusher SDK). Missed messages sync via Firestore <code>where('createdAt', '&gt;', lastSeenAt)</code>. Banner UI: "Reconnecting..." → "Connected".
+        </div>
+      </div>
+
+      <div class="card card-red has-glow">
+        <div class="card-label">Gap 9 · CRITICAL</div>
+        <div class="card-title">🔒 Security + App Check</div>
+        <div class="card-body">
+          <strong>Problem:</strong> API endpoints public = bot abuse = bill explosion.<br><br>
+          <strong>Fix:</strong> Firebase App Check (reCAPTCHA Enterprise) → every request verified from real app. Rate limit: Upstash Redis (100 req/min/user). Cloudflare WAF Phase 3+.
+        </div>
+      </div>
+
+      <div class="card card-amber">
+        <div class="card-label">Gap 10 · MEDIUM</div>
+        <div class="card-title">🧪 A/B Testing</div>
+        <div class="card-body">
+          <strong>Problem:</strong> Hypothesis-driven development impossible bina A/B framework.<br><br>
+          <strong>Fix:</strong> PostHog Feature Flags (free). Rollout: 1% → 10% → 50% → 100%. Segment by country/language. Kill switch ready.
+        </div>
+      </div>
+
+      <div class="card card-red has-glow">
+        <div class="card-label">Gap 11 · CRITICAL</div>
+        <div class="card-title">🛡 Content Moderation</div>
+        <div class="card-body">
+          <strong>Problem:</strong> IT Rules 2021 under India — unmoderated content = criminal liability. Manual review 10M users impossible.<br><br>
+          <strong>Fix:</strong> Phase 1 OpenAI Moderation API (free). Phase 3 Hive AI ($0.001/img). Auto-hide + human review queue. 24hr SLA for takedowns.
+        </div>
+      </div>
+
+      <div class="card card-red has-glow">
+        <div class="card-label">Gap 12 · CRITICAL (LEGAL)</div>
+        <div class="card-title">👶 CSAM Detection</div>
+        <div class="card-body">
+          <strong>Problem:</strong> Child sexual abuse material = Section 67B IT Act = 7 years jail + ₹10L fine. <strong>No excuses.</strong><br><br>
+          <strong>Fix:</strong> PhotoDNA (Microsoft, free for platforms). Auto-hash scan every image on upload. NCMEC reporting workflow. Cloudflare CSAM Scanning Tool (free).
+        </div>
+      </div>
+
+      <div class="card card-amber">
+        <div class="card-label">Gap 13 · HIGH</div>
+        <div class="card-title">💾 Backup + Disaster Recovery</div>
+        <div class="card-body">
+          <strong>Problem:</strong> Single region = single point of failure. 10M users ka data 1 incident mein lost.<br><br>
+          <strong>Fix:</strong> Daily Firestore export to R2 (cron). Multi-region Firestore (Phase 3+). RPO 24hr, RTO 4hr. Monthly restore drills.
+        </div>
+      </div>
+
+      <div class="card card-amber">
+        <div class="card-label">Gap 14 · HIGH</div>
+        <div class="card-title">🔍 Search Infrastructure</div>
+        <div class="card-body">
+          <strong>Problem:</strong> Firestore LIKE queries impossible. Users ko search karna = basic feature.<br><br>
+          <strong>Fix:</strong> Meilisearch self-host on Railway (₹400/mo Phase 1). Phase 3+ Meilisearch Cloud (₹2,400/mo). Sync via Cloud Functions on write.
+        </div>
+      </div>
+
+      <div class="card card-red has-glow">
+        <div class="card-label">Gap 15 · CRITICAL</div>
+        <div class="card-title">🕵 Fraud Detection</div>
+        <div class="card-body">
+          <strong>Problem:</strong> Cashout feature = attack surface. Bots watching ads = credit farming = real UPI payout = fraud.<br><br>
+          <strong>Fix:</strong> Device fingerprint (FingerprintJS free 20K/mo). IP velocity limits. Ad view rate limits. Manual review &gt; ₹1000 payout. Karma + Trust score gate.
+        </div>
+      </div>
+
+      <div class="card card-amber">
+        <div class="card-label">Gap 16 · HIGH</div>
+        <div class="card-title">🎛 Admin Dashboard</div>
+        <div class="card-body">
+          <strong>Problem:</strong> Moderation queue, user lookup, ban workflow — bina admin UI ke solo dev phir bhi database se kaam karega.<br><br>
+          <strong>Fix:</strong> Retool (free tier 5 users) ya Next.js custom admin at <code>/admin</code>. Firebase Auth custom claim <code>role: 'admin'</code>.
+        </div>
+      </div>
+
+      <div class="card card-red has-glow">
+        <div class="card-label">Gap 17 · CRITICAL (LEGAL)</div>
+        <div class="card-title">⚖ DPDP Act 2023 Compliance</div>
+        <div class="card-body">
+          <strong>Problem:</strong> Nov 13, 2026 tak consent manager mandatory. May 13, 2027 tak full compliance. Max penalty <strong>₹250 crore</strong>.<br><br>
+          <strong>Fix:</strong> Section 13 mein detailed. Privacy notice, explicit consent, 7-day erasure, 72hr breach notification, grievance officer.
+        </div>
+      </div>
+
+    </div>
+
+    <div class="callout callout-red mt-32">
+      <div class="callout-title">Prioritization — 7 CRITICAL gaps MUST be fixed Phase 0/1</div>
+      <div class="callout-body">
+        Gaps 1, 2, 6, 8, 9, 11, 12, 15, 17 = <strong>CRITICAL</strong>. Phase 0-1 mein code karo. Baaki HIGH gaps Phase 2-3 mein. <strong>Ek bhi CRITICAL gap chhoda toh scale pe production incident ya legal issue.</strong>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════════
+       SECTION 13 — SECURITY & DPDP COMPLIANCE
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <section id="s13" class="section">
+    <div class="section-num">13 ──</div>
+    <h2 class="section-title">Security & DPDP Compliance</h2>
+    <p class="section-sub">India ka <strong>Digital Personal Data Protection Act 2023</strong> ab enforceable hai. Non-compliance = ₹250 Cr penalty. Yeh section blueprint ka <strong>legal moat</strong> hai.</p>
+
+    <div class="grid grid-3">
+      <div class="card card-red">
+        <div class="card-label">DPDP Phase 1 · Nov 13, 2025</div>
+        <div class="card-title">Data Protection Board Operational</div>
+        <div class="card-body">
+          DPBI (Data Protection Board of India) active. Complaints register ho sakti hain. <strong>Yeh already live hai.</strong>
+          <div class="mt-8" style="font-size:10px; color:var(--text-dim);">Action: Grievance Officer appoint karo (public email).</div>
+        </div>
+      </div>
+
+      <div class="card card-amber">
+        <div class="card-label">DPDP Phase 2 · Nov 13, 2026</div>
+        <div class="card-title">Consent Manager Registration</div>
+        <div class="card-body">
+          Agar "Significant Data Fiduciary" ho (10M+ users), <strong>consent manager</strong> ke through data collection mandatory. 7 months away.
+          <div class="mt-8" style="font-size:10px; color:var(--text-dim);">Action: Consent architecture Day 1 se build karo.</div>
+        </div>
+      </div>
+
+      <div class="card card-red has-glow">
+        <div class="card-label">DPDP Phase 3 · May 13, 2027</div>
+        <div class="card-title">Full Compliance Deadline</div>
+        <div class="card-body">
+          Privacy notice, erasure, breach notification, consent, DPO — <strong>sab mandatory</strong>. Non-compliance penalty up to ₹250 Cr.
+          <div class="mt-8" style="font-size:10px; color:var(--text-dim);">Action: 13 months hai. Abhi se plan karo.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-2 mt-24">
+      <div class="card card-blue">
+        <div class="card-label">DPDP Checklist</div>
+        <div class="card-title">8 Mandatory Requirements</div>
+        <div class="card-body">
+          <div class="task-list">
+            <div class="task done"><span class="dot dot-blue"></span><span class="task-text"><strong>Privacy Notice</strong> — clear, plain-language English + 7 regional languages</span></div>
+            <div class="task done"><span class="dot dot-blue"></span><span class="task-text"><strong>Explicit Consent</strong> — opt-in checkboxes, no pre-ticked</span></div>
+            <div class="task done"><span class="dot dot-blue"></span><span class="task-text"><strong>Right to Access</strong> — user apna data download kar sake (JSON export)</span></div>
+            <div class="task done"><span class="dot dot-blue"></span><span class="task-text"><strong>Right to Erasure</strong> — 7 days mein account delete + data purge</span></div>
+            <div class="task done"><span class="dot dot-blue"></span><span class="task-text"><strong>Right to Correction</strong> — edit profile + request corrections</span></div>
+            <div class="task done"><span class="dot dot-blue"></span><span class="task-text"><strong>Breach Notification</strong> — 72 hours mein DPBI + affected users</span></div>
+            <div class="task done"><span class="dot dot-blue"></span><span class="task-text"><strong>Grievance Officer</strong> — named person, email public, 30 day SLA</span></div>
+            <div class="task done"><span class="dot dot-blue"></span><span class="task-text"><strong>Children's Data</strong> — parental consent &lt;18 years (India specific)</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-green">
+        <div class="card-label">Security Layers</div>
+        <div class="card-title">Defense in Depth</div>
+        <div class="card-body">
+          <div class="task-list">
+            <div class="task done"><span class="dot dot-green"></span><span class="task-text"><strong>Firebase App Check</strong> — reCAPTCHA Enterprise + DeviceCheck (iOS) + Play Integrity (Android)</span></div>
+            <div class="task done"><span class="dot dot-green"></span><span class="task-text"><strong>Firestore Security Rules</strong> — default deny, explicit allow per collection, field-level</span></div>
+            <div class="task done"><span class="dot dot-green"></span><span class="task-text"><strong>Rate Limiting</strong> — Upstash Redis, 100 req/min/user, sliding window</span></div>
+            <div class="task done"><span class="dot dot-green"></span><span class="task-text"><strong>Auth: Phone OTP</strong> — Firebase Auth SMS + reCAPTCHA</span></div>
+            <div class="task done"><span class="dot dot-green"></span><span class="task-text"><strong>Session security</strong> — refresh tokens, 30-day expiry, revoke on password change</span></div>
+            <div class="task done"><span class="dot dot-green"></span><span class="task-text"><strong>HTTPS only</strong> — Cloudflare SSL full (strict), HSTS preload</span></div>
+            <div class="task done"><span class="dot dot-green"></span><span class="task-text"><strong>Secrets management</strong> — Vercel env vars encrypted, rotate quarterly</span></div>
+            <div class="task done"><span class="dot dot-green"></span><span class="task-text"><strong>CSAM scanning</strong> — PhotoDNA + NCMEC reporting workflow (IT Act 67B)</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout callout-amber mt-24">
+      <div class="callout-title">Indian Platform Compliance — IT Rules 2021</div>
+      <div class="callout-body">
+        Digital Media Ethics Code: (1) <strong>Grievance Officer</strong> appoint karo (India-based), (2) <strong>Compliance Officer</strong> named (if SSMI, 50L+ users), (3) <strong>Resident Nodal Contact</strong> for law enforcement, (4) <strong>24hr takedown</strong> of NCII (Non-Consensual Intimate Imagery), (5) <strong>36hr takedown</strong> of other illegal content post-order. <br><br>
+        <strong>Solo dev reality:</strong> Phase 1-2 mein tum khud Grievance Officer ho. Phase 3+ (1L users) dedicated person hire karo.
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════════
+       SECTION 14 — OBSERVABILITY STACK
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <section id="s14" class="section">
+    <div class="section-num">14 ──</div>
+    <h2 class="section-title">Observability Stack</h2>
+    <p class="section-sub">"Agar maap nahi sakte, toh manage nahi kar sakte." 5 tools, <strong>total cost ₹0 at Phase 1</strong>, full production visibility.</p>
+
+    <table class="cost-table">
+      <thead>
+        <tr><th>Tool</th><th>Purpose</th><th>Free tier</th><th>When to pay</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Sentry</strong></td>
+          <td>Error tracking, stack traces, release tracking</td>
+          <td>5K errors/mo</td>
+          <td class="cell-num">₹2,100/mo @ 50K errors</td>
+        </tr>
+        <tr>
+          <td><strong>PostHog</strong></td>
+          <td>Product analytics, session replay, feature flags, A/B tests</td>
+          <td>1M events/mo</td>
+          <td class="cell-num">₹3,000/mo @ 10M events</td>
+        </tr>
+        <tr>
+          <td><strong>Firebase Analytics</strong></td>
+          <td>Mobile app analytics, conversion funnels, cohort retention</td>
+          <td>Unlimited</td>
+          <td class="cell-num">Free forever</td>
+        </tr>
+        <tr>
+          <td><strong>Better Stack (Logtail + Uptime)</strong></td>
+          <td>Centralized logs, uptime monitoring, status page</td>
+          <td>1GB logs + 10 monitors</td>
+          <td class="cell-num">₹2,100/mo @ scale</td>
+        </tr>
+        <tr>
+          <td><strong>LogSnag</strong></td>
+          <td>Event-based notifications (user signups, payments) → Slack/Telegram</td>
+          <td>1K events/mo</td>
+          <td class="cell-num">₹800/mo @ scale</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="grid grid-2 mt-24">
+      <div class="card card-cyan">
+        <div class="card-label">Must-Track Metrics</div>
+        <div class="card-title">North-Star KPIs</div>
+        <div class="card-body">
+          <div class="task-list">
+            <div class="task done"><span class="dot dot-cyan"></span><span class="task-text"><strong>DAU/MAU ratio</strong> — target &gt;40% (vs industry 20%)</span></div>
+            <div class="task done"><span class="dot dot-cyan"></span><span class="task-text"><strong>Day 1 retention</strong> — target &gt;60%</span></div>
+            <div class="task done"><span class="dot dot-cyan"></span><span class="task-text"><strong>Day 7 retention</strong> — target &gt;35%</span></div>
+            <div class="task done"><span class="dot dot-cyan"></span><span class="task-text"><strong>Day 30 retention</strong> — target &gt;22%</span></div>
+            <div class="task done"><span class="dot dot-cyan"></span><span class="task-text"><strong>Messages/user/day</strong> — target &gt;15</span></div>
+            <div class="task done"><span class="dot dot-cyan"></span><span class="task-text"><strong>Karma Loan repay rate</strong> — target &gt;80%</span></div>
+            <div class="task done"><span class="dot dot-cyan"></span><span class="task-text"><strong>Crash-free users</strong> — target &gt;99.5%</span></div>
+            <div class="task done"><span class="dot dot-cyan"></span><span class="task-text"><strong>p95 API latency</strong> — target &lt;400ms</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-pink">
+        <div class="card-label">Alert Strategy</div>
+        <div class="card-title">Wake Me Up Alerts</div>
+        <div class="card-body">
+          Solo dev ko <strong>sirf critical alerts</strong> milne chahiye — warna alert fatigue. Thresholds:
+          <div class="code-block mt-12" style="font-size:10px;">
+<span class="cmt">// PagerDuty-level (phone call)</span>
+- App down &gt; 2 min
+- Error rate &gt; 5% sustained 5 min
+- Payment failure rate &gt; 10%
+- Firebase Auth down
+- DB write latency p99 &gt; 5s
+
+<span class="cmt">// Slack/Telegram (read in morning)</span>
+- New signups (hourly count)
+- Cashout requests &gt; ₹500
+- Spotlight auction winners
+- Report queue &gt; 50
+- Daily DAU summary
+
+<span class="cmt">// Weekly email digest</span>
+- Retention cohorts
+- Top rooms, top creators
+- Revenue breakdown
+- CAC/LTV update
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════════
+       SECTION 15 — MONETIZATION MODEL
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <section id="s15" class="section">
+    <div class="section-num">15 ──</div>
+    <h2 class="section-title">Monetization Model</h2>
+    <p class="section-sub">5 revenue streams, <strong>none of them ads-only</strong>. Solo dev ke liye realistic, scale-ready, India-tuned.</p>
+
+    <div class="grid grid-2">
+      <div class="card card-green has-glow">
+        <div class="card-label">Stream 1 · Primary</div>
+        <div class="card-title">💰 ORBIT Pro Subscription</div>
+        <div class="card-body">
+          Monthly recurring revenue. Razorpay Subscriptions.
+          <div class="code-block mt-12">
+<span class="cmt">// Pricing tiers</span>
+Free          : ₹0   (ad-supported)
+ORBIT Pro     : <span class="num">₹99</span>/mo (no ads + 500 credits)
+ORBIT Pro+    : <span class="num">₹299</span>/mo (unlimited credits + verified)
+Creator Elite : <span class="num">₹999</span>/mo (priority support + 5% commission)
+
+<span class="cmt">// Revenue @ milestones</span>
+1K users   → 2% Pro = 20 × ₹99   = <span class="num">₹2K</span>/mo
+10K users  → 4% Pro = 400 × ₹99  = <span class="num">₹40K</span>/mo
+100K users → 6% Pro = 6K × ₹99   = <span class="num">₹6L</span>/mo
+1M users   → 7% Pro = 70K × ₹150 = <span class="num">₹1.05Cr</span>/mo
+10M users  → 8% Pro = 800K × ₹200 = <span class="num">₹16Cr</span>/mo
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-amber has-glow">
+        <div class="card-label">Stream 2 · Volume</div>
+        <div class="card-title">📺 Ad Revenue</div>
+        <div class="card-body">
+          Google AdMob + in-app ads for reward video.
+          <div class="code-block mt-12">
+<span class="cmt">// Ad placements</span>
+Rewarded video    : 30s → 5 credits (₹0.30 eCPM India)
+Native feed ads   : 1 per 8 posts
+Banner bottom     : muted by Pro users
+
+<span class="cmt">// Revenue @ milestones</span>
+10K MAU × 3 ad views/day × 30 days
+= 900K ad views/mo
+= ₹27K/mo (India eCPM ₹30 per 1K)
+
+100K MAU → <span class="num">₹2.7L</span>/mo
+1M MAU   → <span class="num">₹27L</span>/mo
+10M MAU  → <span class="num">₹2.7Cr</span>/mo
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-purple has-glow">
+        <div class="card-label">Stream 3 · Transactional</div>
+        <div class="card-title">🛒 Skill Bazaar Commission</div>
+        <div class="card-body">
+          15% commission on every sale. Razorpay Route for split payments.
+          <div class="code-block mt-12">
+<span class="cmt">// Commission math</span>
+Avg sale price     : ₹500
+Platform cut       : ₹75 (15%)
+Seller receives    : ₹425 (instant UPI)
+Razorpay fee       : ₹10 (2%)
+Net platform margin: ₹65/sale
+
+<span class="cmt">// Revenue @ milestones</span>
+10K MAU × 1% sellers × 3 sales/mo
+= 300 sales/mo × ₹65 = <span class="num">₹19.5K</span>/mo
+
+100K MAU → <span class="num">₹1.95L</span>/mo
+1M MAU   → <span class="num">₹19.5L</span>/mo
+10M MAU  → <span class="num">₹1.95Cr</span>/mo
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-cyan has-glow">
+        <div class="card-label">Stream 4 · Engagement</div>
+        <div class="card-title">🏆 Spotlight Bidding</div>
+        <div class="card-body">
+          Per hour auction. Bidders pay credits (purchased or earned).
+          <div class="code-block mt-12">
+<span class="cmt">// Auction revenue</span>
+24 slots/day × 365 = 8,760 slots/year
+Avg bid @ 100K MAU : 80 credits
+Credit → INR equiv : ₹8 (at ₹0.10/credit)
+
+<span class="cmt">// Revenue @ milestones</span>
+100K MAU × 8,760 × ₹8 = <span class="num">₹7L</span>/year
+1M MAU × 8,760 × ₹15  = <span class="num">₹13L</span>/year
+10M MAU × 8,760 × ₹25 = <span class="num">₹22L</span>/year
+
+<span class="cmt">// Indirect: credit pack sales</span>
+₹99 = 1,000 credits pack
+5% of users buy monthly
+= <span class="num">₹99</span> × 5% × MAU/mo revenue
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-pink has-glow">
+        <div class="card-label">Stream 5 · B2B</div>
+        <div class="card-title">🏢 Brand Rooms (Phase 4+)</div>
+        <div class="card-body">
+          Brands apna verified room create karte hain. Fan engagement + AMAs.
+          <div class="code-block mt-12">
+<span class="cmt">// Brand Room pricing</span>
+Setup fee          : ₹50,000 one-time
+Monthly            : ₹25,000/mo
+Verified badge     : included
+Analytics dashboard: included
+Push to members    : 2/week
+Spotlight slots    : 4/mo included
+
+<span class="cmt">// Revenue potential</span>
+Phase 4 target: 200 brand rooms
+= 200 × ₹25K = <span class="num">₹50L</span>/mo
++ setup fees avg 50/mo = <span class="num">₹25L</span>/mo
+<span class="kw">Total</span>: <span class="num">₹75L</span>/mo pure B2B
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-blue">
+        <div class="card-label">Total Revenue Projection</div>
+        <div class="card-title">10M Scale = ₹20+ Crore/mo</div>
+        <div class="card-body">
+          Combined 5 streams at 10M MAU:
+          <div class="code-block mt-12">
+Pro subscriptions    : <span class="num">₹16 Cr</span>/mo
+Ad revenue           : <span class="num">₹2.7 Cr</span>/mo
+Skill Bazaar comm.   : <span class="num">₹1.95 Cr</span>/mo
+Spotlight + packs    : <span class="num">₹50 L</span>/mo
+Brand Rooms          : <span class="num">₹75 L</span>/mo
+<span class="kw">MRR</span>                  : <span class="num">₹21.9 Cr</span>/mo
+<span class="kw">ARR</span>                  : <span class="num">₹263 Cr</span>/year
+
+<span class="cmt">// Costs at 10M</span>
+Infrastructure       : <span class="num">₹40 L</span>/mo
+Team (8 people)      : <span class="num">₹70 L</span>/mo
+Marketing            : <span class="num">₹3 Cr</span>/mo
+<span class="kw">Gross margin</span>         : ~<span class="num">80%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout callout-red mt-24">
+      <div class="callout-title">RBI Compliance for Cashout</div>
+      <div class="callout-body">
+        Razorpay Payout use karo, NOT direct bank transfer — kyunki ORBIT Payment Aggregator license nahi hai. Razorpay license holder hai = legal. Cashout per user per month &lt; ₹10,000 rakho (no KYC uplift needed). &gt; ₹10K = full KYC required.
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════════
+       SECTION 16 — ADMIN, MODERATION & ANTI-ABUSE
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <section id="s16" class="section">
+    <div class="section-num">16 ──</div>
+    <h2 class="section-title">Admin, Moderation & Anti-Abuse</h2>
+    <p class="section-sub">Solo dev ke liye moderation = biggest operational risk. <strong>Automation-first, human-second</strong> approach.</p>
+
+    <div class="grid grid-2">
+      <div class="card card-amber">
+        <div class="card-label">Admin Dashboard</div>
+        <div class="card-title">Retool or Custom</div>
+        <div class="card-body">
+          Phase 1-2: <strong>Retool free tier</strong> (5 users). Phase 3+: custom Next.js at <code>/admin</code>.
+          <div class="code-block mt-12">
+<span class="cmt">// Admin capabilities needed</span>
+- User lookup (by phone, username, uid)
+- User actions: warn, mute, shadow-ban, ban
+- Report queue with sort/filter/assign
+- Content takedown (hide/delete + reason)
+- Trust Score override (manual)
+- Credit grant/deduct (customer service)
+- Cashout approval queue (&gt; ₹1000)
+- System-wide alerts (maintenance mode)
+- Feature flag toggle (PostHog synced)
+- KPI dashboard (DAU, MAU, revenue)
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-red has-glow">
+        <div class="card-label">Moderation Queue</div>
+        <div class="card-title">4-Tier Escalation</div>
+        <div class="card-body">
+          Report → auto-categorize → escalate if needed.
+          <div class="code-block mt-12">
+<span class="cmt">// Tier 1: Auto-handle (instant)</span>
+- OpenAI Moderation flag (&gt; 0.9) → auto-hide
+- Duplicate reports (same content × 5) → hide
+- Spam patterns (regex match) → shadow-ban
+
+<span class="cmt">// Tier 2: Queue (24hr SLA)</span>
+- Single reports → human review
+- Low-confidence AI flags → human
+- Cashout &gt; ₹1000 → human approve
+
+<span class="cmt">// Tier 3: Priority (1hr SLA)</span>
+- CSAM flag → immediate remove + NCMEC
+- Violence/threats → immediate remove
+- Doxxing reports → immediate remove
+
+<span class="cmt">// Tier 4: Legal (immediate)</span>
+- Court order → 36hr IT Rules SLA
+- NCII → 24hr IT Rules SLA
+- Law enforcement request → nodal officer
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-purple">
+        <div class="card-label">Anti-Abuse Patterns</div>
+        <div class="card-title">Fraud Detection Heuristics</div>
+        <div class="card-body">
+          <div class="task-list">
+            <div class="task done"><span class="dot dot-purple"></span><span class="task-text"><strong>Multi-accounts</strong>: FingerprintJS device ID + IP clustering</span></div>
+            <div class="task done"><span class="dot dot-purple"></span><span class="task-text"><strong>Ad fraud</strong>: Video completion &lt; 95% → no credit. IP velocity &gt; 10 views/min → flag</span></div>
+            <div class="task done"><span class="dot dot-purple"></span><span class="task-text"><strong>Credit farming</strong>: Karma &lt; 50 + rapid cashout → hold 7 days</span></div>
+            <div class="task done"><span class="dot dot-purple"></span><span class="task-text"><strong>Spam DMs</strong>: &gt; 10 DMs/hour to strangers → rate limit + Trust penalty</span></div>
+            <div class="task done"><span class="dot dot-purple"></span><span class="task-text"><strong>Mass reports</strong>: 1 user reports &gt; 20/day → reports deprioritized</span></div>
+            <div class="task done"><span class="dot dot-purple"></span><span class="task-text"><strong>Bot signup waves</strong>: &gt; 100 signups/hour same IP range → CAPTCHA mandatory</span></div>
+            <div class="task done"><span class="dot dot-purple"></span><span class="task-text"><strong>Payment chargebacks</strong>: 3 chargebacks = permanent ban</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-green">
+        <div class="card-label">Ban Workflow</div>
+        <div class="card-title">Graduated Response</div>
+        <div class="card-body">
+          Permanent ban = nuclear option. Use <strong>graduated response</strong>:
+          <div class="code-block mt-12">
+<span class="cmt">// Level 1: Warning (visible to user)</span>
+"You violated community guidelines. Next offense = mute."
+
+<span class="cmt">// Level 2: Mute (24hr)</span>
+Can read, cannot post/DM. Can appeal.
+
+<span class="cmt">// Level 3: Shadow-ban (3-7 days)</span>
+Posts visible to self only. No notification.
+Return to normal automatically.
+
+<span class="cmt">// Level 4: Suspension (7-30 days)</span>
+Account locked. Can read public only.
+Email appeal path.
+
+<span class="cmt">// Level 5: Permanent ban</span>
+Account terminated. Data retained 30 days
+(DPDP grievance window). Phone + device
+blocked from re-registration.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════════
+       SECTION 17 — BUILD PHASES (0 → 4)
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <section id="s17" class="section">
+    <div class="section-num">17 ──</div>
+    <h2 class="section-title">Build Phases — 0 to 4</h2>
+    <p class="section-sub">Solo dev ke liye realistic timeline. Har phase mein <strong>kya build, kya skip, kya upgrade</strong> — clear boundaries.</p>
+
+    <div class="grid grid-2">
+      <div class="card card-blue has-glow">
+        <div class="card-label">Phase 0 · Weeks 1-2</div>
+        <div class="card-title">Foundation (Pre-Launch)</div>
+        <div class="card-body">
+          Zero users. Sirf <strong>scaffolding + core architecture</strong>.
+          <div class="task-list mt-12">
+            <div class="task"><span class="dot dot-blue"></span><span class="task-text">Next.js 15 + Capacitor scaffold</span></div>
+            <div class="task"><span class="dot dot-blue"></span><span class="task-text">Firebase Auth + Firestore setup</span></div>
+            <div class="task"><span class="dot dot-blue"></span><span class="task-text">Pusher Sandbox + Cloudflare R2 + UPI test</span></div>
+            <div class="task"><span class="dot dot-blue"></span><span class="task-text">Sentry + PostHog + Firebase Analytics wired</span></div>
+            <div class="task"><span class="dot dot-blue"></span><span class="task-text">Design system CSS (dark + light theme)</span></div>
+            <div class="task"><span class="dot dot-blue"></span><span class="task-text">App Check + Firestore rules draft</span></div>
+            <div class="task"><span class="dot dot-blue"></span><span class="task-text">Branch.io deep links configured</span></div>
+            <div class="task"><span class="dot dot-blue"></span><span class="task-text">Privacy policy + ToS (DPDP draft)</span></div>
+          </div>
+          <div class="mt-12" style="font-size:10px; color:var(--text-dim);">Cost: <strong>₹0</strong>. All free tiers.</div>
+        </div>
+      </div>
+
+      <div class="card card-green has-glow">
+        <div class="card-label">Phase 1 · Weeks 3-6</div>
+        <div class="card-title">Launch to 1K Users</div>
+        <div class="card-body">
+          <strong>MVP build + soft launch</strong>. Ship fast, observe, fix.
+          <div class="task-list mt-12">
+            <div class="task"><span class="dot dot-green"></span><span class="task-text">Phone OTP auth + onboarding (4 screens)</span></div>
+            <div class="task"><span class="dot dot-green"></span><span class="task-text">Mood Rooms + DM + public rooms</span></div>
+            <div class="task"><span class="dot dot-green"></span><span class="task-text">Watch Credits + Karma + Karma Loan</span></div>
+            <div class="task"><span class="dot dot-green"></span><span class="task-text">Voice notes + image upload + ticks</span></div>
+            <div class="task"><span class="dot dot-green"></span><span class="task-text">Offline mode + WebSocket reconnect</span></div>
+            <div class="task"><span class="dot dot-green"></span><span class="task-text">Push notifications (FCM + APNs)</span></div>
+            <div class="task"><span class="dot dot-green"></span><span class="task-text">Admin dashboard (Retool)</span></div>
+            <div class="task"><span class="dot dot-green"></span><span class="task-text">Play Store + App Store submit</span></div>
+          </div>
+          <div class="mt-12" style="font-size:10px; color:var(--text-dim);">Cost: <strong>₹100-500/mo</strong>. Free tiers. Revenue: early Pro subs.</div>
+        </div>
+      </div>
+
+      <div class="card card-amber has-glow">
+        <div class="card-label">Phase 2 · Months 2-6</div>
+        <div class="card-title">Growth 1K → 50K Users</div>
+        <div class="card-body">
+          Retention pe focus. <strong>Paid upgrades shuru</strong>.
+          <div class="task-list mt-12">
+            <div class="task"><span class="dot dot-amber"></span><span class="task-text">Pusher Sandbox → Startup (₹4,900/mo)</span></div>
+            <div class="task"><span class="dot dot-amber"></span><span class="task-text">Vercel Hobby → Pro (₹1,680/mo)</span></div>
+            <div class="task"><span class="dot dot-amber"></span><span class="task-text">Firebase Spark → Blaze (pay-as-you-go)</span></div>
+            <div class="task"><span class="dot dot-amber"></span><span class="task-text">R2 migration start (from Firebase Storage)</span></div>
+            <div class="task"><span class="dot dot-amber"></span><span class="task-text">Weekly Challenges + Skill Bazaar launch</span></div>
+            <div class="task"><span class="dot dot-amber"></span><span class="task-text">AI Smart Replies (Gemini 1.5 Flash)</span></div>
+            <div class="task"><span class="dot dot-amber"></span><span class="task-text">Meilisearch self-host (Railway)</span></div>
+            <div class="task"><span class="dot dot-amber"></span><span class="task-text">Content moderation (OpenAI + PhotoDNA)</span></div>
+          </div>
+          <div class="mt-12" style="font-size:10px; color:var(--text-dim);">Cost: <strong>₹11K-15K/mo</strong>. Revenue target: ₹40K+/mo (break-even).</div>
+        </div>
+      </div>
+
+      <div class="card card-pink has-glow">
+        <div class="card-label">Phase 3 · Months 7-18</div>
+        <div class="card-title">Scale 50K → 1M Users</div>
+        <div class="card-body">
+          Enterprise infrastructure. <strong>Team hire</strong> (first 2-3 engineers).
+          <div class="task-list mt-12">
+            <div class="task"><span class="dot dot-pink"></span><span class="task-text">ORBIT Live (Agora RTC audio rooms)</span></div>
+            <div class="task"><span class="dot dot-pink"></span><span class="task-text">Spotlight auction system live</span></div>
+            <div class="task"><span class="dot dot-pink"></span><span class="task-text">Ably migration (from Pusher)</span></div>
+            <div class="task"><span class="dot dot-pink"></span><span class="task-text">Meilisearch Cloud upgrade</span></div>
+            <div class="task"><span class="dot dot-pink"></span><span class="task-text">Hive AI for image moderation</span></div>
+            <div class="task"><span class="dot dot-pink"></span><span class="task-text">Multi-region Firestore + daily backups</span></div>
+            <div class="task"><span class="dot dot-pink"></span><span class="task-text">Cloudflare WAF + DDoS protection</span></div>
+            <div class="task"><span class="dot dot-pink"></span><span class="task-text">Custom admin dashboard (ditch Retool)</span></div>
+            <div class="task"><span class="dot dot-pink"></span><span class="task-text">DPDP full compliance (consent manager)</span></div>
+          </div>
+          <div class="mt-12" style="font-size:10px; color:var(--text-dim);">Cost: <strong>₹1.2L-8.25L/mo</strong>. Revenue: ₹1.05 Cr+/mo.</div>
+        </div>
+      </div>
+
+      <div class="card card-purple has-glow">
+        <div class="card-label">Phase 4 · Year 2-3</div>
+        <div class="card-title">Enterprise 1M → 10M Users</div>
+        <div class="card-body">
+          Category leader. <strong>Team 8-15 people</strong>.
+          <div class="task-list mt-12">
+            <div class="task"><span class="dot dot-purple"></span><span class="task-text">Self-host Soketi (ditch Ably)</span></div>
+            <div class="task"><span class="dot dot-purple"></span><span class="task-text">Sharded Firestore + custom search cluster</span></div>
+            <div class="task"><span class="dot dot-purple"></span><span class="task-text">Brand Rooms B2B product launch</span></div>
+            <div class="task"><span class="dot dot-purple"></span><span class="task-text">Creator Elite tier (₹999/mo)</span></div>
+            <div class="task"><span class="dot dot-purple"></span><span class="task-text">Regional language rooms (7 languages live)</span></div>
+            <div class="task"><span class="dot dot-purple"></span><span class="task-text">Video calls + stories (Instagram-style)</span></div>
+            <div class="task"><span class="dot dot-purple"></span><span class="task-text">Payment Aggregator license (self-handle UPI)</span></div>
+            <div class="task"><span class="dot dot-purple"></span><span class="task-text">Series A fundraise (or bootstrap to profit)</span></div>
+          </div>
+          <div class="mt-12" style="font-size:10px; color:var(--text-dim);">Cost: <strong>₹40L/mo</strong>. Revenue: ₹21.9 Cr/mo. <strong>Gross margin 80%+.</strong></div>
+        </div>
+      </div>
+
+      <div class="card card-cyan has-glow">
+        <div class="card-label">Phase Gates</div>
+        <div class="card-title">When to Move to Next Phase</div>
+        <div class="card-body">
+          Don't over-engineer early. Don't under-engineer late. <strong>Clear triggers:</strong>
+          <div class="code-block mt-12">
+<span class="kw">Phase 0 → 1</span>: All infra deployed + 10 test users
+<span class="kw">Phase 1 → 2</span>: 1K MAU OR 100 paying users
+<span class="kw">Phase 2 → 3</span>: 50K MAU OR ₹5L MRR
+<span class="kw">Phase 3 → 4</span>: 1M MAU OR ₹50L MRR
+
+<span class="cmt">// Warning signs to delay:</span>
+- Day 30 retention &lt; 15% → fix retention first
+- Infra bill exceeds revenue → cost audit
+- Team morale low → fix culture before scale
+- Regulatory concerns → pause, consult legal
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════════
+       SECTION 18 — PRIORITY MATRIX
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <section id="s18" class="section">
+    <div class="section-num">18 ──</div>
+    <h2 class="section-title">Priority Matrix (Must / Should / Could / Won't)</h2>
+    <p class="section-sub">MoSCoW framework — <strong>ruthless prioritization</strong>. Solo dev ke liye everything can't be P0.</p>
+
+    <table class="cost-table">
+      <thead>
+        <tr><th>Priority</th><th>Feature</th><th>Phase</th><th>Why?</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><span style="color:var(--accent-red);"><strong>MUST</strong></span></td><td>Phone OTP Auth</td><td>0</td><td>Identity foundation. Without auth = no platform.</td></tr>
+        <tr><td><span style="color:var(--accent-red);"><strong>MUST</strong></span></td><td>Public Rooms + DMs</td><td>1</td><td>Core product. Chat without rooms = not a social app.</td></tr>
+        <tr><td><span style="color:var(--accent-red);"><strong>MUST</strong></span></td><td>Push Notifications</td><td>1</td><td>India retention killer. iOS users expect push.</td></tr>
+        <tr><td><span style="color:var(--accent-red);"><strong>MUST</strong></span></td><td>Offline Mode</td><td>1</td><td>Tier 2/3 India. Flaky network = must work offline.</td></tr>
+        <tr><td><span style="color:var(--accent-red);"><strong>MUST</strong></span></td><td>Watch Credits System</td><td>1</td><td>Economy foundation. Without currency = no monetization path.</td></tr>
+        <tr><td><span style="color:var(--accent-red);"><strong>MUST</strong></span></td><td>CSAM Detection</td><td>1</td><td>IT Act 67B. Non-negotiable. Jail risk.</td></tr>
+        <tr><td><span style="color:var(--accent-red);"><strong>MUST</strong></span></td><td>DPDP Grievance Flow</td><td>1</td><td>Legal requirement. Already enforceable.</td></tr>
+        <tr><td><span style="color:var(--accent-amber);"><strong>SHOULD</strong></span></td><td>Mood Rooms</td><td>1</td><td>Unique differentiator. Morning hook.</td></tr>
+        <tr><td><span style="color:var(--accent-amber);"><strong>SHOULD</strong></span></td><td>Karma Loan System</td><td>1</td><td>Day 7 retention +18%. High impact.</td></tr>
+        <tr><td><span style="color:var(--accent-amber);"><strong>SHOULD</strong></span></td><td>AI Smart Replies</td><td>2</td><td>Friction reduction. Gemini cost low.</td></tr>
+        <tr><td><span style="color:var(--accent-amber);"><strong>SHOULD</strong></span></td><td>Skill Bazaar</td><td>2</td><td>Revenue stream + retention. 15% commission.</td></tr>
+        <tr><td><span style="color:var(--accent-amber);"><strong>SHOULD</strong></span></td><td>Weekly Challenges</td><td>2</td><td>Weekend engagement. Leaderboards.</td></tr>
+        <tr><td><span style="color:var(--accent-amber);"><strong>SHOULD</strong></span></td><td>Regional Languages (7)</td><td>2</td><td>Tier 2/3 unlock. Moat vs competitors.</td></tr>
+        <tr><td><span style="color:var(--accent-cyan);"><strong>COULD</strong></span></td><td>ORBIT Live (Audio Rooms)</td><td>3</td><td>Clubhouse-style. Good, not critical.</td></tr>
+        <tr><td><span style="color:var(--accent-cyan);"><strong>COULD</strong></span></td><td>Spotlight Auction</td><td>3</td><td>Advanced monetization. Needs scale first.</td></tr>
+        <tr><td><span style="color:var(--accent-cyan);"><strong>COULD</strong></span></td><td>Trust Score Display</td><td>3</td><td>Gamification bonus. Optional.</td></tr>
+        <tr><td><span style="color:var(--accent-cyan);"><strong>COULD</strong></span></td><td>Video Calls</td><td>4</td><td>WhatsApp has it, ORBIT can later.</td></tr>
+        <tr><td><span style="color:var(--accent-cyan);"><strong>COULD</strong></span></td><td>Stories (24hr)</td><td>4</td><td>IG clone. Delayed until product-market fit.</td></tr>
+        <tr><td><span style="color:var(--text-dim);"><strong>WON'T</strong></span></td><td>End-to-End Encryption</td><td>—</td><td>Legal risk India. Traceability rules make E2EE problematic for social apps.</td></tr>
+        <tr><td><span style="color:var(--text-dim);"><strong>WON'T</strong></span></td><td>Crypto Wallet / NFT</td><td>—</td><td>RBI restrictions. Legal uncertainty. Skip.</td></tr>
+        <tr><td><span style="color:var(--text-dim);"><strong>WON'T</strong></span></td><td>Long-form Video (YouTube-like)</td><td>—</td><td>CDN cost prohibitive. Stay social-chat focused.</td></tr>
+        <tr><td><span style="color:var(--text-dim);"><strong>WON'T</strong></span></td><td>In-app Gaming</td><td>—</td><td>Separate product. Not core value prop.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════════
+       SECTION 19 — MOAT & POSITIONING
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <section id="s19" class="section">
+    <div class="section-num">19 ──</div>
+    <h2 class="section-title">Moat & Positioning</h2>
+    <p class="section-sub">Investors yeh question karte hain: <strong>"Meta/Google tomorrow clone kar de, tab tum kya karoge?"</strong> Jawab: ORBIT ka moat 4 layers ka hai.</p>
+
+    <div class="grid grid-2">
+      <div class="card card-blue has-glow">
+        <div class="card-label">Moat Layer 1</div>
+        <div class="card-title">🏘 Community Density</div>
+        <div class="card-body">
+          Network effects compound. Har user naye user ke liye value add karta hai. Mood Rooms mein jitne log, utna better matching. <strong>Meta ka WhatsApp India has 500M users — but WhatsApp mein rooms/moods/skill-bazaar nahi hai.</strong>
+          <div class="callout callout-blue mt-12">
+            <div class="callout-body" style="font-size:11px;">
+              ORBIT = <strong>social graph + interest graph + commerce graph</strong>. Triple overlay = replication hard even for Meta.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-amber has-glow">
+        <div class="card-label">Moat Layer 2</div>
+        <div class="card-title">💰 Economic Gravity</div>
+        <div class="card-body">
+          Skill Bazaar sellers apni reputation, reviews, customer base build karte hain. <strong>Switching cost HIGH</strong>. Seller apna ₹50K/mo income nahi chodega new platform ke liye.
+          <div class="callout callout-amber mt-12">
+            <div class="callout-body" style="font-size:11px;">
+              Credits + Karma + cashout ledger = users financially invested. Leave = lose money. This is <strong>the moat that WhatsApp doesn't have.</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-cyan has-glow">
+        <div class="card-label">Moat Layer 3</div>
+        <div class="card-title">🆔 Identity Portability</div>
+        <div class="card-body">
+          ORBIT Card = user ka <strong>digital resume + portfolio</strong>. Shared link on LinkedIn, Instagram, WhatsApp bio. Backlinks to ORBIT profile.
+          <div class="callout callout-cyan mt-12">
+            <div class="callout-body" style="font-size:11px;">
+              Identity stickiness: users apni ORBIT ID badalne mein hesitate karenge. Similar to how Gmail ID you never change.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-pink has-glow">
+        <div class="card-label">Moat Layer 4</div>
+        <div class="card-title">🌐 Cultural Depth</div>
+        <div class="card-body">
+          Hinglish smart replies, regional rooms, Indian festivals theming, UPI-native cashout. <strong>Meta ke USA-first product designers yeh subtlety nahi samajhte</strong>.
+          <div class="callout callout-pink mt-12">
+            <div class="callout-body" style="font-size:11px;">
+              Cultural moat = jitni deep, utni strong. ORBIT ko build kar raha hai <strong>ek Indian who understands Chandigarh + Mumbai + Chennai</strong>.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout callout-blue mt-32">
+      <div class="callout-title">Positioning Statement (1 Sentence)</div>
+      <div class="callout-body" style="font-size: 14px; font-weight: 600;">
+        "ORBIT is <strong>WhatsApp's social warmth</strong> × <strong>LinkedIn's economic graph</strong> × <strong>Discord's community rooms</strong> × <strong>Instagram's identity polish</strong> — built specifically for 1.4 billion Indians who speak 22 languages."
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════════
+       SECTION 20 — DAY 1 ACTION ITEMS
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <section id="s20" class="section">
+    <div class="section-num">20 ──</div>
+    <h2 class="section-title">Day 1 Action Items (Kal Subah Se)</h2>
+    <p class="section-sub">Blueprint final hai. Ab <strong>execution phase</strong>. Kal subah 9 baje in 7 cheezon se start karo — no procrastination.</p>
+
+    <div class="grid grid-2">
+      <div class="card card-red has-glow">
+        <div class="card-label">Action 1 · Tomorrow 9 AM</div>
+        <div class="card-title">🚀 Repo Setup</div>
+        <div class="card-body">
+          <div class="code-block mt-8">
+<span class="kw">npx</span> create-next-app@latest orbit --typescript --app --tailwind
+<span class="kw">cd</span> orbit
+<span class="kw">npm</span> i firebase pusher-js @capacitor/core
+<span class="kw">npx</span> cap init ORBIT com.yourname.orbit
+<span class="kw">npx</span> cap add ios android
+<span class="kw">git</span> remote add origin https://github.com/YOU/orbit.git
+<span class="kw">git</span> push -u origin main
+          </div>
+          <div class="mt-8" style="font-size:10px; color:var(--text-dim);"><strong>Time:</strong> 30 mins. <strong>Outcome:</strong> Scaffold live.</div>
+        </div>
+      </div>
+
+      <div class="card card-amber has-glow">
+        <div class="card-label">Action 2 · Tomorrow 10 AM</div>
+        <div class="card-title">🔥 Firebase Project</div>
+        <div class="card-body">
+          Firebase Console → Create Project "ORBIT" → Enable: Authentication (Phone OTP), Firestore, Storage, Hosting, App Check, Analytics, Cloud Functions.
+          <div class="code-block mt-8">
+<span class="kw">npm</span> i -g firebase-tools
+<span class="kw">firebase</span> login
+<span class="kw">firebase</span> init
+<span class="cmt">// Select: firestore, functions, hosting, storage</span>
+          </div>
+          <div class="mt-8" style="font-size:10px; color:var(--text-dim);"><strong>Time:</strong> 1 hour. <strong>Outcome:</strong> Backend scaffolded.</div>
+        </div>
+      </div>
+
+      <div class="card card-green has-glow">
+        <div class="card-label">Action 3 · Tomorrow 12 PM</div>
+        <div class="card-title">📦 Services Signup</div>
+        <div class="card-body">
+          Accounts banao (sab free tier):
+          <div class="task-list mt-8">
+            <div class="task"><span class="dot dot-green"></span><span class="task-text">Vercel (GitHub auth)</span></div>
+            <div class="task"><span class="dot dot-green"></span><span class="task-text">Cloudflare (R2 bucket "orbit-media")</span></div>
+            <div class="task"><span class="dot dot-green"></span><span class="task-text">Pusher (Sandbox plan, cluster ap2)</span></div>
+            <div class="task"><span class="dot dot-green"></span><span class="task-text">Upstash Redis (free tier)</span></div>
+            <div class="task"><span class="dot dot-green"></span><span class="task-text">Razorpay (business account + KYC)</span></div>
+            <div class="task"><span class="dot dot-green"></span><span class="task-text">Sentry + PostHog + Branch.io</span></div>
+          </div>
+          <div class="mt-8" style="font-size:10px; color:var(--text-dim);"><strong>Time:</strong> 2 hours. <strong>Outcome:</strong> 8 services live.</div>
+        </div>
+      </div>
+
+      <div class="card card-purple has-glow">
+        <div class="card-label">Action 4 · Tomorrow 3 PM</div>
+        <div class="card-title">⚖ Legal Foundation</div>
+        <div class="card-body">
+          <div class="task-list mt-8">
+            <div class="task"><span class="dot dot-purple"></span><span class="task-text">Draft Privacy Policy (DPDP-compliant) — use <a href="https://www.iubenda.com" target="_blank" style="color:var(--accent-blue);">iubenda.com</a></span></div>
+            <div class="task"><span class="dot dot-purple"></span><span class="task-text">Draft Terms of Service (India-specific)</span></div>
+            <div class="task"><span class="dot dot-purple"></span><span class="task-text">Register as Grievance Officer (your email)</span></div>
+            <div class="task"><span class="dot dot-purple"></span><span class="task-text">Domain buy: orbit.app or orbitindia.com (₹800/yr)</span></div>
+            <div class="task"><span class="dot dot-purple"></span><span class="task-text">Email setup: hello@, support@, grievance@</span></div>
+            <div class="task"><span class="dot dot-purple"></span><span class="task-text">Trademark application (₹4,500 CA filing)</span></div>
+          </div>
+          <div class="mt-8" style="font-size:10px; color:var(--text-dim);"><strong>Time:</strong> 3 hours. <strong>Outcome:</strong> Legal ready.</div>
+        </div>
+      </div>
+
+      <div class="card card-pink has-glow">
+        <div class="card-label">Action 5 · Day 2</div>
+        <div class="card-title">🎨 Design System Setup</div>
+        <div class="card-body">
+          <div class="task-list mt-8">
+            <div class="task"><span class="dot dot-pink"></span><span class="task-text">Copy v7 CSS design tokens to <code>globals.css</code></span></div>
+            <div class="task"><span class="dot dot-pink"></span><span class="task-text">Create <code>&lt;BottomNav /&gt;</code> (5 tabs per Section 6)</span></div>
+            <div class="task"><span class="dot dot-pink"></span><span class="task-text">Create <code>&lt;TopBar /&gt;</code> (logo + credit pill)</span></div>
+            <div class="task"><span class="dot dot-pink"></span><span class="task-text">Create <code>&lt;RoomListItem /&gt;</code> (per Section 5 mockup)</span></div>
+            <div class="task"><span class="dot dot-pink"></span><span class="task-text">Theme toggle: dark + light with CSS vars</span></div>
+            <div class="task"><span class="dot dot-pink"></span><span class="task-text">Deploy to Vercel + share preview URL</span></div>
+          </div>
+          <div class="mt-8" style="font-size:10px; color:var(--text-dim);"><strong>Time:</strong> 1 day. <strong>Outcome:</strong> Skeleton UI live.</div>
+        </div>
+      </div>
+
+      <div class="card card-cyan has-glow">
+        <div class="card-label">Action 6 · Days 3-5</div>
+        <div class="card-title">🔐 Auth + Onboarding</div>
+        <div class="card-body">
+          <div class="task-list mt-8">
+            <div class="task"><span class="dot dot-cyan"></span><span class="task-text">Phone OTP flow (Firebase Auth + reCAPTCHA)</span></div>
+            <div class="task"><span class="dot dot-cyan"></span><span class="task-text">4-screen onboarding (welcome, language, interests, 50 credit loan)</span></div>
+            <div class="task"><span class="dot dot-cyan"></span><span class="task-text">Username collision check (Firestore transaction)</span></div>
+            <div class="task"><span class="dot dot-cyan"></span><span class="task-text">Profile page (ORBIT Card preview)</span></div>
+            <div class="task"><span class="dot dot-cyan"></span><span class="task-text">Firestore security rules (users collection)</span></div>
+            <div class="task"><span class="dot dot-cyan"></span><span class="task-text">App Check enable (Play Integrity + DeviceCheck)</span></div>
+          </div>
+          <div class="mt-8" style="font-size:10px; color:var(--text-dim);"><strong>Time:</strong> 3 days. <strong>Outcome:</strong> Users can signup.</div>
+        </div>
+      </div>
+
+      <div class="card card-blue">
+        <div class="card-label">Action 7 · Week 2-6</div>
+        <div class="card-title">🏗 Build MVP → Launch</div>
+        <div class="card-body">
+          Phase 1 backlog order:
+          <div class="task-list mt-8">
+            <div class="task"><span class="dot dot-blue"></span><span class="task-text">Week 2: Public rooms + DMs (Pusher + Firestore)</span></div>
+            <div class="task"><span class="dot dot-blue"></span><span class="task-text">Week 3: Mood rooms + matchmaking</span></div>
+            <div class="task"><span class="dot dot-blue"></span><span class="task-text">Week 4: Voice + image upload (R2 signed URLs)</span></div>
+            <div class="task"><span class="dot dot-blue"></span><span class="task-text">Week 5: Credits + Karma + Loan system</span></div>
+            <div class="task"><span class="dot dot-blue"></span><span class="task-text">Week 6: Push notif + offline + ticks</span></div>
+            <div class="task"><span class="dot dot-blue"></span><span class="task-text">Week 6 end: Play Store submit → Soft launch 100 friends</span></div>
+          </div>
+          <div class="mt-8" style="font-size:10px; color:var(--text-dim);"><strong>Time:</strong> 5 weeks. <strong>Outcome:</strong> 1K users, first ₹2K/mo Pro revenue.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout callout-red mt-32">
+      <div class="callout-title">Single Most Important Rule</div>
+      <div class="callout-body" style="font-size: 14px;">
+        <strong>"Code sirf 10M users ke liye architect karo, build features sirf 1K users ke liye."</strong><br><br>
+        Matlab: Firestore sharded counters, R2 egress-free, Pusher channels — <strong>yeh ab decide karo</strong> kyunki migration later painful. Lekin Spotlight auction, Brand Rooms, E2EE — <strong>yeh abhi nahi</strong>. User base grow hone do, feature by feature unlock karo.<br><br>
+        <strong>Architecture is forever. Features are seasonal.</strong>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════════
+       FOOTER
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  <section class="section" style="text-align:center; padding-top:40px; padding-bottom:80px;">
+    <div style="font-family:'Syne',sans-serif; font-size:32px; font-weight:700; color:var(--accent-blue); margin-bottom:8px;">ORBIT</div>
+    <div style="font-family:'Space Mono',monospace; font-size:11px; color:var(--text-dim); letter-spacing:2px; margin-bottom:32px;">MASTER BLUEPRINT · v7.0 · FINAL</div>
+    <div style="max-width:600px; margin:0 auto; color:var(--text-med); font-size:13px; line-height:1.8;">
+      Yeh blueprint 3 iterations (v4 architectural depth + v5 UI polish + v6 retention mechanics) + 2026 regulatory reality (DPDP Act + FDL shutdown + Branch.io migration) ka <strong>merged final version</strong> hai.<br><br>
+      <strong>20 sections</strong> · <strong>17 CTO gaps fixed</strong> · <strong>10 retention mechanics</strong> · <strong>5 revenue streams</strong> · <strong>₹0 → ₹40L/mo cost curve</strong> from 1K to 10M users.<br><br>
+      <span style="color:var(--accent-amber);">Ab sirf execute karna hai. Blueprint ready hai. Code likhna shuru karo.</span>
+    </div>
+    <div style="margin-top:48px; font-family:'Space Mono',monospace; font-size:10px; color:var(--text-dim);">
+      ── BUILT FOR 10M FROM DAY 1 ──<br>
+      ── ONE CODEBASE · ZERO REWRITES · INFINITE SCALE ──
+    </div>
+  </section>
+
+</div><!-- /container -->
+
+</body>
+</html>

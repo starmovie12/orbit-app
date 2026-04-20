@@ -8,12 +8,18 @@ import {
   Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useColors } from '@/hooks/useColors';
+import { Feather } from '@expo/vector-icons';
 import { INBOX_CHATS } from '@/constants/data';
-import { ScreenHeader, SearchBar, Divider, Ticks } from '@/components/shared';
+import {
+  ScreenHeader,
+  SearchBar,
+  Divider,
+  ReadStatus,
+  Avatar,
+} from '@/components/shared';
+import { orbit } from '@/constants/colors';
 
 export default function InboxScreen() {
-  const colors = useColors();
   const insets = useSafeAreaInsets();
   const [search, setSearch] = useState('');
 
@@ -21,78 +27,57 @@ export default function InboxScreen() {
     c.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  const renderChat = ({ item }: { item: typeof INBOX_CHATS[0] }) => {
-    const initials = item.name
-      .split(' ')
-      .map(w => w[0])
-      .join('')
-      .slice(0, 2);
+  const renderChat = ({ item }: { item: typeof INBOX_CHATS[0] }) => (
+    <TouchableOpacity style={styles.listItem} activeOpacity={0.7}>
+      <Avatar name={item.name} size={44} online={item.online} />
 
-    return (
-      <TouchableOpacity
-        style={[styles.listItem, { backgroundColor: colors.background }]}
-        activeOpacity={0.7}
-      >
-        <View style={styles.avatarWrap}>
-          <View style={[styles.avatar, { backgroundColor: item.color + '22', borderColor: item.color + '44' }]}>
-            <Text style={[styles.avatarInitials, { color: item.color }]}>{initials}</Text>
+      <View style={styles.listBody}>
+        <View style={styles.listNameRow}>
+          <Text style={styles.listName} numberOfLines={1}>{item.name}</Text>
+          <Text style={styles.listTime}>{item.time}</Text>
+        </View>
+        <View style={styles.listPreviewRow}>
+          <View style={styles.dmPreviewRow}>
+            <ReadStatus state={item.status as any} />
+            <Text style={styles.listPreview} numberOfLines={1}>
+              {item.preview}
+            </Text>
           </View>
-          {item.online && (
-            <View style={[styles.onlineDot, { backgroundColor: colors.green, borderColor: colors.background }]} />
+          {item.unread > 0 && (
+            <View style={styles.unreadBadge}>
+              <Text style={styles.unreadText}>{item.unread}</Text>
+            </View>
           )}
         </View>
+      </View>
+    </TouchableOpacity>
+  );
 
-        <View style={styles.listBody}>
-          <View style={styles.listNameRow}>
-            <Text style={[styles.listName, { color: colors.text }]} numberOfLines={1}>
-              {item.name}
-            </Text>
-            <Text style={[styles.listTime, { color: colors.mutedForeground }]}>{item.time}</Text>
-          </View>
-          <View style={styles.listPreviewRow}>
-            <View style={styles.previewLeft}>
-              <Ticks state={item.ticks} />
-              <Text style={[styles.listPreview, { color: colors.sub }]} numberOfLines={1}>
-                {item.ticks !== 'none' ? ' ' : ''}{item.preview}
-              </Text>
-            </View>
-            {item.unread > 0 && (
-              <View style={[styles.unreadBadge, { backgroundColor: colors.primary }]}>
-                <Text style={styles.unreadText}>{item.unread}</Text>
-              </View>
-            )}
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
-  };
-
-  const bottomPad = Platform.OS === 'web' ? 34 : insets.bottom;
+  const bottomPad = Platform.OS === 'web' ? 90 : insets.bottom + 70;
 
   return (
-    <View style={[styles.screen, { backgroundColor: colors.background }]}>
-      <ScreenHeader title="Inbox" />
+    <View style={[styles.screen, { backgroundColor: orbit.bg }]}>
+      <ScreenHeader
+        title="Inbox"
+        right={
+          <TouchableOpacity hitSlop={8} accessibilityRole="button" accessibilityLabel="New message">
+            <Feather name="edit" size={20} color={orbit.textSecond} />
+          </TouchableOpacity>
+        }
+      />
       <SearchBar
         placeholder="Search messages..."
         value={search}
         onChangeText={setSearch}
       />
-
       <FlatList
         data={filtered}
         keyExtractor={i => i.id}
         renderItem={renderChat}
         ItemSeparatorComponent={Divider}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: bottomPad + 80 }}
+        contentContainerStyle={{ paddingBottom: bottomPad }}
       />
-
-      <TouchableOpacity
-        style={[styles.composeFab, { backgroundColor: colors.primary, bottom: bottomPad + 20 }]}
-        activeOpacity={0.85}
-      >
-        <Text style={styles.composeFabIcon}>✏️</Text>
-      </TouchableOpacity>
     </View>
   );
 }
@@ -102,72 +87,58 @@ const styles = StyleSheet.create({
   listItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  avatarWrap: {
-    position: 'relative',
-    width: 50,
-    height: 50,
-    marginRight: 12,
-  },
-  avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarInitials: { fontSize: 18, fontWeight: '700' },
-  onlineDot: {
-    position: 'absolute',
-    bottom: 1,
-    right: 1,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    borderWidth: 2,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    gap: 12,
   },
   listBody: { flex: 1 },
   listNameRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 3,
+    marginBottom: 4,
+    gap: 8,
   },
-  listName: { fontSize: 15, fontWeight: '600', flex: 1, marginRight: 8 },
-  listTime: { fontSize: 11 },
+  listName: {
+    flex: 1,
+    color: orbit.textPrimary,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  listTime: {
+    color: orbit.textTertiary,
+    fontSize: 12,
+    fontWeight: '500',
+  },
   listPreviewRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 8,
   },
-  previewLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
-  listPreview: { fontSize: 13, flex: 1 },
+  dmPreviewRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  listPreview: {
+    flex: 1,
+    color: orbit.textSecond,
+    fontSize: 14,
+    lineHeight: 18,
+  },
   unreadBadge: {
     minWidth: 20,
     height: 20,
     borderRadius: 10,
+    backgroundColor: orbit.accent,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 5,
-    marginLeft: 8,
+    paddingHorizontal: 6,
   },
-  unreadText: { color: '#fff', fontSize: 11, fontWeight: '700' },
-  composeFab: {
-    position: 'absolute',
-    right: 20,
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+  unreadText: {
+    color: orbit.white,
+    fontSize: 11,
+    fontWeight: '700',
   },
-  composeFabIcon: { fontSize: 22 },
 });

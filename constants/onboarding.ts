@@ -1,39 +1,52 @@
+/**
+ * ORBIT — Onboarding Data
+ *
+ * `icon` = Feather glyph name. Used to render premium SVG icons, NOT emoji.
+ * `accent` is a quiet category cue (used for icon tint or 3px stripe only).
+ */
+
 export const LANGUAGES = [
-  { code: "hi", label: "हिन्दी", sub: "Hindi", emoji: "🇮🇳" },
-  { code: "en", label: "English", sub: "English", emoji: "🌐" },
-  { code: "pa", label: "ਪੰਜਾਬੀ", sub: "Punjabi", emoji: "🇮🇳" },
-  { code: "bn", label: "বাংলা", sub: "Bengali", emoji: "🇮🇳" },
-  { code: "mr", label: "मराठी", sub: "Marathi", emoji: "🇮🇳" },
-  { code: "ta", label: "தமிழ்", sub: "Tamil", emoji: "🇮🇳" },
-  { code: "te", label: "తెలుగు", sub: "Telugu", emoji: "🇮🇳" },
-  { code: "gu", label: "ગુજરાતી", sub: "Gujarati", emoji: "🇮🇳" },
+  { code: "hi", label: "हिन्दी",   sub: "Hindi"   },
+  { code: "en", label: "English",  sub: "English" },
+  { code: "pa", label: "ਪੰਜਾਬੀ",  sub: "Punjabi" },
+  { code: "bn", label: "বাংলা",    sub: "Bengali" },
+  { code: "mr", label: "मराठी",    sub: "Marathi" },
+  { code: "ta", label: "தமிழ்",    sub: "Tamil"   },
+  { code: "te", label: "తెలుగు",   sub: "Telugu"  },
+  { code: "gu", label: "ગુજરાતી", sub: "Gujarati"},
 ];
 
-export const INTERESTS = [
-  { id: "gaming",    emoji: "🎮", label: "Gaming",     color: "#E53935" },
-  { id: "music",     emoji: "🎵", label: "Music",      color: "#F4A522" },
-  { id: "startup",   emoji: "💼", label: "Startup",    color: "#7B68EE" },
-  { id: "tech",      emoji: "💻", label: "Tech",       color: "#2481CC" },
-  { id: "art",       emoji: "🎨", label: "Art",        color: "#EC4899" },
-  { id: "photo",     emoji: "📸", label: "Photography",color: "#34B461" },
-  { id: "movies",    emoji: "🎬", label: "Movies",     color: "#8B5CF6" },
-  { id: "memes",     emoji: "😂", label: "Memes",      color: "#10B981" },
-  { id: "fitness",   emoji: "💪", label: "Fitness",    color: "#3B82F6" },
-  { id: "food",      emoji: "🍜", label: "Food",       color: "#F59E0B" },
-  { id: "vent",      emoji: "💔", label: "Vent & Heal",color: "#EF4444" },
-  { id: "study",     emoji: "📚", label: "Study",      color: "#06B6D4" },
-  { id: "freelance", emoji: "🛠️", label: "Freelance",  color: "#F97316" },
-  { id: "news",      emoji: "📰", label: "News",       color: "#64748B" },
+export const INTERESTS: { id: string; icon: any; label: string }[] = [
+  { id: "gaming",    icon: "target",       label: "Gaming"      },
+  { id: "music",     icon: "music",        label: "Music"       },
+  { id: "startup",   icon: "briefcase",    label: "Startup"     },
+  { id: "tech",      icon: "code",         label: "Tech"        },
+  { id: "art",       icon: "pen-tool",     label: "Art"         },
+  { id: "photo",     icon: "camera",       label: "Photography" },
+  { id: "movies",    icon: "film",         label: "Movies"      },
+  { id: "memes",     icon: "smile",        label: "Memes"       },
+  { id: "fitness",   icon: "activity",     label: "Fitness"     },
+  { id: "food",      icon: "coffee",       label: "Food"        },
+  { id: "vent",      icon: "heart",        label: "Vent & Heal" },
+  { id: "study",     icon: "book-open",    label: "Study"       },
+  { id: "freelance", icon: "tool",         label: "Freelance"   },
+  { id: "news",      icon: "globe",        label: "News"        },
 ];
 
-export const AVATAR_EMOJIS = [
-  "👤", "🦊", "🐼", "🐯", "🦁", "🐸", "🐙", "🦄",
-  "👾", "🤖", "👻", "🧠", "🔥", "⚡", "🌙", "🌟",
-];
-
+/**
+ * Avatar palette for generated initials avatars.
+ * Replaces emoji avatars (👻🦊🐼…) which look like clipart.
+ */
 export const AVATAR_COLORS = [
-  "#2481CC", "#34B461", "#F4A522", "#7B68EE", "#EC4899",
-  "#E53935", "#10B981", "#8B5CF6", "#F59E0B", "#06B6D4",
+  "#5B7FFF", "#8B5CF6", "#2BB673", "#E8A33D",
+  "#E5484D", "#3B82F6", "#EC4899", "#06B6D4",
 ];
+
+/**
+ * Legacy slot — keeps old code that imports AVATAR_EMOJIS from compiling.
+ * Replaced with single-letter "initials" placeholders.
+ * The Avatar component in components/shared.tsx generates real initials avatars.
+ */
+export const AVATAR_EMOJIS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P"];
 
 export const MIN_INTERESTS = 3;

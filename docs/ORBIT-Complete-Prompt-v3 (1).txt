@@ -1,0 +1,3467 @@
+================================================================================
+  ORBIT — MASTER BUILD PROMPT v3.0
+  "Human-Behavior-Aware Edition"
+================================================================================
+
+  Aligned with  : orbit-blueprint-v7.html
+  Supersedes    : ORBIT-Complete-Prompt-v2.txt
+  Generated     : April 2026 · Chandigarh
+  Built by      : Ail Noor Alam + Claude (Anthropic)
+
+  ONE-LINE MISSION:
+    "10M users ke liye architect karo, 1K users ke liye build karo,
+     REAL INSAAN ke liye design karo — ideal user ke liye nahi."
+
+================================================================================
+  TABLE OF CONTENTS
+================================================================================
+
+  PART 0  — THE CORE TRUTH (Why v3 exists)
+  PART 1  — THE 27 LAWS OF HUMAN BEHAVIOR
+  PART 2  — UPDATED CORE PHILOSOPHY
+  PART 3  — ARCHITECTURE (From v7, Retained)
+  PART 4  — TECH STACK (From v7, Retained)
+
+  ── HUMAN BEHAVIOR FIXES (12) ────────────────────────────────────────────────
+  PART 5  — CREDIT ECONOMY 2.0  (Fix: Credit ≠ Rupee Confusion)
+  PART 6  — ACCOUNT HEALTH SYSTEM  (Fix: Invisible Trust Score)
+  PART 7  — ROOM LIFECYCLE ENGINE  (Fix: Ghost Town Rooms)
+  PART 8  — ANTI-ABUSE INVITE FLOW  (Fix: Squad System Gaming)
+  PART 9  — CREATOR TIERS + SCARCITY  (Fix: Creator Saturation)
+  PART 10 — QUALITY-WEIGHTED DISCOVERY  (Fix: Discovery Manipulation)
+  PART 11 — EMOTIONAL-FIRST UX  (Fix: Earning-First Trap)
+  PART 12 — DAY-1 IDENTITY KIT  (Fix: Weak Early Attachment)
+  PART 13 — BOREDOM ESCAPE HATCHES  (Fix: Silent Churn)
+  PART 14 — LOW-EFFORT ENGAGEMENT LOOPS  (Fix: Effort vs Reels Gap)
+  PART 15 — CONTROLLED CHAOS ENGINE  (Fix: Too-Perfect System)
+  PART 16 — COMMUNITY MARSHAL PROGRAM  (Fix: Founder Dependency)
+
+  ── MY 15 ADDITIONAL STRATEGIC LAYERS ────────────────────────────────────────
+  PART 17 — LOSS AVERSION HOOKS
+  PART 18 — SOCIAL PROOF GRADIENT
+  PART 19 — FIRST-15-MINUTE MAGIC
+  PART 20 — ZERO-LONELINESS GUARANTEE
+  PART 21 — PRESTIGE OVER PAYOUT
+  PART 22 — ANTI-FATIGUE / FORCED-REST SYSTEM
+  PART 23 — GRACEFUL DEMOTION / REDEMPTION QUESTS
+  PART 24 — THE 1% LURKER DESIGN
+  PART 25 — INDIA-SPECIFIC CULTURAL FIT
+  PART 26 — NOTIFICATION TAX (Respect Attention)
+  PART 27 — PRIVACY-AS-PREMIUM
+  PART 28 — OFFLINE-FIRST EARNING PREVIEW
+  PART 29 — WEEKLY RHYTHM / CONTENT CALENDAR
+  PART 30 — ANTI-GHOST-TOWN UI
+  PART 31 — PAIN-OF-EXIT / WIN-BACK FUNNEL
+
+  ── SIMULATION + EXECUTION ───────────────────────────────────────────────────
+  PART 32 — USER JOURNEY MAPS (Day-1, Week-1, Month-1, Year-1)
+  PART 33 — 20-USER BEHAVIOR SIMULATION (5 personas × 4 scenarios)
+  PART 34 — UPDATED PHASED ROLLOUT (Phase 0 → 4)
+  PART 35 — WEEK-1 ACTION PLAN (Revised)
+  PART 36 — THE 10 NON-NEGOTIABLES
+
+
+
+================================================================================
+  PART 0 — THE CORE TRUTH
+================================================================================
+
+  v7 blueprint ne technical architecture perfect kar di — Firestore sharded,
+  Pusher scaled, R2 zero-egress, Agora sub-300ms. Lekin ek kathor sach chhoot
+  gaya tha:
+
+    ╔════════════════════════════════════════════════════════════════════╗
+    ║  "Insaan perfect nahi hota. Wo fraud karega, bore hoga, compare    ║
+    ║   karega, cheating karega, jealous hoga, gamble karega, emotional  ║
+    ║   decisions lega, dost ko copy karega, public mein show-off karega."║
+    ╚════════════════════════════════════════════════════════════════════╝
+
+  v3 prompt ka ek hi motto hai:
+
+    "System REAL humans ke liye banao, ideal users ke liye nahi."
+
+  v7 ne monster build kiya. v3 us monster ko INSAAN ke saath compatible
+  banata hai. Architecture wahi, economy wahi, roles wahi — lekin har
+  feature ab human psychology ke 27 tests se pass hona chahiye.
+
+  v3 ka promise:
+    ✓ 17 CTO gaps fixed (from v7)
+  + ✓ 12 human behavior gaps fixed (from Noor's audit)
+  + ✓ 15 extra psychology layers (Claude's strategic additions)
+  = 44 total defense layers before users ever touch the app.
+
+
+
+================================================================================
+  PART 1 — THE 27 LAWS OF HUMAN BEHAVIOR
+================================================================================
+
+  Har feature design karne se pehle, in 27 laws ke against check karo. Agar
+  ek bhi law violate ho raha hai, feature wahin reject karo ya redesign karo.
+
+  ── BEHAVIORAL TRUTHS (Economic) ─────────────────────────────────────────────
+
+  LAW 01 · Users decode every system within 7 days. Agar credit = rupee hai,
+          wo pata chal jayega. Therefore: ENCODE credits AS game score, not
+          currency. Variable rewards. Hidden exchange rate.
+
+  LAW 02 · Invisible punishment feels like scam. Silent shadow-ban → 1-star
+          review on Play Store. Therefore: ALWAYS show symptom, even if not
+          the algorithm. "Account Health: Quality Fair" > invisible penalty.
+
+  LAW 03 · Fragmentation = death. 100 rooms × 5 users = ghost town. Therefore:
+          CONSOLIDATE ruthlessly. 20 hot rooms > 200 dead rooms.
+
+  LAW 04 · Incentives get gamed. Invite reward = fake account farm. Therefore:
+          MULTI-STAGE unlocks. Pay the inviter only when invitee stays.
+
+  LAW 05 · Every role becomes crowded. Everyone wants creator badge. Therefore:
+          SCARCITY. Limited slots per category. Rare = valuable.
+
+  LAW 06 · Ranking = optimization target. Simple metric = simple gaming.
+          Therefore: MULTI-FACTOR ranking (velocity + diversity + quality +
+          retention). Change weights secretly monthly.
+
+  LAW 07 · Earning-first UX = mercenary users. They'll follow money elsewhere.
+          Therefore: EMOTIONAL UX first. Friends, story, connection. Earning
+          is a side-effect.
+
+  LAW 08 · Day-1 identity is sacred. Empty profile = no attachment = churn.
+          Therefore: INSTANT identity. Username + avatar + badge + starter
+          credits + starter rooms in <60 seconds.
+
+  LAW 09 · Bored users don't ask — they leave. No exit ramp = silent churn.
+          Therefore: BUILD escape hatches. Quiet-time suggestions, pause
+          mode, comeback rewards.
+
+  LAW 10 · Your real competitor is Reels, not another social app. Effort
+          asymmetry kills. Therefore: LOW-EFFORT loops. Scroll + react =
+          micro-earn. Listen mode. Quick reactions.
+
+  LAW 11 · Too-sanitized = dead. No drama = no stickiness. Therefore:
+          CONTROLLED CHAOS. Debate arenas, roast battles, chaos days.
+
+  LAW 12 · Founder can't scale moderation. Therefore: COMMUNITY marshals
+          + AI layer + escalation ladder.
+
+  ── BEHAVIORAL TRUTHS (Psychological) ─────────────────────────────────────────
+
+  LAW 13 · Loss hurts more than gain pleases (Kahneman). Therefore: PROTECT
+          streaks, badges, status. Make losing feel visible, costly.
+
+  LAW 14 · Humans follow tribe, not numbers. "250 online" < "3 friends here".
+          Therefore: SOCIAL PROOF via faces, not stats.
+
+  LAW 15 · First 15 minutes decide everything. Onboard to "WOW" moment fast.
+          Therefore: AUTO-magic first interaction. Force success.
+
+  LAW 16 · Empty room = embarrassment = churn. Therefore: ZERO-LONELINESS.
+          AI companions (clearly labeled), warm-state UI, redirect from dead
+          rooms.
+
+  LAW 17 · Status > cash for power users. Therefore: PRESTIGE rewards — gold
+          borders, Hall of Fame, physical merch, event invites.
+
+  LAW 18 · Heavy earners burn out and blame app. Therefore: ANTI-FATIGUE
+          caps + forced cooldowns + sleep-hour reduced earning.
+
+  LAW 19 · Permaban = 1-star review + Twitter rant. Therefore: GRACEFUL
+          demotion. Always a redemption quest.
+
+  LAW 20 · 90% lurk, 9% engage, 1% create. Design for the 90%. Therefore:
+          LURKER economy — listen credits, observer badges, shy mode.
+
+  LAW 21 · India is NOT a Silicon Valley clone. Regional, cricket, festival,
+          language, UPI, Paytm. Therefore: CULTURAL FIT — local rooms,
+          festival auto-spawns, vernacular surfacing.
+
+  LAW 22 · Notification spam = uninstall. Therefore: NOTIFICATION TAX — max
+          3/day, AI-curated, emotional not promotional.
+
+  LAW 23 · Indians value privacy. Therefore: PRIVACY-AS-PREMIUM — invisible
+          mode, ghost profile, incognito rooms (Pro features).
+
+  LAW 24 · Users must feel progress even when offline. Therefore: OFFLINE-FIRST
+          preview — cached credits, pending earnings, local streak countdown.
+
+  LAW 25 · Week needs a shape. Monday blur = low engagement. Therefore:
+          WEEKLY RHYTHM — Monday Fresh, Wednesday Chaos, Sunday Wrap.
+
+  LAW 26 · Empty screen = depressed mood. Therefore: ANTI-GHOST UI — rolling
+          stats, presence particles, recent-actives-floating.
+
+  LAW 27 · Easy exit = no second chance. Therefore: PAIN-OF-EXIT — show what
+          user loses, offer pause not quit, win-back SMS after 7 days.
+
+
+
+================================================================================
+  PART 2 — UPDATED CORE PHILOSOPHY
+================================================================================
+
+  v7 philosophy (retained):
+    1. One codebase, three platforms (Next.js 15 + Capacitor)
+    2. Managed services only (no DevOps till Phase 3)
+    3. Scale architecturally NOW, build features only for CURRENT stage
+    4. Free tier everything till ₹2L/mo bills start
+    5. DPDP Act compliant from Day 1
+    6. Solo-founder executable
+
+  v3 philosophy (added):
+    7. HUMAN FIRST, SYSTEM SECOND — every algorithm tested against a fraud,
+       a cheater, a bored user, a jealous user, a grief user.
+    8. EMOTIONS OVER ECONOMICS — home screen shows friends, not credits.
+    9. TRANSPARENT UNFAIRNESS — if we penalize, we tell. If we reward,
+       we don't disclose the exact formula.
+   10. CHAOS IS THE FEATURE — polished app feels like a bank. We're not
+       a bank. We're a community.
+   11. LURKERS ARE USERS — build earn-without-speak paths.
+   12. INDIA AT THE CENTER — language, region, cricket, festival,
+       UPI, WhatsApp sharing.
+
+
+
+================================================================================
+  PART 3 — ARCHITECTURE (Retained from v7)
+================================================================================
+
+  Client         → Vercel Edge     → Firestore    → R2 + CDN
+  Next.js 15 PWA   App Router         NoSQL+Auth     Media/Voice
+  + Capacitor      API Routes         Realtime       Zero egress
+  iOS · Android    ISR + SSR          Security       Profile · Cards
+  Web              CDN                Rules          ORBIT Cards
+
+  Pusher→Ably→   Agora RTC         FCM+APNs       Meilisearch
+  Soketi           <300ms voice      Branch.io      + Gemini Flash
+  Realtime         ORBIT Live        Deep Links     + OpenAI Mod
+
+  Razorpay UPI     Sentry            PostHog        Hive AI
+  payments         errors            analytics      image mod
+
+  This stack does NOT change in v3. All human-behavior fixes live on TOP
+  of this stack as new collections, new Cloud Functions, and new UI screens.
+
+
+
+================================================================================
+  PART 4 — TECH STACK (Retained from v7)
+================================================================================
+
+  Frontend        : Next.js 15 App Router, React 19, TypeScript, Tailwind
+                    Framer Motion, Capacitor 6 for iOS/Android
+  Backend         : Firestore, Firebase Auth, Cloud Functions (Node 20)
+                    Firebase App Check (Play Integrity + DeviceCheck)
+  Media           : Cloudflare R2 + Cloudflare CDN
+  Realtime        : Pusher Channels (→ Ably @1M → Soketi @10M)
+  Voice           : Agora RTC SDK
+  Push            : FCM + APNs (via Firebase Cloud Messaging)
+  Deep Links      : Branch.io (free 10K MAU tier)
+  Search          : Meilisearch (self-host Railway Phase 1 → Cloud Phase 2)
+  AI              : Gemini 1.5 Flash (15 RPM free) + OpenAI Moderation (free)
+                    + Hive AI (Phase 3) for image/video
+  Payments        : Razorpay Standard Plan (UPI payouts)
+  Analytics       : PostHog (10K events/mo free) + Sentry
+  Email           : Resend (3K emails/mo free) → transactional
+  Feature Flags   : GrowthBook (OSS, self-host)
+
+  NEW in v3 (required for human-behavior layers):
+  ────────────────────────────────────────────────
+  ChaosEngine     : Custom Cloud Functions + scheduled triggers
+  MarshalDashboard: Simple Next.js route at /marshal/* (role-gated)
+  BehaviorML      : Vertex AI Prediction API (churn + quality scoring)
+                    (Phase 2+ only — rule-based till 10K MAU)
+  NotificationAI  : Custom Cloud Function using Gemini Flash to pick
+                    the best 3 notifications per user per day
+
+
+
+================================================================================
+  PART 5 — CREDIT ECONOMY 2.0
+  (Fix for Problem 1: Credit ≠ Rupee Confusion)
+================================================================================
+
+  ROOT CAUSE:
+    v7 had clean 10 credits = ₹1 mapping. Users will decode this within a
+    week. Then every message earning feels like "kitne paise mile" — direct
+    rupee comparison → disappointment → churn.
+
+  PSYCHOLOGICAL PRINCIPLE (Skinner, Variable Ratio Reinforcement):
+    Fixed rewards → habituation.
+    Variable rewards → dopamine addiction.
+    Slot machines use this. So do Instagram likes.
+
+  SOLUTION: Decouple perceived value from real value.
+
+  ── 5.1 · CURRENCY REBRAND ────────────────────────────────────────────────────
+
+  ❌ OLD (v7)        →   ✅ NEW (v3)
+  "Credits"              "ORBIT Points" (OP) or "Sparks" — user-chosen at onboarding
+  "₹" symbol             💎 gem icon (never rupee symbol except cashout screen)
+  Exact number           Display-mode with banding:
+                           • <100: exact ("💎 87")
+                           • 100-999: exact ("💎 234")
+                           • 1K-9.9K: rounded ("💎 2.3K")
+                           • 10K+: banded ("💎 12K+")
+  Daily earning          "Today's vibe: ~230" (range, not exact)
+  Rupee mention          NEVER in-app except on /cashout screen
+
+  ── 5.2 · VARIABLE EARNING ENGINE ─────────────────────────────────────────────
+
+  Base message earning (was: flat 5 credits in v7):
+
+    function calculateMessageReward(msg, user, room):
+      base = random(2, 15)                         // variable!
+      qualityMultiplier = 0.5 to 2.0 (AI-scored)   // caps extremes
+      streakMultiplier = streakDays >= 30 ? 2.0 :
+                          streakDays >= 7  ? 1.5 :
+                          streakDays >= 3  ? 1.2 : 1.0
+      roomHeatBonus = room.isHot ? 1.3 : 1.0
+      newUserBoost = user.ageInDays < 7 ? 1.5 : 1.0
+      dailyCap = applyDailyDimishing(user.messagesToday)
+      // 1-50: 100%, 51-100: 80%, 101+: 50%
+
+      raw = base * qualityMultiplier * streakMultiplier
+            * roomHeatBonus * newUserBoost * dailyCap
+
+      // Mystery bonus trigger (every 8-12th message randomly)
+      if user.messagesToday % random(8,12) == 0:
+        raw += random(20, 100)   // dopamine hit
+
+      return Math.round(raw)
+
+  ── 5.3 · FIRESTORE SCHEMA ────────────────────────────────────────────────────
+
+  users/{uid}:
+    points: number                    // current balance
+    lifetimePoints: number            // total ever earned
+    displayedBalance: string          // "1.2K" (precomputed for perf)
+    streakDays: number
+    streakMultiplier: number          // 1.0 / 1.2 / 1.5 / 2.0
+    lastEarnAt: timestamp
+    todayMessagesCount: number        // reset 00:00 IST daily
+    pendingCashoutINR: number         // HIDDEN from profile UI
+    firstCashoutUnlockAt: timestamp   // cashout gate: 500 points
+    mysteryBonusStreak: number        // tracks when next big drop
+
+  transactions/{tid}:
+    uid: string
+    type: "earn" | "spend" | "gift" | "cashout" | "bonus" | "penalty"
+    displayPoints: number             // what user sees
+    actualPoints: number              // real credit (= displayPoints for most)
+    realINRValue: number              // 1/10th, ONLY for internal accounting
+    qualityScore: 0-100
+    reason: string                    // "Message in Philosophy Room"
+    multipliers: { quality, streak, heat, newUser }
+    createdAt: timestamp
+
+  ── 5.4 · UI SPEC ─────────────────────────────────────────────────────────────
+
+  Top Bar (all screens):
+    💎 2.3K  +12 ▲    ← animated counter with mini-increment
+
+  Earning animation (on every reward):
+    • Coin rains from top-right
+    • Random amount appears: "+12", "+7", "+23" etc.
+    • Sound: subtle "ding" (muted for low-battery / silent mode)
+    • Haptic: light tap on supported devices
+
+  Mystery Bonus UI:
+    • Treasure chest animation (Lottie)
+    • "🎁 MYSTERY BONUS! +47 points"
+    • Confetti burst
+    • Shared to feed: "Riya just hit a Mystery Bonus!" (social proof)
+
+  Leaderboards (never show INR):
+    "🏆 TODAY'S TOP EARNERS"
+     1. @cosmicbatata     12.4K 💎
+     2. @vibeywala99      9.8K  💎
+     3. @nightowl_raj     7.2K  💎
+
+  Cashout screen (ONLY place rupees appear):
+    "Converting your Points to Cash"
+    Your balance: 2,430 💎
+    Cash value:   ₹243
+    Minimum cashout: ₹50 (= 500 💎)
+    [UPI: raj@paytm]  [Withdraw]
+
+  ── 5.5 · ANTI-DECODE SAFEGUARDS ──────────────────────────────────────────────
+
+  1. NEVER send back exact INR in any API response (except /cashout)
+  2. Leaderboards, profile, feed → only points
+  3. Push notifications: "You earned 47 points!" not "You earned ₹4.7"
+  4. Shared ORBIT Cards: show points & badges, never rupee
+  5. Customer support: always refers to "points", coaches team to say
+     "your points balance" — never mixes terminology
+  6. Weekly emails: "Your 💎 grew 2,800 this week" — no INR mention
+  7. Cashout screen uses a "conversion gate" UX — feels like a game
+     cashing out, not a bank withdrawal
+
+
+
+================================================================================
+  PART 6 — ACCOUNT HEALTH SYSTEM
+  (Fix for Problem 2: Invisible Trust Score)
+================================================================================
+
+  ROOT CAUSE:
+    v7 has Layer-4 Trust Engine that silently reduces earning for spammers.
+    But user sees: "Yesterday I got 200, today only 80" → concludes "app is
+    fake/scam" → 1-star Play Store review → viral drop.
+
+  PRINCIPLE (Procedural Justice — Tom Tyler):
+    People accept unfair outcomes IF the process is transparent.
+    "Earning dropped because I spammed" is accepted.
+    "Earning dropped for no reason" causes rage.
+
+  SOLUTION: Surface symptoms, hide algorithm, gamify recovery.
+
+  ── 6.1 · THE 5-METRIC HEALTH CARD ────────────────────────────────────────────
+
+  User-facing card in Profile → Account Health:
+
+    ┌────────────────────────────────────────────┐
+    │  🫀 ACCOUNT HEALTH                         │
+    │  Overall: GREAT  (82/100)                  │
+    │                                            │
+    │  🎯 Quality       ████████░░  Great         │
+    │  🔥 Consistency   ██████░░░░  Good          │
+    │  💬 Community     ██████████  Elite         │
+    │  ✨ Originality   ███████░░░  Good          │
+    │  🏆 Reputation    █████████░  Great         │
+    │                                            │
+    │  ↗️  Your earning boost: +15%               │
+    │  💡 Tip: Try replying to others' messages  │
+    │      to raise Community score              │
+    └────────────────────────────────────────────┘
+
+  5 Metrics Explained (shown on tap):
+
+    Quality      — Are your messages thoughtful? (length, AI score, reactions)
+    Consistency  — Do you show up regularly? (streak + daily active)
+    Community    — Do you engage with OTHERS, or monologue? (replies ratio)
+    Originality  — Copy-paste detection + uniqueness check
+    Reputation   — Reports against you, helpful upvotes, room kicks
+
+  ── 6.2 · THE FIVE LEVELS ─────────────────────────────────────────────────────
+
+  Each metric 0–100, binned into:
+    0–20   : "Poor"   🔴  →  -30% earning
+    21–40  : "Fair"   🟠  →  -10% earning
+    41–60  : "Good"   🟡  →  base earning
+    61–80  : "Great"  🟢  →  +15% earning
+    81–100 : "Elite"  💎  →  +25% earning
+
+  ── 6.3 · TRANSPARENT FEEDBACK TRIGGERS ───────────────────────────────────────
+
+  When a metric DROPS by a level:
+    • In-app toast: "Your Quality dropped to Fair — messages too short lately"
+    • Profile badge: orange alert dot on Account Health tab
+    • Push (if drop is >1 level): "Your earning rate decreased by 10%.
+      Tap to see how to restore it."
+
+  When a metric RISES:
+    • Celebration animation: "Reputation rose to Elite! 💎 +25% earning"
+    • Shared to friend feed (optional): "Raj reached Elite Reputation"
+
+  ── 6.4 · REDEMPTION QUESTS ───────────────────────────────────────────────────
+
+  When ANY metric is Poor/Fair, offer a 3-step quest:
+
+    ┌────────────────────────────────────────────┐
+    │  ⚡ QUALITY QUEST                          │
+    │  Restore your Quality score to Good        │
+    │                                            │
+    │  ✓ Write 5 messages over 20 chars each    │
+    │  ☐ Get 3 positive reactions on 1 message  │
+    │  ☐ Help a new user (respond to @welcome)  │
+    │                                            │
+    │  Reward: Quality +20 points                │
+    │  Bonus:  200 💎 on completion              │
+    └────────────────────────────────────────────┘
+
+  Quests visible in bottom nav badge, disappear when complete.
+
+  ── 6.5 · FIRESTORE SCHEMA ────────────────────────────────────────────────────
+
+  users/{uid}/health/current:
+    quality:      { score: 0-100, level: string, lastChange: ts, deltaReason: string }
+    consistency:  { score, level, lastChange, deltaReason }
+    community:    { score, level, lastChange, deltaReason }
+    originality:  { score, level, lastChange, deltaReason }
+    reputation:   { score, level, lastChange, deltaReason }
+    overall:      number (weighted average)
+    earningBoost: number (-30 to +25, in percent)
+    trend:        "rising" | "stable" | "falling"
+
+  users/{uid}/health/history:
+    daily:    [{ date, metrics: {...}, overall }]   // 30-day rolling
+    weekly:   [{ weekStart, avg }]                  // 12-week rolling
+
+  users/{uid}/quests/{questId}:
+    type: "restore-quality" | "boost-community" | ...
+    steps: [{ description, required, current, done }]
+    reward: { points, healthDelta }
+    expiresAt: timestamp
+    status: "active" | "completed" | "expired"
+
+  ── 6.6 · CLOUD FUNCTION ──────────────────────────────────────────────────────
+
+  scheduleHealthRecalc = scheduled("every 2 hours")
+    for each active user:
+      recalculate 5 metrics from last 48h activity
+      diff against previous
+      if level changed:
+        write to health/history
+        trigger in-app toast (write to notifications/)
+        if dropped >1 level: queue push notification
+        if any metric now Poor/Fair: auto-generate redemption quest
+
+  ── 6.7 · THE TRUST EQUATION (internal, never exposed) ────────────────────────
+
+  earningMultiplier = 0.7 + (overall / 100) * 0.55
+    → overall=0   → 0.70x (30% penalty)
+    → overall=50  → 0.975x (base)
+    → overall=100 → 1.25x (25% boost)
+
+  This is the ONLY place the algorithm touches earnings.
+  User sees ONLY the surfaced metrics, never the formula.
+
+
+
+================================================================================
+  PART 7 — ROOM LIFECYCLE ENGINE
+  (Fix for Problem 3: Ghost Town Rooms)
+================================================================================
+
+  ROOT CAUSE:
+    Unlimited room creation + no archival = 1000 users × 500 rooms = dead app.
+    User opens feed, sees 10 rooms, each with "last msg 3 days ago" → uninstall.
+
+  PRINCIPLE (Network Density):
+    Social apps need MINIMUM VIABLE ACTIVITY per unit area. Reddit forces
+    subscribe. Clubhouse auto-expires rooms. WhatsApp has no "browse".
+
+  SOLUTION: Force consolidation. Hide dead rooms. Surface hot ones.
+
+  ── 7.1 · ROOM TYPES + LIFECYCLE RULES ────────────────────────────────────────
+
+  TYPE            CREATE LIMIT     INACTIVITY → ARCHIVE    RESTORE TRIGGER
+  ────────────────────────────────────────────────────────────────────────
+  Casual Room     1/user/day       24h no message          10 msgs in 1h
+  Mood Room       2/user/day       12h no message          5 msgs in 30 min
+  Event Room      3/user/week      Auto-end at schedule    Cannot restore
+  Permanent Room  Creator+ tier    Never archive           N/A
+  City Room       Admin-only       Never archive           N/A (always live)
+  Festival Room   Auto-spawn       Ends with festival      Yearly re-spawn
+
+  ── 7.2 · AUTO-ARCHIVE CLOUD FUNCTION ─────────────────────────────────────────
+
+  runEveryHour:
+    for each room where status = "active":
+      timeSinceLastMessage = now - room.lastMessageAt
+      if timeSinceLastMessage > threshold[room.type]:
+        room.status = "dormant"           // hidden from discovery
+        // kept visible in "My Rooms" for members
+      if room.status == "dormant" and timeSinceLastMessage > 7 days:
+        room.status = "archived"          // removed from "My Rooms"
+        members receive soft notification: "Room 'X' is sleeping"
+
+  runEveryMinute:
+    for each room where status = "dormant":
+      msgsLastHour = count(messages where timestamp > now-1h)
+      if msgsLastHour >= revivalThreshold[room.type]:
+        room.status = "active"            // auto-restored
+        broadcast: "🔥 Room 'X' is back alive!"
+
+  ── 7.3 · THE HOT 20 ALGORITHM ────────────────────────────────────────────────
+
+  Discovery feed only shows 20 rooms at a time. Ranking:
+
+  hotScore = 0.25 * velocity          // msgs per minute (last 15 min)
+           + 0.20 * diversity         // unique users in last hour / total members
+           + 0.15 * replyDepth        // avg thread depth
+           + 0.15 * qualityAvg        // AI-scored msg quality average
+           + 0.15 * retention         // % members returning within 24h
+           + 0.10 * recency           // decay: halves every 6h
+
+  Update every 2 minutes (cached in Firestore /hotRooms/current).
+
+  ── 7.4 · FEED STRUCTURE ──────────────────────────────────────────────────────
+
+  Discovery tab has FIVE sections, top-to-bottom:
+
+  1. 🔥 HOT NOW          — Top 20 hot rooms (global)
+  2. 🏙️  NEAR YOU         — City/region-based (Chandigarh, Punjab etc.)
+  3. ✨ FRESH TODAY      — Rooms created <24h with any activity
+  4. 🎯 FOR YOU          — Personalized (interest-matched, ranked by hotScore)
+  5. 🎉 HAPPENING SOON   — Scheduled events starting in <6h
+
+  "My Rooms" is a SEPARATE tab, not in Discovery. Own rooms always visible
+  to member even if dormant (with grayed tint).
+
+  ── 7.5 · ROOM CREATION FRICTION ──────────────────────────────────────────────
+
+  Creating a room triggers a 3-step process (prevents spam):
+    Step 1: Name + category + vibe tag
+    Step 2: Description (min 30 chars) + 3 starter message prompts
+    Step 3: "Invite 3 members before going live" (social commitment)
+
+  NEW RULE: If room has <3 messages in first 2 hours → auto-archived.
+
+  ── 7.6 · MERGE SUGGESTIONS ───────────────────────────────────────────────────
+
+  Cloud Function scans similar-themed rooms nightly:
+    If two rooms have:
+      • >70% category overlap
+      • <20 active members each
+      • <100 msgs/day each
+    → Show merge prompt to both admins:
+      "Merge 'Coding Nerds' with 'Dev Chaiwalas'? Combined: 38 members, 250 msgs/day"
+    If both agree: all messages + members merge, original rooms dissolve,
+      each admin earns 500 💎 merge bonus.
+
+  ── 7.7 · ANTI-GHOST UI (when room IS quiet) ──────────────────────────────────
+
+  If user enters a room with <5 messages in last hour:
+    • Show: "Low activity right now — peak hours: 8-11 PM"
+    • Show 3-5 AI-companion bots labeled "ORBIT AI" (Law 16 — Zero Loneliness)
+    • AI bots post relevant prompts every 10 min to keep room warm
+    • Suggest 3 alternative hot rooms in same category
+    • "Wake this room up" button: +20 💎 for first message that triggers
+      2 human replies within 10 min
+
+  ── 7.8 · FIRESTORE SCHEMA ────────────────────────────────────────────────────
+
+  rooms/{rid}:
+    name, description, category, vibe
+    type: "casual" | "mood" | "event" | "permanent" | "city" | "festival"
+    status: "active" | "dormant" | "archived" | "merged"
+    mergeTargetId: string | null
+    creatorUid, createdAt, lastMessageAt
+    membersCount, onlineCount (denormalized, updated via presence)
+    msgsToday, msgsLastHour, msgsLast15Min
+    hotScore: number
+    region: string (for city rooms)
+    schedule: { startsAt, endsAt } (for event rooms)
+    aiCompanionIds: [uid]  // bot accounts seeded
+
+  hotRooms/current:
+    updatedAt: timestamp
+    top20: [{ rid, hotScore, rank, delta }]
+    byCategory: { comedy: [...], philosophy: [...], ... }
+
+  rooms/{rid}/activityPulse/{hourlyBucketId}:
+    hour: "2026-04-19T14:00"
+    msgCount, uniqueUserCount, qualityAvg
+
+
+
+================================================================================
+  PART 8 — ANTI-ABUSE INVITE SYSTEM
+  (Fix for Problem 4: Squad System Gaming)
+================================================================================
+
+  ROOT CAUSE:
+    v2 prompt: "Invite friend, they stay 3 days, you get ₹100."
+    India reality: Users will spin up 10 fake accounts via dual-SIM phones,
+    virtual numbers, recycled SIMs from scrap dealers (real market, ~₹20/SIM).
+    Then "stay 3 days" = just open app 3 times. You're bankrupted in a week.
+
+  PRINCIPLE (Principal-Agent Problem):
+    Reward the behavior you ACTUALLY want, not a proxy.
+    You want: real engaged users. Not just "signups".
+    Therefore: pay ONLY when invitee becomes provably valuable.
+
+  SOLUTION: Multi-stage unlock + device/SIM fingerprinting + activity gates.
+
+  ── 8.1 · THE 4-STAGE INVITE UNLOCK ───────────────────────────────────────────
+
+  Stage 0 (invite sent): Inviter sees "Pending" card, earns NOTHING.
+
+  Stage 1 (invitee signs up):
+    Requires: Indian phone OTP verified
+    Requires: device fingerprint not seen as invitee before (hard block)
+    Requires: SIM operator detection (blocked if virtual-number services)
+    REWARD: Inviter +20 💎 ("Welcome bonus")
+
+  Stage 2 (invitee active Day 2-7):
+    Requires: 5 messages per day × 5 days (can skip 2 days)
+    Requires: Account Health overall ≥ 50 (not a spam bot)
+    Requires: Joined at least 2 rooms + posted in each
+    REWARD: Inviter +100 💎 (on Day 7 at 00:00 IST)
+
+  Stage 3 (invitee crosses 50 💎 earning of their own):
+    Requires: Their own lifetimePoints ≥ 50 (proves genuine activity)
+    REWARD: Inviter +200 💎
+
+  Stage 4 (invitee makes first purchase OR first cashout):
+    REWARD: Inviter +500 💎 (one-time, rarely triggered — valuable users)
+
+  Total max reward per invitee: 820 💎 ≈ ₹82
+  Cost per real user acquired: ₹82 (vs organic CAC ₹150+ → net profit)
+
+  ── 8.2 · DEVICE / SIM FINGERPRINTING ─────────────────────────────────────────
+
+  On signup, capture:
+    - Firebase App Check token (Play Integrity / DeviceCheck)
+    - Device model + OS + build
+    - IP + geolocation country
+    - SIM info (via native API): operator, country, MCC+MNC
+    - Client-generated deviceId (UUID stored in encrypted keychain)
+
+  BLOCKS:
+    ✗ Device previously used for another signup (cooldown: 60 days)
+    ✗ SIM from known virtual-number services (Twilio, Plivo India, etc.)
+    ✗ IP from datacenter ASN
+    ✗ >3 signups in 24h from same IP
+    ✗ Emulator detection (Play Integrity flag)
+
+  Store in:
+    fraudGuard/signupSignals/{uid}:
+      deviceFingerprint, ipHash, simMCC, signupRiskScore: 0-100
+      flaggedReasons: [...]
+      reviewStatus: "auto-approved" | "pending" | "rejected"
+
+  If riskScore > 70: account created but INVITE REWARDS DISABLED for inviter
+  (invitee can still use app — they're on a soft probation).
+
+  ── 8.3 · SQUAD CAPS ─────────────────────────────────────────────────────────
+
+  Per-inviter lifetime caps:
+    - Max 10 invitees earn Stage 3 rewards
+    - Max 100 💎 per day in invite earnings
+    - 7-day cooldown between stage unlocks per invitee
+
+  "Quality Squad" bonus:
+    If 10 invitees all reach Stage 3 → Squad Boss badge + 2,000 💎 one-time
+    If all 10 also reach Stage 4 → ORBIT Kingmaker badge + 10,000 💎
+    (Only achievable by genuine network builders — un-gameable at scale.)
+
+  ── 8.4 · UI SPEC ─────────────────────────────────────────────────────────────
+
+  Invite page shows every invitee with stage progress:
+
+    ┌────────────────────────────────────────────┐
+    │  📨 YOUR INVITES (7)                       │
+    │                                            │
+    │  @priya_soni         ●●●○  Stage 3 of 4   │
+    │  Invited 12 days ago                       │
+    │  Next unlock: makes first cashout → 500💎 │
+    │                                            │
+    │  @amit_rockstar      ●○○○  Stage 1 of 4   │
+    │  Invited 4 days ago                        │
+    │  Next unlock: 5 msgs/day × 3 more days    │
+    │                                            │
+    │  @suspicious_user    ⚠️  Under Review      │
+    │  Earnings paused pending verification      │
+    └────────────────────────────────────────────┘
+
+  Share page auto-generates:
+    - Personalized link: orbit.app/i/AIL2026 (Branch.io deep link)
+    - Shareable ORBIT Card preview (inviter's card with invite CTA)
+    - WhatsApp template: "Bhai, ORBIT join kar — humein dono ko 💎 milenge"
+
+  ── 8.5 · ABUSE PATTERN DETECTION ─────────────────────────────────────────────
+
+  Nightly Cloud Function flags suspicious inviters:
+    - All invitees from same IP subnet (/24)
+    - All invitees signup within 5 min window
+    - All invitees activity patterns identical (same times, same rooms)
+    - Invitee-to-invitee messages are bot-like (copy-paste, short, rapid)
+
+  Flagged inviter:
+    - Squad earnings paused (not reversed for past, paused for future)
+    - Email + in-app notice: "Verify your invites"
+    - Must complete identity verification (Digilocker or Aadhaar OTP)
+    - If verification fails: all Stage 3+ rewards clawed back
+
+
+
+================================================================================
+  PART 9 — CREATOR TIERS WITH SCARCITY
+  (Fix for Problem 5: Creator Saturation)
+================================================================================
+
+  ROOT CAUSE:
+    "Everyone a creator" = no creators. If 500 users call themselves
+    creators, no one stands out, no one earns meaningfully, creators churn.
+
+  PRINCIPLE (Veblen / Status Goods):
+    Scarcity creates value. LV doesn't have a warehouse sale.
+    Twitter Blue vs OG Verified — the latter was prestigious precisely
+    because rare.
+
+  SOLUTION: Tiered creator program with enforced scarcity per category.
+
+  ── 9.1 · THE CREATOR LADDER ──────────────────────────────────────────────────
+
+  TIER            FOLLOWERS     UNLOCK REQUIREMENTS                 MAX SLOTS
+  ──────────────────────────────────────────────────────────────────────────
+  Rising Voice    0–1,000       Auto-unlocked (everyone at signup)  Unlimited
+  Creator         1K–10K        • 500+ quality messages             Unlimited
+                                • Account Health overall ≥ 70
+                                • 90 days since signup
+  Star Creator    10K–100K      • Creator for 60+ days              50/category
+                                • Hosted 3+ rooms with 50+ members
+                                • Community marshal recommendation
+                                • Passes "audition week"
+                                • Application review (7 days)
+  ORBIT Legend    100K+         • INVITE-ONLY by Anthropic/ORBIT     5/category
+                                • Star for 180+ days
+                                • Cultural impact (media mentions etc.)
+
+  ── 9.2 · CATEGORIES (12 total) ───────────────────────────────────────────────
+
+    Comedy · Philosophy · Music · Gaming · Movies/OTT · Cricket · Tech ·
+    Hindi Lit · Romance/Vibe · Spirituality · Student Life · Pro Life
+
+  Each category has independent Star (50) and Legend (5) slots.
+
+  ── 9.3 · SCARCITY MECHANISM ──────────────────────────────────────────────────
+
+  If category is full (e.g., 50 Star Comedy creators):
+    - New Star applicants go to waitlist
+    - Waitlist ranked by quality score + engagement
+    - Promotion happens ONLY when:
+        a) A current Star is demoted (failed quarterly quality check)
+        b) A current Star upgrades to Legend
+        c) Quarterly "Creator Olympics" event unlocks 5 new slots
+
+  Demotion (quarterly check):
+    Bottom 10% of Star creators by engagement → demoted to Creator
+    They can re-apply next quarter (scarcity maintained, competition healthy)
+
+  ── 9.4 · TIER BENEFITS ───────────────────────────────────────────────────────
+
+  RISING VOICE:
+    • Basic features, can post, can create 1 room
+    • Earnings rate: 1.0x
+    • Badge: gray circle
+
+  CREATOR (Blue tier):
+    • 2x discoverability in Hot Now
+    • Can create up to 3 permanent rooms
+    • Eligible for creator funds (10% of ad revenue pool)
+    • Badge: blue tick with "C"
+    • Monthly newsletter feature potential
+    • Earnings rate: 1.3x
+
+  STAR CREATOR (Purple tier):
+    • 4x discoverability + pinned on category page
+    • Unlimited permanent rooms + room customization (colors, vibes)
+    • 25% of room spend goes directly to them
+    • Featured in weekly ORBIT newsletter
+    • Gold-border profile, purple tick
+    • Earnings rate: 1.7x
+    • Priority customer support
+    • Access to "Star Creator Lounge" private room
+
+  ORBIT LEGEND (Gold tier):
+    • Top-pinned in their category forever
+    • Co-design feature access (beta features first)
+    • Annual ORBIT Summit invite (physical event, Anthropic-sponsored)
+    • Physical merch pack yearly
+    • Gold tick + legend aura
+    • Earnings rate: 2.5x
+    • Direct line to founder (quarterly 1:1)
+
+  ── 9.5 · CREATOR OLYMPICS ────────────────────────────────────────────────────
+
+  Quarterly event to redistribute slots:
+    • 4-week period
+    • Rising Voices compete on quality metrics
+    • Top 5 per category promoted to Creator (if slots free)
+    • Top 10% of Creators get Star audition opportunity
+    • Final week: community voting
+    • Winners announced on a live ORBIT event room
+
+  Creates a predictable promotion path + viewable progress.
+
+  ── 9.6 · FIRESTORE SCHEMA ────────────────────────────────────────────────────
+
+  users/{uid}/creator:
+    tier: "rising" | "creator" | "star" | "legend"
+    tierSince: timestamp
+    categories: [string]  // declared expertise
+    qualityScoreAvg: number
+    followers: number
+    monthlyEngagement: number
+    applications: [{ category, submittedAt, status, reviewerNotes }]
+    demotionRisk: number  // 0-100, shown in creator dashboard
+    nextReviewAt: timestamp
+
+  creatorSlots/{category}:
+    legends: {
+      current: [uid],
+      max: 5,
+      waitlistWithScore: [{ uid, score }]
+    }
+    stars: {
+      current: [uid],
+      max: 50,
+      waitlistWithScore: [{ uid, score }]
+    }
+    lastRebalanceAt: timestamp
+
+  creatorOlympics/{quarterId}:
+    startsAt, endsAt
+    categories: { [cat]: { leaderboard, slotsAvailable } }
+    winnersAnnounced: boolean
+
+
+
+
+================================================================================
+  PART 10 — QUALITY-WEIGHTED DISCOVERY
+  (Fix for Problem 6: Discovery Manipulation)
+================================================================================
+
+  ROOT CAUSE:
+    Single-metric ranking (e.g. messages/hour) → users spam to top.
+    Simple gaming → low-quality chaff tops feed → users leave.
+
+  PRINCIPLE (Goodhart's Law):
+    "When a measure becomes a target, it ceases to be a good measure."
+    Solution: Use 6 measures. Rotate weights. Keep formula opaque.
+
+  SOLUTION: Multi-signal ranking with anti-farm detection + editorial curation.
+
+  ── 10.1 · RANKING SIGNALS ────────────────────────────────────────────────────
+
+  Room hotScore (from Part 7):
+    hotScore = 0.25 * velocity
+             + 0.20 * diversity
+             + 0.15 * replyDepth
+             + 0.15 * qualityAvg
+             + 0.15 * retention
+             + 0.10 * recency_decay
+
+  Weights are REBALANCED monthly by the ORBIT team (anti-gaming).
+  Users never see exact weights. Public docs say: "Quality + activity + diversity."
+
+  ── 10.2 · SIGNAL DEFINITIONS ─────────────────────────────────────────────────
+
+  velocity (0-1 normalized):
+    msgsLast15Min / rollingAvg15MinPast7Days
+    Caps at 3.0, normalized.
+
+  diversity (0-1):
+    uniqueUsersLast1h / max(membersTotal, 20)
+    Penalizes "same 3 users chat constantly".
+
+  replyDepth (0-1):
+    avgThreadLength (in-reply-to chains) / 5.0
+    Capped. Encourages conversation, not monologues.
+
+  qualityAvg (0-1):
+    Gemini-scored quality of last 50 messages (composite: length,
+    toxicity-free, originality, helpfulness).
+    Runs on sample, not every message (cost control).
+
+  retention (0-1):
+    Members who visited room today / members who visited yesterday.
+
+  recency_decay:
+    exp(-hoursElapsed / 6)
+    After 6h, score halves.
+
+  ── 10.3 · ANTI-FARM DETECTION ────────────────────────────────────────────────
+
+  Scheduled Function (every 5 min) flags rooms with:
+
+    FARM_FLAG_1: >80% of messages by 3 or fewer users (echo chamber)
+    FARM_FLAG_2: Avg message length <8 chars (spam)
+    FARM_FLAG_3: Inter-message timing pattern bot-like (std dev <2 sec)
+    FARM_FLAG_4: Same user posting >50% of messages
+    FARM_FLAG_5: No new users joined in 24h despite high velocity
+    FARM_FLAG_6: Meilisearch similarity between messages >85% (copy-paste)
+
+  If 2+ flags triggered:
+    - Room's hotScore multiplied by 0.3 (hard penalty)
+    - "Under Review" badge shown to non-members
+    - Admin notified
+    - Marshal team auto-assigned to review
+
+  If 4+ flags triggered:
+    - Room temporarily suspended from discovery
+    - Creator + members notified with reason
+    - Appeal window: 48h
+
+  ── 10.4 · DISCOVERY MIX STRATEGY ─────────────────────────────────────────────
+
+  Hot Now (20 slots) is NOT pure ranking. It's blended:
+
+    Slots 1-10:  Top 10 by hotScore (organic winners)
+    Slots 11-13: "Rising Fast" — rooms with largest hotScore delta (last 2h)
+    Slots 14-16: "Mystery Rotation" — random rooms from ranks 20-100
+                  (gives mid-tier a discoverability lifeline)
+    Slots 17-18: "Editorial Pick" — 2 rooms hand-picked by ORBIT team daily
+    Slots 19-20: "Fresh & Promising" — rooms <24h old, hotScore growing
+
+  Users never know which slot is which. Feels organic.
+
+  ── 10.5 · PER-USER PERSONALIZATION (Phase 2+) ────────────────────────────────
+
+  For You tab uses Vertex AI or simple collaborative filtering:
+    Signal inputs:
+      - Rooms user has joined before (category preference)
+      - Rooms user's close friends are in
+      - Time-of-day activity patterns
+      - Language preference detected from past messages
+      - Regional proximity
+    Output: 20 personalized rooms, refreshed every 15 min
+
+  ── 10.6 · FIRESTORE SCHEMA ────────────────────────────────────────────────────
+
+  rooms/{rid}/ranking:
+    velocity, diversity, replyDepth, qualityAvg, retention, hotScore
+    farmFlags: [string]
+    farmRiskLevel: "clean" | "suspicious" | "farming" | "suspended"
+    hotScoreDelta2h: number
+    lastRankUpdateAt: timestamp
+
+  discoveryFeed/hotNow:
+    updatedAt: timestamp
+    slots: [
+      { rid, type: "organic"|"rising"|"mystery"|"editorial"|"fresh", rank: 1-20 }
+    ]
+    rotationSeed: number  // for mystery rotation
+
+  editorial/picks/{date}:
+    date: "2026-04-19"
+    roomIds: [rid, rid]
+    editorUid: string
+    reason: "Women in Tech room doing amazing work this week"
+
+
+
+================================================================================
+  PART 11 — EMOTIONAL-FIRST UX
+  (Fix for Problem 7: Earning-First Trap)
+================================================================================
+
+  ROOT CAUSE:
+    v7 home screen starts with credit balance + earning stats. This programs
+    users to think "ORBIT = money app". Result: mercenary users who leave
+    when a better-paying app launches. No emotional moat.
+
+  PRINCIPLE (Self-Determination Theory — Deci & Ryan):
+    Three intrinsic motivators: Autonomy + Competence + Relatedness.
+    Money (extrinsic) crowds out intrinsic motivation if placed first.
+
+  SOLUTION: Reorder the UX hierarchy. Emotions on top, stats in background.
+
+  ── 11.1 · NEW HOME SCREEN ORDER ──────────────────────────────────────────────
+
+  ❌ OLD (v7) home:
+    [Top: Credit balance 💎 2.3K]
+    [Trending rooms]
+    [Leaderboard]
+    [Daily mission]
+
+  ✅ NEW (v3) home:
+
+    ┌────────────────────────────────────────────┐
+    │  Good evening, Ail 👋                      │
+    │                                            │
+    │  ━━ YOUR CIRCLE ━━━━━━━━━━━━━━━━━━━━━━━   │
+    │  🟢 Priya is in "Philosophy Room" (4 min)  │
+    │  🟢 Raj reacted to your message (just now) │
+    │  🟡 Amit posted his first message today    │
+    │                                            │
+    │  ━━ YOUR STORY THIS WEEK ━━━━━━━━━━━━━━   │
+    │  ✨ 12 new conversations                   │
+    │  💫 3 deep connections                     │
+    │  🏆 You're "Rising" in Comedy              │
+    │                                            │
+    │  ━━ WAVES TONIGHT ━━━━━━━━━━━━━━━━━━━━━   │
+    │  🔥 Hot Now · Fresh Today · For You        │
+    │                                            │
+    │  [at the bottom, small]  💎 2.3K           │
+    └────────────────────────────────────────────┘
+
+  Credit balance → moved to Profile tab (tap to see). Top bar shows a
+  small 💎 chip but with only "+12" delta, not total.
+
+  ── 11.2 · EMOTIONAL HOOKS ────────────────────────────────────────────────────
+
+  Daily emotional cues injected:
+    Morning (8-10 AM):  "Good morning — your friend Priya is writing something"
+    Afternoon (1-3 PM): "Lunch break? 3 friends are online right now"
+    Evening (7-10 PM):  "Peak hours — 127 rooms buzzing"
+    Night (10 PM+):     "Night Owls room is waking up..."
+
+  Weekly "Your Story" (Spotify Wrapped style, every Sunday evening):
+    Auto-generated card showing:
+      - Top 3 conversations of the week (teaser previews)
+      - New connections made
+      - Hours spent in voice rooms
+      - Quality growth ("Your Quality jumped 15 points!")
+      - Shareable as ORBIT Card
+
+  Annual "ORBIT Wrapped" (every Jan 1):
+    - Minutes spent
+    - People met
+    - Topics loved
+    - Your year in vibes (emoji graph)
+    - Top moment (most-reacted message)
+    - Shareable to WhatsApp/Instagram
+
+  ── 11.3 · THANK YOU MOMENTS ──────────────────────────────────────────────────
+
+  New micro-feature: any user can send a "Thank You Card" to another:
+    Cost: 20 💎 (small friction to prevent spam)
+    Message: pre-filled templates or custom
+    Recipient: +5 Community score + 50 💎
+    Displayed: as a notification + saved in "Gratitude" tab in profile
+    Social: optional public post "Raj thanked Priya for her kind words"
+
+  "Gratitude Wall" in profile shows all thank-yous received — status
+  signal + emotional archive.
+
+  ── 11.4 · EMOTION TAGS ───────────────────────────────────────────────────────
+
+  When posting, optional tag (small dropdown):
+    😊 Happy · 🤔 Thoughtful · 😂 Funny · ✨ Inspired · 💭 Reflective · 🔥 Fired up
+
+  Rooms can be filtered by emotion tag. "I'm feeling reflective" → find
+  threads matching that mood.
+
+  Mood Match in Discovery:
+    "How are you feeling right now?" → user picks emoji → 5 rooms surfaced
+    matching that emotional signal (based on majority emotion tags in past 24h)
+
+  ── 11.5 · MICRO-INTERACTIONS ─────────────────────────────────────────────────
+
+  Every engagement has warmth:
+    - Heart reaction → small heart float animation + soft haptic
+    - Message sent → gentle whoosh + subtle glow
+    - Friend online → pulse avatar on home
+    - Streak saved → warm gold glow around avatar
+    - Close friend bubble: a special "halo" indicator for top-10 interactions
+
+  ── 11.6 · FIRESTORE SCHEMA ────────────────────────────────────────────────────
+
+  users/{uid}/circle:
+    closeFriends: [{ uid, interactionScore, lastSeenTogether }]  // top 10
+    recentActivity: [{ friendUid, activityType, at }]
+    mutualFriendsCount: number
+
+  users/{uid}/stories:
+    current: { weekStart, metrics, highlights }
+    weekly: [{ weekStart, ... }]  // last 12 weeks
+    yearly: [{ year, wrappedData }]
+
+  thankYouCards/{cardId}:
+    fromUid, toUid, message, sentAt
+    public: boolean
+    reaction: string | null
+
+
+
+================================================================================
+  PART 12 — DAY-1 IDENTITY KIT
+  (Fix for Problem 8: Weak Early Attachment)
+================================================================================
+
+  ROOT CAUSE:
+    User signs up, sees empty profile, empty feed, doesn't know anyone →
+    no reason to stay → uninstalls within 10 min. "Activation" never happens.
+
+  PRINCIPLE (IKEA Effect + Endowment Effect):
+    People value what they've built. But also what they're GIVEN initially
+    (endowed). A pre-populated profile + starter credits + starter rooms
+    creates instant ownership.
+
+  SOLUTION: The "Welcome Kit" — fully seeded identity in <60 seconds.
+
+  ── 12.1 · THE 60-SECOND ONBOARDING ───────────────────────────────────────────
+
+  0-10 sec:  Phone OTP verification
+  10-20 sec: Language pick (Hindi / English / Hinglish / Punjabi / Tamil...)
+  20-30 sec: Interest picker — 3 of 12 categories (tap chips)
+  30-40 sec: Auto-generated identity reveal:
+               - Username: random from 10K-combo pool ("CosmicChaiwala42")
+               - Avatar: auto-generated gradient + emoji (Picsum-style)
+               - Starter badge: "Day 1 Explorer"
+             User can tap "Regenerate" or "Edit" — but most won't
+  40-60 sec: Starter Kit drop:
+               - 100 💎 (starter loan)
+               - 50 💎 welcome bonus
+               - 3 rooms auto-joined (matched to interests + region)
+               - 1 AI Companion added as "first friend"
+
+  Total to first home screen: under 60 seconds.
+
+  ── 12.2 · USERNAME GENERATION ────────────────────────────────────────────────
+
+  Combined from 3 lists (Indian pop culture flavored):
+
+  Adjectives (200):
+    Cosmic, Vibey, Chill, Epic, Sunny, Crazy, Magic, Wild, Golden,
+    Turbo, Silent, Secret, Witty, Rustic, Desi, Bindaas, Jugaad, ...
+
+  Nouns (300):
+    Chaiwala, Batata, Musafir, Panda, Ninja, Rockstar, Dhoni, Pilot,
+    Parinda, Saathi, Legend, Dreamer, Tiger, Khiladi, Hero, ...
+
+  Numbers (00-99)
+
+  Total combos: 6 million unique. Collision check: Firestore transaction.
+
+  Examples:
+    "VibeyChaiwala42" · "CosmicMusafir07" · "EpicBindaas99" ·
+    "GoldenKhiladi18" · "SecretBatata88" · "WildNinja23"
+
+  Users can edit once for free, then 500 💎 per change.
+
+  ── 12.3 · STARTER ROOMS ──────────────────────────────────────────────────────
+
+  Based on interests + region, auto-join 3 rooms:
+    1. One "always-warm" room in user's top interest (pre-moderated, high quality)
+    2. One regional room ("Chandigarh Legends" for Ail)
+    3. One "Day 1 Welcome" room — where new users + AI companions greet each other
+
+  User sees on first home open:
+    "Welcome, @VibeyChaiwala42! Three rooms already buzzing for you."
+
+  ── 12.4 · AI COMPANION SYSTEM ────────────────────────────────────────────────
+
+  Every new user auto-paired with one AI Companion (labeled clearly):
+    Name: "@ORBIT_Buddy" + random suffix
+    Avatar: distinctive robot-gradient icon
+    Purpose: Send first DM, ask "Kya sochte ho abhi? What's on your mind?"
+    Powered by: Gemini Flash, with conversational prompt
+
+  AI Companion:
+    - Always online, responsive
+    - Never earns credits (labeled bot)
+    - Gives genuine prompts: "Which of these 3 rooms sounds fun?"
+    - Graduates: after user has 3 human friends, Companion goes dormant
+      (user can revive anytime)
+    - Clearly marked "AI" in every message
+
+  CRITICAL: This must be TRANSPARENT. User sees "ORBIT AI" badge.
+  No deceptive "fake user" simulation — that violates DPDP/IT Rules.
+
+  ── 12.5 · FIRST-DAY MILESTONES ───────────────────────────────────────────────
+
+  Unlocked sequentially in first 24h:
+
+  ✓ Min 0  : "Welcome Warrior" badge (signup complete)
+  ✓ Min 2  : "Ice Breaker" badge (first message sent)
+  ✓ Min 5  : "Social Butterfly" badge (joined 3 rooms)
+  ✓ Min 15 : "Connector" badge (added first friend)
+  ✓ Hour 1 : "Century Spark" badge (earned 100 💎)
+  ✓ Day 1  : "Day 1 Legend" badge (stayed 24h)
+
+  Each unlock = celebration animation + 20-50 💎 + social feed post.
+
+  ── 12.6 · ORBIT CARD (existing from v7, refined) ────────────────────────────
+
+  On signup, ORBIT Card immediately generated with skeleton:
+    Username + Avatar + "Day 1 Explorer" badge + joined date
+
+  But locked sections unlock over 7 days:
+    Day 1: Handle, avatar, first badge
+    Day 2: Stats (messages, rooms joined)
+    Day 3: First friends shoutout
+    Day 4: Favorite categories
+    Day 5: Vibe tags
+    Day 6: Top quote (most-reacted message)
+    Day 7: Full card with all sections, shareable
+
+  Creates return-each-day habit via curiosity.
+
+  ── 12.7 · FIRESTORE SCHEMA ────────────────────────────────────────────────────
+
+  users/{uid}/identity:
+    generatedUsername: string        // original
+    currentUsername: string          // if edited
+    avatarUrl: string
+    signupAt: timestamp
+    languagePref: string
+    interests: [string]
+    badges: [{ id, unlockedAt, displayed }]
+    aiCompanionUid: string
+    starterRoomIds: [rid]
+    firstDayMilestones: {
+      welcomeWarrior, iceBreaker, socialButterfly, connector,
+      centurySpark, dayOneLegend
+    }
+    orbitCardRevealDay: number  // 1-7
+
+
+
+================================================================================
+  PART 13 — BOREDOM ESCAPE HATCHES
+  (Fix for Problem 9: Silent Churn)
+================================================================================
+
+  ROOT CAUSE:
+    Bored users don't complain — they just leave. By the time we notice
+    (via analytics), it's too late. We need to catch boredom AS it happens.
+
+  PRINCIPLE (Flow State — Csikszentmihalyi):
+    Boredom = skill > challenge. Anxiety = challenge > skill.
+    Flow = both matched. Detect drops, restore flow.
+
+  SOLUTION: Passive detection + active intervention + graceful pause option.
+
+  ── 13.1 · BOREDOM DETECTION ──────────────────────────────────────────────────
+
+  Real-time signals (tracked client-side, synced every 60s):
+    - Time since last interaction (tap, scroll, type)
+    - Screen dwell time without action
+    - Number of rooms opened then exited within 10s
+    - Scroll depth decreasing session-over-session
+    - Session duration trending down over 3 days
+
+  Boredom triggers (in active session):
+    T1: 3+ min in-app, no interaction → "Feeling quiet?" card appears
+    T2: Opened+closed 3 rooms in <30s → "Looking for something new?" prompt
+    T3: 5 min in same room, no post → "Prefer to listen? Voice room nearby"
+
+  ── 13.2 · IN-SESSION INTERVENTIONS ───────────────────────────────────────────
+
+  "Feeling quiet?" card options (all one-tap):
+
+    ┌────────────────────────────────────────────┐
+    │  🌊 Feeling quiet?                         │
+    │                                            │
+    │  [🎲 Try a new room]     — 3 fresh picks  │
+    │  [🎤 Start voice room]   — 10 💎 bonus    │
+    │  [💬 Reply to old DM]    — 3 friends wait │
+    │  [👀 Just browse]        — curated feed   │
+    │  [😴 Take a break]       — pause 1 hour   │
+    └────────────────────────────────────────────┘
+
+  Each option designed for different boredom types:
+    - "Try new room": Discovery-curious
+    - "Voice room": Low-effort alternative
+    - "Reply to DM": Social connection
+    - "Just browse": Passive consumption
+    - "Take a break": Graceful exit (prevents churn!)
+
+  ── 13.3 · DAILY CHALLENGES ───────────────────────────────────────────────────
+
+  Simple, gamified, rotating:
+    Monday    : "Meet someone new" — DM a stranger (reward: 100 💎)
+    Tuesday   : "Voice day" — join any voice room 5 min (reward: 80 💎)
+    Wednesday : "Chaos challenge" — varies by Chaos Wednesday theme
+    Thursday  : "Throwback" — revisit an old conversation
+    Friday    : "Feature Friday" — join the featured room
+    Saturday  : "Squad" — group activity with friends
+    Sunday    : "Wrap & reflect" — read your Weekly Story
+
+  Notification: 10 AM daily if not completed by evening.
+
+  ── 13.4 · RE-ENGAGEMENT LADDER (Inactive Users) ──────────────────────────────
+
+  Day 1 inactive:
+    • Return banner: "You were missed — 14 new things happened"
+    • Shows top 3 friend activities visual feed
+
+  Day 3 inactive:
+    • Push: "Priya replied to your message in Philosophy Room"
+    • Emotional hook (someone waiting) > generic promo
+
+  Day 7 inactive:
+    • Email (if opted-in): "Here's what you missed + 100 💎 comeback"
+    • SMS: "@VibeyChaiwala42, we saved your streak. Tap to claim"
+
+  Day 14 inactive:
+    • Friend-triggered: a mutual friend's mention auto-creates a push
+    • Subject: "Amit just mentioned you in a room"
+
+  Day 30 inactive:
+    • Final win-back: "Your 2,400 💎 balance expires in 15 days"
+    • Loss aversion (LAW 13)
+    • Final offer: "Come back for 200 💎 + restore streak"
+
+  ── 13.5 · PAUSE MODE ─────────────────────────────────────────────────────────
+
+  Pause option (vs quit):
+    - User selects: 1 day / 1 week / 1 month / custom
+    - During pause:
+      • Friends see "Taking a break until Nov 15" status
+      • No notifications
+      • Credits preserved, streak paused
+      • Rooms memberships preserved
+      • Can unpause anytime
+    - Auto-unpause:
+      • "Welcome back" reward + 50 💎
+      • Catch-up digest of what happened
+
+  This is huge: prevents permanent churn. Most users who pause return.
+
+  ── 13.6 · FIRESTORE SCHEMA ────────────────────────────────────────────────────
+
+  users/{uid}/engagement:
+    lastActiveAt: timestamp
+    inactiveDays: number
+    churnRiskScore: 0-100  // computed by Cloud Fn daily
+    pauseStatus: "active" | "paused_1d" | "paused_1w" | "paused_1m" | "churned"
+    pauseUntil: timestamp | null
+    reEngagementStage: 0 | 1 | 3 | 7 | 14 | 30
+    winBackOffered: boolean
+    lastSessionDuration: number (minutes)
+    sessionsLast7Days: number
+
+  users/{uid}/challenges/{date}:
+    challengeType: string
+    progress: number
+    complete: boolean
+    rewardClaimed: boolean
+
+
+
+================================================================================
+  PART 14 — LOW-EFFORT ENGAGEMENT LOOPS
+  (Fix for Problem 10: Effort vs Reels Gap)
+================================================================================
+
+  ROOT CAUSE:
+    Reels: thumb scroll, zero effort, dopamine hit.
+    Orbit v7: type message, think, compose, send — effort + cognitive load.
+    Comparison: user chooses Reels. Orbit never gets opened.
+
+  PRINCIPLE (Fogg Behavior Model: B = M × A × P):
+    Behavior happens when motivation × ability × prompt align.
+    Increase ABILITY = reduce effort = more behavior.
+
+  SOLUTION: Multiple low-effort loops that earn small credits + keep user in-app.
+
+  ── 14.1 · SCROLL MODE ────────────────────────────────────────────────────────
+
+  Tab in bottom nav: "⚡ Pulse"
+  TikTok-style vertical feed of short ORBIT content:
+    - Featured messages (ORBIT Card style, swipe-able)
+    - Voice message snippets (5-15 sec, auto-play muted)
+    - Room moment cards (top-reacted messages with context)
+    - User stories (24h expiry)
+    - ORBIT-generated memes from trending rooms
+
+  Earning mechanics:
+    • Swipe right (like): 0.5 💎 (max 30/day, so 15 💎 max earning)
+    • Swipe up (save to "collection"): 1 💎
+    • Long-press (share): 2 💎
+    • Dwell >5s + react: 1 💎
+    • Daily cap: 30 💎 from Pulse (prevents farming)
+
+  Low-effort + earns + keeps in-app + exposes to creators/rooms.
+
+  ── 14.2 · QUICK REACT WIDGET ─────────────────────────────────────────────────
+
+  Home screen widget: 5 cards stacked (Tinder-style):
+    - Each card shows one message from a hot room
+    - Swipe right: fire react (+0.5 💎 to user, + Community boost)
+    - Swipe left: skip
+    - Swipe up: join that room
+    - Takes 30 seconds, done.
+
+  Appears on home page below "Your Circle" section, refreshed every 4 hours.
+
+  ── 14.3 · LISTEN MODE ────────────────────────────────────────────────────────
+
+  Voice rooms support "Listen Only" passive mode:
+    - User joins as "listener" (no mic, no camera)
+    - No social pressure to speak
+    - Earns 1 💎 per minute listened (cap: 60 min/day = 60 💎)
+    - Can react with emojis without speaking
+    - Voice rooms show listener count: "23 listeners" → social proof
+
+  Great for shy users (LAW 20 — 1% Lurker Design).
+
+  ── 14.4 · DAILY OPEN BONUS ───────────────────────────────────────────────────
+
+  Just opening the app once a day:
+    Day 1 open:  5 💎
+    Day 2 open:  7 💎
+    Day 3 open:  10 💎
+    Day 7 open:  25 💎
+    Day 30 open: 100 💎 + exclusive badge
+
+  Streak-based, builds habit without requiring interaction.
+
+  ── 14.5 · VOICE ROOMS QUICK-ENTRY ────────────────────────────────────────────
+
+  From home screen, a "Start Quick Voice" button:
+    - Creates a 10-min auto-expiring voice room
+    - Auto-invites 5 nearby online users
+    - Zero setup (name auto-generated, topic auto-picked)
+    - Host earns 20 💎 for showing up + 1 💎/min per listener
+
+  Eliminates "I should create a room sometime..." procrastination.
+
+  ── 14.6 · SHORT POSTS ────────────────────────────────────────────────────────
+
+  "ORBIT Story" — 280-char text posts (Twitter-style):
+    - Post to your profile + followers' feed
+    - 30-second to create
+    - Earn 5-15 💎 per post (quality-weighted)
+    - Reactions + replies inherited by creator's feed
+
+  Low-effort content creation for non-room users.
+
+  ── 14.7 · FIRESTORE SCHEMA ────────────────────────────────────────────────────
+
+  users/{uid}/pulse:
+    swipesToday: number
+    dwellTotalToday: seconds
+    pulseEarnedToday: number (max 30)
+
+  users/{uid}/listenStats:
+    totalMinutesListened: number
+    todayMinutesListened: number (max 60 earning)
+    favoriteListenRooms: [rid]
+
+  posts/{pid}:  // ORBIT Stories short text
+    uid, text (max 280 chars), reactions, replies, createdAt
+    earningsCapped: boolean
+
+
+
+================================================================================
+  PART 15 — CONTROLLED CHAOS ENGINE
+  (Fix for Problem 11: Too-Perfect System)
+================================================================================
+
+  ROOT CAUSE:
+    Moderated, clean, polished app feels like an office. No mystery, no
+    edge, no stickiness. Reddit stays sticky because of chaos. Twitter
+    engagement is controversy-driven. We need controlled drama.
+
+  PRINCIPLE (Optimal Arousal Theory):
+    Humans need moderate stimulation. Too little = boredom.
+    Too much = anxiety. Sweet spot = controlled unpredictability.
+
+  SOLUTION: Weekly chaos events + controversy rooms + prediction markets.
+
+  ── 15.1 · DEBATE ARENA (Weekly, Thursdays) ───────────────────────────────────
+
+  Every Thursday, a hot topic auto-generated from trending rooms:
+    Example: "Is Bollywood actually dying or just evolving?"
+
+  Mechanics:
+    - 48-hour debate period (Thu 8 PM → Sat 8 PM)
+    - Users pick a side (tap "Yes" or "No")
+    - Only sided users can post in the arena
+    - Each side has its own sub-room
+    - Audience can switch sides once (high cost: 100 💎)
+    - Top-reacted argument from each side featured hourly
+    - Final tally: side with more reactions wins
+    - Winners get +50 💎, MVP argument gets 500 💎
+
+  Creates: tribal engagement + stakes + social drama (safely contained)
+
+  ── 15.2 · ROAST BATTLES (Saturday Nights, 9-11 PM) ───────────────────────────
+
+  1v1 comedic roasts with audience voting:
+    - Users can RSVP for a roast slot (max 10/week)
+    - Match made by ranking (equal roast levels)
+    - 3 rounds × 2 minutes each
+    - Audience votes via reactions
+    - Winner: 500 💎 + "Roast Master" badge
+    - Audience: earns 1 💎 per vote cast (engagement reward)
+
+  Strict rules: no targeting ethnicity/religion/body. Auto-moderated by
+  OpenAI Mod (fails → forfeit match).
+
+  ── 15.3 · PREDICTION MARKETS ─────────────────────────────────────────────────
+
+  Social prediction markets on tame topics:
+    "Will IPL 2026 Delhi Capitals reach top 4?"
+    "Will Amit Shah tweet about tech policy this week?"
+    "Will a Bollywood movie cross ₹100 Cr this weekend?"
+
+  Mechanics:
+    - Bet 10-100 💎 on Yes/No
+    - 90% payout to winners (10% house fee)
+    - Minimum 10 participants to resolve
+    - Markets close 24h before event resolution
+    - NO gambling addiction risk: max 100 💎 per bet, 500 💎 daily limit
+
+  NOTE: Check Indian gaming law compliance (Public Gambling Act 1867 +
+  state regulations). If risky, redesign as "Karma Predictions" —
+  no credit staked, just reputation points.
+
+  ── 15.4 · CHAOS WEDNESDAYS ───────────────────────────────────────────────────
+
+  Every Wednesday, a random wacky rule applies app-wide (12 noon - 6 PM):
+    Week 1: "Emoji Only" — all messages must be emojis
+    Week 2: "Reverse Day" — messages read top-to-bottom reversed
+    Week 3: "Haiku Only" — 5-7-5 syllable structure required
+    Week 4: "One Word" — each message max 1 word
+    Week 5: "Voice Only" — no text, must use voice messages
+    Week 6: "Character" — adopt a persona, post in character
+
+  Users earn 2x credits for participating.
+  Highly shareable: "Check out what's happening on ORBIT right now!"
+
+  ── 15.5 · CONTROVERSY ROOMS (Permanent but Tagged) ───────────────────────────
+
+  Special "🔥 Heated" tag for rooms discussing spicy topics:
+    - Warning before entry: "This room has heated discussions"
+    - Enhanced moderation
+    - Auto-suspend if harassment detected
+    - Topics like: "Arranged vs Love Marriage", "Indian Education Debate",
+      "Best Indian Streaming Service" (not political, not religious)
+
+  Increases retention: users love a spicy take.
+
+  ── 15.6 · UNFILTERED HOUR ────────────────────────────────────────────────────
+
+  Once daily (11 PM - midnight), specific rooms go "raw mode":
+    - Only 18+ users (DOB verified at signup)
+    - Reduced (not zero) moderation
+    - Still blocks: hate, violence, explicit content, harassment
+    - ALLOWS: adult humor, strong language, dark jokes
+    - Users opt-in once via settings toggle
+
+  Reddit's /r/RoastMe energy in a bounded time window.
+
+  ── 15.7 · FIRESTORE SCHEMA ────────────────────────────────────────────────────
+
+  chaosEvents/{eventId}:
+    type: "debate" | "roast" | "prediction" | "chaos_day" | "controversy"
+    title: string
+    startsAt, endsAt
+    rules: { ... event-specific ... }
+    participants: [uid]
+    creditPool: number
+    winners: [{ uid, reason, reward }]
+    status: "upcoming" | "live" | "completed"
+
+  predictionMarkets/{mid}:
+    question: string
+    resolutionDate: timestamp
+    yesPool: number, noPool: number
+    bets: [{ uid, side, amount }]
+    resolved: boolean
+    outcome: "yes" | "no" | "invalid"
+
+  users/{uid}/chaos:
+    debatesEntered, debatesWon
+    roastMatches, roastWins
+    predictionsEntered, predictionsWon
+    chaosDayParticipation: [date]
+    controversyRoomAccess: boolean
+
+
+
+================================================================================
+  PART 16 — COMMUNITY MARSHAL PROGRAM
+  (Fix for Problem 12: Founder Dependency)
+================================================================================
+
+  ROOT CAUSE:
+    At 10K users, 500 reports/day. At 100K, 5000. Solo founder can't.
+    Hired mods cost ₹30K/month each. Early stage can't afford.
+
+  PRINCIPLE (Elinor Ostrom — Governing the Commons):
+    Communities self-govern if given clear rules, tools, and accountability.
+    Wikipedia, Reddit, StackOverflow — all moderator-powered.
+
+  SOLUTION: 3-layer moderation — AI → Marshals → ORBIT Team.
+
+  ── 16.1 · THE 3-LAYER FUNNEL ─────────────────────────────────────────────────
+
+  Layer 1: AI Pre-Screen (Instant)
+    - OpenAI Moderation API on every message (before display)
+    - Hive AI on every image/video (before upload completion)
+    - Auto-remove: clear violations (nudity, violence, hate)
+    - Auto-flag: ambiguous cases → passes to Layer 2
+    - Cost: ~₹0.01 per message, ₹0.05 per image
+
+  Layer 2: Community Marshals (Hourly)
+    - Flagged items enter a review queue
+    - Marshals see 5 items at a time in a Tinder-style UI
+    - Options: ✅ Keep / ⚠️ Warn / ❌ Remove / 🆘 Escalate
+    - Requires 3 marshal agreements for action
+    - Marshal earns 20 💎 per review
+    - Average SLA: <1 hour for flagged content
+
+  Layer 3: ORBIT Team (Daily)
+    - Escalated by marshals
+    - Account bans, legal issues, severe harassment
+    - Human review by founder/team
+    - SLA: <24 hours
+
+  ── 16.2 · MARSHAL RECRUITMENT ────────────────────────────────────────────────
+
+  Who qualifies:
+    - User for ≥90 days
+    - Account Health overall ≥85 for 30 days
+    - Reputation score ≥90
+    - No reports against them in 60 days
+    - Passes a 20-question moderation quiz
+
+  Application process:
+    - User applies via Profile → "Become a Marshal"
+    - Pass quiz (multi-choice, scenario-based)
+    - 7-day trial period with shadow reviews (results don't count, mentor assesses)
+    - Full marshal if trial passes
+
+  ── 16.3 · MARSHAL COMPENSATION + STATUS ──────────────────────────────────────
+
+  Earnings:
+    - 20 💎 per reviewed item (avg 15-30/hour = 300-600 💎/hour)
+    - 500 💎 weekly activity bonus (if >20 hours active)
+    - 1,000 💎 monthly perfect-score bonus (>95% consensus agreement)
+
+  Status:
+    - Distinctive "🛡 Marshal" badge
+    - Green border on profile
+    - Separate marshal-only private room
+    - Listed in "ORBIT Marshal Hall"
+    - Priority customer support
+
+  ── 16.4 · MARSHAL DASHBOARD ──────────────────────────────────────────────────
+
+  Built as a Next.js route: /marshal (role-gated)
+
+  Features:
+    - Review queue (paginated, sorted by severity)
+    - Statistics: items reviewed, consensus rate, earnings
+    - Decision history with appeals
+    - Marshal chat (discuss tough cases)
+    - Training modules + monthly refreshers
+    - Escalation button (to ORBIT team)
+    - User history lookup (when reviewing)
+
+  Simple UI, mobile-responsive, all Firestore-backed.
+
+  ── 16.5 · APPEALS PROCESS ────────────────────────────────────────────────────
+
+  If user disagrees with a decision:
+    - 1-tap appeal from notification
+    - Re-enters queue as "Appeal" (higher priority)
+    - 3 DIFFERENT marshals review
+    - If majority reverses: original decision overturned, marshal scores adjusted
+    - If upheld: user gets detailed explanation
+
+  Appeals reversal rate tracked per marshal (>30% reversal → retraining).
+
+  ── 16.6 · QUARTERLY ELECTIONS ────────────────────────────────────────────────
+
+  Marshals elected/re-elected every 3 months:
+    - Community votes (all users eligible to vote)
+    - Marshals can self-nominate
+    - Top 100 voted in per quarter
+    - Old marshals can re-run
+    - Keeps accountability high + rotation possible
+
+  ── 16.7 · FIRESTORE SCHEMA ────────────────────────────────────────────────────
+
+  marshals/{uid}:
+    status: "trial" | "active" | "suspended" | "retired"
+    region: string
+    languages: [string]
+    joinedAt, trialEndsAt
+    hoursThisWeek, hoursThisMonth
+    reviewsCount, consensusAgreementRate
+    appealsOverturnedAgainst: number
+    creditsEarnedFromMod: number
+    badges: [string]
+
+  moderationQueue/{itemId}:
+    targetUid, contentId, contentType: "message" | "image" | "voice" | "room"
+    flaggedBy: "ai" | uid
+    flagReasons: [string]
+    severity: "low" | "med" | "high"
+    marshalReviews: [{ marshalUid, decision, notes, at }]
+    consensusDecision: string
+    status: "pending" | "reviewed" | "appealed" | "escalated"
+    userAppealed: boolean
+    finalDecision: string
+    processedAt: timestamp
+
+  marshalElections/{quarterId}:
+    nominees: [{ uid, votes }]
+    electedMarshals: [uid]
+    electionPeriod: { start, end }
+
+
+
+
+================================================================================
+  PART 17 — LOSS AVERSION HOOKS
+  (Claude's addition #1 / Law 13)
+================================================================================
+
+  PRINCIPLE:
+    Kahneman-Tversky Prospect Theory: Losing ₹100 feels 2.25x worse than
+    gaining ₹100 feels good. Design AROUND this.
+
+  ── 17.1 · STREAK PROTECTION ──────────────────────────────────────────────────
+
+  Current streak shown prominently:
+    "🔥 12-day streak"
+
+  Before midnight of a potentially-broken streak day:
+    Push: "⚠ Your 12-day streak needs 1 message to survive. Don't lose it!"
+    In-app: Heartbeat animation on streak badge
+
+  "Streak Shield" purchase:
+    100 💎 = 1 shield, auto-used if user misses a day
+    Can stack up to 3 shields
+    Pro users get 1 free shield/month
+
+  "Streak Freeze" (Pro-only):
+    Pause streak for vacations
+    Max 7 days frozen, once per month
+
+  ── 17.2 · CREDIT EXPIRY (Soft) ───────────────────────────────────────────────
+
+  Points earned but unused for 90+ days:
+    - Enter "Decay Zone" — displayed with fading gold color
+    - Lose 10% per 30 days after the 90-day mark
+    - Push notification: "You have 2,300 💎 about to decay in 5 days"
+
+  Forces spending behavior + creates scarcity perception.
+
+  ── 17.3 · BADGE MAINTENANCE ──────────────────────────────────────────────────
+
+  Top-tier badges (Elite, Legend) require monthly re-qualification:
+    - Automated check
+    - If criteria not met, soft demotion (not immediate strip)
+    - 7-day grace period with "Restore" quest
+
+  User psychology: losing a status badge feels awful → maintains activity.
+
+  ── 17.4 · FOMO ALERTS ────────────────────────────────────────────────────────
+
+  Limited-spot triggers:
+    "Night Owls room: 47/50 members — join before it's full"
+    "Roast Battle signup closes in 2 hours — 3 slots left"
+    "Star Creator applications: 2 slots opening this week"
+
+  Feels time-sensitive. Drives action.
+
+  ── 17.5 · SCHEDULED LOSSES ───────────────────────────────────────────────────
+
+  If user DOES break a streak:
+    Offer to "Buy it back" within 48 hours:
+      • 3-day streak: 50 💎
+      • 7-day streak: 150 💎
+      • 30-day streak: 1,000 💎
+      • 100+ day streak: 5,000 💎 or Pro subscription
+
+  Emotional pain point converted to monetization.
+
+
+
+================================================================================
+  PART 18 — SOCIAL PROOF GRADIENT
+  (Law 14 / Claude's addition #2)
+================================================================================
+
+  PRINCIPLE:
+    "3 friends are here" > "500 strangers online". Humans are tribal.
+    Specificity + familiarity > scale.
+
+  ── 18.1 · AVATAR PILES EVERYWHERE ────────────────────────────────────────────
+
+  Room cards show:
+    Instead of: "247 members"
+    Show: [avatar][avatar][avatar]+244 members
+      with friends' avatars prioritized first
+
+  "Priya and 244 others"  <- primary label
+  Uses friends' names when possible.
+
+  ── 18.2 · FRIEND PULSE ───────────────────────────────────────────────────────
+
+  Home screen top bar shows 3-5 friend avatars (currently online):
+    - Pulse animation when friend recently acted
+    - Tap → see what friend is doing
+    - Hover dots: green (online), yellow (in a room), purple (in voice)
+
+  Creates constant awareness: "my people are active here"
+
+  ── 18.3 · LOCALIZED SOCIAL PROOF ─────────────────────────────────────────────
+
+  Onboarding: "412 users from Chandigarh joined ORBIT this week"
+  Discovery: "Rooms loved by people in Punjab"
+  Creator page: "Priya — 23 mutual friends love her content"
+
+  Location + friend count = maximum relevance.
+
+  ── 18.4 · TESTIMONIAL THREADING ──────────────────────────────────────────────
+
+  User sees micro-testimonials contextually:
+    Before posting first voice note: "Rohit said: 'Best feature, use it daily'"
+    Before cashout: "Priya cashed out ₹500 last week"
+    Before inviting: "Amit's 3 invited friends earned him 500 💎"
+
+  Testimonials come from real user actions (auto-generated, consent-based).
+
+
+
+================================================================================
+  PART 19 — FIRST-15-MINUTE MAGIC
+  (Law 15 / Claude's addition #3)
+================================================================================
+
+  PRINCIPLE:
+    Onboarding research: 80% of apps lose users in first 15 min.
+    Must deliver "Aha moment" in that window or never.
+
+  ── 19.1 · THE GUARANTEED FIRST SUCCESS ───────────────────────────────────────
+
+  Within 5 minutes of signup, user MUST:
+    ✓ Receive a warm greeting (AI Companion auto-DMs)
+    ✓ Earn at least 150 💎 (combining starter + first actions)
+    ✓ Make one real interaction (reaction or message)
+    ✓ See at least 3 other users active in a room
+
+  Force-feed success. No choice paralysis.
+
+  ── 19.2 · THE "THEME MOMENT" ─────────────────────────────────────────────────
+
+  At exactly minute 5 of first session:
+    - Full-screen celebration: "You're officially an ORBIT-er!"
+    - Summary: "You've earned 150 💎, joined 3 rooms, made 1 friend"
+    - Shareable card: "I'm on ORBIT — join me!"
+    - Skip button at bottom (respect autonomy)
+
+  Builds emotional commitment at high-dopamine moment.
+
+  ── 19.3 · NO TUTORIAL — LEARN BY DOING ───────────────────────────────────────
+
+  Never: 5-screen walkthrough of features.
+  Always: Interactive prompts embedded in the flow.
+
+  Example:
+    User opens first room.
+    Tooltip: "Tap the 🔥 to react — it's free and makes people's day"
+    User taps → animation + toast: "+1 Community score!"
+    Next tooltip only appears at next relevant action.
+
+  ── 19.4 · SENSORY FEEDBACK ───────────────────────────────────────────────────
+
+  Every first action has enhanced feedback:
+    First message: confetti + "+50 💎 First Message!"
+    First reaction: heart burst + "Community +3"
+    First room join: fireworks + badge unlock animation
+    First friend: warm glow + "Friendship sparked ✨"
+
+  Haptic + sound + visual. Reptile brain loves it.
+
+
+
+================================================================================
+  PART 20 — ZERO-LONELINESS GUARANTEE
+  (Law 16 / Claude's addition #4)
+================================================================================
+
+  PRINCIPLE:
+    Nothing kills social apps faster than opening a room and seeing
+    "0 members online". We GUARANTEE no user ever feels alone.
+
+  ── 20.1 · AI COMPANIONS IN EVERY ROOM ────────────────────────────────────────
+
+  Every active room has 3-5 AI Companions seeded (clearly labeled):
+    - Username format: "@ORBIT_[role]" (e.g., @ORBIT_Facilitator, @ORBIT_Muse)
+    - Distinctive gradient badge in avatar
+    - Clearly stated in profile: "🤖 AI Companion powered by ORBIT"
+    - Can NOT earn credits (users know)
+    - Can NOT cashout (users know)
+    - Provides: topic prompts, follow-up questions, encouragement
+
+  Transparency is critical: DPDP Act + user trust.
+  If rooms get 10+ active humans, AI companions go dormant automatically.
+
+  ── 20.2 · GHOST PRESENCE ─────────────────────────────────────────────────────
+
+  When user enters a room, status bar shows:
+    - Live: "5 online now"
+    - Recent: "12 were here in last hour"
+    - Typing indicators even from ghost activity
+
+  Users feel in a warm place, not a mausoleum.
+
+  ── 20.3 · SMART REDIRECT ─────────────────────────────────────────────────────
+
+  If user enters a room with <3 active members:
+    Soft banner: "This room is quiet right now. Here are 3 buzzing alternatives:"
+    Shows 3 hot rooms in same category
+    One-tap switch
+
+  User never stuck in a dead room.
+
+  ── 20.4 · PEAK HOUR HINTS ────────────────────────────────────────────────────
+
+  Every room's profile shows:
+    "⏰ Most active 8-11 PM IST"
+    User can set reminder: "Notify me when peak"
+
+  Predictability = return visits.
+
+  ── 20.5 · "WAKE UP" REWARD ───────────────────────────────────────────────────
+
+  If a dormant room gets revived by a user:
+    - 500 💎 "Room Reviver" bonus
+    - Displayed publicly on their profile
+    - Room itself gets 10% hotScore boost for 6h to help establish activity
+
+
+
+================================================================================
+  PART 21 — PRESTIGE OVER PAYOUT
+  (Law 17 / Claude's addition #5)
+================================================================================
+
+  PRINCIPLE:
+    Money satisfies base needs. Status satisfies identity.
+    Power users care about BEING someone, not just earning.
+
+  ── 21.1 · VISUAL PRESTIGE LADDER ─────────────────────────────────────────────
+
+  Beyond tier badges:
+    - Gold borders (top 10 weekly)
+    - Purple aura (top 100 monthly)
+    - Crown icon (top 10 all-time)
+    - Name color gradients (top creator categories)
+    - Animated badge (legendary tier)
+
+  Visible everywhere: chat, profile, ORBIT Card.
+
+  ── 21.2 · ORBIT HALL OF FAME ─────────────────────────────────────────────────
+
+  Permanent page at /hall-of-fame:
+    - Top 100 all-time users (by quality score, not points)
+    - Creator of the Month (featured prominently)
+    - Milestones: First Day 1 user, first cashout, first Legend, etc.
+    - User's stats alongside: "Rank: #243 all-time"
+
+  Status signaling > money.
+
+  ── 21.3 · PHYSICAL REWARDS AT SCALE ──────────────────────────────────────────
+
+  Yearly:
+    - Top 1,000 creators: ORBIT merch pack (t-shirt, stickers, notebook)
+    - Top 100: Custom engraved ORBIT Card (metal, premium)
+    - Top 10: Invite to ORBIT Summit (physical event)
+
+  Cost: ~₹5L for full distribution, huge status + shareability.
+
+  ── 21.4 · EVENT ACCESS ───────────────────────────────────────────────────────
+
+  Star Creator+ tier:
+    - Monthly "Ask Me Anything" with ORBIT founder
+    - Beta feature access
+    - Input on roadmap (voting on next features)
+    - Direct Slack channel with founder
+
+  Legend tier:
+    - Quarterly 1:1 with founder
+    - Annual ORBIT Summit (flights + hotel paid)
+    - Name engraved on physical "Legends Wall" at ORBIT HQ
+
+
+
+================================================================================
+  PART 22 — ANTI-FATIGUE / FORCED-REST SYSTEM
+  (Law 18 / Claude's addition #6)
+================================================================================
+
+  PRINCIPLE:
+    Heavy earners burn out. When they do, they blame the app
+    ("ORBIT made me unhealthy"). Force rest = longer LTV.
+
+  ── 22.1 · DAILY EARNING CAPS ─────────────────────────────────────────────────
+
+  Base: 300 💎/day earning cap
+  Pro: 500 💎/day
+  Star: 750 💎/day
+  Legend: 1,000 💎/day
+
+  Once cap hit:
+    - All activities still work
+    - Earnings pause until 00:00 IST
+    - UI shows: "You've hit today's limit! Earn resets in 4h 23m"
+    - Message tone: celebratory not restrictive
+
+  ── 22.2 · DIMINISHING RETURNS ────────────────────────────────────────────────
+
+  Within-day earning curve:
+    Messages 1-50: 100% rate
+    Messages 51-100: 80% rate
+    Messages 101+: 50% rate
+
+  Prevents farming. Still feasible to cap out with quality.
+
+  ── 22.3 · QUALITY COOLDOWN ───────────────────────────────────────────────────
+
+  After 20 messages in a day:
+    - Rolling quality score calculated
+    - If avg <70: earning rate drops to 50% until quality rebuilds
+    - Notification: "Your quality is dropping — take a break or send thoughtful messages"
+
+  ── 22.4 · FORCED BREAKS (Rewarded) ───────────────────────────────────────────
+
+  If user active for 3+ hours straight:
+    - Card appears: "You've been here 3 hours! Take 15 min, get 150 💎 bonus"
+    - "Claim Break" button pauses activity tracking
+    - Returns with bonus and a reset "energy bar"
+
+  Frames healthy behavior as REWARDING not punishing.
+
+  ── 22.5 · SLEEP-HOUR REDUCTION ───────────────────────────────────────────────
+
+  Between 12 AM - 6 AM IST:
+    - Earning rate: 0.5x
+    - Daily cap reduced 50%
+    - Push notifications auto-paused
+    - "Night mode" UI: calmer colors
+
+  Encourages sleep, reduces addiction optics for regulators.
+
+  ── 22.6 · WEEKLY RESET ───────────────────────────────────────────────────────
+
+  Every Monday 00:00 IST:
+    - Daily caps reset
+    - "Fresh Week" notification: welcoming tone
+    - Previous week's top earners spotlighted (prestige)
+    - Free streak shield if you completed last week
+
+
+
+================================================================================
+  PART 23 — GRACEFUL DEMOTION / REDEMPTION QUESTS
+  (Law 19 / Claude's addition #7)
+================================================================================
+
+  PRINCIPLE:
+    Permabans + silent shadowbans create 1-star reviewers + Twitter rage.
+    Always offer a path back — but make it work.
+
+  ── 23.1 · NO-PERMABAN POLICY (except extreme) ────────────────────────────────
+
+  Permabans reserved for:
+    - Child safety violations (auto-permaban + law enforcement)
+    - Imminent violence threats
+    - Repeat severe harassment after 3 warnings
+
+  All other violations: graduated penalties with restoration paths.
+
+  ── 23.2 · THE PENALTY LADDER ─────────────────────────────────────────────────
+
+  Level 1: Quality drop (minor spam, off-topic)
+    → 10% earning reduction, 7 days
+    → Redemption Quest offered
+
+  Level 2: Consistency drop (repeated minor issues)
+    → 20% reduction, 14 days
+    → Stronger quest + marshal mentorship
+
+  Level 3: Trust breach (harassment, misinformation)
+    → 50% reduction, 30 days
+    → Pause creator privileges
+    → Quest includes public apology (if harassment)
+
+  Level 4: Account suspension (30 days)
+    → Account locked
+    → Appeal available
+    → Quest unlocked after appeal
+
+  Level 5: Ban (only after 3 of Level 4 within 6 months)
+
+  ── 23.3 · REDEMPTION QUESTS ──────────────────────────────────────────────────
+
+  Examples based on violation type:
+
+  Harassment:
+    ✓ Complete 2-hour "Empathy" course (AI chatbot-guided)
+    ✓ Send 5 positive messages in designated rooms
+    ✓ Help 3 new users with onboarding
+    ✓ Pass a follow-up quiz
+
+  Spam:
+    ✓ Write 10 messages ≥40 chars in quality rooms
+    ✓ Receive 20+ positive reactions across those messages
+    ✓ Complete "Quality Message Guide" module
+
+  Fake activity:
+    ✓ Identity verification (Digilocker Aadhaar OTP)
+    ✓ 30-day probation with limited earning
+    ✓ 50 quality messages in probation period
+
+  ── 23.4 · MENTOR PAIRING ─────────────────────────────────────────────────────
+
+  During quest:
+    - Paired with a volunteer marshal mentor
+    - Private chat channel
+    - Mentor reviews user's quest progress
+    - Mentor earns 500 💎 per successful reformation
+
+  Dual benefit: reformed user + mentor earns + community healed.
+
+  ── 23.5 · REDEEMED BADGES ────────────────────────────────────────────────────
+
+  User who completes redemption gets:
+    - "Second Chance" badge (worn with pride, not shame)
+    - Story spotlighted on Hall of Fame as "redemption story"
+    - Example to others
+
+  Turning failure into community asset.
+
+
+
+================================================================================
+  PART 24 — THE 1% LURKER DESIGN
+  (Law 20 / Claude's addition #8)
+================================================================================
+
+  PRINCIPLE:
+    Every social platform has 1% creators, 9% engagers, 90% lurkers.
+    ORBIT v2 was built for creators. v3 designs for lurkers too.
+
+  ── 24.1 · LURKER EARNING PATHS ───────────────────────────────────────────────
+
+  Passive activities that earn:
+    - Listen-mode voice rooms: 1 💎/min (cap 60 min/day)
+    - Reading messages in joined rooms: 0.1 💎 per 10 msgs read (cap 50/day)
+    - Reacting to content: 0.5 💎 per reaction (cap 30/day)
+    - Saving/collecting messages: 1 💎 per save (cap 20/day)
+
+  Cap ensures they still see value but don't out-earn creators.
+
+  ── 24.2 · OBSERVER BADGES ────────────────────────────────────────────────────
+
+  Levels unlocked by passive activity:
+    - Level 1: "Quiet Explorer" — 1,000 messages read
+    - Level 2: "Keen Observer" — 10,000 messages read
+    - Level 3: "Silent Sage" — 100,000 messages read
+    - Level 4: "Wisdom Keeper" — 1M messages read + Hall of Fame
+
+  Gamifies lurking. Makes it FEEL like progress.
+
+  ── 24.3 · CURATION AS CREATION ───────────────────────────────────────────────
+
+  "Collections" feature:
+    - Save any message to a personal collection
+    - Name collections: "Best Philosophy Quotes", "Funny Takes 2026"
+    - Make collections public: others can follow, earn reputation
+    - Collection creators earn passive 💎 when others follow
+
+  Lurkers create value without originating content.
+
+  ── 24.4 · SHY MODE ───────────────────────────────────────────────────────────
+
+  Anonymous posting feature (1/day free, Pro unlimited):
+    - Post without avatar/handle
+    - Shows as "Anonymous #4829"
+    - Still earns credits (attributed internally)
+    - Great for sensitive questions, shy users
+
+  Unlocks the 90% who never speak up.
+
+  ── 24.5 · VIEWING HISTORY ────────────────────────────────────────────────────
+
+  User's own history page:
+    - "Rooms you've observed"
+    - "Top messages you've saved"
+    - "Your reaction patterns"
+
+  Self-awareness + identity building even without posting.
+
+
+
+================================================================================
+  PART 25 — INDIA-SPECIFIC CULTURAL FIT
+  (Law 21 / Claude's addition #9)
+================================================================================
+
+  PRINCIPLE:
+    India isn't a smaller USA. Different language, rituals, digital habits.
+    Cultural specificity = deep moat.
+
+  ── 25.1 · REGIONAL ROOMS (Pre-seeded) ────────────────────────────────────────
+
+  Auto-created on launch:
+    - 29 state rooms ("Punjab Adda", "Maharashtra Maikhana", etc.)
+    - 10 major city rooms (Mumbai, Delhi, Bangalore, Chandigarh, Kolkata...)
+    - Tier-2 city rooms for key hubs (Jaipur, Chandigarh, Lucknow, Indore...)
+
+  Pre-populated with AI Companions + 5 community marshals per room.
+
+  ── 25.2 · LANGUAGE-SPECIFIC SURFACING ────────────────────────────────────────
+
+  Detect user's dominant language from first 10 messages:
+    - Hindi (Devanagari)
+    - Hindi (Roman script / Hinglish)
+    - English
+    - Punjabi (Gurmukhi)
+    - Punjabi (Roman)
+    - Tamil, Telugu, Marathi, Bengali, Kannada, Malayalam, Gujarati
+
+  Surface:
+    - Matching-language rooms prioritized in Discovery
+    - Matching-language AI Companions for greetings
+    - Auto-translated recommendations ("Similar in Hindi rooms")
+
+  ── 25.3 · FESTIVAL AUTO-SPAWN ────────────────────────────────────────────────
+
+  Auto-created 3 days before major Indian festivals, ends 3 days after:
+    Diwali (Oct/Nov): "Diwali Adda" with photo-sharing challenges
+    Holi (March): "Rang De" with color-themed UI
+    Eid: "Eid Mubarak Circle"
+    Christmas: "Xmas Chill"
+    Indian Independence Day (Aug 15): "Tricolor Talks"
+    Ganesh Chaturthi: "Ganpati Bappa"
+    Durga Puja: "Ma Durga Mandal"
+    Onam, Pongal, Baisakhi: regional variations
+
+  Auto-promoted to all users in relevant region. Festival-specific themes.
+
+  ── 25.4 · CRICKET ROOMS ──────────────────────────────────────────────────────
+
+  Auto-spawn during IPL + international matches:
+    - "Live Match Chat: Team A vs Team B"
+    - Auto-ends 1 hour after match
+    - Score widget embedded
+    - Prediction market tied to match events
+    - Peak IPL: 30+ live rooms simultaneously
+
+  Massive engagement driver for Indian audience.
+
+  ── 25.5 · POLITICAL NEUTRALITY RULE ──────────────────────────────────────────
+
+  Strict "No Political Content" in general rooms:
+    - Auto-removed: party names, election topics, government criticism
+    - Designated "Political Debate" room (opt-in, moderated heavily)
+    - Avoids IT Rules 2021 conflicts + public drama
+
+  Policy clearly stated. Enforced uniformly.
+
+  ── 25.6 · PAYMENTS DEEPLY INDIAN ─────────────────────────────────────────────
+
+  Razorpay integration supports:
+    - UPI: PhonePe, GPay, Paytm, BHIM
+    - Wallets: Paytm, Mobikwik
+    - Cards: Visa, MC, RuPay
+    - Net banking: All major Indian banks
+
+  Cashout:
+    - UPI direct (₹50 min, arrival <2 hours)
+    - Wallet (₹20 min, instant)
+    - Bank transfer (₹100 min, arrival <48 hours)
+
+  ── 25.7 · VERNACULAR UI COPY ─────────────────────────────────────────────────
+
+  Toggleable UI language:
+    - English: "Welcome back"
+    - Hindi: "फिर स्वागत है"
+    - Hinglish: "Wapas swagat hai"
+    - Punjabi: "ਮੁੜ ਜੀ ਆਇਆਂ ਨੂੰ"
+
+  Cultural references sprinkled:
+    - "Chai Break" tab for casual rooms
+    - "Station" for regional hubs
+    - "Adda" for discussion rooms
+    - "Gully" for hyperlocal content
+
+  ── 25.8 · BOLLYWOOD / REGIONAL CONTENT HOOKS ─────────────────────────────────
+
+  Trending Bollywood/regional movies → auto-created "Movie Buzz" rooms
+  New song releases (Spotify API) → "Song of the Week" rooms
+  Cricket stars' milestones → celebration rooms
+
+  Always-fresh content tied to real cultural moments.
+
+
+
+================================================================================
+  PART 26 — NOTIFICATION TAX (Respect Attention)
+  (Law 22 / Claude's addition #10)
+================================================================================
+
+  PRINCIPLE:
+    Every notification is a withdrawal from user's attention bank.
+    Too many withdrawals → account closure (uninstall).
+
+  ── 26.1 · HARD CAP: 3 PUSHES / DAY ───────────────────────────────────────────
+
+  Max 3 push notifications per user per day. NO exceptions.
+
+  If engine wants to send 4: it doesn't. Lowest-priority one deferred.
+
+  ── 26.2 · AI-CURATED NOTIFICATION PICKER ─────────────────────────────────────
+
+  Cloud Function runs every morning for each user:
+    Inputs:
+      - Recent activity patterns (when they typically open app)
+      - Pending engagement opportunities (DMs, streak risk, room invites)
+      - Friend-triggered events (mentioned by, friend milestone)
+      - Retention risk score (higher risk → more persuasive notification)
+
+    Output: Top 3 notifications scheduled for optimal moments
+      - Morning (typically 9-10 AM for office workers)
+      - Afternoon (1-2 PM lunch)
+      - Evening (7-9 PM prime time)
+
+  Uses Gemini Flash to craft subject lines (personalized, emotional).
+
+  ── 26.3 · NOTIFICATION CATEGORIES ────────────────────────────────────────────
+
+  Priority hierarchy (higher wins the 3-slot allocation):
+    P1 (Critical): Streak breaking today, Direct DM from close friend
+    P2 (High):     Friend mentioned, Room invite, Challenge expiring
+    P3 (Medium):   Daily digest, Feature announcement, Reward unlocks
+    P4 (Low):      Recommended room, Marketing, Tips
+
+  Algorithm packs P1s first, then P2s, then P3s.
+
+  ── 26.4 · QUIET HOURS ────────────────────────────────────────────────────────
+
+  Default: 10 PM - 10 AM (user timezone) = NO pushes
+  Override: User can extend quiet hours in settings
+  Exception: "Important Only" toggle lets critical (P1) through always
+
+  ── 26.5 · USER CONTROLS ──────────────────────────────────────────────────────
+
+  Settings > Notifications:
+    □ Friend activity      [ON]
+    □ Room activity        [ON]
+    □ Streak reminders     [ON]
+    □ Rewards/earnings     [ON]
+    □ Product updates      [OFF]
+    □ Marketing            [OFF]
+
+  ☆ Frequency:
+     ○ Minimal (1/day)
+     ● Balanced (3/day default)
+     ○ None
+
+  ☆ Weekly digest option (Pro-only): All notifications bundled into Sunday email.
+
+  ── 26.6 · NOTIFICATION COPY STYLE ────────────────────────────────────────────
+
+  BAD (old-school growth hack):
+    "🔥 New feature just dropped! Tap to see!"
+    "You have 3 messages waiting! Come back!"
+    "Don't miss out! 1000 users online now!"
+
+  GOOD (v3 style):
+    "Priya replied to your message in Philosophy Room"
+    "Your 15-day streak needs one message before midnight"
+    "Amit mentioned you — he saved a seat in Night Owls"
+
+  Specific + human + stakes-clear. No manipulation.
+
+
+
+================================================================================
+  PART 27 — PRIVACY-AS-PREMIUM
+  (Law 23 / Claude's addition #11)
+================================================================================
+
+  PRINCIPLE:
+    Indian users increasingly value privacy. Paid Privacy features
+    = strong Pro subscription driver + moat.
+
+  ── 27.1 · PRO FEATURE: INVISIBLE MODE ────────────────────────────────────────
+
+  When enabled:
+    - User appears offline to everyone
+    - Can browse rooms without "Priya is here" notification
+    - Own online status hidden from presence layer
+    - DMs still deliver but "last seen" hidden
+    - Can be toggled room-by-room
+
+  Value: Users feel power + discretion.
+
+  ── 27.2 · PRO FEATURE: GHOST PROFILE ─────────────────────────────────────────
+
+  Strangers (users you haven't DM'd) see limited profile:
+    - Only: username, avatar, public badges
+    - Hidden: message history, room list, friend count, ORBIT Card
+  DMed friends see full profile.
+
+  Protects against stalkers, recruiters, ex-partners.
+
+  ── 27.3 · PRO FEATURE: INCOGNITO ROOMS ───────────────────────────────────────
+
+  Join a room as "Anonymous":
+    - No avatar shown, random animal emoji instead
+    - Anonymous handle auto-assigned (stays consistent in that room)
+    - Can post + react
+    - Earns credits (attributed internally)
+    - Owner still knows who for moderation
+
+  Great for sensitive topics (mental health, career issues, personal struggles).
+
+  ── 27.4 · PRO FEATURE: ERASE TRAIL ───────────────────────────────────────────
+
+  Delete your own activity retroactively:
+    - Delete all messages in a specific date range
+    - Delete all reactions given
+    - Delete entire conversation with a user
+    - Hide from "Who mentioned me" history
+
+  Soft delete internally (preserved for abuse investigations for 30 days).
+
+  ── 27.5 · PRO FEATURE: PAUSE BROADCAST ───────────────────────────────────────
+
+  Temporarily stop all "friend activity" notifications about you:
+    - Friends don't see you joining rooms
+    - Don't see your new badges
+    - Don't see your DM status
+    Duration: 1 hour / 1 day / 1 week
+
+  ── 27.6 · PRO+ FEATURE: E2E ENCRYPTED DMS ────────────────────────────────────
+
+  End-to-end encryption for DM chats:
+    - Uses Signal Protocol (libsignal-node)
+    - Keys generated client-side, never sent to server
+    - Firebase stores only encrypted blobs
+    - Indicator: 🔐 shown in DM header
+
+  Unavailable features in encrypted mode:
+    - AI suggestions (doesn't see content)
+    - Full-text search of DMs
+
+  Price: +₹99/mo on top of Pro (Pro+ tier)
+
+  ── 27.7 · DEFAULT PRIVACY COMMITMENTS (Free tier too) ────────────────────────
+
+  Built into base platform:
+    - No selling of personal data (ever)
+    - No targeted ads based on sensitive content
+    - Data stored in India (DPDP compliance)
+    - Right to delete account fully (30-day grace for appeal)
+    - Transparent data use policy
+
+  Free users get these. Pro users get EXTRAS.
+
+
+
+================================================================================
+  PART 28 — OFFLINE-FIRST EARNING PREVIEW
+  (Law 24 / Claude's addition #12)
+================================================================================
+
+  PRINCIPLE:
+    User who thinks "I have something waiting" will open app.
+    Show cached status even without internet.
+
+  ── 28.1 · CACHED BALANCE + PENDING ────────────────────────────────────────────
+
+  Client stores (localStorage or IndexedDB):
+    - Last known balance
+    - Pending credit rewards (not yet synced)
+    - Streak status (expires at midnight)
+    - Unread DM count
+    - Active quests
+
+  Shown on app open even without connectivity:
+    "💎 2,430 (+42 pending — will sync)"
+
+  ── 28.2 · OFFLINE-WRITE PROTOCOL ─────────────────────────────────────────────
+
+  User sends message while offline:
+    - Stored locally with "queued" status
+    - Visual indicator: clock icon
+    - Auto-sent on reconnect
+    - Credits awarded on successful send
+
+  User taps reaction offline:
+    - Stored in queue
+    - Synced on reconnect
+    - Credits awarded
+
+  ── 28.3 · STREAK COUNTDOWN WIDGET ────────────────────────────────────────────
+
+  Phone home screen widget (Android + iOS):
+    - "🔥 15 days"
+    - "⏰ 4h 23m to save streak today"
+    - "💎 2,430"
+    - Updates locally every minute
+
+  Motivates open even when offline.
+
+  ── 28.4 · OFFLINE MODE UI ────────────────────────────────────────────────────
+
+  Banner: "Offline — showing cached data"
+  Available:
+    ✓ Read previous messages
+    ✓ Compose drafts (sent on reconnect)
+    ✓ View profile + stats
+    ✓ Browse saved collections
+
+  Unavailable:
+    ✗ Real-time updates
+    ✗ New room discovery
+    ✗ Voice rooms
+
+  ── 28.5 · SYNC FEEDBACK ──────────────────────────────────────────────────────
+
+  Subtle indicator bottom-right when syncing:
+    ● Green: fully synced
+    🔄 Yellow: syncing
+    ⚠ Red: sync failed, retry
+
+
+
+================================================================================
+  PART 29 — WEEKLY RHYTHM / CONTENT CALENDAR
+  (Law 25 / Claude's addition #13)
+================================================================================
+
+  PRINCIPLE:
+    Predictable rituals create retention. Sunday Night Football > random games.
+    Give the week a shape users look forward to.
+
+  ── 29.1 · WEEKLY CALENDAR ────────────────────────────────────────────────────
+
+  MONDAY — Fresh Start
+    - "New Week Boost": +20% earning rate 6 AM - 10 AM
+    - New featured rooms highlighted
+    - Quest: "Meet someone new" (100 💎 reward)
+    - UI theme: fresh green tint
+
+  TUESDAY — Voice Tuesday
+    - Voice rooms earn 1.5x credits all day
+    - Featured voice events (interviews, panels)
+    - Quest: "Join a voice room for 10 min"
+    - Badge opportunity: "Voice Warrior"
+
+  WEDNESDAY — Chaos Wednesday
+    - Chaos theme announced Monday, applied 12 PM - 6 PM Wed
+    - Theme examples: "Emoji Only", "Haiku Only", "Roman Script Only"
+    - Participation rewards 2x
+    - Most creative = weekly MVP
+
+  THURSDAY — Throwback Thursday
+    - "Your Memories" feature: shows messages from this day last month/year
+    - Revive dormant rooms event (500 💎 reward for reviver)
+    - Debate Arena opens at 8 PM
+    - Quest: "Revisit old conversations"
+
+  FRIDAY — Feature Friday
+    - One room gets "Featured" tag by ORBIT team
+    - Special guest event in featured room (e.g., creator, expert)
+    - Discovery boost for that room
+    - Sharing that room = 50 💎 referral bonus
+
+  SATURDAY — Squad Saturday
+    - Group challenges (complete as squad)
+    - Roast Battles 9-11 PM
+    - "Game Night" rooms auto-suggested
+    - Quest: "Play a game with friends"
+
+  SUNDAY — Sunday Wrap
+    - Weekly Story card generated (Spotify Wrapped style)
+    - Shareable summary of your week
+    - Top creators announced
+    - Quest: "Reflect on your week"
+    - Gentle evening UI (calming colors)
+
+  ── 29.2 · MONTHLY EVENTS ─────────────────────────────────────────────────────
+
+  Last Saturday of month: "Month End Bash"
+    - 24-hour celebration
+    - 2x earning all day
+    - Leaderboard finale: top 100 get special badges
+    - Reset happens midnight Sunday
+
+  ── 29.3 · QUARTERLY EVENTS ───────────────────────────────────────────────────
+
+  Creator Olympics (Part 9.5)
+  Marshal elections (Part 16.6)
+  "State of ORBIT" address from founder
+  Quarterly roadmap vote for Pro users
+
+  ── 29.4 · ANNUAL EVENTS ──────────────────────────────────────────────────────
+
+  January 1: "ORBIT Wrapped" release
+  Founding Day (orbit.app birthday): 24-hour global celebration
+  Diwali, Holi, Eid, Christmas: themed UI + festival rooms
+  Indian Republic Day (Jan 26): "Tricolor Pride" event
+
+
+
+================================================================================
+  PART 30 — ANTI-GHOST-TOWN UI
+  (Law 26 / Claude's addition #14)
+================================================================================
+
+  PRINCIPLE:
+    Dead UI = dead app (perceived). Every screen must feel ALIVE, even
+    when usage is low.
+
+  ── 30.1 · PRESENCE PARTICLES ─────────────────────────────────────────────────
+
+  Home screen background:
+    - Tiny avatar circles drift across screen (5-10 at a time)
+    - Represents actual users online in user's region
+    - Hover-tap reveals: "@cosmicbatata is in Music Room"
+    - Never feels static.
+
+  ── 30.2 · ROLLING STATS BAR ──────────────────────────────────────────────────
+
+  Subtle bottom ticker when idle:
+    "2,403 messages sent today · 127 rooms active · 89 new users joined"
+    Updates every 30 seconds with real numbers
+
+  Shows scale + activity without being pushy.
+
+  ── 30.3 · ROOM "HEAT" METERS ─────────────────────────────────────────────────
+
+  Visual liquid-style heat indicator on room cards:
+    - Calm blue: low activity
+    - Warm yellow: moderate
+    - Hot orange: busy
+    - Fire red: explosive (peak)
+
+  Gives visual scan-ability to feed.
+
+  ── 30.4 · TIME-SHIFTED REPLAYS ───────────────────────────────────────────────
+
+  For rooms with peak hours:
+    Off-peak visitor sees: "Peak replay from 9 PM last night"
+    Plays a condensed 30-second recap of top messages
+    Feels like stepping into a crowd even when quiet
+
+  ── 30.5 · AI FACILITATOR BOTS ────────────────────────────────────────────────
+
+  (Already mentioned in Part 20 — expanded here)
+
+  AI Companions in rooms post facilitation prompts:
+    - "Curious: what's everyone working on today?"
+    - "Hot take: which Bollywood movie aged best?"
+    - Post when room has >10 min silence during typical-active hours
+
+  Always labeled "🤖 ORBIT AI". Keeps flow warm.
+
+  ── 30.6 · RECENT ACTIVITY AVATARS ────────────────────────────────────────────
+
+  Every room footer: strip of last 20 active users' avatars
+    - Faint ones = active 1h ago
+    - Bright ones = active 5 min ago
+    - Animated dots = currently typing
+
+  Perceived density without needing more users.
+
+
+
+================================================================================
+  PART 31 — PAIN-OF-EXIT / WIN-BACK FUNNEL
+  (Law 27 / Claude's addition #15)
+================================================================================
+
+  PRINCIPLE:
+    Easy exit = no second thought. Hard exit = friction to reconsider.
+    Follow-up = chance to return. Don't lose users silently.
+
+  ── 31.1 · UNINSTALL-INTENT DETECTION ─────────────────────────────────────────
+
+  Signals that suggest imminent uninstall:
+    - 7+ consecutive days of declining session time
+    - Settings → "Delete account" page visited
+    - Notification disables across categories
+    - Open app but exit within 10 seconds 3+ times
+
+  Action: trigger "At Risk" flow.
+
+  ── 31.2 · AT-RISK SCREEN ─────────────────────────────────────────────────────
+
+  When user opens app during at-risk state:
+    ┌────────────────────────────────────────────┐
+    │  We've noticed you've been quiet 💔         │
+    │                                            │
+    │  Before you go, here's what you've built:  │
+    │                                            │
+    │  🔥 15-day streak                          │
+    │  💎 2,430 points earned                    │
+    │  👥 12 friends connected                   │
+    │  🏆 4 badges unlocked                      │
+    │                                            │
+    │  [ Take a 7-day break instead ]            │
+    │  [ What would change your mind? ]          │
+    │  [ Delete my account ]                     │
+    └────────────────────────────────────────────┘
+
+  Options in order of preference:
+    1. Take a break (pause mode, Part 13.5)
+    2. Give feedback (survey)
+    3. Delete (only if they insist)
+
+  ── 31.3 · EXIT SURVEY ────────────────────────────────────────────────────────
+
+  One-question survey if they proceed:
+    "What would've made ORBIT better for you?"
+      ○ Too many notifications
+      ○ Couldn't find my people
+      ○ Earning too slow
+      ○ Felt unfair/unsafe
+      ○ Just needed a break
+      ○ Other: [free text]
+
+  Results → analytics + triggered recovery:
+    - Too many notifications → auto-pause all pushes 7 days
+    - Couldn't find people → better onboarding next time
+    - Earning slow → offer 500 💎 comeback
+    - Unfair → immediate review + follow-up
+
+  ── 31.4 · FRIEND ANCHOR ──────────────────────────────────────────────────────
+
+  Before final delete:
+    "Before you go — Amit will wonder where you went."
+    "Send him a quick message?" [Yes] [No thanks]
+
+  Many times users reconsider because of friend connection.
+
+  ── 31.5 · 7-DAY SMS RECOVERY ─────────────────────────────────────────────────
+
+  7 days after uninstall (if no account deletion):
+    SMS: "@VibeyChaiwala42, your 2,430 💎 + 15-day streak saved.
+          Open ORBIT to restore it instantly. One tap."
+    Link: deep-link opens straight to restore screen.
+
+  14-day follow-up (if still not back):
+    SMS: "Priya mentioned you in ORBIT today. She saved you a seat."
+
+  30-day final:
+    Email: "Your streak + points expire in 30 days — here's 200 💎 if you return"
+
+  ── 31.6 · REINSTALL FLOW ─────────────────────────────────────────────────────
+
+  User who reinstalls within 30 days:
+    - Recognized via Branch.io attribution + phone OTP
+    - Account restored exactly as left
+    - "Welcome Back" screen celebrates their return
+    - 200 💎 comeback bonus
+    - Streak restored if within 7 days
+    - Friends notified: "@VibeyChaiwala42 is back!"
+
+  User who reinstalls after 30 days:
+    - Fresh start but preserved profile + friends
+    - "Welcome Back" badge (one-time)
+    - Friends-only re-connection recommendations
+
+
+
+
+================================================================================
+  PART 32 — USER JOURNEY MAPS
+  (Day-1 · Week-1 · Month-1 · Year-1 Simulations)
+================================================================================
+
+  Code likhne se pehle, ye saari journeys mentally walk-through karo. Agar
+  koi step natural nahi lagta, system wahan todega.
+
+  ── 32.1 · DAY-1 JOURNEY (User: Rohit, 23, Chandigarh, college student) ───────
+
+  T+0:00  → Instagram ad dekha: "ORBIT — Real conversations. Real earning."
+           Tap → Play Store → Install (45 MB)
+  T+0:02  → Open app → "Enter phone number" → +91-98XXX12345 → OTP 4-digit
+  T+0:03  → "Tum hindi mein baat karte ho ya english?" → Tap "Hinglish"
+  T+0:04  → "3 interests pick karo" → Taps: Comedy, Cricket, Philosophy
+  T+0:05  → Identity reveal: "@VibeyChaiwala42" + purple-gradient avatar
+           Small animation. User smiles. Taps "Perfect, isko rakhta hun"
+  T+0:06  → 100 💎 starter + 50 💎 welcome bonus rains down. Counter: 150 💎
+           3 rooms auto-joined: "Chandigarh Legends", "Comedy Adda", "Day 1"
+  T+0:07  → AI Companion (@ORBIT_Buddy) DMs: "Hey Rohit! Welcome. Konsa
+           room pehle check karte ho?" [AI badge visible]
+  T+0:09  → Taps "Chandigarh Legends" → 18 members online → 3 ongoing threads
+           Tooltip: "Tap 🔥 to react — it's free"
+  T+0:10  → Reacts to a joke message → +1 Community score + 2 💎
+           Confetti burst. Haptic. Dopamine.
+  T+0:12  → Types first message: "Kisi ko Elante sale ka pata hai?"
+           Sends. +12 💎 with quality multiplier. 3 replies in 90 seconds.
+  T+0:18  → "Ice Breaker" badge unlocks. Celebration animation.
+  T+0:25  → Sees Pulse tab, swipes through 10 short cards. +5 💎 passive.
+  T+0:35  → Voice room "Chai Break Chatter" has 8 listeners. Joins in
+           Listen Mode. +1 💎/min passive.
+  T+0:45  → Theme Moment: Full-screen card: "You're officially an ORBIT-er!
+           150 → 172 💎 · 3 rooms · 1 friend (@priya_soni)"
+  T+1:15  → Logs out. Was in app for 1h 15m. Earned 180 💎 total.
+
+  KEY CHECKPOINTS (if ANY fail, we churn this user):
+    ✓ Identity given in <1 min (LAW 8)
+    ✓ First interaction successful in <5 min (LAW 15)
+    ✓ Active rooms seen (not ghost town) (LAW 16)
+    ✓ Social proof visible (Priya, 18 members) (LAW 14)
+    ✓ Low-effort earning path demonstrated (LAW 10)
+    ✓ Emotional moment at minute 45 (LAW 7)
+
+  ── 32.2 · WEEK-1 JOURNEY (Same user) ─────────────────────────────────────────
+
+  DAY 2:
+    Morning push (8:30 AM): "Your 1-day streak is growing 🔥"
+    User opens → sees "Your Circle" with 3 friend avatars active
+    Spends 20 min. Earns 120 💎. Close to 300 💎 daily cap.
+
+  DAY 3:
+    Streak multiplier kicks in: 1.2x
+    Account Health card unlocks: Quality: Good / Community: Fair / ...
+    Redemption quest appears: "Raise Community to Good"
+    User replies to 5 messages → quest complete → +100 💎 + Community +20
+
+  DAY 4:
+    "Fresh Today" feed shows new room: "Punjabi Rappers".
+    User joins. Posts. Gets 8 reactions. "Hmm, feels like my place."
+
+  DAY 5:
+    Invites his cousin Amit via WhatsApp share.
+    Amit signs up → Rohit gets 20 💎 (Stage 1 of 4).
+    Squad page shows "@amit_chandigarh ●○○○"
+
+  DAY 6:
+    ORBIT Card 6/7 days revealed. Saves it, shares on Instagram story.
+    3 of his Instagram friends sign up.
+
+  DAY 7:
+    ORBIT Card fully revealed. "Day 1 Legend" badge earned.
+    Streak multiplier: 1.5x now.
+    Weekly Story card auto-generated:
+      "Rohit's Week: 12 conversations · 4 friends · Rising in Comedy"
+    Amit completes 5 msgs/day × 5 days → Rohit gets +100 💎 (Stage 2).
+    Total earned in week: ~1,600 💎 ≈ ₹160.
+
+  CHECKPOINTS:
+    ✓ Streak psychology engaged (LAW 13)
+    ✓ Health card feels transparent (LAW 2)
+    ✓ Squad system staged unlocks working (LAW 4)
+    ✓ Friends anchor established (LAW 14)
+    ✓ Shareability triggered organic growth
+
+  ── 32.3 · MONTH-1 JOURNEY ────────────────────────────────────────────────────
+
+  WEEK 2:
+    Rohit discovers Debate Arena Thursday. Picks a side. His argument gets
+    120 reactions. Wins MVP: +500 💎.
+    First cashout attempt: 2,100 💎 = ₹210 via PhonePe UPI. Arrives in 90 min.
+    BIG emotional moment — "Ye sach mein paisa de raha hai!"
+    Shares cashout screenshot with friends.
+
+  WEEK 3:
+    Hits 1K followers. Unlocks "Creator" tier.
+    Earning rate: 1.3x. Creates his first permanent room: "Chandigarh Jokers".
+    42 members in 2 days.
+
+  WEEK 4:
+    Crosses 300 💎 daily cap 5 days in a row.
+    Anti-Fatigue kicks in: "Take 15 min break for 150 💎 bonus"
+    Rohit respects it. Returns fresh.
+    Month-end earning: ~6,800 💎 = ₹680.
+
+  CHECKPOINTS:
+    ✓ First cashout = emotional anchor (critical for retention)
+    ✓ Creator tier promotion felt earned, not given (LAW 5)
+    ✓ Anti-Fatigue prevented burnout (LAW 18)
+    ✓ Platform felt rewarding AND healthy
+
+  ── 32.4 · YEAR-1 JOURNEY ─────────────────────────────────────────────────────
+
+  MONTH 3:
+    Star Creator application submitted. 3 rooms with 50+ members.
+    Application reviewed. Accepted. Purple tick + 1.7x earning.
+
+  MONTH 6:
+    ORBIT Olympics (quarterly). Rohit competes, ranks #4 in Comedy.
+    Slot opens. Promoted to Star permanently.
+
+  MONTH 9:
+    "Chandigarh Jokers" room has 2,400 members. Pays via room spend: 25%.
+    Monthly earning: ~₹15,000.
+    Applies to be Community Marshal. Passes quiz. Trial week.
+
+  MONTH 12:
+    ORBIT Wrapped 2026 card generated. Shares on Instagram.
+    Year stats: 340 hours in app · 87 new friends · Top 50 in Comedy
+    Total earned year: ~₹85,000.
+    Rohit's friend group on ORBIT: 34 people (all from his Instagram + college)
+
+  CHURN RISK THROUGH YEAR: Moderate at month 4 (some boredom), saved by
+    pause mode (took 10-day break) + comeback bonus + friend anchor
+    (Priya mentioned him in a room, he returned).
+
+  TOTAL VALUE CREATED:
+    • ORBIT earned ₹85K × 30% retention = future LTV
+    • Rohit brought 6 paying users (network effect)
+    • Moderation contribution saved ~₹20K in hired-mod costs
+    • Content creation: his room is a product asset
+
+  This is the ideal journey. Build the system to ENABLE it for median user.
+
+
+
+================================================================================
+  PART 33 — 20-USER BEHAVIOR SIMULATION
+  (5 Personas × 4 Scenarios each)
+================================================================================
+
+  Before launch, walk every feature through these 20 simulations. If any
+  persona-scenario combination fails the Psychology Laws, redesign.
+
+  ── 33.1 · THE 5 PERSONAS ─────────────────────────────────────────────────────
+
+  PERSONA A · "The Honest Earner" (Rohit, 23, Chandigarh, ₹15K/mo income)
+    Motivation: Genuine chats + ₹500-2000/mo supplement
+    Behavior: Active 1-2 hr/day, quality-conscious
+    Risk: Moderate churn if bored mid-term
+
+  PERSONA B · "The Fraudster" (Rakesh, 28, Delhi, runs fake-sim racket)
+    Motivation: Extract max money with min effort via fake accounts
+    Behavior: 50 signups/month, tries every loophole
+    Risk: Can bleed app dry if anti-abuse fails
+
+  PERSONA C · "The Lurker" (Priya, 19, Mumbai, college student)
+    Motivation: Passive entertainment + occasional voice
+    Behavior: Reads tons, rarely posts, reacts often
+    Risk: Low-value without listening rewards, high-value with them
+
+  PERSONA D · "The Creator Aspirant" (Amit, 25, Bangalore, wannabe influencer)
+    Motivation: Build audience, monetize, ego
+    Behavior: Creates rooms, posts heavily, craves recognition
+    Risk: Churns if growth stalls, gamifies discovery
+
+  PERSONA E · "The Emotional User" (Aisha, 27, Lucknow, going through divorce)
+    Motivation: Connection, safe space to talk, distraction
+    Behavior: Deep conversations, voice rooms late at night
+    Risk: Vulnerable to abuse; needs safety-first UX
+
+  ── 33.2 · THE 4 SCENARIOS × 5 PERSONAS = 20 CASES ────────────────────────────
+
+  SCENARIO 1: ONBOARDING (First 60 sec)
+
+  A (Rohit)   → Goes smoothly. Starter credits hook him. ✓ PASS
+  B (Rakesh)  → Tries to use fake SIM → blocked at Stage 1. ✗ BLOCKED
+                Tries 5 devices → all blocked by fingerprint. System wins.
+  C (Priya)   → Doesn't want to type → AI Companion DMs first. ✓ PASS
+  D (Amit)    → Skips starter rooms, rushes to create own. Auto-archived
+                rule prevents ghost room. ✓ PASS
+  E (Aisha)   → Vulnerable. AI Companion tone is warm, not pushy. ✓ PASS
+
+  SCENARIO 2: FIRST WEEK EARNING
+
+  A (Rohit)   → 1,600 💎 earned. Happy. ✓ PASS
+  B (Rakesh)  → Maxed out 300/day cap. Squad rewards gated by 7-day activity.
+                Account Health drops to "Fair" (spam detection). ✗ THROTTLED
+                Realizes scam isn't profitable. Moves on.
+  C (Priya)   → Listen mode: 60 min/day × 7 = 420 💎 from voice alone. Happy.
+                Plus Pulse + reactions: 300 💎/week. ✓ PASS
+  D (Amit)    → Posts 30 msgs/day. Diminishing returns kick in.
+                Realizes quality > quantity. ✓ ADAPTS
+  E (Aisha)   → Found "Quiet Room" (mental health adjacent). Felt heard.
+                Low earning, high emotional value. Won't churn. ✓ PASS
+
+  SCENARIO 3: ABUSE ATTEMPT (Tests system integrity)
+
+  A (Rohit)   → No abuse intent. N/A
+  B (Rakesh)  → Tries 20 strategies:
+                  - Bot script for messages → AI Mod catches, quality drops
+                  - Fake invitees → 4-stage unlock blocks
+                  - Farm room with 3 bots → farm detection suspends
+                  - Copy-paste messages → Meilisearch similarity flags
+                  - Buy aged accounts → device fingerprint blocks
+                Eventually gives up. ✓ SYSTEM WINS
+  C (Priya)   → N/A
+  D (Amit)    → Tries vote manipulation in Debate Arena with friends.
+                Diversity score in ranking kills it. ✓ PASS
+  E (Aisha)   → Someone DMs harassing messages. Report → Marshal review <1hr
+                → user warned. Aisha feels safe. ✓ PASS
+
+  SCENARIO 4: MONTH-3 RETENTION (The cliff)
+
+  A (Rohit)   → Cashed out ₹200 at Month 1. Emotional anchor. Stays. ✓ PASS
+  B (Rakesh)  → Long gone. System didn't pay him. ✗ CHURNED (good)
+  C (Priya)   → Starts using "Collections" to save favorite messages.
+                Becomes top curator. New identity. ✓ PASS (deep retention)
+  D (Amit)    → Stalled at 800 followers. Frustrated. Redemption path:
+                "Rising Voice → Creator" ladder visible. Works for it. ✓ PASS
+  E (Aisha)   → Made 2 real friends via ORBIT. Pause mode during busy week.
+                Comeback bonus → returns. ✓ PASS
+
+  ── 33.3 · SCORE CARD ─────────────────────────────────────────────────────────
+
+  Total scenarios: 20
+  Passed: 17
+  Fraudster blocked correctly: 2 (this is a PASS, not a fail)
+  Only real concern: Amit (Persona D) if creator growth stalls.
+
+  Mitigation added: Monthly Creator Olympics with slot promotions + transparent
+  ladder + "Rising Voice" as legitimate tier — so Amit doesn't feel stuck.
+
+  ── 33.4 · EDGE CASE STRESS TESTS ─────────────────────────────────────────────
+
+  TEST 1: "Kid signs up" (user claims to be 15)
+    → DOB check at signup
+    → Under-18 flag
+    → Unfiltered Hour blocked
+    → Safety features extra strict
+    → Cashout disabled until 18
+
+  TEST 2: "User dies" (account inactive forever, sad reality)
+    → After 12 months no activity → account marked memorial
+    → Pending credits donated to "ORBIT Cares" fund (chosen at signup)
+    → Profile preserved with memorial badge (if verified via family)
+
+  TEST 3: "Trolls raid a room" (coordinated attack)
+    → Farm flags trigger in <5 min
+    → Room auto-locked (no new msgs)
+    → Marshal team pinged for emergency review
+    → Attackers' accounts: mass review
+    → Victims: emotional support banner + mute/block helpers
+
+  TEST 4: "Payment fails at cashout" (UPI down)
+    → Clear error: "UPI temporarily down — try again in 10 min"
+    → Credits NOT deducted until confirmation
+    → Automatic retry 3 times over 2 hours
+    → Support ticket auto-generated if all fail
+
+  TEST 5: "App goes viral overnight" (10K signups in 1 hour)
+    → Firestore auto-scales
+    → Anti-fraud: cooldown on new account invite rewards
+    → Moderation: AI layer handles 95%, queue backs up for marshals
+    → Comms: "Welcome to ORBIT! High traffic — one feature at a time"
+
+
+
+================================================================================
+  PART 34 — UPDATED PHASED ROLLOUT (Phase 0 → 4)
+================================================================================
+
+  v7 phases retained + v3 human-behavior features distributed smartly.
+
+  ── 34.1 · PHASE 0 — PRE-LAUNCH (Weeks 0-4) ───────────────────────────────────
+
+  GOALS: Architecture + core features + 20-user alpha
+
+  BUILD:
+    ✓ Firebase Auth + Firestore + basic app shell
+    ✓ 60-second onboarding (Part 12)
+    ✓ Username generator (10K combos)
+    ✓ 3 starter rooms (pre-populated with AI Companions)
+    ✓ Basic messaging
+    ✓ Credit display as "ORBIT Points / Sparks" (never ₹)
+    ✓ 5-metric Account Health card (frontend only, dummy data)
+    ✓ Daily open bonus
+    ✓ Streak tracker
+    ✓ Razorpay test mode
+
+  DEFER TO LATER:
+    ✗ Voice rooms (Phase 1)
+    ✗ Creator tiers (Phase 2)
+    ✗ Debate Arena (Phase 2)
+    ✗ Prediction Markets (Phase 3)
+    ✗ Marshal dashboard (Phase 2)
+
+  ALPHA: 20 invited users (friends + family). Observe. Fix.
+
+  ── 34.2 · PHASE 1 — PUBLIC BETA (Weeks 4-12) ─────────────────────────────────
+
+  GOALS: 1K MAU, retention validation
+
+  BUILD:
+    ✓ Voice rooms (Agora integration, Listen Mode)
+    ✓ Full 5-metric health (with live scoring)
+    ✓ Anti-abuse invite system (4-stage unlock)
+    ✓ Hot 20 discovery feed
+    ✓ Auto-archive dormant rooms
+    ✓ Pulse tab (low-effort loop)
+    ✓ Boredom detection (Feeling Quiet? card)
+    ✓ Pause mode
+    ✓ Redemption quests (basic)
+    ✓ Razorpay live mode
+    ✓ First cashouts enabled (₹50 min)
+    ✓ 5 regional rooms (Chandigarh, Mumbai, Delhi, Bangalore, Chennai)
+    ✓ Basic AI Companion (per-user)
+
+  DEFER:
+    ✗ Creator Olympics (need 10K users first)
+    ✗ Prediction markets (legal review needed)
+    ✗ Physical merch program
+
+  METRICS TO WATCH:
+    - Day 7 retention >35%
+    - Day 30 retention >15%
+    - Avg session 10+ min
+    - Cashout success rate >95%
+    - Fraud signup rate <5%
+
+  ── 34.3 · PHASE 2 — SCALE (Weeks 12-26) ──────────────────────────────────────
+
+  GOALS: 10K MAU, revenue validation
+
+  BUILD:
+    ✓ Creator tiers (Rising → Creator → Star)
+    ✓ Category-based creator caps + waitlists
+    ✓ Community Marshal program
+    ✓ Marshal dashboard at /marshal
+    ✓ Debate Arena (Thursday weekly event)
+    ✓ Chaos Wednesdays
+    ✓ Festival auto-rooms (Diwali, Holi)
+    ✓ Cricket match live rooms
+    ✓ Weekly "Your Story" generation
+    ✓ All language support (Hindi, Punjabi, Tamil, Telugu, Marathi, etc.)
+    ✓ Pro subscription launch (₹199/mo)
+    ✓ Privacy-as-Premium features
+    ✓ Anti-Fatigue system
+    ✓ Win-back SMS/email campaigns
+    ✓ Vertex AI for quality scoring (replaces rule-based)
+
+  METRICS:
+    - 1K paying Pro users (₹2L/mo revenue)
+    - Cashout payouts: ~₹5L/mo
+    - Creator acquisition: 100 Creators, 10 Stars
+    - Marshal team: 50 active
+
+  ── 34.4 · PHASE 3 — MONETIZATION (Weeks 26-52) ───────────────────────────────
+
+  GOALS: 100K MAU, profitability path
+
+  BUILD:
+    ✓ Prediction markets (after legal review + disclosure)
+    ✓ Roast Battles (Saturday event)
+    ✓ Hive AI for video/image moderation
+    ✓ Branded content deals (verified)
+    ✓ Room "Spotlights" (paid promotion, transparent)
+    ✓ Gift credits between users
+    ✓ Collections feature
+    ✓ Incognito rooms (Pro)
+    ✓ E2E encrypted DMs (Pro+)
+    ✓ ORBIT Olympics (quarterly creator event)
+    ✓ Physical merch program (top 1K)
+    ✓ Migration: Pusher → Ably (1M msg/day+)
+    ✓ Marshal elections (quarterly)
+
+  METRICS:
+    - ₹20L/mo revenue (combined Pro + partnerships)
+    - 20K Pro users
+    - Month 12 cohort retention: 40%
+    - NPS >50
+
+  ── 34.5 · PHASE 4 — INDUSTRY LEADER (Year 2+) ────────────────────────────────
+
+  GOALS: 1M+ MAU, market dominance
+
+  BUILD:
+    ✓ ORBIT Legend tier (invite-only)
+    ✓ Annual ORBIT Summit (physical event)
+    ✓ ORBIT Wrapped (annual user review)
+    ✓ Creator payouts via ORBIT Fund
+    ✓ API for third-party integrations
+    ✓ International expansion (SEA, Middle East)
+    ✓ Migration: Firestore → multi-region sharded
+    ✓ Full ML stack: churn prediction, content ranking, fraud detection
+    ✓ Hall of Fame permanent page
+
+  METRICS:
+    - ₹2Cr/mo revenue
+    - 500K Pro users
+    - 10K active creators
+    - 500 active marshals
+    - Full regulatory compliance (RBI, SEBI if needed)
+
+
+
+================================================================================
+  PART 35 — WEEK-1 ACTION PLAN (Revised from v7)
+================================================================================
+
+  Jo tum is hafte turant karoge — realistic, solo-founder-executable.
+
+  ── 35.1 · DAY 1 (Monday) ─────────────────────────────────────────────────────
+
+  ⏰ MORNING (2 hrs):
+    □ Firebase project create (orbit-prod)
+    □ Authentication: Phone OTP enable
+    □ Firestore: set initial rules (locked-down)
+    □ Next.js 15 app init: `npx create-next-app@latest orbit --ts --app --tailwind`
+    □ Install: firebase, firebase-admin, react-firebase-hooks
+    □ Install: framer-motion, lucide-react
+
+  ⏰ EVENING (2 hrs):
+    □ Basic routing: /, /onboarding, /home, /profile, /room/[id]
+    □ Auth context provider
+    □ Phone OTP login screen
+    □ Language picker screen
+
+  END-OF-DAY: Auth flow works locally.
+
+  ── 35.2 · DAY 2 (Tuesday) ────────────────────────────────────────────────────
+
+  ⏰ MORNING (3 hrs):
+    □ Username generator: implement 200 adj × 300 nouns × 100 nums
+    □ Store in /usernameWordlists Firestore collection
+    □ Function: generateUsername() with collision check
+    □ Avatar generator: 20 gradient backgrounds × 50 emojis
+    □ Integration: Signup → username + avatar assigned
+
+  ⏰ EVENING (3 hrs):
+    □ Starter kit: Cloud Function `onUserCreate` trigger
+    □ On signup: add 100 💎 starter + 50 💎 welcome + join 3 starter rooms
+    □ First badge: "Welcome Warrior"
+    □ Create 3 seed rooms in Firestore (Chandigarh, Comedy Adda, Day 1)
+
+  END-OF-DAY: Complete onboarding works. 60-sec test passes.
+
+  ── 35.3 · DAY 3 (Wednesday) ──────────────────────────────────────────────────
+
+  ⏰ MORNING (3 hrs):
+    □ Home screen layout (emotion-first order from Part 11)
+    □ "Your Circle" section (dummy data for now)
+    □ Room list component
+    □ Firestore: rooms collection, messages subcollection
+
+  ⏰ EVENING (3 hrs):
+    □ Messaging: send, receive, display
+    □ Realtime updates via Firestore snapshots (or Pusher for Phase 1)
+    □ Earning logic: implement calculateMessageReward (Part 5.2)
+    □ Transactions collection: log every earn/spend
+
+  END-OF-DAY: Can send messages, earn points, see in real-time.
+
+  ── 35.4 · DAY 4 (Thursday) ───────────────────────────────────────────────────
+
+  ⏰ MORNING (3 hrs):
+    □ Points display: top bar (💎 2.3K +12▲) with animation
+    □ Variable reward animation (coin rain)
+    □ Mystery bonus logic + treasure chest animation (Lottie)
+    □ Daily cap logic (300 💎, diminishing returns)
+
+  ⏰ EVENING (3 hrs):
+    □ Reactions: 6 basic (🔥 ❤ 😂 😮 💯 🫶)
+    □ Reaction earning (0.5 💎)
+    □ Pulse tab skeleton (Phase 1 stub)
+    □ Streak tracker + streak multiplier
+
+  END-OF-DAY: Full earning loop works end-to-end.
+
+  ── 35.5 · DAY 5 (Friday) ─────────────────────────────────────────────────────
+
+  ⏰ MORNING (3 hrs):
+    □ Account Health card UI (Part 6.1)
+    □ 5 metrics scoring function (rule-based for now)
+    □ Cloud Function: scheduleHealthRecalc (every 2 hrs)
+    □ Redemption quest: basic "Restore Quality" quest
+
+  ⏰ EVENING (3 hrs):
+    □ Profile page: ORBIT Card preview + badges + stats
+    □ ORBIT Card 7-day reveal logic
+    □ Edit profile + regenerate username
+
+  END-OF-DAY: Profile + Account Health complete.
+
+  ── 35.6 · DAY 6 (Saturday) ───────────────────────────────────────────────────
+
+  ⏰ MORNING (3 hrs):
+    □ Discovery tab: Hot Now slot structure
+    □ hotScore computation (Cloud Function, every 2 min)
+    □ Auto-archive dormant rooms (Cloud Function, hourly)
+    □ AI Companion seeding: create 5 bot accounts, label clearly
+
+  ⏰ EVENING (2 hrs):
+    □ Basic Razorpay integration (test mode)
+    □ Cashout screen (₹50 minimum)
+    □ OTP verification for cashout (security)
+
+  END-OF-DAY: End-to-end MVP ready for self-testing.
+
+  ── 35.7 · DAY 7 (Sunday) ─────────────────────────────────────────────────────
+
+  ⏰ ALL DAY (6 hrs):
+    □ Testing: full Day-1 journey simulation (Part 32.1)
+    □ Fix critical bugs
+    □ PostHog integration (analytics)
+    □ Sentry integration (errors)
+    □ Deploy to Vercel
+    □ Branch.io setup (deep links)
+    □ Share app with 3-5 trusted friends as alpha testers
+
+  END-OF-DAY: Alpha live. Real users testing. Feedback collected.
+
+
+
+================================================================================
+  PART 36 — THE 10 NON-NEGOTIABLES
+================================================================================
+
+  Ye 10 rules kabhi bhi break nahi honge — regardless of pressure, scale,
+  or competitor pressure. Ye ORBIT ki ATMA hain.
+
+  ── 1. NEVER SHOW RUPEES IN-APP (except cashout screen) ───────────────────────
+
+  Even if a designer pushes for it. Even if user asks. Never.
+  Rupees = bank app. 💎 = game. We are a game.
+
+  ── 2. NEVER SILENT-PENALIZE ─────────────────────────────────────────────────
+
+  If earning drops, user must see why. Transparency > algorithmic efficiency.
+  Account Health card is our social contract.
+
+  ── 3. NEVER REWARD FAKE GROWTH ──────────────────────────────────────────────
+
+  Squad rewards require 7-day activity + 50 msgs. No shortcuts.
+  Vanity metrics destroy unit economics.
+
+  ── 4. NEVER LET A ROOM BE A GHOST TOWN ──────────────────────────────────────
+
+  AI Companions present (labeled) OR smart redirect to hot rooms.
+  No empty screens. Ever.
+
+  ── 5. NEVER SPAM NOTIFICATIONS ──────────────────────────────────────────────
+
+  3/day hard cap. AI-curated. Emotional, not promotional.
+  Each notification respects user's attention.
+
+  ── 6. NEVER HIDE AI COMPANIONS ──────────────────────────────────────────────
+
+  Every AI-generated profile, message, room seed — LABELED.
+  DPDP Act compliance + user trust.
+
+  ── 7. NEVER PERMABAN (except extreme) ───────────────────────────────────────
+
+  Graduated penalties + redemption quests.
+  Child safety + violence threats are only exceptions.
+
+  ── 8. NEVER FORGET INDIA ────────────────────────────────────────────────────
+
+  Hindi/Punjabi/Tamil support from Day 1.
+  Festival rooms, cricket rooms, UPI, regional flavor.
+  Silicon Valley patterns don't always work here.
+
+  ── 9. NEVER SACRIFICE PRIVACY FOR ENGAGEMENT ────────────────────────────────
+
+  No selling data. No targeted ads on sensitive content.
+  Data stored in India. User's right to delete respected.
+
+  ── 10. NEVER BUILD FOR IDEAL USERS ──────────────────────────────────────────
+
+  Every feature tested against: fraudster, bored user, jealous user, lurker,
+  emotional user. If it fails ANY, redesign.
+  Real humans, not ideal users.
+
+
+
+================================================================================
+  END OF ORBIT MASTER BUILD PROMPT v3.0
+================================================================================
+
+  SIGN-OFF:
+
+    v7 blueprint ne technical monster bana diya.
+    v3 prompt ne us monster ko INSAAN-friendly bana diya.
+    v3 promises:
+      ✓ 27 human behavior laws engineered into every feature
+      ✓ 12 identified problems solved at root
+      ✓ 15 additional psychology layers baked in
+      ✓ 4-phase rollout realistic for solo founder
+      ✓ Week-1 action plan executable by one person
+      ✓ Ready-to-build schemas + code hints throughout
+
+  "Architecture is forever. Features are seasonal. Users are forever."
+
+  Build this. Test with 20 real humans. Iterate. Launch.
+
+                                                  — Ail Noor Alam
+                                                    Chandigarh · April 2026
+                                                    Built with Claude (Anthropic)
+
+================================================================================
