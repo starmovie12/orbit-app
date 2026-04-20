@@ -9,57 +9,45 @@ import {
   Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useColors } from '@/hooks/useColors';
+import { Feather } from '@expo/vector-icons';
 import { BAZAAR_GIGS, BAZAAR_CATEGORIES } from '@/constants/data';
-import { ScreenHeader, SearchBar, Divider } from '@/components/shared';
-
-function StarRating({ rating }: { rating: number }) {
-  const colors = useColors();
-  return (
-    <View style={styles.starRow}>
-      <Text style={styles.starIcon}>⭐</Text>
-      <Text style={[styles.ratingText, { color: colors.gold }]}>{rating.toFixed(1)}</Text>
-    </View>
-  );
-}
+import { ScreenHeader, SearchBar, IconBox } from '@/components/shared';
+import { orbit } from '@/constants/colors';
 
 function GigCard({ item }: { item: typeof BAZAAR_GIGS[0] }) {
-  const colors = useColors();
   return (
-    <TouchableOpacity
-      style={[styles.gigCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
-      activeOpacity={0.75}
-    >
+    <TouchableOpacity style={styles.gigCard} activeOpacity={0.85}>
       <View style={styles.gigTop}>
-        <View style={[styles.gigIcon, { backgroundColor: item.color + '22', borderColor: item.color + '44' }]}>
-          <Text style={styles.gigIconEmoji}>{item.emoji}</Text>
-        </View>
+        <IconBox icon={item.icon} size={48} />
         <View style={styles.gigInfo}>
-          <Text style={[styles.gigTitle, { color: colors.text }]} numberOfLines={2}>{item.title}</Text>
-          <Text style={[styles.gigSeller, { color: colors.sub }]}>by @{item.seller}</Text>
+          <Text style={styles.gigTitle} numberOfLines={2}>{item.title}</Text>
+          <Text style={styles.gigSeller}>by @{item.seller}</Text>
           <View style={styles.gigMeta}>
-            <StarRating rating={item.rating} />
-            <Text style={[styles.gigReviews, { color: colors.mutedForeground }]}>({item.reviews})</Text>
-            <Text style={[styles.gigDelivery, { color: colors.mutedForeground }]}>· {item.delivery}</Text>
+            <Feather name="star" size={11} color={orbit.warning} />
+            <Text style={styles.ratingText}>{item.rating.toFixed(1)}</Text>
+            <Text style={styles.gigReviews}>({item.reviews})</Text>
+            <Text style={styles.gigDot}>·</Text>
+            <Text style={styles.gigDelivery}>{item.delivery}</Text>
           </View>
         </View>
       </View>
 
       <View style={styles.gigTagRow}>
         {item.tags.map((tag, i) => (
-          <View key={i} style={[styles.gigTag, { backgroundColor: colors.surface2, borderColor: colors.border }]}>
-            <Text style={[styles.gigTagText, { color: colors.sub }]}>{tag}</Text>
+          <View key={i} style={styles.gigTag}>
+            <Text style={styles.gigTagText}>{tag}</Text>
           </View>
         ))}
       </View>
 
       <View style={styles.gigBottom}>
         <View>
-          <Text style={[styles.gigPriceLabel, { color: colors.mutedForeground }]}>Starting at</Text>
-          <Text style={[styles.gigPrice, { color: colors.green }]}>₹{item.price}</Text>
+          <Text style={styles.gigPriceLabel}>STARTING AT</Text>
+          <Text style={styles.gigPrice}>₹{item.price.toLocaleString()}</Text>
         </View>
-        <TouchableOpacity style={[styles.gigContactBtn, { backgroundColor: colors.primary }]} activeOpacity={0.8}>
-          <Text style={styles.gigContactText}>Contact →</Text>
+        <TouchableOpacity style={styles.gigContactBtn} activeOpacity={0.85}>
+          <Text style={styles.gigContactText}>Contact</Text>
+          <Feather name="arrow-right" size={14} color="#FFFFFF" style={{ marginLeft: 6 }} />
         </TouchableOpacity>
       </View>
     </TouchableOpacity>
@@ -67,7 +55,6 @@ function GigCard({ item }: { item: typeof BAZAAR_GIGS[0] }) {
 }
 
 export default function BazaarScreen() {
-  const colors = useColors();
   const insets = useSafeAreaInsets();
   const [search, setSearch] = useState('');
   const [activeCategory, setCategory] = useState('All');
@@ -81,15 +68,16 @@ export default function BazaarScreen() {
     return matchCat && matchSearch;
   });
 
-  const bottomPad = Platform.OS === 'web' ? 34 : insets.bottom;
+  const bottomPad = Platform.OS === 'web' ? 90 : insets.bottom + 70;
 
   return (
-    <View style={[styles.screen, { backgroundColor: colors.background }]}>
+    <View style={[styles.screen, { backgroundColor: orbit.bg }]}>
       <ScreenHeader
-        title="Skill Bazaar"
+        title="Bazaar"
         right={
-          <TouchableOpacity style={[styles.postBtn, { backgroundColor: colors.primary }]} activeOpacity={0.8}>
-            <Text style={styles.postBtnText}>+ Post Gig</Text>
+          <TouchableOpacity style={styles.postBtn} activeOpacity={0.85}>
+            <Feather name="plus" size={14} color="#FFFFFF" />
+            <Text style={styles.postBtnText}>Post Gig</Text>
           </TouchableOpacity>
         }
       />
@@ -99,47 +87,31 @@ export default function BazaarScreen() {
         onChangeText={setSearch}
       />
 
-      <View style={[styles.heroBanner, { backgroundColor: colors.blueLight + '18', borderColor: colors.blueLight + '33' }]}>
-        <Text style={[styles.heroTitle, { color: colors.text }]}>
-          💼 Desi Talent Marketplace
-        </Text>
-        <Text style={[styles.heroSub, { color: colors.sub }]}>
-          Hire or sell skills · UPI payouts · 15% platform fee
-        </Text>
-      </View>
-
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         style={styles.categoryRow}
-        contentContainerStyle={{ paddingHorizontal: 12, gap: 8, paddingVertical: 8 }}
+        contentContainerStyle={{ paddingHorizontal: 20, gap: 8, paddingVertical: 8 }}
       >
-        {BAZAAR_CATEGORIES.map(cat => (
-          <TouchableOpacity
-            key={cat}
-            style={[
-              styles.categoryPill,
-              { backgroundColor: colors.surface2, borderColor: colors.border },
-              activeCategory === cat && { backgroundColor: colors.primary, borderColor: colors.primary },
-            ]}
-            onPress={() => setCategory(cat)}
-            activeOpacity={0.75}
-          >
-            <Text style={[
-              styles.categoryPillText,
-              { color: colors.sub },
-              activeCategory === cat && { color: '#fff' },
-            ]}>
-              {cat}
-            </Text>
-          </TouchableOpacity>
-        ))}
+        {BAZAAR_CATEGORIES.map(cat => {
+          const active = activeCategory === cat;
+          return (
+            <TouchableOpacity
+              key={cat}
+              style={[styles.categoryPill, active && styles.categoryPillActive]}
+              onPress={() => setCategory(cat)}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.categoryPillText, active && styles.categoryPillTextActive]}>
+                {cat}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </ScrollView>
 
-      <Divider indent={false} />
-
-      <Text style={[styles.resultCount, { color: colors.mutedForeground }]}>
-        {filtered.length} gigs found
+      <Text style={styles.resultCount}>
+        {filtered.length} {filtered.length === 1 ? 'gig' : 'gigs'} found
       </Text>
 
       <FlatList
@@ -147,7 +119,8 @@ export default function BazaarScreen() {
         keyExtractor={i => i.id}
         renderItem={({ item }) => <GigCard item={item} />}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.listContent, { paddingBottom: bottomPad + 16 }]}
+        contentContainerStyle={[styles.listContent, { paddingBottom: bottomPad }]}
+        ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
       />
     </View>
   );
@@ -156,88 +129,151 @@ export default function BazaarScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   postBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: orbit.accent,
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  postBtnText: { color: '#fff', fontSize: 13, fontWeight: '700' },
-  heroBanner: {
-    marginHorizontal: 12,
-    marginTop: 4,
-    marginBottom: 2,
-    borderWidth: 1,
+    paddingVertical: 7,
     borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    gap: 5,
   },
-  heroTitle: { fontSize: 15, fontWeight: '700', marginBottom: 2 },
-  heroSub: { fontSize: 12 },
+  postBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
+  },
   categoryRow: { flexGrow: 0 },
   categoryPill: {
     paddingHorizontal: 14,
-    paddingVertical: 5,
-    borderRadius: 20,
+    paddingVertical: 7,
+    borderRadius: 18,
+    backgroundColor: orbit.surface1,
     borderWidth: 1,
+    borderColor: orbit.borderSubtle,
   },
-  categoryPillText: { fontSize: 12, fontWeight: '600' },
-  resultCount: {
-    fontSize: 11,
-    paddingHorizontal: 16,
-    paddingVertical: 6,
+  categoryPillActive: {
+    backgroundColor: 'rgba(91, 127, 255, 0.10)',
+    borderColor: orbit.accent,
+  },
+  categoryPillText: {
+    color: orbit.textSecond,
+    fontSize: 12,
     fontWeight: '500',
   },
+  categoryPillTextActive: {
+    color: orbit.accent,
+    fontWeight: '600',
+  },
+  resultCount: {
+    color: orbit.textTertiary,
+    fontSize: 11,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 8,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
   listContent: {
-    paddingHorizontal: 12,
-    gap: 12,
+    paddingHorizontal: 20,
     paddingTop: 4,
   },
+
+  /* Gig card */
   gigCard: {
-    borderRadius: 12,
+    backgroundColor: orbit.surface1,
     borderWidth: 1,
-    padding: 14,
+    borderColor: orbit.borderSubtle,
+    borderRadius: 16,
+    padding: 16,
   },
   gigTop: {
     flexDirection: 'row',
-    marginBottom: 10,
+    marginBottom: 12,
+    gap: 12,
   },
-  gigIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 10,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  gigIconEmoji: { fontSize: 26 },
   gigInfo: { flex: 1 },
-  gigTitle: { fontSize: 14, fontWeight: '600', lineHeight: 20, marginBottom: 2 },
-  gigSeller: { fontSize: 12, marginBottom: 4 },
-  gigMeta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  starRow: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  starIcon: { fontSize: 10 },
-  ratingText: { fontSize: 12, fontWeight: '700' },
-  gigReviews: { fontSize: 11 },
-  gigDelivery: { fontSize: 11 },
-  gigTagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
-  gigTag: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 4,
-    borderWidth: 1,
+  gigTitle: {
+    color: orbit.textPrimary,
+    fontSize: 15,
+    fontWeight: '600',
+    lineHeight: 20,
+    marginBottom: 4,
   },
-  gigTagText: { fontSize: 10, fontWeight: '600' },
-  gigBottom: {
+  gigSeller: {
+    color: orbit.textSecond,
+    fontSize: 12,
+    marginBottom: 6,
+  },
+  gigMeta: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 4,
+  },
+  ratingText: {
+    color: orbit.textPrimary,
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 2,
+  },
+  gigReviews: {
+    color: orbit.textTertiary,
+    fontSize: 12,
+  },
+  gigDot: {
+    color: orbit.textTertiary,
+    fontSize: 12,
+  },
+  gigDelivery: {
+    color: orbit.textTertiary,
+    fontSize: 12,
+  },
+  gigTagRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 14,
+  },
+  gigTag: {
+    backgroundColor: orbit.surface2,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  gigTagText: {
+    color: orbit.textSecond,
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  gigBottom: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
     justifyContent: 'space-between',
   },
-  gigPriceLabel: { fontSize: 10, marginBottom: 1 },
-  gigPrice: { fontSize: 20, fontWeight: '800' },
-  gigContactBtn: {
-    paddingHorizontal: 18,
-    paddingVertical: 8,
-    borderRadius: 8,
+  gigPriceLabel: {
+    color: orbit.textTertiary,
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    marginBottom: 4,
   },
-  gigContactText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  gigPrice: {
+    color: orbit.textPrimary,
+    fontSize: 22,
+    fontWeight: '700',
+    letterSpacing: -0.5,
+  },
+  gigContactBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: orbit.accent,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  gigContactText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
+  },
 });
