@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -95,6 +96,20 @@ export default function OtpScreen() {
   const phone = globalThis.__orbitOtp?.phone ?? "";
 
   const inputRef = useRef<TextInput>(null);
+  const shakeAnim = useRef(new Animated.Value(0)).current;
+
+  const triggerShake = () => {
+    // 3 oscillations, 4px amplitude, 320ms total
+    Animated.sequence([
+      Animated.timing(shakeAnim, { toValue:  4, duration: 40, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: -4, duration: 53, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue:  4, duration: 53, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: -4, duration: 53, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue:  4, duration: 53, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: -4, duration: 53, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue:  0, duration: 15, useNativeDriver: true }),
+    ]).start();
+  };
 
   useHideRecaptchaBadge();
 
@@ -123,6 +138,7 @@ export default function OtpScreen() {
       globalThis.__orbitOtp = undefined;
     } catch (e: any) {
       Alert.alert("Verification failed", authErrorMessage(e));
+      triggerShake();
       setCode("");
       inputRef.current?.focus();
     } finally {
@@ -187,6 +203,7 @@ export default function OtpScreen() {
         </Text>
 
         <View style={styles.otpWrap}>
+          <Animated.View style={{ transform: [{ translateX: shakeAnim }] }}>
           <Pressable style={styles.cells} onPress={focusInput}>
             {[0, 1, 2, 3, 4, 5].map((i) => {
               const ch = code[i] ?? "";
@@ -228,6 +245,7 @@ export default function OtpScreen() {
               );
             })}
           </Pressable>
+          </Animated.View>
 
           <TextInput
             ref={inputRef}
