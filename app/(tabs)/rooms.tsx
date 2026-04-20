@@ -128,7 +128,7 @@ export default function RoomsScreen() {
                 <Text style={styles.totalBadgeText}>{totalUnread}</Text>
               </View>
             )}
-            <TouchableOpacity hitSlop={8}>
+            <TouchableOpacity hitSlop={8} accessibilityRole="button" accessibilityLabel="New message">
               <Feather name="edit" size={20} color={orbit.textSecond} />
             </TouchableOpacity>
           </>
@@ -171,6 +171,16 @@ export default function RoomsScreen() {
         contentContainerStyle={{ paddingBottom: bottomPad }}
         stickySectionHeadersEnabled
       />
+
+      {/* FAB — new room / new DM (§5.4) */}
+      <TouchableOpacity
+        style={[styles.fab, { bottom: (Platform.OS === 'web' ? 90 : insets.bottom + 76) }]}
+        activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel="Start a new chat or room"
+      >
+        <Feather name="plus" size={22} color={orbit.white} />
+      </TouchableOpacity>
     </View>
   );
 }
@@ -212,7 +222,7 @@ const styles = StyleSheet.create({
   listPreview: {
     flex: 1,
     color: orbit.textSecond,
-    fontSize: 13,
+    fontSize: 14,
     lineHeight: 18,
   },
   dmPreviewRow: {
@@ -223,7 +233,7 @@ const styles = StyleSheet.create({
   typingText: {
     flex: 1,
     color: orbit.accent,
-    fontSize: 13,
+    fontSize: 14,
     fontStyle: 'italic',
   },
   unreadBadge: {
@@ -235,7 +245,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
   },
   unreadText: {
-    color: '#FFFFFF',
+    color: orbit.white,
     fontSize: 11,
     fontWeight: '700',
   },
@@ -315,8 +325,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
   },
   totalBadgeText: {
-    color: '#FFFFFF',
+    color: orbit.white,
     fontSize: 11,
     fontWeight: '700',
+  },
+  fab: {
+    position: 'absolute',
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: orbit.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.45,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
   },
 });
