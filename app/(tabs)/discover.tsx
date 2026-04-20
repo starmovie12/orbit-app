@@ -29,7 +29,7 @@ function MoodRoomsSection() {
     <View style={styles.moodSection}>
       <View style={styles.sectionTitleRow}>
         <Text style={styles.sectionTitle}>Mood Rooms</Text>
-        <TouchableOpacity hitSlop={6}>
+        <TouchableOpacity hitSlop={6} accessibilityRole="link" accessibilityLabel="See all mood rooms">
           <Text style={styles.seeAll}>See all</Text>
         </TouchableOpacity>
       </View>
@@ -131,7 +131,7 @@ export default function DiscoverScreen() {
             <Feather
               name={watchedIds[item.id] ? 'check' : 'play'}
               size={13}
-              color="#FFFFFF"
+              color={orbit.white}
             />
             <Text style={styles.btnWatchText}>
               {watchedIds[item.id] ? 'Watched' : `Watch · ${item.duration}`}
@@ -233,7 +233,7 @@ const styles = StyleSheet.create({
   },
   seeAll: {
     color: orbit.accent,
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '500',
   },
   resetText: {
@@ -331,7 +331,7 @@ const styles = StyleSheet.create({
   },
   challengePrize: {
     color: orbit.accent,
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
   },
 
@@ -412,7 +412,7 @@ const styles = StyleSheet.create({
     backgroundColor: orbit.success,
   },
   btnWatchText: {
-    color: '#FFFFFF',
+    color: orbit.white,
     fontSize: 12,
     fontWeight: '600',
   },
