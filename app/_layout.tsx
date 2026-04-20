@@ -39,21 +39,18 @@ function RouteGuard() {
   useEffect(() => {
     if (loading || firebaseUser === undefined) return;
 
-    const group = segments[0]; // "(auth)" | "(onboarding)" | "(tabs)" | undefined
+    const group = segments[0];
     const inAuth = group === "(auth)";
     const inOnboarding = group === "(onboarding)";
     const inTabs = group === "(tabs)";
 
-    // Not signed in → always push to auth.
     if (!firebaseUser) {
       if (!inAuth) router.replace("/(auth)/welcome");
       return;
     }
 
-    // Signed in but user doc not yet loaded → wait one more tick.
     if (!user) return;
 
-    // Signed in, onboarding incomplete → push to current onboarding step.
     if (!user.onboardingComplete) {
       const step = user.onboardingStep === "done" ? "language" : user.onboardingStep;
       if (!inOnboarding) {
@@ -62,15 +59,45 @@ function RouteGuard() {
       return;
     }
 
-    // Fully onboarded → should be in tabs.
     if (!inTabs) router.replace("/(tabs)");
   }, [firebaseUser, user, loading, segments, router]);
 
   return (
-    <Stack screenOptions={{ headerBackTitle: "Back", headerShown: false }}>
-      <Stack.Screen name="(auth)" />
-      <Stack.Screen name="(onboarding)" />
-      <Stack.Screen name="(tabs)" />
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        animation: "slide_from_right",
+        animationDuration: 260,
+      }}
+    >
+      <Stack.Screen name="(auth)" options={{ animation: "fade" }} />
+      <Stack.Screen name="(onboarding)" options={{ animation: "slide_from_right" }} />
+      <Stack.Screen name="(tabs)" options={{ animation: "none" }} />
+      {/* Deep screens — full chat experiences */}
+      <Stack.Screen
+        name="room/[id]"
+        options={{
+          animation: "slide_from_right",
+          gestureEnabled: true,
+          gestureDirection: "horizontal",
+        }}
+      />
+      <Stack.Screen
+        name="dm/[id]"
+        options={{
+          animation: "slide_from_right",
+          gestureEnabled: true,
+          gestureDirection: "horizontal",
+        }}
+      />
+      <Stack.Screen
+        name="user/[id]"
+        options={{
+          animation: "slide_from_bottom",
+          gestureEnabled: true,
+          gestureDirection: "vertical",
+        }}
+      />
     </Stack>
   );
 }
