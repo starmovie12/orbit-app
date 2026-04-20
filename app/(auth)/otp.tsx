@@ -14,8 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
-
-import { useColors } from "@/hooks/useColors";
+import { orbit } from "@/constants/colors";
 import { authErrorMessage, confirmOtp, sendOtp } from "@/lib/auth";
 
 declare global {
@@ -39,7 +38,6 @@ async function sendOtpWeb(phoneE164: string): Promise<any> {
   const { getAuth, RecaptchaVerifier, signInWithPhoneNumber } = await import(
     "firebase/auth"
   );
-
   const app = getApps().length ? getApp() : initializeApp(FIREBASE_WEB_CONFIG);
   const auth = getAuth(app);
 
@@ -60,7 +58,6 @@ async function sendOtpWeb(phoneE164: string): Promise<any> {
   return await signInWithPhoneNumber(auth, phoneE164, webVerifierRef);
 }
 
-/* Hide reCAPTCHA badge on web (we show disclosure text below CTA) */
 function useHideRecaptchaBadge() {
   useEffect(() => {
     if (Platform.OS !== "web") return;
@@ -81,14 +78,12 @@ function useHideRecaptchaBadge() {
 
 const RESEND_SECONDS = 45;
 
-/* Pretty-print phone like "+91 98765 43210" */
 function prettyPhone(e164: string): string {
   if (!e164.startsWith("+91") || e164.length !== 13) return e164;
   return `+91 ${e164.slice(3, 8)} ${e164.slice(8)}`;
 }
 
 export default function OtpScreen() {
-  const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
@@ -108,15 +103,12 @@ export default function OtpScreen() {
     return () => clearInterval(t);
   }, []);
 
-  // If user landed here without a handle (e.g. deep-link), push them back.
   useEffect(() => {
     if (!globalThis.__orbitOtp?.handle) {
       router.replace("/(auth)/phone");
     }
   }, [router]);
 
-  // Try to focus on mount (won't always open keyboard on mobile web,
-  // but tapping the cells will — that's the reliable path)
   useEffect(() => {
     const t = setTimeout(() => inputRef.current?.focus(), 250);
     return () => clearTimeout(t);
@@ -129,9 +121,7 @@ export default function OtpScreen() {
     try {
       await confirmOtp(handle, value);
       globalThis.__orbitOtp = undefined;
-      // RouteGuard will push us to onboarding once user doc is ensured.
     } catch (e: any) {
-      console.error("[OtpScreen] verify failed:", e?.code, e?.message);
       Alert.alert("Verification failed", authErrorMessage(e));
       setCode("");
       inputRef.current?.focus();
@@ -151,13 +141,10 @@ export default function OtpScreen() {
     setResending(true);
     try {
       const handle =
-        Platform.OS === "web"
-          ? await sendOtpWeb(phone)
-          : await sendOtp(phone);
+        Platform.OS === "web" ? await sendOtpWeb(phone) : await sendOtp(phone);
       globalThis.__orbitOtp = { handle, phone };
       setCooldown(RESEND_SECONDS);
     } catch (e: any) {
-      console.error("[OtpScreen] resend failed:", e?.code, e?.message);
       Alert.alert("Couldn't resend", authErrorMessage(e));
       if (Platform.OS === "web" && webVerifierRef) {
         try {
@@ -174,32 +161,22 @@ export default function OtpScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.root, { backgroundColor: colors.background }]}
+      style={[styles.root, { backgroundColor: orbit.bg }]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          hitSlop={16}
-          style={styles.backBtn}
-        >
-          <Feather name="arrow-left" size={22} color={colors.text} />
+        <TouchableOpacity onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
+          <Feather name="arrow-left" size={22} color={orbit.textPrimary} />
         </TouchableOpacity>
       </View>
 
       <View style={styles.body}>
-        <Text style={[styles.title, { color: colors.text }]}>
-          Verification code
-        </Text>
-        <Text style={[styles.sub, { color: colors.sub }]}>
-          We sent a 6-digit code to{"\n"}
-          <Text style={{ color: colors.text, fontWeight: "700" }}>
-            {prettyPhone(phone)}
-          </Text>
+        <Text style={styles.title}>Enter the code</Text>
+        <Text style={styles.sub}>
+          6-digit code sent to{"  "}
+          <Text style={styles.phoneText}>{prettyPhone(phone)}</Text>
         </Text>
 
-        {/* OTP cells with invisible TextInput overlay
-            -> tapping anywhere on cells focuses input -> opens keyboard */}
         <View style={styles.otpWrap}>
           <Pressable style={styles.cells} onPress={focusInput}>
             {[0, 1, 2, 3, 4, 5].map((i) => {
@@ -212,37 +189,37 @@ export default function OtpScreen() {
                   style={[
                     styles.cell,
                     {
-                      backgroundColor: colors.surface,
                       borderColor: isActive
-                        ? colors.primary
+                        ? orbit.accent
                         : isFilled
-                        ? colors.primary + "55"
-                        : colors.border,
-                      shadowColor: isActive ? colors.primary : "transparent",
+                        ? orbit.borderStrong
+                        : orbit.borderSubtle,
+                      borderWidth: isActive ? 2 : 1,
+                      backgroundColor: isActive
+                        ? orbit.surface2
+                        : orbit.surface1,
+                      transform: [{ scale: isActive ? 1.02 : 1 }],
                     },
                   ]}
                 >
-                  <Text style={[styles.cellText, { color: colors.text }]}>
+                  <Text
+                    style={[
+                      styles.cellText,
+                      {
+                        color: isFilled ? orbit.textPrimary : orbit.textTertiary,
+                      },
+                    ]}
+                  >
                     {ch}
                   </Text>
                   {isActive && !ch && (
-                    <View
-                      style={[
-                        styles.caret,
-                        { backgroundColor: colors.primary },
-                      ]}
-                    />
+                    <View style={styles.caret} />
                   )}
                 </View>
               );
             })}
           </Pressable>
 
-          {/*
-            Real input — absolutely positioned on top of cells.
-            Transparent text/caret. Tap anywhere = focus = keyboard opens.
-            NOTE: not off-screen (Android Chrome refuses keyboard for off-screen inputs)
-          */}
           <TextInput
             ref={inputRef}
             value={code}
@@ -262,13 +239,13 @@ export default function OtpScreen() {
 
         <View style={styles.resendRow}>
           {cooldown > 0 ? (
-            <Text style={[styles.resendDim, { color: colors.mutedForeground }]}>
-              Resend code in <Text style={{ fontWeight: "700" }}>{cooldown}s</Text>
+            <Text style={styles.resendDim}>
+              Resend in <Text style={styles.resendDimBold}>{cooldown}s</Text>
             </Text>
           ) : (
             <TouchableOpacity onPress={resend} disabled={resending} hitSlop={8}>
-              <Text style={[styles.resend, { color: colors.primary }]}>
-                {resending ? "Sending..." : "Resend code"}
+              <Text style={styles.resend}>
+                {resending ? "Sending…" : "Resend code"}
               </Text>
             </TouchableOpacity>
           )}
@@ -283,43 +260,33 @@ export default function OtpScreen() {
             styles.cta,
             {
               backgroundColor:
-                code.length === 6 ? colors.primary : colors.surface2,
+                code.length === 6 ? orbit.accent : orbit.surface2,
               opacity: verifying ? 0.7 : 1,
               transform: [{ scale: pressed && code.length === 6 ? 0.98 : 1 }],
             },
           ]}
         >
           {verifying ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color="#FFFFFF" />
           ) : (
-            <>
-              <Text
-                style={[
-                  styles.ctaText,
-                  {
-                    color:
-                      code.length === 6 ? "#fff" : colors.mutedForeground,
-                  },
-                ]}
-              >
-                Verify
-              </Text>
-              {code.length === 6 && (
-                <Feather
-                  name="check"
-                  size={18}
-                  color="#fff"
-                  style={{ marginLeft: 8 }}
-                />
-              )}
-            </>
+            <Text
+              style={[
+                styles.ctaText,
+                {
+                  color:
+                    code.length === 6 ? "#FFFFFF" : orbit.textTertiary,
+                },
+              ]}
+            >
+              Verify
+            </Text>
           )}
         </Pressable>
 
-        <Text style={[styles.recaptchaNote, { color: colors.mutedForeground }]}>
-          Protected by reCAPTCHA — Google's{" "}
-          <Text style={{ color: colors.primary }}>Privacy Policy</Text> and{" "}
-          <Text style={{ color: colors.primary }}>Terms</Text> apply.
+        <Text style={styles.recaptchaNote}>
+          Protected by reCAPTCHA. Google's{" "}
+          <Text style={styles.legalLink}>Privacy</Text> &{" "}
+          <Text style={styles.legalLink}>Terms</Text> apply.
         </Text>
       </View>
     </KeyboardAvoidingView>
@@ -328,46 +295,55 @@ export default function OtpScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  header: { paddingHorizontal: 16, paddingBottom: 8 },
+  header: { paddingHorizontal: 20, paddingBottom: 8 },
   backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
     alignItems: "center",
     justifyContent: "center",
+    marginLeft: -8,
   },
-  body: { flex: 1, paddingHorizontal: 24, paddingTop: 24 },
+  body: { flex: 1, paddingHorizontal: 20, paddingTop: 16 },
   title: {
-    fontSize: 30,
-    fontWeight: "800",
-    marginBottom: 10,
-    letterSpacing: -0.5,
+    color: orbit.textPrimary,
+    fontSize: 24,
+    fontWeight: "700",
+    marginBottom: 8,
+    letterSpacing: -0.4,
   },
-  sub: { fontSize: 15, marginBottom: 40, lineHeight: 22 },
-
+  sub: {
+    color: orbit.textSecond,
+    fontSize: 15,
+    marginBottom: 36,
+    lineHeight: 22,
+  },
+  phoneText: {
+    color: orbit.textPrimary,
+    fontWeight: "600",
+  },
   otpWrap: { position: "relative" },
   cells: {
     flexDirection: "row",
-    gap: 10,
     justifyContent: "space-between",
+    gap: 8,
   },
   cell: {
     flex: 1,
-    aspectRatio: 0.85,
-    maxWidth: 56,
-    borderWidth: 1.5,
-    borderRadius: 14,
+    height: 56,
+    maxWidth: 52,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 0 },
   },
-  cellText: { fontSize: 26, fontWeight: "700" },
+  cellText: {
+    fontSize: 22,
+    fontWeight: "600",
+  },
   caret: {
     position: "absolute",
     width: 2,
-    height: 26,
+    height: 22,
+    backgroundColor: orbit.accent,
     borderRadius: 1,
   },
   invisibleInput: {
@@ -380,26 +356,46 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
     fontSize: 1,
     textAlign: "center",
-    // @ts-ignore - web-only CSS to kill caret
+    // @ts-ignore — web only
     caretColor: "transparent",
   },
-
-  resendRow: { marginTop: 32, alignItems: "center" },
-  resend: { fontSize: 14.5, fontWeight: "700" },
-  resendDim: { fontSize: 13.5 },
-
-  footer: { paddingHorizontal: 24, paddingTop: 8, gap: 14 },
+  resendRow: {
+    marginTop: 28,
+    alignItems: "center",
+  },
+  resend: {
+    color: orbit.accent,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  resendDim: {
+    color: orbit.textTertiary,
+    fontSize: 13,
+  },
+  resendDimBold: {
+    color: orbit.textSecond,
+    fontWeight: "600",
+  },
+  footer: { paddingHorizontal: 20, paddingTop: 8, gap: 12 },
   cta: {
-    flexDirection: "row",
-    paddingVertical: 17,
-    borderRadius: 14,
+    paddingVertical: 16,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
   },
-  ctaText: { fontSize: 16, fontWeight: "700", letterSpacing: 0.3 },
+  ctaText: {
+    fontSize: 15,
+    fontWeight: "600",
+    letterSpacing: 0.2,
+  },
   recaptchaNote: {
+    color: orbit.textTertiary,
     fontSize: 11,
     textAlign: "center",
-    lineHeight: 15,
+    lineHeight: 16,
+  },
+  legalLink: {
+    color: orbit.textSecond,
+    fontWeight: "500",
   },
 });
