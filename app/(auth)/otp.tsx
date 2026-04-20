@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
-import colors from "@/constants/colors";
+import { orbit } from "@/constants/colors";
 import { authErrorMessage, confirmOtp, sendOtp } from "@/lib/auth";
 
 declare global {
@@ -86,117 +86,6 @@ function prettyPhone(e164: string): string {
 export default function OtpScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-
-  // ── Orbit tokens accessed at render-time, not module-init ──────
-  const orbit = useMemo(() => colors.orbit, []);
-
-  // ── Styles created lazily after orbit tokens are available ─────
-  const styles = useMemo(() => StyleSheet.create({
-    root: { flex: 1 },
-    header: { paddingHorizontal: 20, paddingBottom: 8 },
-    backBtn: {
-      width: 36,
-      height: 36,
-      alignItems: "center",
-      justifyContent: "center",
-      marginLeft: -8,
-    },
-    body: { flex: 1, paddingHorizontal: 20, paddingTop: 16 },
-    title: {
-      color: orbit.textPrimary,
-      fontSize: 24,
-      fontWeight: "700",
-      marginBottom: 8,
-      letterSpacing: -0.4,
-    },
-    sub: {
-      color: orbit.textSecond,
-      fontSize: 15,
-      marginBottom: 36,
-      lineHeight: 22,
-    },
-    phoneText: {
-      color: orbit.textPrimary,
-      fontWeight: "600",
-    },
-    otpWrap: { position: "relative" },
-    cells: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      gap: 8,
-    },
-    cell: {
-      flex: 1,
-      height: 56,
-      maxWidth: 52,
-      borderRadius: 12,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    cellText: {
-      fontSize: 22,
-      fontWeight: "600",
-    },
-    caret: {
-      position: "absolute",
-      width: 2,
-      height: 22,
-      backgroundColor: orbit.accent,
-      borderRadius: 1,
-    },
-    invisibleInput: {
-      position: "absolute",
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      color: "transparent",
-      backgroundColor: "transparent",
-      fontSize: 1,
-      textAlign: "center",
-      // @ts-ignore — web only
-      caretColor: "transparent",
-    },
-    resendRow: {
-      marginTop: 28,
-      alignItems: "center",
-    },
-    resend: {
-      color: orbit.accent,
-      fontSize: 14,
-      fontWeight: "600",
-    },
-    resendDim: {
-      color: orbit.textTertiary,
-      fontSize: 13,
-    },
-    resendDimBold: {
-      color: orbit.textSecond,
-      fontWeight: "600",
-    },
-    footer: { paddingHorizontal: 20, paddingTop: 8, gap: 12 },
-    cta: {
-      paddingVertical: 16,
-      borderRadius: 12,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    ctaText: {
-      fontSize: 15,
-      fontWeight: "600",
-      letterSpacing: 0.2,
-    },
-    recaptchaNote: {
-      color: orbit.textTertiary,
-      fontSize: 11,
-      textAlign: "center",
-      lineHeight: 16,
-    },
-    legalLink: {
-      color: orbit.textSecond,
-      fontWeight: "500",
-    },
-  }), [orbit]);
 
   const [code, setCode] = useState("");
   const [verifying, setVerifying] = useState(false);
@@ -276,7 +165,7 @@ export default function OtpScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={12} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Go back">
           <Feather name="arrow-left" size={22} color={orbit.textPrimary} />
         </TouchableOpacity>
       </View>
@@ -286,6 +175,15 @@ export default function OtpScreen() {
         <Text style={styles.sub}>
           6-digit code sent to{"  "}
           <Text style={styles.phoneText}>{prettyPhone(phone)}</Text>
+          {"  "}
+          <Text
+            style={styles.editLink}
+            onPress={() => router.back()}
+            accessibilityRole="link"
+            accessibilityLabel="Edit phone number"
+          >
+            Edit
+          </Text>
         </Text>
 
         <View style={styles.otpWrap}>
@@ -354,7 +252,7 @@ export default function OtpScreen() {
               Resend in <Text style={styles.resendDimBold}>{cooldown}s</Text>
             </Text>
           ) : (
-            <TouchableOpacity onPress={resend} disabled={resending} hitSlop={8}>
+            <TouchableOpacity onPress={resend} disabled={resending} hitSlop={8} accessibilityRole="button" accessibilityLabel="Resend code">
               <Text style={styles.resend}>
                 {resending ? "Sending…" : "Resend code"}
               </Text>
@@ -378,14 +276,14 @@ export default function OtpScreen() {
           ]}
         >
           {verifying ? (
-            <ActivityIndicator color="#FFFFFF" />
+            <ActivityIndicator color={orbit.white} />
           ) : (
             <Text
               style={[
                 styles.ctaText,
                 {
                   color:
-                    code.length === 6 ? "#FFFFFF" : orbit.textTertiary,
+                    code.length === 6 ? orbit.white : orbit.textTertiary,
                 },
               ]}
             >
@@ -403,3 +301,114 @@ export default function OtpScreen() {
     </KeyboardAvoidingView>
   );
 }
+
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+  header: { paddingHorizontal: 20, paddingBottom: 8 },
+  backBtn: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: -8,
+  },
+  body: { flex: 1, paddingHorizontal: 20, paddingTop: 16 },
+  title: {
+    color: orbit.textPrimary,
+    fontSize: 24,
+    fontWeight: "700",
+    marginBottom: 8,
+    letterSpacing: -0.4,
+  },
+  sub: {
+    color: orbit.textSecond,
+    fontSize: 15,
+    marginBottom: 36,
+    lineHeight: 22,
+  },
+  phoneText: {
+    color: orbit.textPrimary,
+    fontWeight: "600",
+  },
+  editLink: {
+    color: orbit.accent,
+    fontWeight: "600",
+  },
+  otpWrap: { position: "relative" },
+  cells: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  cell: {
+    flex: 1,
+    height: 56,
+    maxWidth: 52,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cellText: {
+    fontSize: 22,
+    fontWeight: "600",
+  },
+  caret: {
+    position: "absolute",
+    width: 2,
+    height: 22,
+    backgroundColor: orbit.accent,
+    borderRadius: 1,
+  },
+  invisibleInput: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    color: "transparent",
+    backgroundColor: "transparent",
+    fontSize: 1,
+    textAlign: "center",
+    // @ts-ignore — web only
+    caretColor: "transparent",
+  },
+  resendRow: {
+    marginTop: 28,
+    alignItems: "center",
+  },
+  resend: {
+    color: orbit.accent,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  resendDim: {
+    color: orbit.textTertiary,
+    fontSize: 14,
+  },
+  resendDimBold: {
+    color: orbit.textSecond,
+    fontWeight: "600",
+  },
+  footer: { paddingHorizontal: 20, paddingTop: 8, gap: 12 },
+  cta: {
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ctaText: {
+    fontSize: 15,
+    fontWeight: "600",
+    letterSpacing: 0.2,
+  },
+  recaptchaNote: {
+    color: orbit.textTertiary,
+    fontSize: 11,
+    textAlign: "center",
+    lineHeight: 16,
+  },
+  legalLink: {
+    color: orbit.textSecond,
+    fontWeight: "500",
+  },
+});
