@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
-import colors from "@/constants/colors";
+import { orbit } from "@/constants/colors";
 import {
   authErrorMessage,
   isValidE164,
@@ -92,114 +92,6 @@ export default function PhoneScreen() {
   const router = useRouter();
   const inputRef = useRef<TextInput>(null);
 
-  // ── Orbit tokens accessed at render-time, not module-init ──────
-  const orbit = useMemo(() => colors.orbit, []);
-
-  // ── Styles created lazily after orbit tokens are available ─────
-  const styles = useMemo(() => StyleSheet.create({
-    root: { flex: 1 },
-    header: { paddingHorizontal: 20, paddingBottom: 8 },
-    backBtn: {
-      width: 36,
-      height: 36,
-      alignItems: "center",
-      justifyContent: "center",
-      marginLeft: -8,
-    },
-    body: { flex: 1, paddingHorizontal: 20, paddingTop: 16 },
-    title: {
-      color: orbit.textPrimary,
-      fontSize: 24,
-      fontWeight: "700",
-      marginBottom: 8,
-      letterSpacing: -0.4,
-    },
-    sub: {
-      color: orbit.textSecond,
-      fontSize: 15,
-      marginBottom: 32,
-      lineHeight: 22,
-    },
-    label: {
-      color: orbit.textTertiary,
-      fontSize: 11,
-      fontWeight: "600",
-      letterSpacing: 0.5,
-      textTransform: "uppercase",
-      marginBottom: 8,
-    },
-    inputRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      height: 48,
-      backgroundColor: orbit.surface1,
-      borderWidth: 1,
-      borderRadius: 12,
-      overflow: "hidden",
-    },
-    ccBox: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingHorizontal: 14,
-      height: "100%",
-    },
-    cc: {
-      color: orbit.textPrimary,
-      fontSize: 15,
-      fontWeight: "600",
-    },
-    inlineDivider: {
-      width: 1,
-      height: 24,
-      backgroundColor: orbit.borderSubtle,
-    },
-    input: {
-      flex: 1,
-      paddingHorizontal: 14,
-      color: orbit.textPrimary,
-      fontSize: 16,
-      fontWeight: "500",
-      letterSpacing: 0.3,
-    },
-    hintRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-      marginTop: 12,
-      paddingHorizontal: 4,
-    },
-    hint: {
-      color: orbit.textSecond,
-      fontSize: 13,
-    },
-    hintMuted: {
-      color: orbit.textTertiary,
-      fontSize: 13,
-    },
-    footer: { paddingHorizontal: 20, paddingTop: 8, gap: 12 },
-    cta: {
-      paddingVertical: 16,
-      borderRadius: 12,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    ctaText: {
-      fontSize: 15,
-      fontWeight: "600",
-      letterSpacing: 0.2,
-    },
-    recaptchaNote: {
-      color: orbit.textTertiary,
-      fontSize: 11,
-      textAlign: "center",
-      lineHeight: 16,
-    },
-    legalLink: {
-      color: orbit.textSecond,
-      fontWeight: "500",
-    },
-  }), [orbit]);
-
   const [raw, setRaw] = useState("");
   const [sending, setSending] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -255,7 +147,7 @@ export default function PhoneScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={12} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Go back">
           <Feather name="arrow-left" size={22} color={orbit.textPrimary} />
         </TouchableOpacity>
       </View>
@@ -328,12 +220,12 @@ export default function PhoneScreen() {
           ]}
         >
           {sending ? (
-            <ActivityIndicator color="#FFFFFF" />
+            <ActivityIndicator color={orbit.white} />
           ) : (
             <Text
               style={[
                 styles.ctaText,
-                { color: valid ? "#FFFFFF" : orbit.textTertiary },
+                { color: valid ? orbit.white : orbit.textTertiary },
               ]}
             >
               Send Code
@@ -350,3 +242,107 @@ export default function PhoneScreen() {
     </KeyboardAvoidingView>
   );
 }
+
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+  header: { paddingHorizontal: 20, paddingBottom: 8 },
+  backBtn: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: -8,
+  },
+  body: { flex: 1, paddingHorizontal: 20, paddingTop: 16 },
+  title: {
+    color: orbit.textPrimary,
+    fontSize: 24,
+    fontWeight: "700",
+    marginBottom: 8,
+    letterSpacing: -0.4,
+  },
+  sub: {
+    color: orbit.textSecond,
+    fontSize: 15,
+    marginBottom: 32,
+    lineHeight: 22,
+  },
+  label: {
+    color: orbit.textTertiary,
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+    marginBottom: 8,
+  },
+  inputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 48,
+    backgroundColor: orbit.surface1,
+    borderWidth: 1,
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  ccBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    height: "100%",
+  },
+  cc: {
+    color: orbit.textPrimary,
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  inlineDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: orbit.borderSubtle,
+  },
+  input: {
+    flex: 1,
+    paddingHorizontal: 14,
+    color: orbit.textPrimary,
+    fontSize: 16,
+    fontWeight: "500",
+    letterSpacing: 0.3,
+  },
+  hintRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 12,
+    paddingHorizontal: 4,
+  },
+  hint: {
+    color: orbit.textSecond,
+    fontSize: 14,
+  },
+  hintMuted: {
+    color: orbit.textTertiary,
+    fontSize: 14,
+  },
+  footer: { paddingHorizontal: 20, paddingTop: 8, gap: 12 },
+  cta: {
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ctaText: {
+    fontSize: 15,
+    fontWeight: "600",
+    letterSpacing: 0.2,
+  },
+  recaptchaNote: {
+    color: orbit.textTertiary,
+    fontSize: 11,
+    textAlign: "center",
+    lineHeight: 16,
+  },
+  legalLink: {
+    color: orbit.textSecond,
+    fontWeight: "500",
+  },
+});
