@@ -1,0 +1,197 @@
+rules_version = '2';
+
+// Deploy: firebase deploy --only firestore:rules
+// Blueprint §07 + §13: denormalized schema + DPDP-aligned access control.
+//
+// ─── FIX v2 ────────────────────────────────────────────────────────────
+// Added rules for ALL collections used by the app:
+//   rooms, posts, dmThreads, spotlights, moodRooms,
+//   liveParticipants, creditTxns, cashoutRequests, liveUsage
+// Previously all these were blocked by the default-deny catch-all,
+// causing PERMISSION_DENIED on half the app.
+// ────────────────────────────────────────────────────────────────────────
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── helpers ─────────────────────────────────────────────
+    function isSignedIn()       { return request.auth != null; }
+    function isSelf(uid)        { return isSignedIn() && request.auth.uid == uid; }
+    function hasPhone()         { return isSignedIn() && request.auth.token.phone_number != null; }
+    function isParticipant()    { return isSignedIn() && request.auth.uid in resource.data.participants; }
+
+    // Fields that clients are NEVER allowed to touch directly.
+    // These move via Cloud Functions only (karma, credits, rank, trust, badges).
+    function immutableFields() {
+      return ['karma','rank','badge','trustScore','credits','karmaLoanBalance',
+              'trophies','streak','posts','watches','createdAt'];
+    }
+
+    function onlyChangedEditable() {
+      return !request.resource.data.diff(resource.data).affectedKeys()
+               .hasAny(immutableFields());
+    }
+
+    // ─── /users/{uid} ───────────────────────────────────────
+    match /users/{uid} {
+      // Anyone signed in can read profile cards (for room lists, leaderboards).
+      allow read: if isSignedIn();
+
+      // Create own doc only — and only the shape we expect.
+      allow create: if isSelf(uid)
+                    && request.resource.data.uid == uid
+                    && request.resource.data.phone is string;
+
+      // Update own doc, but cannot mutate counters/badges client-side.
+      allow update: if isSelf(uid) && onlyChangedEditable();
+
+      // No client delete — handled by account-deletion Cloud Function (DPDP §13).
+      allow delete: if false;
+    }
+
+    // ─── /usernames/{handle} ───────────────────────────────
+    // Reservation doc for unique handles. Readable by all signed-in users
+    // so we can check "@foo exists?" client-side; writable only via txn
+    // from claimUsername() which runs as the owning user.
+    match /usernames/{handle} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+                    && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if false; // admin / Cloud Function only
+    }
+
+    // ─── /rooms/{roomId} ────────────────────────────────────
+    // Public rooms — readable and joinable by any signed-in user.
+    // Room creation is open in Phase 1 (admin-seeded); restrict in Phase 2.
+    match /rooms/{roomId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if false;
+
+      // Messages sub-collection
+      match /messages/{msgId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn()
+                      && request.resource.data.uid == request.auth.uid
+                      && request.resource.data.text is string;
+        allow update, delete: if false;
+      }
+    }
+
+    // ─── /posts/{postId} ────────────────────────────────────
+    // Discover feed posts — readable by all, writable by author.
+    match /posts/{postId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+                    && request.resource.data.authorUid == request.auth.uid;
+      allow update: if isSignedIn()
+                    && resource.data.authorUid == request.auth.uid;
+      allow delete: if false;
+    }
+
+    // ─── /dmThreads/{threadId} ──────────────────────────────
+    // Direct message threads — only participants can read.
+    // Phase 1: 1-to-1 only (participants.length == 2).
+    match /dmThreads/{threadId} {
+      allow read: if isSignedIn()
+                  && request.auth.uid in resource.data.participants;
+      allow create: if isSignedIn()
+                    && request.auth.uid in request.resource.data.participants;
+      allow update: if isSignedIn()
+                    && request.auth.uid in resource.data.participants;
+      allow delete: if false;
+
+      // DM messages sub-collection
+      match /messages/{msgId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn()
+                      && request.resource.data.senderUid == request.auth.uid;
+        allow update, delete: if false;
+      }
+    }
+
+    // ─── /spotlights/{slotId} ───────────────────────────────
+    // Hourly spotlight auction slots.
+    match /spotlights/{slotId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete: if false;
+
+      // Bids sub-collection
+      match /bids/{bidId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn()
+                      && request.resource.data.uid == request.auth.uid;
+        allow update, delete: if false;
+      }
+    }
+
+    // ─── /moodRooms/{moodId} ────────────────────────────────
+    // Mood-based ephemeral rooms with real-time presence.
+    match /moodRooms/{moodId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete: if false;
+
+      // Mood room messages
+      match /messages/{msgId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn()
+                      && request.resource.data.uid == request.auth.uid;
+        allow update, delete: if false;
+      }
+    }
+
+    // ─── /liveParticipants/{docId} ──────────────────────────
+    // Ephemeral presence docs for live audio rooms.
+    // Written on join, deleted on leave — short-lived.
+    match /liveParticipants/{docId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+                    && request.resource.data.uid == request.auth.uid;
+      allow update: if isSignedIn()
+                    && resource.data.uid == request.auth.uid;
+      allow delete: if isSignedIn()
+                    && resource.data.uid == request.auth.uid;
+    }
+
+    // ─── /liveUsage/{docId} ─────────────────────────────────
+    // Session tracking for live audio billing / credit deduction.
+    match /liveUsage/{docId} {
+      allow read: if isSignedIn()
+                  && resource.data.uid == request.auth.uid;
+      allow create: if isSignedIn()
+                    && request.resource.data.uid == request.auth.uid;
+      allow update: if isSignedIn()
+                    && resource.data.uid == request.auth.uid;
+      allow delete: if false;
+    }
+
+    // ─── /creditTxns/{docId} ────────────────────────────────
+    // Credit transaction ledger — users read their own, write via helpers.
+    match /creditTxns/{docId} {
+      allow read: if isSignedIn()
+                  && resource.data.uid == request.auth.uid;
+      allow create: if isSignedIn()
+                    && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if false; // immutable ledger
+    }
+
+    // ─── /cashoutRequests/{docId} ───────────────────────────
+    // Payout requests submitted by users for review.
+    match /cashoutRequests/{docId} {
+      allow read: if isSignedIn()
+                  && resource.data.uid == request.auth.uid;
+      allow create: if isSignedIn()
+                    && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if false; // admin / Cloud Function only
+    }
+
+    // ─── default deny everything else ──────────────────────
+    // Catches any collection not listed above.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
