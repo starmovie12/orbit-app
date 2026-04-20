@@ -31,6 +31,10 @@ const orbit = {
   accentSoft:   "rgba(91, 127, 255, 0.10)",
   accentSoftSolid: "#16193A", // Pre-blended for places that can't render rgba over bg
 
+  // Pure neutrals (use sparingly)
+  white:        "#FFFFFF",  // Text on accent/success buttons ONLY
+  black:        "#000000",  // Never use directly — use `bg` instead
+
   // Semantic
   success:      "#2BB673",
   successSoft:  "rgba(43, 182, 115, 0.12)",
@@ -96,8 +100,10 @@ const colors = {
   light: palette,
   dark:  palette,
   radius: 12,
-  orbit,
 };
 
+export default colors;
 export { orbit };
+
+
 export default colors;
