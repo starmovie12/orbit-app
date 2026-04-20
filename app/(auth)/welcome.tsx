@@ -1,4 +1,3 @@
-import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React from "react";
 import {
@@ -8,74 +7,67 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useColors } from "@/hooks/useColors";
+import { Feather } from "@expo/vector-icons";
+import Svg, { Circle, G } from "react-native-svg";
+import { orbit } from "@/constants/colors";
 
-const FEATURES = [
+const FEATURES: { icon: any; title: string; desc: string }[] = [
   {
-    emoji: "💬",
+    icon: "message-square",
     title: "Mood Rooms",
     desc: "Vent, celebrate, connect — a room for every mood.",
   },
   {
-    emoji: "🏆",
+    icon: "award",
     title: "Karma & Ranks",
     desc: "Help others, earn points, climb the leaderboard.",
   },
   {
-    emoji: "💼",
+    icon: "briefcase",
     title: "Skill Bazaar",
     desc: "Sell your talent, earn real Credits.",
   },
 ];
 
+/**
+ * OrbitMark — minimal geometric brand mark (a circle with a small offset orbit dot).
+ * No gradients, no rings stacked like cheap radio buttons.
+ */
+function OrbitMark({ size = 56 }: { size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 56 56" fill="none">
+      <G>
+        <Circle cx="28" cy="28" r="20" stroke={orbit.accent} strokeWidth={1.5} opacity={0.35} />
+        <Circle cx="28" cy="28" r="8" fill={orbit.accent} />
+        <Circle cx="46" cy="22" r="3" fill={orbit.accent} />
+      </G>
+    </Svg>
+  );
+}
+
 export default function Welcome() {
-  const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
   return (
-    <View style={[styles.root, { backgroundColor: colors.background }]}>
-      <LinearGradient
-        colors={["#2481CC33", "transparent"]}
-        style={StyleSheet.absoluteFill}
-      />
-
-      <View style={[styles.top, { paddingTop: insets.top + 56 }]}>
-        <View style={[styles.logoOuter, { borderColor: colors.primary + "33" }]}>
-          <View style={[styles.logoRing, { borderColor: colors.primary }]}>
-            <View style={[styles.logoDot, { backgroundColor: colors.primary }]} />
-          </View>
-        </View>
-        <Text style={[styles.brand, { color: colors.text }]}>ORBIT</Text>
-        <Text style={[styles.tagline, { color: colors.sub }]}>
-          Your digital neighborhood.{"\n"}Rooms, reputation, rewards.
+    <View style={[styles.root, { backgroundColor: orbit.bg }]}>
+      <View style={[styles.top, { paddingTop: insets.top + 64 }]}>
+        <OrbitMark size={56} />
+        <Text style={styles.brand}>Orbit</Text>
+        <Text style={styles.tagline}>
+          Your digital neighborhood.
         </Text>
       </View>
 
       <View style={styles.middle}>
         {FEATURES.map((f) => (
-          <View
-            key={f.title}
-            style={[
-              styles.feat,
-              { backgroundColor: colors.surface, borderColor: colors.border },
-            ]}
-          >
-            <View
-              style={[
-                styles.featIcon,
-                { backgroundColor: colors.background },
-              ]}
-            >
-              <Text style={styles.featEmoji}>{f.emoji}</Text>
+          <View key={f.title} style={styles.feat}>
+            <View style={styles.featIcon}>
+              <Feather name={f.icon} size={20} color={orbit.textPrimary} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.featTitle, { color: colors.text }]}>
-                {f.title}
-              </Text>
-              <Text style={[styles.featDesc, { color: colors.sub }]}>
-                {f.desc}
-              </Text>
+              <Text style={styles.featTitle}>{f.title}</Text>
+              <Text style={styles.featDesc}>{f.desc}</Text>
             </View>
           </View>
         ))}
@@ -87,18 +79,19 @@ export default function Welcome() {
           style={({ pressed }) => [
             styles.cta,
             {
-              backgroundColor: colors.primary,
-              opacity: pressed ? 0.85 : 1,
+              opacity: pressed ? 0.92 : 1,
               transform: [{ scale: pressed ? 0.98 : 1 }],
             },
           ]}
         >
           <Text style={styles.ctaText}>Continue with Phone</Text>
         </Pressable>
-        <Text style={[styles.legal, { color: colors.mutedForeground }]}>
+        <Text style={styles.legal}>
           By continuing, you agree to our{" "}
-          <Text style={{ color: colors.primary }}>Terms</Text> and{" "}
-          <Text style={{ color: colors.primary }}>Privacy Policy</Text>.
+          <Text style={styles.legalLink}>Terms</Text>
+          {"  ·  "}
+          <Text style={styles.legalLink}>Privacy</Text>
+          {"\n"}Protected by reCAPTCHA.
         </Text>
       </View>
     </View>
@@ -106,38 +99,21 @@ export default function Welcome() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, paddingHorizontal: 24 },
-  top: { alignItems: "center", paddingBottom: 24 },
-  logoOuter: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 20,
-  },
-  logoRing: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    borderWidth: 2,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  logoDot: { width: 28, height: 28, borderRadius: 14 },
+  root: { flex: 1, paddingHorizontal: 20 },
+  top: { alignItems: "center", paddingBottom: 32 },
   brand: {
-    fontSize: 38,
-    fontWeight: "800",
-    letterSpacing: 4,
-    fontFamily: "Inter_700Bold",
+    color: orbit.textPrimary,
+    fontSize: 32,
+    fontWeight: "700",
+    letterSpacing: -0.8,
+    marginTop: 20,
   },
   tagline: {
-    marginTop: 10,
-    fontSize: 14,
+    color: orbit.textSecond,
+    marginTop: 8,
+    fontSize: 15,
     textAlign: "center",
-    maxWidth: 280,
-    lineHeight: 21,
+    lineHeight: 22,
   },
   middle: { flex: 1, justifyContent: "center", gap: 12 },
   feat: {
@@ -146,24 +122,50 @@ const styles = StyleSheet.create({
     gap: 14,
     padding: 16,
     borderRadius: 16,
+    backgroundColor: orbit.surface1,
     borderWidth: 1,
+    borderColor: orbit.borderSubtle,
   },
   featIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: orbit.surface2,
     alignItems: "center",
     justifyContent: "center",
   },
-  featEmoji: { fontSize: 22 },
-  featTitle: { fontSize: 15, fontWeight: "700", marginBottom: 3 },
-  featDesc: { fontSize: 12.5, lineHeight: 17 },
+  featTitle: {
+    color: orbit.textPrimary,
+    fontSize: 15,
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  featDesc: {
+    color: orbit.textSecond,
+    fontSize: 13,
+    lineHeight: 18,
+  },
   bottom: { paddingTop: 20, gap: 14 },
   cta: {
-    paddingVertical: 17,
-    borderRadius: 14,
+    backgroundColor: orbit.accent,
+    paddingVertical: 16,
+    borderRadius: 12,
     alignItems: "center",
   },
-  ctaText: { color: "#fff", fontSize: 16, fontWeight: "700", letterSpacing: 0.3 },
-  legal: { fontSize: 11.5, textAlign: "center", lineHeight: 16 },
+  ctaText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "600",
+    letterSpacing: 0.2,
+  },
+  legal: {
+    color: orbit.textTertiary,
+    fontSize: 11,
+    textAlign: "center",
+    lineHeight: 17,
+  },
+  legalLink: {
+    color: orbit.textSecond,
+    fontWeight: "500",
+  },
 });
