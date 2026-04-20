@@ -169,3 +169,126 @@ export function subscribeUser(
       () => onChange(null)
     );
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   v2 additions — edit-profile helpers
+   ═══════════════════════════════════════════════════════════════════ */
+
+/**
+ * Update profile-editable fields only.
+ * Separate from updateUser() so callers can't accidentally overwrite
+ * system-managed fields (credits, karma, badge, etc.).
+ */
+export async function updateProfile(
+  uid: string,
+  patch: {
+    displayName?: string | null;
+    bio?: string;
+    region?: string | null;
+    color?: string;
+  }
+): Promise<void> {
+  // Sanitize
+  const safe: Record<string, any> = {};
+  if ('displayName' in patch) safe.displayName = patch.displayName ?? null;
+  if ('bio'         in patch) safe.bio         = (patch.bio ?? '').slice(0, 120);
+  if ('region'      in patch) safe.region      = patch.region ?? null;
+  if ('color'       in patch) safe.color       = patch.color;
+
+  if (Object.keys(safe).length === 0) return;
+  await firestore()
+    .collection(USERS)
+    .doc(uid)
+    .update({ ...safe, updatedAt: serverTimestamp() });
+}
+
+/**
+ * Increment karma by `delta`. Used when:
+ *   - User posts a helpful reply     (+karma)
+ *   - User wins a weekly challenge   (+bonus)
+ *   - User receives a downvote       (-karma)
+ *   - Moderation action              (-karma)
+ */
+export async function addKarma(uid: string, delta: number): Promise<void> {
+  const db   = firestore();
+  const ref  = db.collection(USERS).doc(uid);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) return;
+    const doc  = snap.data() as UserDoc;
+    const next = Math.max(0, (doc.karma ?? 0) + delta);
+    tx.update(ref, { karma: next, updatedAt: serverTimestamp() });
+  });
+}
+
+/**
+ * Debit credits. Returns false if the user doesn't have enough.
+ * Used by: send DM, join spotlight, unlock feature.
+ */
+export async function debitCredits(
+  uid: string,
+  amount: number
+): Promise<boolean> {
+  const db  = firestore();
+  const ref = db.collection(USERS).doc(uid);
+  let success = false;
+
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) return;
+    const doc = snap.data() as UserDoc;
+    if ((doc.credits ?? 0) < amount) { success = false; return; }
+    tx.update(ref, {
+      credits: (doc.credits ?? 0) - amount,
+      updatedAt: serverTimestamp(),
+    });
+    success = true;
+  });
+
+  return success;
+}
+
+/**
+ * Credit the user (e.g. watching a sponsored post, winning a challenge).
+ */
+export async function creditUser(uid: string, amount: number): Promise<void> {
+  const db  = firestore();
+  const ref = db.collection(USERS).doc(uid);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) return;
+    const doc = snap.data() as UserDoc;
+    tx.update(ref, {
+      credits: (doc.credits ?? 0) + amount,
+      updatedAt: serverTimestamp(),
+    });
+  });
+}
+
+/**
+ * Increment the user's post count after a successful publish.
+ */
+export async function incrementPosts(uid: string): Promise<void> {
+  const db  = firestore();
+  const ref = db.collection(USERS).doc(uid);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) return;
+    const doc = snap.data() as UserDoc;
+    tx.update(ref, { posts: (doc.posts ?? 0) + 1, updatedAt: serverTimestamp() });
+  });
+}
+
+/**
+ * Increment the watch count (called each time a sponsored post is watched).
+ */
+export async function incrementWatches(uid: string): Promise<void> {
+  const db  = firestore();
+  const ref = db.collection(USERS).doc(uid);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) return;
+    const doc = snap.data() as UserDoc;
+    tx.update(ref, { watches: (doc.watches ?? 0) + 1, updatedAt: serverTimestamp() });
+  });
+}
