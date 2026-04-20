@@ -13,13 +13,20 @@
  *     inbox list renders in a single read — blueprint §07 denormalization.
  *
  * Phase 1 keeps it 1:1 only. Group DMs (> 2 participants) ship in Phase 2.
+ *
+ * ─── FIX v2 ────────────────────────────────────────────────────────────
+ * Added `snapExists()` helper to handle cross-platform `.exists` difference:
+ *   - @react-native-firebase  →  snap.exists()  (function)
+ *   - firebase/compat (web)   →  snap.exists    (boolean property)
+ * All previous `snap.exists()` calls replaced with `snapExists(snap)`.
+ * ────────────────────────────────────────────────────────────────────────
  */
 
 import { firestore, increment, serverTimestamp } from "@/lib/firebase";
 
 export type DMThreadDoc = {
   id: string;
-  participants: string[];          // always sorted + length 2
+  participants: string[]; // always sorted + length 2
   /** uid -> small public profile shard (avoids a second read per thread) */
   participantProfiles: Record<
     string,
@@ -35,6 +42,17 @@ export type DMThreadDoc = {
 
 const DM = "dmThreads";
 
+/* ─────────────────────────────────────────────────────────────────────
+   Cross-platform .exists helper
+   @react-native-firebase  → snap.exists() is a function
+   firebase/compat (web)   → snap.exists  is a boolean property
+   Calling snap.exists() on web throws TypeError — this helper fixes it.
+───────────────────────────────────────────────────────────────────── */
+function snapExists(snap: any): boolean {
+  if (typeof snap.exists === "function") return snap.exists();
+  return !!snap.exists;
+}
+
 /** Build the canonical thread id from any two uids. */
 export function buildThreadId(uidA: string, uidB: string): string {
   return [uidA, uidB].sort().join("_");
@@ -43,7 +61,7 @@ export function buildThreadId(uidA: string, uidB: string): string {
 /** Fetch one thread. */
 export async function getThread(threadId: string): Promise<DMThreadDoc | null> {
   const snap = await firestore().collection(DM).doc(threadId).get();
-  if (!snap.exists()) return null;
+  if (!snapExists(snap)) return null;
   return { id: snap.id, ...(snap.data() as Omit<DMThreadDoc, "id">) };
 }
 
@@ -58,7 +76,7 @@ export function subscribeThread(
     .onSnapshot(
       (snap) =>
         onChange(
-          snap.exists()
+          snapExists(snap)
             ? { id: snap.id, ...(snap.data() as Omit<DMThreadDoc, "id">) }
             : null
         ),
@@ -101,7 +119,7 @@ export async function ensureThread(args: {
   const threadId = buildThreadId(args.me.uid, args.other.uid);
   const ref = firestore().collection(DM).doc(threadId);
   const snap = await ref.get();
-  if (snap.exists()) return threadId;
+  if (snapExists(snap)) return threadId;
 
   const participants = [args.me.uid, args.other.uid].sort();
   await ref.set({
