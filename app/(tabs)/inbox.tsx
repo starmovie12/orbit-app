@@ -60,7 +60,7 @@ export default function InboxScreen() {
       <ScreenHeader
         title="Inbox"
         right={
-          <TouchableOpacity hitSlop={8}>
+          <TouchableOpacity hitSlop={8} accessibilityRole="button" accessibilityLabel="New message">
             <Feather name="edit" size={20} color={orbit.textSecond} />
           </TouchableOpacity>
         }
@@ -124,7 +124,7 @@ const styles = StyleSheet.create({
   listPreview: {
     flex: 1,
     color: orbit.textSecond,
-    fontSize: 13,
+    fontSize: 14,
     lineHeight: 18,
   },
   unreadBadge: {
@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
   },
   unreadText: {
-    color: '#FFFFFF',
+    color: orbit.white,
     fontSize: 11,
     fontWeight: '700',
   },
