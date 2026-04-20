@@ -7,6 +7,13 @@
  * Blueprint §07: denormalized lastMessage fields so the rooms list
  * can render without a per-room sub-query. memberCount is bumped via
  * Cloud Functions later — for Phase 1 it's just a manual/seeded number.
+ *
+ * ─── FIX v2 ────────────────────────────────────────────────────────────
+ * Added `snapExists()` helper to handle cross-platform `.exists` difference:
+ *   - @react-native-firebase  →  snap.exists()  (function)
+ *   - firebase/compat (web)   →  snap.exists    (boolean property)
+ * All previous `snap.exists()` calls replaced with `snapExists(snap)`.
+ * ────────────────────────────────────────────────────────────────────────
  */
 
 import { firestore, serverTimestamp } from "@/lib/firebase";
@@ -25,7 +32,7 @@ export type RoomDoc = {
   memberCount: number;
   /** Denormalized preview fields for the rooms list */
   lastMessagePreview: string;
-  lastMessageAt: unknown | null;      // Firestore Timestamp
+  lastMessageAt: unknown | null; // Firestore Timestamp
   lastMessageUid: string | null;
   lastMessageUsername: string | null;
   isLive: boolean;
@@ -37,10 +44,21 @@ export type RoomDoc = {
 
 const ROOMS = "rooms";
 
+/* ─────────────────────────────────────────────────────────────────────
+   Cross-platform .exists helper
+   @react-native-firebase  → snap.exists() is a function
+   firebase/compat (web)   → snap.exists  is a boolean property
+   Calling snap.exists() on web throws TypeError — this helper fixes it.
+───────────────────────────────────────────────────────────────────── */
+function snapExists(snap: any): boolean {
+  if (typeof snap.exists === "function") return snap.exists();
+  return !!snap.exists;
+}
+
 /** Fetch one room by id. */
 export async function getRoom(roomId: string): Promise<RoomDoc | null> {
   const snap = await firestore().collection(ROOMS).doc(roomId).get();
-  if (!snap.exists()) return null;
+  if (!snapExists(snap)) return null;
   return { id: snap.id, ...(snap.data() as Omit<RoomDoc, "id">) };
 }
 
@@ -81,7 +99,7 @@ export function subscribeRoom(
     .onSnapshot(
       (snap) =>
         onChange(
-          snap.exists()
+          snapExists(snap)
             ? { id: snap.id, ...(snap.data() as Omit<RoomDoc, "id">) }
             : null
         ),
