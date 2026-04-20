@@ -11,44 +11,43 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { BAZAAR_GIGS, BAZAAR_CATEGORIES } from '@/constants/data';
-import { ScreenHeader, SearchBar, IconBox } from '@/components/shared';
+import { ScreenHeader, SearchBar } from '@/components/shared';
 import { orbit } from '@/constants/colors';
 
 function GigCard({ item }: { item: typeof BAZAAR_GIGS[0] }) {
   return (
-    <TouchableOpacity style={styles.gigCard} activeOpacity={0.85}>
-      <View style={styles.gigTop}>
-        <IconBox icon={item.icon} size={48} />
-        <View style={styles.gigInfo}>
-          <Text style={styles.gigTitle} numberOfLines={2}>{item.title}</Text>
-          <Text style={styles.gigSeller}>by @{item.seller}</Text>
-          <View style={styles.gigMeta}>
-            <Feather name="star" size={11} color={orbit.warning} />
-            <Text style={styles.ratingText}>{item.rating.toFixed(1)}</Text>
-            <Text style={styles.gigReviews}>({item.reviews})</Text>
-            <Text style={styles.gigDot}>·</Text>
-            <Text style={styles.gigDelivery}>{item.delivery}</Text>
-          </View>
-        </View>
+    <TouchableOpacity
+      style={styles.gigCard}
+      activeOpacity={0.85}
+      accessibilityRole="button"
+      accessibilityLabel={`${item.title} by ${item.seller}, starting at ₹${item.price}`}
+    >
+      {/* Cover area — icon on surface2, 16:10 aspect */}
+      <View style={styles.gigCover}>
+        <Feather name={item.icon as any} size={28} color={orbit.textSecond} />
       </View>
 
-      <View style={styles.gigTagRow}>
-        {item.tags.map((tag, i) => (
-          <View key={i} style={styles.gigTag}>
-            <Text style={styles.gigTagText}>{tag}</Text>
-          </View>
-        ))}
-      </View>
+      <View style={styles.gigBody}>
+        <Text style={styles.gigTitle} numberOfLines={2}>{item.title}</Text>
 
-      <View style={styles.gigBottom}>
-        <View>
-          <Text style={styles.gigPriceLabel}>STARTING AT</Text>
-          <Text style={styles.gigPrice}>₹{item.price.toLocaleString()}</Text>
+        <View style={styles.gigSellerRow}>
+          <View style={styles.gigSellerAvatar}>
+            <Text style={styles.gigSellerAvatarText}>
+              {item.seller.slice(0, 2).toUpperCase()}
+            </Text>
+          </View>
+          <Text style={styles.gigSeller} numberOfLines={1}>@{item.seller}</Text>
         </View>
-        <TouchableOpacity style={styles.gigContactBtn} activeOpacity={0.85}>
-          <Text style={styles.gigContactText}>Contact</Text>
-          <Feather name="arrow-right" size={14} color="#FFFFFF" style={{ marginLeft: 6 }} />
-        </TouchableOpacity>
+
+        <View style={styles.gigMeta}>
+          <Feather name="star" size={11} color={orbit.warning} />
+          <Text style={styles.ratingText}>{item.rating.toFixed(1)}</Text>
+          <Text style={styles.gigReviews}>({item.reviews})</Text>
+        </View>
+
+        <View style={styles.gigPricePill}>
+          <Text style={styles.gigPriceText}>₹{item.price.toLocaleString()}</Text>
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -76,7 +75,7 @@ export default function BazaarScreen() {
         title="Bazaar"
         right={
           <TouchableOpacity style={styles.postBtn} activeOpacity={0.85}>
-            <Feather name="plus" size={14} color="#FFFFFF" />
+            <Feather name="plus" size={14} color={orbit.white} />
             <Text style={styles.postBtnText}>Post Gig</Text>
           </TouchableOpacity>
         }
@@ -118,6 +117,8 @@ export default function BazaarScreen() {
         data={filtered}
         keyExtractor={i => i.id}
         renderItem={({ item }) => <GigCard item={item} />}
+        numColumns={2}
+        columnWrapperStyle={{ gap: 12 }}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.listContent, { paddingBottom: bottomPad }]}
         ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
@@ -138,8 +139,8 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   postBtnText: {
-    color: '#FFFFFF',
-    fontSize: 13,
+    color: orbit.white,
+    fontSize: 14,
     fontWeight: '600',
   },
   categoryRow: { flexGrow: 0 },
@@ -179,36 +180,63 @@ const styles = StyleSheet.create({
     paddingTop: 4,
   },
 
-  /* Gig card */
+  /* Gig card — 2-column grid optimized */
   gigCard: {
+    flex: 1,
     backgroundColor: orbit.surface1,
     borderWidth: 1,
     borderColor: orbit.borderSubtle,
     borderRadius: 16,
-    padding: 16,
+    overflow: 'hidden',
   },
-  gigTop: {
-    flexDirection: 'row',
-    marginBottom: 12,
-    gap: 12,
+  gigCover: {
+    width: '100%',
+    aspectRatio: 16 / 10,
+    backgroundColor: orbit.surface2,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  gigInfo: { flex: 1 },
+  gigBody: {
+    padding: 12,
+  },
   gigTitle: {
     color: orbit.textPrimary,
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
-    lineHeight: 20,
-    marginBottom: 4,
+    lineHeight: 19,
+    marginBottom: 8,
+    minHeight: 38,
+  },
+  gigSellerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 6,
+  },
+  gigSellerAvatar: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: orbit.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gigSellerAvatarText: {
+    color: orbit.white,
+    fontSize: 9,
+    fontWeight: '700',
   },
   gigSeller: {
+    flex: 1,
     color: orbit.textSecond,
     fontSize: 12,
-    marginBottom: 6,
+    fontWeight: '500',
   },
   gigMeta: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    marginBottom: 10,
   },
   ratingText: {
     color: orbit.textPrimary,
@@ -220,60 +248,17 @@ const styles = StyleSheet.create({
     color: orbit.textTertiary,
     fontSize: 12,
   },
-  gigDot: {
-    color: orbit.textTertiary,
+  gigPricePill: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(91, 127, 255, 0.10)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  gigPriceText: {
+    color: orbit.accent,
     fontSize: 12,
-  },
-  gigDelivery: {
-    color: orbit.textTertiary,
-    fontSize: 12,
-  },
-  gigTagRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginBottom: 14,
-  },
-  gigTag: {
-    backgroundColor: orbit.surface2,
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  gigTagText: {
-    color: orbit.textSecond,
-    fontSize: 11,
-    fontWeight: '500',
-  },
-  gigBottom: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-  },
-  gigPriceLabel: {
-    color: orbit.textTertiary,
-    fontSize: 10,
-    fontWeight: '600',
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  gigPrice: {
-    color: orbit.textPrimary,
-    fontSize: 22,
     fontWeight: '700',
-    letterSpacing: -0.5,
-  },
-  gigContactBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: orbit.accent,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 10,
-  },
-  gigContactText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '600',
+    letterSpacing: -0.2,
   },
 });
