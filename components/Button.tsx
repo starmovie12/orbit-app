@@ -23,7 +23,10 @@ import {
   ViewStyle,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import type { ComponentProps } from "react";
 import { orbit } from "@/constants/colors";
+
+export type FeatherIconName = ComponentProps<typeof Feather>["name"];
 
 export type ButtonVariant = "primary" | "secondary" | "ghost" | "destructive";
 export type ButtonSize = "sm" | "md" | "lg";
@@ -33,8 +36,8 @@ export type ButtonProps = {
   onPress?: () => void;
   variant?: ButtonVariant;
   size?: ButtonSize;
-  icon?: any;            // Feather icon name, rendered left of label
-  iconRight?: any;       // Feather icon name, rendered right of label
+  icon?: FeatherIconName;    // Feather icon name, rendered left of label
+  iconRight?: FeatherIconName; // Feather icon name, rendered right of label
   disabled?: boolean;
   loading?: boolean;
   fullWidth?: boolean;
