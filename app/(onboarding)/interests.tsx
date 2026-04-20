@@ -126,8 +126,8 @@ export default function InterestsScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   head: { paddingHorizontal: 24, gap: 12, paddingBottom: 16 },
-  title: { fontSize: 26, fontWeight: "800", marginTop: 16 },
-  sub: { fontSize: 13, lineHeight: 19 },
+  title: { fontSize: 24, fontWeight: "700", marginTop: 16, letterSpacing: -0.4 },
+  sub: { fontSize: 14, lineHeight: 19 },
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -144,7 +144,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
-  chipLabel: { fontSize: 13, fontWeight: "600" },
+  chipLabel: { fontSize: 14, fontWeight: "600" },
   footer: { paddingHorizontal: 24, paddingTop: 10, gap: 8 },
   counter: { fontSize: 12, textAlign: "center" },
   cta: { paddingVertical: 16, borderRadius: 14, alignItems: "center" },
