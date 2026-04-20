@@ -1,0 +1,346 @@
+/**
+ * ORBIT — globals.css
+ * Tailwind base layer + design token utility mappings.
+ * Import ORDER: tokens.css → globals.css → component styles
+ *
+ * Naming convention: bg-surface-1 maps to var(--bg-surface-1), etc.
+ * This file bridges the CSS variable system with Tailwind utility classes.
+ */
+
+@import "./tokens.css";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   BASE RESET
+───────────────────────────────────────────────────────────────────────────── */
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+    border-color: var(--border-subtle);
+  }
+
+  html {
+    font-family: var(--font-sans);
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    background-color: var(--bg-base);
+    color: var(--text-primary);
+    min-height: 100dvh;
+    overflow-x: hidden;
+  }
+
+  /* Remove default focus outline — we'll use our own */
+  :focus {
+    outline: none;
+  }
+
+  /* WCAG-compliant keyboard focus ring */
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Numeric tokens get tabular figures */
+  [data-numeric],
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+
+  /* Scrollbar — dark, minimal */
+  ::-webkit-scrollbar             { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track       { background: transparent; }
+  ::-webkit-scrollbar-thumb       { background: var(--border-strong); border-radius: var(--radius-pill); }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   BACKGROUND UTILITIES  →  var()
+───────────────────────────────────────────────────────────────────────────── */
+@layer utilities {
+  .bg-base         { background-color: var(--bg-base); }
+  .bg-surface-1    { background-color: var(--bg-surface-1); }
+  .bg-surface-2    { background-color: var(--bg-surface-2); }
+  .bg-surface-3    { background-color: var(--bg-surface-3); }
+  .bg-accent       { background-color: var(--accent); }
+  .bg-accent-soft  { background-color: var(--accent-soft); }
+  .bg-success-soft { background-color: var(--success-soft); }
+  .bg-warning-soft { background-color: var(--warning-soft); }
+  .bg-danger-soft  { background-color: var(--danger-soft); }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   TEXT UTILITIES
+───────────────────────────────────────────────────────────────────────────── */
+  .text-primary   { color: var(--text-primary); }
+  .text-secondary { color: var(--text-secondary); }
+  .text-tertiary  { color: var(--text-tertiary); }
+  .text-inverse   { color: var(--text-inverse); }
+  .text-accent    { color: var(--accent); }
+  .text-success   { color: var(--success); }
+  .text-warning   { color: var(--warning); }
+  .text-danger    { color: var(--danger); }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   BORDER UTILITIES
+───────────────────────────────────────────────────────────────────────────── */
+  .border-subtle  { border-color: var(--border-subtle); }
+  .border-strong  { border-color: var(--border-strong); }
+  .border-accent  { border-color: var(--accent); }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   TYPOGRAPHY UTILITIES
+───────────────────────────────────────────────────────────────────────────── */
+  .text-display {
+    font-size: var(--text-display-size);
+    line-height: var(--text-display-lh);
+    font-weight: var(--text-display-weight);
+    letter-spacing: -0.01em;
+  }
+
+  .text-h1 {
+    font-size: var(--text-h1-size);
+    line-height: var(--text-h1-lh);
+    font-weight: var(--text-h1-weight);
+    letter-spacing: var(--text-h1-tracking);
+  }
+
+  .text-h2 {
+    font-size: var(--text-h2-size);
+    line-height: var(--text-h2-lh);
+    font-weight: var(--text-h2-weight);
+    letter-spacing: var(--text-h2-tracking);
+  }
+
+  .text-h3 {
+    font-size: var(--text-h3-size);
+    line-height: var(--text-h3-lh);
+    font-weight: var(--text-h3-weight);
+  }
+
+  .text-body-l {
+    font-size: var(--text-body-l-size);
+    line-height: var(--text-body-l-lh);
+    font-weight: var(--text-body-l-weight);
+  }
+
+  .text-body-m {
+    font-size: var(--text-body-m-size);
+    line-height: var(--text-body-m-lh);
+    font-weight: var(--text-body-m-weight);
+  }
+
+  .text-caption {
+    font-size: var(--text-caption-size);
+    line-height: var(--text-caption-lh);
+    font-weight: var(--text-caption-weight);
+  }
+
+  .text-overline {
+    font-size: var(--text-overline-size);
+    line-height: var(--text-overline-lh);
+    font-weight: var(--text-overline-weight);
+    letter-spacing: var(--text-overline-tracking);
+    text-transform: uppercase;
+  }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   BORDER RADIUS UTILITIES
+───────────────────────────────────────────────────────────────────────────── */
+  .rounded-btn    { border-radius: var(--radius-btn); }
+  .rounded-input  { border-radius: var(--radius-input); }
+  .rounded-card   { border-radius: var(--radius-card); }
+  .rounded-sheet  { border-radius: var(--radius-sheet) var(--radius-sheet) 0 0; }
+  .rounded-modal  { border-radius: var(--radius-modal); }
+  .rounded-avatar { border-radius: var(--radius-avatar); }
+  .rounded-pill   { border-radius: var(--radius-pill); }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SHADOW UTILITIES (floating elements only — not cards in dark mode)
+───────────────────────────────────────────────────────────────────────────── */
+  .shadow-orbit-sm { box-shadow: var(--shadow-sm); }
+  .shadow-orbit-md { box-shadow: var(--shadow-md); }
+  .shadow-orbit-lg { box-shadow: var(--shadow-lg); }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SCREEN LAYOUT UTILITIES
+───────────────────────────────────────────────────────────────────────────── */
+  .screen-px    { padding-left: var(--screen-px); padding-right: var(--screen-px); }
+  .card-p       { padding: var(--card-p); }
+  .section-gap  { gap: var(--section-gap); }
+  .block-gap    { gap: var(--block-gap); }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   TOUCH TARGET UTILITIES
+───────────────────────────────────────────────────────────────────────────── */
+  .touch-target {
+    min-width:  var(--touch-min);
+    min-height: var(--touch-min);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .touch-nav {
+    min-width:  var(--touch-nav);
+    min-height: var(--touch-nav);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   COMPONENT LAYER — reusable primitives
+───────────────────────────────────────────────────────────────────────────── */
+@layer components {
+
+  /* Divider */
+  .divider {
+    height: 1px;
+    background-color: var(--border-subtle);
+    border: none;
+    margin: 0;
+  }
+
+  /* ── Skeleton shimmer ─────────────────────────────────────────────────── */
+  .skeleton {
+    background-color: var(--bg-surface-2);
+    border-radius: var(--radius-card);
+    overflow: hidden;
+    position: relative;
+  }
+  .skeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255,255,255,0.04) 50%,
+      transparent 100%
+    );
+    animation: shimmer 1.4s ease-in-out infinite;
+  }
+  @keyframes shimmer {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+
+  /* ── Button press micro-interaction ──────────────────────────────────── */
+  .btn-press {
+    transition: transform var(--duration-micro) var(--ease-out),
+                background-color var(--duration-base) var(--ease-out);
+  }
+  .btn-press:active {
+    transform: scale(0.97);
+  }
+
+  /* ── Bottom sheet backdrop ───────────────────────────────────────────── */
+  .sheet-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 40;
+  }
+
+  /* ── Toast ───────────────────────────────────────────────────────────── */
+  .toast {
+    position: fixed;
+    bottom: calc(var(--space-4) + env(safe-area-inset-bottom));
+    left: var(--screen-px);
+    right: var(--screen-px);
+    background-color: var(--bg-surface-3);
+    color: var(--text-primary);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-lg);
+    z-index: 50;
+    animation: toast-in var(--duration-sheet) var(--ease-out) forwards;
+  }
+  @keyframes toast-in {
+    from { transform: translateY(16px); opacity: 0; }
+    to   { transform: translateY(0);    opacity: 1; }
+  }
+
+  /* ── Page transition ─────────────────────────────────────────────────── */
+  .page-enter {
+    animation: page-enter var(--duration-sheet) var(--ease-out) forwards;
+  }
+  @keyframes page-enter {
+    from { transform: translateY(8px); opacity: 0; }
+    to   { transform: translateY(0);   opacity: 1; }
+  }
+
+  /* Tab content fade */
+  .tab-fade-in {
+    animation: tab-fade-in var(--duration-base) var(--ease-out) forwards;
+  }
+  @keyframes tab-fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  /* ── Accent "YOU" row (leaderboard) ──────────────────────────────────── */
+  .you-row {
+    background-color: var(--accent-soft);
+    border-left: 2px solid var(--accent);
+  }
+
+  /* ── Orbit card gradient border ──────────────────────────────────────── */
+  .orbit-card-border {
+    border: 1px solid transparent;
+    background-image:
+      linear-gradient(var(--bg-surface-1), var(--bg-surface-1)),
+      linear-gradient(135deg, var(--accent), var(--accent-soft));
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+  }
+
+  /* ── Icon box (settings list items) ─────────────────────────────────── */
+  .icon-box {
+    width:  32px;
+    height: 32px;
+    border-radius: 8px;
+    background-color: var(--bg-surface-2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: var(--text-secondary);
+  }
+
+  /* ── Trust score progress bar ────────────────────────────────────────── */
+  .trust-bar-track {
+    height: 6px;
+    background-color: var(--bg-surface-2);
+    border-radius: var(--radius-pill);
+    overflow: hidden;
+  }
+  .trust-bar-fill {
+    height: 100%;
+    border-radius: var(--radius-pill);
+    transition: width 0.6s var(--ease-out);
+  }
+
+  /* ── Ghost pill (tags, interest chips) ──────────────────────────────── */
+  .ghost-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--space-1) var(--space-3);
+    background-color: var(--bg-surface-2);
+    color: var(--text-secondary);
+    border-radius: var(--radius-pill);
+    font-size: var(--text-caption-size);
+    font-weight: var(--text-caption-weight);
+    line-height: var(--text-caption-lh);
+  }
+}

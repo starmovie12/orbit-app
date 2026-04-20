@@ -1,0 +1,186 @@
+/**
+ * ORBIT — Design Tokens v2
+ * Single source of truth for all CSS custom properties.
+ * Import this FIRST, before globals.css, before any component styles.
+ *
+ * Philosophy: Quiet luxury. ONE accent. Hierarchy by space + weight, not color.
+ */
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   DARK THEME (default)
+───────────────────────────────────────────────────────────────────────────── */
+:root,
+[data-theme="dark"] {
+
+  /* ── Surfaces ──────────────────────────────────────────────────────────── */
+  --bg-base:        #0A0A0B;   /* App background — near-black, slight warmth   */
+  --bg-surface-1:   #131316;   /* Cards, list items                            */
+  --bg-surface-2:   #1C1C20;   /* Hovered/elevated surfaces, input fields      */
+  --bg-surface-3:   #26262C;   /* Modals, bottom sheets                        */
+
+  /* ── Borders ───────────────────────────────────────────────────────────── */
+  --border-subtle:  #1F1F24;   /* Hairline dividers (1px)                      */
+  --border-strong:  #2E2E35;   /* Input borders, defined edges                 */
+
+  /* ── Text ──────────────────────────────────────────────────────────────── */
+  --text-primary:   #F5F5F7;   /* Headings, key labels                         */
+  --text-secondary: #A1A1AA;   /* Body, meta info                              */
+  --text-tertiary:  #6B6B73;   /* Timestamps, hints, disabled                  */
+  --text-inverse:   #0A0A0B;   /* Text on filled accent buttons                */
+
+  /* ── Accent (the ONE Orbit blue) ───────────────────────────────────────── */
+  --accent:         #5B7FFF;
+  --accent-hover:   #4A6FF0;
+  --accent-soft:    rgba(91, 127, 255, 0.10);
+  --accent-soft-solid: #16193A; /* Pre-blended — for contexts that can't do rgba */
+
+  /* ── Semantic ──────────────────────────────────────────────────────────── */
+  --success:        #2BB673;
+  --success-soft:   rgba(43, 182, 115, 0.12);
+  --warning:        #E8A33D;
+  --warning-soft:   rgba(232, 163, 61, 0.12);
+  --danger:         #E5484D;
+  --danger-soft:    rgba(229, 72, 77, 0.12);
+
+  /* ── Elevation (use only for floating elements) ────────────────────────── */
+  --shadow-sm:      0 1px 2px  rgba(0, 0, 0, 0.40);
+  --shadow-md:      0 4px 12px rgba(0, 0, 0, 0.35);
+  --shadow-lg:      0 16px 40px rgba(0, 0, 0, 0.45);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   LIGHT THEME
+   Override only what changes — everything not listed stays from :root.
+───────────────────────────────────────────────────────────────────────────── */
+[data-theme="light"] {
+
+  /* ── Surfaces ──────────────────────────────────────────────────────────── */
+  --bg-base:        #F7F7F8;   /* Off-white — never pure #FFFFFF              */
+  --bg-surface-1:   #FFFFFF;   /* Cards, list items                           */
+  --bg-surface-2:   #F0F0F2;   /* Inputs, hover states                        */
+  --bg-surface-3:   #E8E8EC;   /* Modals, sheets                              */
+
+  /* ── Borders ───────────────────────────────────────────────────────────── */
+  --border-subtle:  #E4E4E8;
+  --border-strong:  #CBCBD2;
+
+  /* ── Text ──────────────────────────────────────────────────────────────── */
+  --text-primary:   #0A0A0B;   /* Near-black on white                         */
+  --text-secondary: #52525B;
+  --text-tertiary:  #A1A1AA;
+  --text-inverse:   #FFFFFF;   /* Text on filled accent buttons               */
+
+  /* ── Accent (unchanged — brand consistency) ────────────────────────────── */
+  --accent:         #5B7FFF;
+  --accent-hover:   #4A6FF0;
+  --accent-soft:    rgba(91, 127, 255, 0.10);
+  --accent-soft-solid: #E8ECFF;
+
+  /* ── Semantic ──────────────────────────────────────────────────────────── */
+  --success:        #1DA360;
+  --success-soft:   rgba(29, 163, 96, 0.10);
+  --warning:        #C97D1A;
+  --warning-soft:   rgba(201, 125, 26, 0.10);
+  --danger:         #D93025;
+  --danger-soft:    rgba(217, 48, 37, 0.10);
+
+  /* ── Elevation ─────────────────────────────────────────────────────────── */
+  --shadow-sm:      0 1px 2px  rgba(0, 0, 0, 0.08);
+  --shadow-md:      0 4px 12px rgba(0, 0, 0, 0.10);
+  --shadow-lg:      0 16px 40px rgba(0, 0, 0, 0.14);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   TYPOGRAPHY TOKENS
+   These are theme-independent — they never change between light and dark.
+───────────────────────────────────────────────────────────────────────────── */
+:root {
+  /* Font family */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  /* Type scale */
+  --text-display-size:   32px;
+  --text-display-lh:     38px;
+  --text-display-weight: 700;
+
+  --text-h1-size:        24px;
+  --text-h1-lh:          30px;
+  --text-h1-weight:      700;
+  --text-h1-tracking:    -0.01em;
+
+  --text-h2-size:        20px;
+  --text-h2-lh:          26px;
+  --text-h2-weight:      600;
+  --text-h2-tracking:    -0.01em;
+
+  --text-h3-size:        17px;
+  --text-h3-lh:          22px;
+  --text-h3-weight:      600;
+
+  --text-body-l-size:    15px;
+  --text-body-l-lh:      22px;
+  --text-body-l-weight:  400;
+
+  --text-body-m-size:    14px;
+  --text-body-m-lh:      20px;
+  --text-body-m-weight:  400;
+
+  --text-caption-size:   12px;
+  --text-caption-lh:     16px;
+  --text-caption-weight: 500;
+
+  --text-overline-size:    11px;
+  --text-overline-lh:      14px;
+  --text-overline-weight:  600;
+  --text-overline-tracking: 0.04em;
+
+  /* ── Spacing (4px base grid — no exceptions) ──────────────────────────── */
+  --space-1:   4px;
+  --space-2:   8px;
+  --space-3:   12px;
+  --space-4:   16px;
+  --space-5:   20px;
+  --space-6:   24px;
+  --space-8:   32px;
+  --space-10:  40px;
+  --space-12:  48px;
+  --space-16:  64px;
+
+  /* Standard layout values */
+  --screen-px:         20px;   /* Horizontal screen padding                   */
+  --card-p:            16px;   /* Card inner padding                          */
+  --list-item-py:      14px;   /* List item vertical padding                  */
+  --section-gap:       32px;   /* Between unrelated blocks                    */
+  --block-gap:         20px;   /* Within a block                              */
+  --btn-primary-py:    14px;
+  --btn-primary-px:    20px;
+  --btn-secondary-py:  10px;
+  --btn-secondary-px:  16px;
+
+  /* ── Border Radius ────────────────────────────────────────────────────── */
+  --radius-btn:     12px;
+  --radius-input:   12px;
+  --radius-card:    16px;
+  --radius-avatar:  9999px;
+  --radius-pill:    9999px;
+  --radius-sheet:   24px;      /* Top corners only on bottom sheets           */
+  --radius-modal:   20px;
+
+  /* ── Motion ───────────────────────────────────────────────────────────── */
+  --ease-out:       cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-micro: 80ms;      /* Button press scale                          */
+  --duration-fast:  120ms;     /* Tab fade-out                                */
+  --duration-base:  180ms;     /* Micro-interactions                          */
+  --duration-sheet: 240ms;     /* Bottom sheet, page transitions              */
+  --duration-page:  320ms;     /* Page enter/exit                             */
+
+  /* ── Touch Targets ────────────────────────────────────────────────────── */
+  --touch-min:      44px;
+  --touch-nav:      48px;
+
+  /* ── Icon Sizes ───────────────────────────────────────────────────────── */
+  --icon-inline:    16px;
+  --icon-ui:        20px;
+  --icon-nav:       24px;
+  --icon-stroke:    1.75;
+}
