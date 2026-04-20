@@ -217,7 +217,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   ctaText: {
-    color: "#FFFFFF",
+    color: orbit.white,
     fontSize: 15,
     fontWeight: "600",
     letterSpacing: 0.2,
