@@ -1,4 +1,18 @@
-import React, { useState } from 'react';
+/**
+ * ORBIT — Rooms tab
+ *
+ * Changes from v1 (mock) → v2 (Firestore):
+ *   • Rooms section now reads live from /rooms collection.
+ *   • DM section reads live from /dmThreads where I'm a participant.
+ *   • Tapping a row navigates to /room/{id} or /dm/{threadId}.
+ *   • Falls back to the existing mock data when the user is not yet
+ *     signed in (happens during the splash → guard transition).
+ *
+ * Keeps the original visual layout pixel-for-pixel — only wires up data
+ * sources and adds onPress handlers.
+ */
+
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -9,7 +23,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
-import { ROOMS, DM_CHATS } from '@/constants/data';
+import { useRouter } from 'expo-router';
+import { ROOMS as MOCK_ROOMS, DM_CHATS as MOCK_DMS } from '@/constants/data';
 import {
   ScreenHeader,
   SearchBar,
@@ -19,9 +34,68 @@ import {
   Avatar,
 } from '@/components/shared';
 import { orbit } from '@/constants/colors';
+import { useAuth } from '@/contexts/AuthContext';
+import { subscribeRooms, type RoomDoc } from '@/lib/firestore-rooms';
+import { subscribeMyThreads, type DMThreadDoc } from '@/lib/firestore-dms';
 
-type Room = typeof ROOMS[0];
-type DM = typeof DM_CHATS[0];
+/* ─────────────────────────────────────────────────────────────────────
+   View models — shape rooms.tsx originally rendered. We map both the
+   live Firestore docs and the mock fallback into this shape so the
+   renderers don't have to branch.
+───────────────────────────────────────────────────────────────────── */
+
+type RoomVM = {
+  id: string;
+  icon: string;
+  accent: string;
+  name: string;
+  preview: string;
+  time: string;
+  unread: number;
+  online: number;
+  muted: boolean;
+  isLive: boolean;
+  typing?: string;
+};
+
+type DMVM = {
+  id: string;                           // threadId
+  name: string;                         // other user's username
+  preview: string;
+  time: string;
+  unread: number;
+  status: 'sent' | 'delivered' | 'read' | 'received';
+  online: boolean;
+};
+
+/* ─────────────────────────────────────────────────────────────────────
+   Time formatter — Firestore Timestamp → short relative label.
+───────────────────────────────────────────────────────────────────── */
+function fmtTime(ts: any): string {
+  if (!ts) return '';
+  const d: Date | null =
+    typeof ts?.toDate === 'function' ? ts.toDate() :
+    ts instanceof Date ? ts :
+    null;
+  if (!d) return '';
+  const now = Date.now();
+  const diff = now - d.getTime();
+  if (diff < 60_000) return 'now';
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m`;
+  const sameDay = d.toDateString() === new Date().toDateString();
+  if (sameDay) {
+    return d.toLocaleTimeString('en-IN', {
+      hour: '2-digit', minute: '2-digit', hour12: false,
+    });
+  }
+  const yesterday = new Date(now - 86_400_000).toDateString();
+  if (d.toDateString() === yesterday) return 'Yesterday';
+  return d.toLocaleDateString('en-IN', { weekday: 'short' });
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   Sub-components (unchanged styling)
+───────────────────────────────────────────────────────────────────── */
 
 function LiveDot() {
   return (
@@ -32,10 +106,10 @@ function LiveDot() {
   );
 }
 
-function RoomItem({ item }: { item: Room }) {
+function RoomItem({ item, onPress }: { item: RoomVM; onPress: () => void }) {
   return (
-    <TouchableOpacity style={styles.listItem} activeOpacity={0.7}>
-      <IconBox icon={item.icon} size={44} tint={item.accent} variant="circle" />
+    <TouchableOpacity style={styles.listItem} activeOpacity={0.7} onPress={onPress}>
+      <IconBox icon={item.icon as any} size={44} tint={item.accent} variant="circle" />
 
       <View style={styles.listBody}>
         <View style={styles.listNameRow}>
@@ -70,9 +144,9 @@ function RoomItem({ item }: { item: Room }) {
   );
 }
 
-function DMItem({ item }: { item: DM }) {
+function DMItem({ item, onPress }: { item: DMVM; onPress: () => void }) {
   return (
-    <TouchableOpacity style={styles.listItem} activeOpacity={0.7}>
+    <TouchableOpacity style={styles.listItem} activeOpacity={0.7} onPress={onPress}>
       <Avatar name={item.name} size={44} online={item.online} />
 
       <View style={styles.listBody}>
@@ -98,14 +172,83 @@ function DMItem({ item }: { item: DM }) {
   );
 }
 
+/* ─────────────────────────────────────────────────────────────────────
+   Screen
+───────────────────────────────────────────────────────────────────── */
+
 export default function RoomsScreen() {
   const insets = useSafeAreaInsets();
-  const [search, setSearch] = useState('');
+  const router = useRouter();
+  const { firebaseUser, user } = useAuth();
+  const myUid = firebaseUser?.uid ?? null;
 
-  const filteredRooms = ROOMS.filter(r =>
+  const [search, setSearch] = useState('');
+  const [rooms, setRooms] = useState<RoomVM[] | null>(null);
+  const [dms, setDMs] = useState<DMVM[] | null>(null);
+
+  /* Live rooms — shown to everyone, signed-in or not. */
+  useEffect(() => {
+    const unsub = subscribeRooms((list: RoomDoc[]) => {
+      const vm: RoomVM[] = list.map((r) => ({
+        id: r.id,
+        icon: r.icon,
+        accent: r.accent,
+        name: r.name,
+        preview: r.lastMessagePreview || 'No messages yet',
+        time: fmtTime(r.lastMessageAt),
+        unread: 0,                        // per-room unread lands in Batch 2
+        online: r.memberCount,
+        muted: false,
+        isLive: r.isLive,
+      }));
+      setRooms(vm);
+    });
+    return unsub;
+  }, []);
+
+  /* Live DM threads for me. */
+  useEffect(() => {
+    if (!myUid) { setDMs([]); return; }
+    const unsub = subscribeMyThreads(myUid, (list: DMThreadDoc[]) => {
+      const vm: DMVM[] = list.map((t) => {
+        const otherUid = t.participants.find((p) => p !== myUid) ?? '';
+        const other = t.participantProfiles?.[otherUid];
+        const unread = t.unread?.[myUid] ?? 0;
+        const isMine = t.lastMessageUid === myUid;
+        return {
+          id: t.id,
+          name: other?.username ?? 'Unknown',
+          preview: t.lastMessagePreview || 'Say hi 👋',
+          time: fmtTime(t.lastMessageAt),
+          unread,
+          status: isMine ? 'delivered' : 'received',
+          online: false,               // presence lands in Batch 4
+        };
+      });
+      setDMs(vm);
+    });
+    return unsub;
+  }, [myUid]);
+
+  /* Fallback to mock when collections are still empty or user not loaded.
+     Lets the UI feel alive on first launch before the seed runs. */
+  const roomsForRender: RoomVM[] = useMemo(() => {
+    if (rooms && rooms.length > 0) return rooms;
+    if (rooms === null) return MOCK_ROOMS as unknown as RoomVM[]; // still loading
+    return MOCK_ROOMS as unknown as RoomVM[];                      // empty → show mock
+  }, [rooms]);
+
+  const dmsForRender: DMVM[] = useMemo(() => {
+    if (dms && dms.length > 0) return dms;
+    // When signed in and no threads yet → empty (fair). When signed out, show mock.
+    if (!myUid) return MOCK_DMS as unknown as DMVM[];
+    return [];
+  }, [dms, myUid]);
+
+  const filteredRooms = roomsForRender.filter(r =>
     r.name.toLowerCase().includes(search.toLowerCase())
   );
-  const filteredDMs = DM_CHATS.filter(d =>
+  const filteredDMs = dmsForRender.filter(d =>
     d.name.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -114,8 +257,13 @@ export default function RoomsScreen() {
     { title: 'DIRECT MESSAGES', data: filteredDMs, type: 'dm' as const },
   ].filter(s => s.data.length > 0);
 
-  const totalUnread = ROOMS.reduce((a, r) => a + r.unread, 0) + DM_CHATS.reduce((a, d) => a + d.unread, 0);
+  const totalUnread =
+    roomsForRender.reduce((a, r) => a + (r.unread ?? 0), 0) +
+    dmsForRender.reduce((a, d) => a + (d.unread ?? 0), 0);
   const bottomPad = Platform.OS === 'web' ? 90 : insets.bottom + 70;
+
+  const openRoom = (id: string) => router.push(`/room/${id}` as never);
+  const openDM   = (id: string) => router.push(`/dm/${id}` as never);
 
   return (
     <View style={[styles.screen, { backgroundColor: orbit.bg }]}>
@@ -155,11 +303,11 @@ export default function RoomsScreen() {
 
       <SectionList
         sections={sections}
-        keyExtractor={i => i.id}
+        keyExtractor={(i: any) => i.id}
         renderItem={({ item, section }) =>
           section.type === 'room'
-            ? <RoomItem item={item as Room} />
-            : <DMItem item={item as DM} />
+            ? <RoomItem item={item as RoomVM} onPress={() => openRoom((item as RoomVM).id)} />
+            : <DMItem item={item as DMVM} onPress={() => openDM((item as DMVM).id)} />
         }
         renderSectionHeader={({ section }) => (
           <View style={styles.sectionHeader}>
