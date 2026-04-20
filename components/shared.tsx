@@ -77,7 +77,7 @@ export const Avatar = ({ name, size = 44, online, ringed }: AvatarProps) => {
       >
         <Text
           style={{
-            color: '#FFFFFF',
+            color: orbit.white,
             fontSize,
             fontWeight: '700',
             letterSpacing: -0.3,
@@ -424,7 +424,7 @@ const styles = StyleSheet.create({
   },
   creditPillText: {
     color: orbit.textPrimary,
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
   },
 
@@ -544,7 +544,7 @@ const styles = StyleSheet.create({
   walletInfoText: {
     flex: 1,
     color: orbit.textSecond,
-    fontSize: 13,
+    fontSize: 14,
     lineHeight: 19,
   },
   walletStatsRow: {
@@ -584,7 +584,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   walletTopUpText: {
-    color: '#FFFFFF',
+    color: orbit.white,
     fontSize: 15,
     fontWeight: '600',
   },
