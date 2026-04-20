@@ -7,6 +7,13 @@
  * Blueprint §07 Database Schema: denormalized counters live on user doc,
  * mutated via transactions/increments. Writes are never done without going
  * through these helpers so counters stay consistent.
+ *
+ * ─── FIX v2 ────────────────────────────────────────────────────────────
+ * Added `snapExists()` helper to handle cross-platform `.exists` difference:
+ *   - @react-native-firebase  →  snap.exists()  (function)
+ *   - firebase/compat (web)   →  snap.exists    (boolean property)
+ * All previous `snap.exists()` calls replaced with `snapExists(snap)`.
+ * ────────────────────────────────────────────────────────────────────────
  */
 
 import { firestore, serverTimestamp } from "@/lib/firebase";
@@ -48,6 +55,17 @@ export type UserDoc = {
 const USERS = "users";
 const USERNAMES = "usernames";
 
+/* ─────────────────────────────────────────────────────────────────────
+   Cross-platform .exists helper
+   @react-native-firebase  → snap.exists() is a function
+   firebase/compat (web)   → snap.exists  is a boolean property
+   Calling snap.exists() on web throws TypeError — this helper fixes it.
+───────────────────────────────────────────────────────────────────── */
+function snapExists(snap: any): boolean {
+  if (typeof snap.exists === "function") return snap.exists();
+  return !!snap.exists;
+}
+
 /** Default blank user doc used on first sign-in. */
 export function defaultUser(uid: string, phone: string): UserDoc {
   return {
@@ -81,7 +99,7 @@ export function defaultUser(uid: string, phone: string): UserDoc {
 /** Fetch a user doc. Returns null if missing. */
 export async function getUser(uid: string): Promise<UserDoc | null> {
   const snap = await firestore().collection(USERS).doc(uid).get();
-  if (!snap.exists()) return null;
+  if (!snapExists(snap)) return null;
   return snap.data() as UserDoc;
 }
 
@@ -92,7 +110,7 @@ export async function getUser(uid: string): Promise<UserDoc | null> {
 export async function ensureUser(uid: string, phone: string): Promise<UserDoc> {
   const ref = firestore().collection(USERS).doc(uid);
   const snap = await ref.get();
-  if (snap.exists()) return snap.data() as UserDoc;
+  if (snapExists(snap)) return snap.data() as UserDoc;
   const fresh = defaultUser(uid, phone);
   await ref.set(fresh);
   return fresh;
@@ -129,7 +147,7 @@ export async function claimUsername(
 
   await db.runTransaction(async (tx) => {
     const handleSnap = await tx.get(handleRef);
-    if (handleSnap.exists()) {
+    if (snapExists(handleSnap)) {
       const owner = (handleSnap.data() as { uid?: string })?.uid;
       if (owner && owner !== uid) throw new Error("USERNAME_TAKEN");
     }
@@ -165,7 +183,7 @@ export function subscribeUser(
     .collection(USERS)
     .doc(uid)
     .onSnapshot(
-      (snap) => onChange(snap.exists() ? (snap.data() as UserDoc) : null),
+      (snap) => onChange(snapExists(snap) ? (snap.data() as UserDoc) : null),
       () => onChange(null)
     );
 }
@@ -190,10 +208,10 @@ export async function updateProfile(
 ): Promise<void> {
   // Sanitize
   const safe: Record<string, any> = {};
-  if ('displayName' in patch) safe.displayName = patch.displayName ?? null;
-  if ('bio'         in patch) safe.bio         = (patch.bio ?? '').slice(0, 120);
-  if ('region'      in patch) safe.region      = patch.region ?? null;
-  if ('color'       in patch) safe.color       = patch.color;
+  if ("displayName" in patch) safe.displayName = patch.displayName ?? null;
+  if ("bio" in patch) safe.bio = (patch.bio ?? "").slice(0, 120);
+  if ("region" in patch) safe.region = patch.region ?? null;
+  if ("color" in patch) safe.color = patch.color;
 
   if (Object.keys(safe).length === 0) return;
   await firestore()
@@ -210,12 +228,12 @@ export async function updateProfile(
  *   - Moderation action              (-karma)
  */
 export async function addKarma(uid: string, delta: number): Promise<void> {
-  const db   = firestore();
-  const ref  = db.collection(USERS).doc(uid);
+  const db = firestore();
+  const ref = db.collection(USERS).doc(uid);
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
-    if (!snap.exists()) return;
-    const doc  = snap.data() as UserDoc;
+    if (!snapExists(snap)) return;
+    const doc = snap.data() as UserDoc;
     const next = Math.max(0, (doc.karma ?? 0) + delta);
     tx.update(ref, { karma: next, updatedAt: serverTimestamp() });
   });
@@ -229,15 +247,18 @@ export async function debitCredits(
   uid: string,
   amount: number
 ): Promise<boolean> {
-  const db  = firestore();
+  const db = firestore();
   const ref = db.collection(USERS).doc(uid);
   let success = false;
 
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
-    if (!snap.exists()) return;
+    if (!snapExists(snap)) return;
     const doc = snap.data() as UserDoc;
-    if ((doc.credits ?? 0) < amount) { success = false; return; }
+    if ((doc.credits ?? 0) < amount) {
+      success = false;
+      return;
+    }
     tx.update(ref, {
       credits: (doc.credits ?? 0) - amount,
       updatedAt: serverTimestamp(),
@@ -252,15 +273,14 @@ export async function debitCredits(
  * Credit the user (e.g. watching a sponsored post, winning a challenge).
  */
 export async function creditUser(uid: string, amount: number): Promise<void> {
-  const db  = firestore();
+  const db = firestore();
   const ref = db.collection(USERS).doc(uid);
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
-    if (!snap.exists()) return;
+    if (!snapExists(snap)) return;
     const doc = snap.data() as UserDoc;
     tx.update(ref, {
       credits: (doc.credits ?? 0) + amount,
-      updatedAt: serverTimestamp(),
     });
   });
 }
@@ -269,11 +289,11 @@ export async function creditUser(uid: string, amount: number): Promise<void> {
  * Increment the user's post count after a successful publish.
  */
 export async function incrementPosts(uid: string): Promise<void> {
-  const db  = firestore();
+  const db = firestore();
   const ref = db.collection(USERS).doc(uid);
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
-    if (!snap.exists()) return;
+    if (!snapExists(snap)) return;
     const doc = snap.data() as UserDoc;
     tx.update(ref, { posts: (doc.posts ?? 0) + 1, updatedAt: serverTimestamp() });
   });
@@ -283,11 +303,11 @@ export async function incrementPosts(uid: string): Promise<void> {
  * Increment the watch count (called each time a sponsored post is watched).
  */
 export async function incrementWatches(uid: string): Promise<void> {
-  const db  = firestore();
+  const db = firestore();
   const ref = db.collection(USERS).doc(uid);
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
-    if (!snap.exists()) return;
+    if (!snapExists(snap)) return;
     const doc = snap.data() as UserDoc;
     tx.update(ref, { watches: (doc.watches ?? 0) + 1, updatedAt: serverTimestamp() });
   });
