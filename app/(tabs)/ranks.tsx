@@ -91,11 +91,35 @@ function ActiveChallenges() {
 export default function RanksScreen() {
   const insets = useSafeAreaInsets();
   const [activeTab, setTab] = useState('Global');
+  const [myRowVisible, setMyRowVisible] = useState(true);
+  const flatListRef = React.useRef<FlatList<typeof RANKS_DATA[0]>>(null);
 
   const isWeekly = activeTab === 'Weekly';
   const sortedAll = [...RANKS_DATA].sort((a, b) =>
     isWeekly ? b.weeklyKarma - a.weeklyKarma : a.rank - b.rank
   );
+
+  const myIndex = sortedAll.findIndex(u => u.name === 'ghost_player');
+  const me = myIndex >= 0 ? sortedAll[myIndex] : null;
+
+  const handleViewableItemsChanged = React.useRef(
+    ({ viewableItems }: any) => {
+      const visible = viewableItems.some(
+        (v: any) => v?.item?.name === 'ghost_player'
+      );
+      setMyRowVisible(visible);
+    }
+  ).current;
+
+  const scrollToMe = () => {
+    if (myIndex >= 0 && flatListRef.current) {
+      flatListRef.current.scrollToIndex({
+        index: myIndex,
+        animated: true,
+        viewPosition: 0.4,
+      });
+    }
+  };
 
   const renderRank = ({ item, index }: { item: typeof RANKS_DATA[0]; index: number }) => {
     const displayRank = index + 1;
@@ -173,36 +197,63 @@ export default function RanksScreen() {
           <ActiveChallenges />
         </ScrollView>
       ) : (
-        <FlatList
-          data={sortedAll}
-          keyExtractor={i => i.id}
-          ListHeaderComponent={
-            <>
-              {isWeekly && (
-                <View style={styles.weeklyResetBar}>
-                  <Feather name="clock" size={13} color={orbit.warning} style={{ marginRight: 8 }} />
-                  <Text style={styles.weeklyResetText}>
-                    Resets in 2d 14h · Top 3 win bonus credits
+        <View style={{ flex: 1 }}>
+          <FlatList
+            ref={flatListRef}
+            data={sortedAll}
+            keyExtractor={i => i.id}
+            onViewableItemsChanged={handleViewableItemsChanged}
+            viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
+            ListHeaderComponent={
+              <>
+                {isWeekly && (
+                  <View style={styles.weeklyResetBar}>
+                    <Feather name="clock" size={13} color={orbit.warning} style={{ marginRight: 8 }} />
+                    <Text style={styles.weeklyResetText}>
+                      Resets in 2d 14h · Top 3 win bonus credits
+                    </Text>
+                  </View>
+                )}
+                <View style={styles.podiumStrip}>
+                  {[1, 2, 3].map(r => {
+                    const u = sortedAll[r - 1];
+                    if (!u) return null;
+                    return (
+                      <PodiumColumn key={r} user={u} rank={r} isWeekly={isWeekly} />
+                    );
+                  })}
+                </View>
+                <Divider indent={false} />
+              </>
+            }
+            renderItem={renderRank}
+            ItemSeparatorComponent={() => <Divider indent />}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: bottomPad }}
+          />
+
+          {/* Sticky YOU pill — shows when user's own row is offscreen */}
+          {me && !myRowVisible && (
+            <TouchableOpacity
+              style={[styles.stickyYou, { bottom: (Platform.OS === 'web' ? 96 : insets.bottom + 80) }]}
+              activeOpacity={0.85}
+              onPress={scrollToMe}
+              accessibilityRole="button"
+              accessibilityLabel={`Jump to your rank, #${myIndex + 1}`}
+            >
+              <View style={styles.stickyYouInner}>
+                <Avatar name={me.name} size={28} />
+                <View style={styles.stickyYouTextCol}>
+                  <Text style={styles.stickyYouLabel}>YOU · #{myIndex + 1}</Text>
+                  <Text style={styles.stickyYouKarma}>
+                    {(isWeekly ? me.weeklyKarma : me.karma).toLocaleString()} karma
                   </Text>
                 </View>
-              )}
-              <View style={styles.podiumStrip}>
-                {[1, 2, 3].map(r => {
-                  const u = sortedAll[r - 1];
-                  if (!u) return null;
-                  return (
-                    <PodiumColumn key={r} user={u} rank={r} isWeekly={isWeekly} />
-                  );
-                })}
+                <Feather name="chevron-up" size={18} color={orbit.white} />
               </View>
-              <Divider indent={false} />
-            </>
-          }
-          renderItem={renderRank}
-          ItemSeparatorComponent={() => <Divider indent />}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: bottomPad }}
-        />
+            </TouchableOpacity>
+          )}
+        </View>
       )}
     </View>
   );
@@ -236,7 +287,7 @@ const styles = StyleSheet.create({
   },
   tabText: {
     color: orbit.textTertiary,
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '500',
   },
   tabTextActive: {
@@ -315,7 +366,7 @@ const styles = StyleSheet.create({
   rankNum: {
     width: 28,
     color: orbit.textTertiary,
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
   },
   rankNumMe: {
@@ -343,7 +394,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   youTagText: {
-    color: '#FFFFFF',
+    color: orbit.white,
     fontSize: 9,
     fontWeight: '700',
     letterSpacing: 0.5,
@@ -402,5 +453,43 @@ const styles = StyleSheet.create({
     color: orbit.accent,
     fontSize: 11,
     fontWeight: '600',
+  },
+
+  /* Sticky YOU pill */
+  stickyYou: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
+    alignItems: 'center',
+  },
+  stickyYouInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: orbit.accent,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 28,
+    gap: 12,
+    minWidth: 240,
+    shadowColor: '#000',
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 10,
+  },
+  stickyYouTextCol: {
+    flex: 1,
+  },
+  stickyYouLabel: {
+    color: orbit.white,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  stickyYouKarma: {
+    color: 'rgba(255, 255, 255, 0.85)',
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 2,
   },
 });
