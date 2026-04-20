@@ -1,61 +1,54 @@
 /**
- * AuthContext — single source of truth for:
- *   - Firebase auth state (signed in / out)
- *   - Cached user doc from Firestore
- *   - Loading state while we resolve the first auth snapshot
+ * AuthContext v2 — adds signOut() to the public API.
  *
- * Root `_layout.tsx` wraps the tree in <AuthProvider>, and `useAuth()`
- * reads the state from any screen. The route guard also reads it to
- * decide redirects.
+ * Changes from v1:
+ *   • signOut() tears down the Firestore listener first, then calls
+ *     Firebase signOut so the auth listener fires cleanly.
+ *   • refreshUser() is a no-op hook — the live subscription handles it.
  */
 
 import React, {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
+import { Alert } from "react-native";
 import { auth } from "@/lib/firebase";
+import { signOut as firebaseSignOut } from "@/lib/auth";
 import type { AuthUser } from "@/lib/auth";
-import {
-  ensureUser,
-  subscribeUser,
-  type UserDoc,
-} from "@/lib/firestore-users";
+import { ensureUser, subscribeUser, type UserDoc } from "@/lib/firestore-users";
 
-type AuthState = {
+/* ─── Types ─────────────────────────────────────────────────────────── */
+
+type AuthContextValue = {
   /** `null` = not signed in. `undefined` = still resolving. */
   firebaseUser: AuthUser | null | undefined;
-  /** Firestore user doc. `null` until it's ensured/loaded. */
+  /** Firestore user doc. `null` until ensured/loaded. */
   user: UserDoc | null;
-  /** true while we wait for the first auth snapshot. */
+  /** true while we wait for the first auth snapshot */
   loading: boolean;
-};
-
-type AuthContextValue = AuthState & {
-  /** Force-refresh the cached user doc from Firestore. */
   refreshUser: () => Promise<void>;
+  signOut: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [firebaseUser, setFirebaseUser] = useState<AuthUser | null | undefined>(
-    undefined
-  );
-  const [user, setUser] = useState<UserDoc | null>(null);
-  const [loading, setLoading] = useState(true);
+/* ─── Provider ───────────────────────────────────────────────────────── */
 
-  // Track the active Firestore subscription so we can tear it down on sign-out.
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [firebaseUser, setFirebaseUser] = useState<AuthUser | null | undefined>(undefined);
+  const [user, setUser]                 = useState<UserDoc | null>(null);
+  const [loading, setLoading]           = useState(true);
+
   const unsubUserRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     const unsub = auth().onAuthStateChanged(async (fbUser) => {
       setFirebaseUser(fbUser);
-
-      // Tear down any previous user doc subscription.
       unsubUserRef.current?.();
       unsubUserRef.current = null;
 
@@ -66,11 +59,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
-        // Phone may be null for a beat right after confirm — fall back safely.
         const phone = fbUser.phoneNumber ?? "";
         await ensureUser(fbUser.uid, phone);
 
-        // Subscribe to live doc so onboarding progress reflects instantly.
         unsubUserRef.current = subscribeUser(fbUser.uid, (doc) => {
           setUser(doc);
           setLoading(false);
@@ -87,22 +78,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  const handleSignOut = useCallback(async () => {
+    try {
+      unsubUserRef.current?.();
+      unsubUserRef.current = null;
+      await firebaseSignOut();
+      // auth().onAuthStateChanged will fire with null → triggers route guard redirect
+    } catch (e: any) {
+      Alert.alert("Logout failed", e?.message ?? "Kuch issue hai. Dobara try karo.");
+    }
+  }, []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       firebaseUser,
       user,
       loading,
-      refreshUser: async () => {
-        if (!firebaseUser) return;
-        // The live subscription will push fresh data; this is a no-op hook
-        // for callers that want an explicit refresh touchpoint later.
-      },
+      refreshUser: async () => { /* live sub handles refresh automatically */ },
+      signOut: handleSignOut,
     }),
-    [firebaseUser, user, loading]
+    [firebaseUser, user, loading, handleSignOut]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
+
+/* ─── Hook ───────────────────────────────────────────────────────────── */
 
 export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);
