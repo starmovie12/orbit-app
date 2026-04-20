@@ -18,6 +18,7 @@ import { StatusBar } from "expo-status-bar";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
+import { orbit } from "@/constants/colors";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -115,7 +116,7 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <GestureHandlerRootView style={{ flex: 1 }}>
             <KeyboardProvider>
-              <StatusBar style="light" backgroundColor="#17212B" />
+              <StatusBar style="light" backgroundColor={orbit.bg} />
               <AuthProvider>
                 <SplashGate ready={fontsLoaded || !!fontError}>
                   <RouteGuard />
