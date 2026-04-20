@@ -100,6 +100,3 @@ const colors = {
 
 export default colors;
 export { orbit };
-
-
-export default colors;
