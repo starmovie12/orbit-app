@@ -62,6 +62,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { firestore, serverTimestamp, increment } from "@/lib/firebase";
 import type { RoomDoc } from "@/lib/firestore-rooms";
 
+// Cross-platform Firestore .exists helper (web compat vs native SDK)
+function snapExists(s: any): boolean { return typeof s.exists === 'function' ? s.exists() : !!s.exists; }
+
 /* ─────────────────────────────────────────────────────────────────────
    Agora RTC integration
    ─────────────────────────────────────────────────────────────────────
@@ -566,7 +569,7 @@ export default function LiveScreen() {
       .collection(ROOMS_COL)
       .doc(session.roomId)
       .onSnapshot(snap => {
-        if (snap.exists()) {
+        if (snapExists(snap)) {
           setLiveListenerCount((snap.data() as RoomDoc).memberCount ?? 0);
         }
       }, () => {});
