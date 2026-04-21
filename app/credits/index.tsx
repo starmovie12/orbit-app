@@ -41,6 +41,9 @@ import { orbit } from "@/constants/colors";
 import { useAuth } from "@/contexts/AuthContext";
 import { firestore, serverTimestamp } from "@/lib/firebase";
 
+// Cross-platform Firestore .exists helper (web compat vs native SDK)
+function snapExists(s: any): boolean { return typeof s.exists === 'function' ? s.exists() : !!s.exists; }
+
 /* ─────────────────────────────────────────────────────────────────────
    Types
 ───────────────────────────────────────────────────────────────────── */
@@ -136,7 +139,7 @@ async function submitCashoutRequest(
 
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(userRef);
-    if (!snap.exists()) throw new Error("User not found.");
+    if (!snapExists(snap)) throw new Error("User not found.");
     const userData = snap.data() as { credits: number; karma: number };
     if ((userData.credits ?? 0) < credits)
       throw new Error("Insufficient credits.");
