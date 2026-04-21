@@ -19,6 +19,7 @@ import React, {
 import { Alert } from "react-native";
 import { auth } from "@/lib/firebase";
 import { signOut as firebaseSignOut } from "@/lib/auth";
+import { onAuthStateChanged } from "firebase/auth";
 import type { AuthUser } from "@/lib/auth";
 import { ensureUser, subscribeUser, type UserDoc } from "@/lib/firestore-users";
 
@@ -47,7 +48,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const unsubUserRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
-    const unsub = auth().onAuthStateChanged(async (fbUser) => {
+    const unsub = onAuthStateChanged(auth, async (fbUser) => {
       setFirebaseUser(fbUser);
       unsubUserRef.current?.();
       unsubUserRef.current = null;
@@ -83,7 +84,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       unsubUserRef.current?.();
       unsubUserRef.current = null;
       await firebaseSignOut();
-      // auth().onAuthStateChanged will fire with null → triggers route guard redirect
+      // onAuthStateChanged will fire with null → triggers route guard redirect
     } catch (e: any) {
       Alert.alert("Logout failed", e?.message ?? "Kuch issue hai. Dobara try karo.");
     }
