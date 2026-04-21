@@ -12,6 +12,7 @@ import {
   onAuthStateChanged,
   type User,
   type ConfirmationResult,
+  type ApplicationVerifier,
   type RecaptchaVerifier,
 } from "firebase/auth";
 import { auth } from "./firebase";
@@ -64,9 +65,13 @@ export function authErrorMessage(e: any): string {
 // ─── Send OTP ────────────────────────────────────────────────────────────────
 export async function sendOtp(
   phoneNumber: string,
-  appVerifier?: RecaptchaVerifier
+  appVerifier: RecaptchaVerifier | ApplicationVerifier // Problem yahan se fix ki gayi hai
 ): Promise<ConfirmationResult> {
-  return signInWithPhoneNumber(auth, phoneNumber, appVerifier as any);
+  // Agar appVerifier missing hua, toh clear error dega bajaye argument-error ke
+  if (!appVerifier) {
+    throw new Error("Missing appVerifier: reCAPTCHA verification required for Firebase OTP.");
+  }
+  return signInWithPhoneNumber(auth, phoneNumber, appVerifier);
 }
 
 // ─── Confirm OTP ─────────────────────────────────────────────────────────────
