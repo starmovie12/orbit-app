@@ -1,90 +1,73 @@
 /**
- * Phone OTP auth helpers built on @react-native-firebase/auth.
+ * lib/auth.ts
  *
- * Flow:
- *   1. sendOtp(phone)            → returns a Confirmation handle
- *   2. confirmOtp(handle, code)  → returns the signed-in FirebaseAuthTypes.User
- *   3. signOut()                 → clears the session
- *
- * Phone numbers must be in E.164 format (e.g. +919876543210).
- * We normalize Indian 10-digit inputs automatically.
+ * Phone OTP auth helpers using JS Firebase SDK.
+ * Drop-in replacement for the @react-native-firebase/auth version.
  */
 
-import { auth } from "@/lib/firebase";
-import type { FirebaseAuthTypes } from "@react-native-firebase/auth";
+import {
+  signInWithPhoneNumber,
+  PhoneAuthProvider,
+  signInWithCredential,
+  signOut,
+  onAuthStateChanged,
+  User,
+  ConfirmationResult,
+  RecaptchaVerifier,
+} from "firebase/auth";
+import { auth } from "./firebase";
 
-export type PhoneConfirmation = FirebaseAuthTypes.ConfirmationResult;
-export type AuthUser = FirebaseAuthTypes.User;
-
+// ─── Send OTP ────────────────────────────────────────────────────────────────
 /**
- * Convert a user-entered phone string into E.164.
- * Default country is India (+91). Accepts:
- *   "9876543210"        → "+919876543210"
- *   "+91 98765 43210"   → "+919876543210"
- *   "919876543210"      → "+919876543210"
+ * Send OTP to a phone number (E.164 format, e.g. "+919876543210").
+ * Returns a ConfirmationResult — store it in state and pass to confirmOtp().
  */
-export function normalizeIndianPhone(raw: string): string {
-  const digits = raw.replace(/\D/g, "");
-  if (!digits) return "";
-  if (raw.trim().startsWith("+")) return `+${digits}`;
-  if (digits.length === 10) return `+91${digits}`;
-  if (digits.length === 12 && digits.startsWith("91")) return `+${digits}`;
-  return `+${digits}`;
+export async function sendOtp(
+  phoneNumber: string,
+  appVerifier?: RecaptchaVerifier
+): Promise<ConfirmationResult> {
+  return signInWithPhoneNumber(auth, phoneNumber, appVerifier as any);
 }
 
-/** Basic validation: must be + followed by 11–15 digits. */
-export function isValidE164(phone: string): boolean {
-  return /^\+[1-9]\d{10,14}$/.test(phone);
-}
-
-/** Send OTP. Returns a confirmation handle to pass to confirmOtp(). */
-export async function sendOtp(phoneE164: string): Promise<PhoneConfirmation> {
-  if (!isValidE164(phoneE164)) {
-    throw new Error("INVALID_PHONE");
-  }
-  return await auth().signInWithPhoneNumber(phoneE164);
-}
-
-/** Verify the 6-digit code. Throws on wrong code. */
+// ─── Confirm OTP ─────────────────────────────────────────────────────────────
+/**
+ * Verify the 6-digit OTP the user received via SMS.
+ */
 export async function confirmOtp(
-  handle: PhoneConfirmation,
+  confirmationResult: ConfirmationResult,
   code: string
-): Promise<AuthUser> {
-  if (!/^\d{6}$/.test(code)) {
-    throw new Error("INVALID_CODE");
-  }
-  const cred = await handle.confirm(code);
-  if (!cred?.user) throw new Error("CONFIRM_FAILED");
-  return cred.user;
+): Promise<User> {
+  const result = await confirmationResult.confirm(code);
+  if (!result.user) throw new Error("OTP confirmation failed");
+  return result.user;
 }
 
-/** Sign the current user out. */
-export async function signOut(): Promise<void> {
-  await auth().signOut();
+// ─── Verify by verificationId (alternative flow) ─────────────────────────────
+export async function verifyOtpWithId(
+  verificationId: string,
+  code: string
+): Promise<User> {
+  const credential = PhoneAuthProvider.credential(verificationId, code);
+  const result = await signInWithCredential(auth, credential);
+  return result.user;
 }
 
-/** Current signed-in user (sync). */
-export function currentUser(): AuthUser | null {
-  return auth().currentUser;
+// ─── Sign out ────────────────────────────────────────────────────────────────
+export async function logout(): Promise<void> {
+  return signOut(auth);
 }
 
-/** Map Firebase auth error codes to short Hinglish messages for UI. */
-export function authErrorMessage(e: unknown): string {
-  const code = (e as { code?: string })?.code ?? "";
-  switch (code) {
-    case "auth/invalid-phone-number":
-      return "Phone number galat hai. Dobara check karo.";
-    case "auth/too-many-requests":
-      return "Bahut requests. Thoda wait karke try karo.";
-    case "auth/invalid-verification-code":
-      return "OTP galat hai. Sahi code daalo.";
-    case "auth/session-expired":
-      return "OTP expire ho gaya. Naya OTP mangao.";
-    case "auth/quota-exceeded":
-      return "SMS quota full. Kal try karo.";
-    case "auth/network-request-failed":
-      return "Internet issue. Connection check karo.";
-    default:
-      return (e as Error)?.message ?? "Kuch galat hua. Dobara try karo.";
-  }
+// ─── Auth state listener ──────────────────────────────────────────────────────
+export function subscribeToAuthState(
+  callback: (user: User | null) => void
+): () => void {
+  return onAuthStateChanged(auth, callback);
 }
+
+// ─── Get current user ────────────────────────────────────────────────────────
+export function getCurrentUser(): User | null {
+  return auth.currentUser;
+}
+
+export { auth };
+export type { User, ConfirmationResult };
