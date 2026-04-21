@@ -48,6 +48,9 @@ import { orbit } from "@/constants/colors";
 import { useAuth } from "@/contexts/AuthContext";
 import { firestore, serverTimestamp } from "@/lib/firebase";
 
+// Cross-platform Firestore .exists helper (web compat vs native SDK)
+function snapExists(s: any): boolean { return typeof s.exists === 'function' ? s.exists() : !!s.exists; }
+
 /* ─────────────────────────────────────────────────────────────────────
    Mood definitions
 ───────────────────────────────────────────────────────────────────── */
@@ -203,7 +206,7 @@ async function getOrCreateMoodRoom(
     const snap = await tx.get(ref);
     const now = Date.now();
 
-    if (snap.exists()) {
+    if (snapExists(snap)) {
       const data = snap.data() as MoodRoomDoc;
       // If archived or TTL expired, reset the room
       if (data.archived || data.activeUntil < now) {
@@ -242,7 +245,7 @@ function subscribeMoodRoom(
     .collection(MOOD_ROOMS_COL)
     .doc(mood)
     .onSnapshot(
-      (snap) => cb(snap.exists() ? (snap.data() as MoodRoomDoc) : null),
+      (snap) => cb(snapExists(snap) ? (snap.data() as MoodRoomDoc) : null),
       () => cb(null)
     );
 }
