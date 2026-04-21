@@ -17,6 +17,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { orbit } from "@/constants/colors";
 import { authErrorMessage, confirmOtp, sendOtp } from "@/lib/auth";
+// 🔴 Mobile Recaptcha yahan bhi zaroori hai (Resend feature ke liye)
+import { FirebaseRecaptchaVerifierModal } from "expo-firebase-recaptcha";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -97,9 +99,11 @@ export default function OtpScreen() {
 
   const inputRef = useRef<TextInput>(null);
   const shakeAnim = useRef(new Animated.Value(0)).current;
+  
+  // 🔴 Recaptcha Ref (Resend function me kaam aayega)
+  const recaptchaVerifier = useRef<any>(null);
 
   const triggerShake = () => {
-    // 3 oscillations, 4px amplitude, 320ms total
     Animated.sequence([
       Animated.timing(shakeAnim, { toValue:  4, duration: 40, useNativeDriver: true }),
       Animated.timing(shakeAnim, { toValue: -4, duration: 53, useNativeDriver: true }),
@@ -131,12 +135,26 @@ export default function OtpScreen() {
 
   const verify = async (value: string) => {
     const handle = globalThis.__orbitOtp?.handle;
-    if (!handle || verifying) return;
+    
+    // 🔴 BUG FIX: Agar handle gayab ho gaya hai toh alert dikhaye aur wapas phone screen bheje
+    if (!handle) {
+      Alert.alert("Session Expired", "Aapka OTP session expire ho gaya hai. Dobara OTP mangwayein.");
+      return router.replace("/(auth)/phone");
+    }
+    
+    if (verifying) return;
     setVerifying(true);
     try {
       await confirmOtp(handle, value);
       globalThis.__orbitOtp = undefined;
+      
+      // 🔴 BUG FIX: Success hone par app kuch nahi kar raha tha!
+      console.log("✅ OTP VERIFIED!");
+      Alert.alert("Success!", "Aapka number verify ho gaya hai.");
+      // AuthContext ab auto-redirect kar dega. Agar nahi kare toh yahan router.replace likh sakte ho.
+
     } catch (e: any) {
+      console.error("OTP Error: ", e);
       Alert.alert("Verification failed", authErrorMessage(e));
       triggerShake();
       setCode("");
@@ -156,11 +174,17 @@ export default function OtpScreen() {
     if (cooldown > 0 || resending) return;
     setResending(true);
     try {
+      // 🔴 BUG FIX: Mobile par sendOtp ko recaptcha zaroor chahiye!
       const handle =
-        Platform.OS === "web" ? await sendOtpWeb(phone) : await sendOtp(phone);
+        Platform.OS === "web" 
+        ? await sendOtpWeb(phone) 
+        : await sendOtp(phone, recaptchaVerifier.current); // Yahan fix apply kiya
+
       globalThis.__orbitOtp = { handle, phone };
       setCooldown(RESEND_SECONDS);
+      Alert.alert("OTP Sent", "Naya OTP bhej diya gaya hai.");
     } catch (e: any) {
+      console.error("Resend Error: ", e);
       Alert.alert("Couldn't resend", authErrorMessage(e));
       if (Platform.OS === "web" && webVerifierRef) {
         try {
@@ -180,6 +204,15 @@ export default function OtpScreen() {
       style={[styles.root, { backgroundColor: orbit.bg }]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
+      {/* 🔴 Invisible Modal (Resend feature chalane ke liye) */}
+      {Platform.OS !== "web" && (
+        <FirebaseRecaptchaVerifierModal
+          ref={recaptchaVerifier}
+          firebaseConfig={FIREBASE_WEB_CONFIG}
+          attemptInvisibleVerification={true}
+        />
+      )}
+
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={12} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Go back">
           <Feather name="arrow-left" size={22} color={orbit.textPrimary} />
