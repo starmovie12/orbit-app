@@ -2,9 +2,9 @@
  * AuthContext v2 — adds signOut() to the public API.
  *
  * Changes from v1:
- *   • signOut() tears down the Firestore listener first, then calls
- *     Firebase signOut so the auth listener fires cleanly.
- *   • refreshUser() is a no-op hook — the live subscription handles it.
+ * • signOut() tears down the Firestore listener first, then calls
+ * Firebase signOut so the auth listener fires cleanly.
+ * • refreshUser() is a no-op hook — the live subscription handles it.
  */
 
 import React, {
@@ -61,13 +61,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       try {
         const phone = fbUser.phoneNumber ?? "";
+        
+        // 🔴 BUG FIX: Console logs add kiye taaki process track ho sake
+        console.log("Firebase login successful. Fetching user profile from Firestore...");
+        
         await ensureUser(fbUser.uid, phone);
 
         unsubUserRef.current = subscribeUser(fbUser.uid, (doc) => {
+          console.log("User profile loaded successfully!");
           setUser(doc);
           setLoading(false);
         });
-      } catch {
+      } catch (error) {
+        // 🔴 BUG FIX: Silent failure ko hata diya taaki app crash chupaye nahi
+        console.error("🔥 Error in AuthContext ensuring user:", error);
         setUser(null);
         setLoading(false);
       }
