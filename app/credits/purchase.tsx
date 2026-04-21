@@ -91,7 +91,20 @@ declare module "react-native-razorpay" {
   }
 }
 
-import RazorpayCheckout from "react-native-razorpay";
+// react-native-razorpay stub — remove this block once you run:
+//   npm install react-native-razorpay
+// and rebuild the dev client.
+const RazorpayCheckout = {
+  open: async (_opts: any): Promise<any> => {
+    throw Object.assign(
+      new Error("Razorpay not installed. Run: npm install react-native-razorpay"),
+      { code: -1, description: "Package not installed" }
+    );
+  },
+};
+
+// Cross-platform Firestore .exists helper (web compat vs native SDK)
+function snapExists(s: any): boolean { return typeof s.exists === 'function' ? s.exists() : !!s.exists; }
 
 /* ─────────────────────────────────────────────────────────────────────
    Config — replace with your real key / Cloud Function URL
@@ -170,7 +183,7 @@ async function recordPurchase(args: {
 
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(userRef);
-    if (!snap.exists()) throw new Error("User not found.");
+    if (!snapExists(snap)) throw new Error("User not found.");
     const userData = snap.data() as { credits: number };
 
     tx.update(userRef, {
