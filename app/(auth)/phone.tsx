@@ -21,6 +21,8 @@ import {
   normalizeIndianPhone,
   sendOtp,
 } from "@/lib/auth";
+// 🔴 Yahan naya import add kiya hai Mobile reCAPTCHA ke liye
+import { FirebaseRecaptchaVerifierModal } from "expo-firebase-recaptcha";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -92,6 +94,9 @@ export default function PhoneScreen() {
   const router = useRouter();
   const inputRef = useRef<TextInput>(null);
 
+  // 🔴 Yahan Mobile ke reCAPTCHA ke liye ek Ref banaya hai
+  const recaptchaVerifier = useRef<any>(null);
+
   const [raw, setRaw] = useState("");
   const [sending, setSending] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -114,8 +119,11 @@ export default function PhoneScreen() {
     if (!valid || sending) return;
     setSending(true);
     try {
+      // 🔴 Yahan fix apply kiya hai: Mobile par ab recaptchaVerifier.current bheja jayega
       const handle =
-        Platform.OS === "web" ? await sendOtpWeb(e164) : await sendOtp(e164);
+        Platform.OS === "web" 
+          ? await sendOtpWeb(e164) 
+          : await sendOtp(e164, recaptchaVerifier.current);
 
       globalThis.__orbitOtp = { handle, phone: e164 };
       router.push("/(auth)/otp");
@@ -146,6 +154,15 @@ export default function PhoneScreen() {
       style={[styles.root, { backgroundColor: orbit.bg }]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
+      {/* 🔴 Yahan Mobile ke liye Invisible reCAPTCHA Modal lagaya hai */}
+      {Platform.OS !== "web" && (
+        <FirebaseRecaptchaVerifierModal
+          ref={recaptchaVerifier}
+          firebaseConfig={FIREBASE_WEB_CONFIG}
+          attemptInvisibleVerification={true}
+        />
+      )}
+
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={12} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Go back">
           <Feather name="arrow-left" size={22} color={orbit.textPrimary} />
