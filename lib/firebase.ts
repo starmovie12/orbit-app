@@ -17,6 +17,10 @@ import {
 } from "firebase/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+// 🔴 BUG FIX: Humne Firebase Compat SDK import kiya hai taaki `firestore()` function chal sake
+import firebase from "firebase/compat/app";
+import "firebase/compat/firestore";
+
 // ─── Firebase project config (orbit-app-5b4b3) ───────────────────────────────
 const firebaseConfig = {
   apiKey:            "AIzaSyBAeFZfk-TLk3WxhSLobX8AYjteSv-g344",
@@ -32,6 +36,11 @@ const firebaseConfig = {
 const app: FirebaseApp =
   getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
+// 🔴 BUG FIX: Initialize Compat app side-by-side
+if (!firebase.apps.length) {
+  firebase.initializeApp(firebaseConfig);
+}
+
 // ─── Auth (with AsyncStorage persistence) ────────────────────────────────────
 let auth: Auth;
 try {
@@ -43,11 +52,15 @@ try {
   auth = getAuth(app);
 }
 
-// ─── Firestore ────────────────────────────────────────────────────────────────
+// ─── Firestore (Modular) ─────────────────────────────────────────────────────
 const db = getFirestore(app);
 
 // ─── Storage ─────────────────────────────────────────────────────────────────
 const storage = getStorage(app);
 
-export { app, auth, db, storage };
+// 🔴 BUG FIX: Create functions that `lib/firestore-users.ts` is desperately looking for
+const firestore = () => firebase.firestore();
+const serverTimestamp = firebase.firestore.FieldValue.serverTimestamp;
+
+export { app, auth, db, storage, firestore, serverTimestamp };
 export default app;
