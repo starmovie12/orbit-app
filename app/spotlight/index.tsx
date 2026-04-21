@@ -52,6 +52,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { firestore, serverTimestamp, increment } from "@/lib/firebase";
 import { MY_PROFILE } from "@/constants/data";
 
+// Cross-platform Firestore .exists helper (web compat vs native SDK)
+function snapExists(s: any): boolean { return typeof s.exists === 'function' ? s.exists() : !!s.exists; }
+
 /* ─────────────────────────────────────────────────────────────────────
    Constants
 ───────────────────────────────────────────────────────────────────── */
@@ -139,7 +142,7 @@ async function getOrCreateSpotlight(hourlyId: string): Promise<SpotlightDoc> {
 
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
-    if (!snap.exists()) {
+    if (!snapExists(snap)) {
       tx.set(ref, {
         winnerUid: null,
         winnerUsername: null,
@@ -163,7 +166,7 @@ function subscribeSpotlight(
     .collection(SPOTLIGHTS_COL)
     .doc(hourlyId)
     .onSnapshot(
-      (snap) => cb(snap.exists() ? (snap.data() as SpotlightDoc) : null),
+      (snap) => cb(snapExists(snap) ? (snap.data() as SpotlightDoc) : null),
       () => cb(null)
     );
 }
