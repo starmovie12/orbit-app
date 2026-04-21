@@ -1,19 +1,33 @@
 /**
- * ORBIT — Live Audio Room Screen  (app/live/[id].tsx)
+ * ORBIT — Live Tab  (app/(tabs)/live.tsx)
  *
- * Blueprint §11: Agora RTC <300ms audio, credit-gated entry,
- * speaker grid, raise-hand queue, host revenue flow via Firestore.
+ * ORBIT Live = Clubhouse-style audio rooms with a desi twist.
+ * Blueprint §11: Agora RTC, <300ms latency, credit-gated host revenue.
  *
- * SETUP:
- *   1. npm install react-native-agora
- *   2. EXPO_PUBLIC_AGORA_APP_ID=<your-id> in .env
- *   3. Set AGORA_STUB = false and uncomment real imports below.
+ * To add this tab to the nav bar, add to app/(tabs)/_layout.tsx:
+ *   <Tabs.Screen
+ *     name="live"
+ *     options={{
+ *       title: "Live",
+ *       tabBarIcon: ({ focused }) => <TabIcon name="radio" focused={focused} />,
+ *       tabBarLabel: ({ focused }) => <TabLabel label="Live" focused={focused} />,
+ *     }}
+ *   />
  *
+ * ────────────────────────────────────────────────────────────────────
  * Architecture:
- *   • Firestore /rooms/{id}  → room doc (name, host, memberCount, isLive)
- *   • Firestore /rooms/{id}/liveParticipants/{uid} → speaker/listener docs
- *   • Firestore /users/{uid}/liveUsage/{YYYY-MM-DD} → credit gate (10/day)
- *   • Agora RTC channel = roomId, audience vs host roles
+ *   • Firestore /rooms where kind == "live" → live room list.
+ *   • "Go Live" → creates a /rooms doc with kind="live" + isLive=true.
+ *   • Joining: updates memberCount via Firestore transaction.
+ *   • Agora RTC: install `react-native-agora` (npm i react-native-agora).
+ *     Until installed, the join flow shows the room UI without actual audio.
+ *     Wire AGORA_APP_ID in your .env and remove the AGORA_STUB guard.
+ * ────────────────────────────────────────────────────────────────────
+ *
+ * SETUP (one-time):
+ *   1. npm install react-native-agora
+ *   2. Add EXPO_PUBLIC_AGORA_APP_ID=<your-id> to .env
+ *   3. Remove the `AGORA_STUB` constant below and uncomment the real imports.
  */
 
 import React, {
@@ -25,7 +39,6 @@ import React, {
 } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   FlatList,
   Modal,
@@ -35,12 +48,13 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 
 import { Avatar } from "@/components/shared";
 import { orbit } from "@/constants/colors";
@@ -48,476 +62,521 @@ import { useAuth } from "@/contexts/AuthContext";
 import { firestore, serverTimestamp, increment } from "@/lib/firebase";
 import type { RoomDoc } from "@/lib/firestore-rooms";
 
+// Cross-platform Firestore .exists helper (web compat vs native SDK)
+function snapExists(s: any): boolean { return typeof s.exists === 'function' ? s.exists() : !!s.exists; }
+
 /* ─────────────────────────────────────────────────────────────────────
-   Agora RTC — stub until react-native-agora is installed
+   Agora RTC integration
+   ─────────────────────────────────────────────────────────────────────
+   Set AGORA_STUB = false and wire real imports once react-native-agora
+   is installed. The UI is fully wired — only the SDK calls are stubbed.
 ───────────────────────────────────────────────────────────────────── */
 
-const AGORA_STUB = true; // flip to false after: npm install react-native-agora
+const AGORA_STUB = true; // ← flip to false after installing react-native-agora
 const AGORA_APP_ID = (process.env.EXPO_PUBLIC_AGORA_APP_ID as string) ?? "";
 
-// When react-native-agora is installed, replace with:
+// When react-native-agora is installed, replace this stub module with:
 //   import { createAgoraRtcEngine, ChannelProfileType, ClientRoleType } from 'react-native-agora';
 const AgoraStub = {
-  initialize: (_appId: string) => {},
+  createEngine: () => null as any,
+  joinChannel: async (_ch: string, _uid: number, _options: any) => {},
+  leaveChannel: async () => {},
+  setClientRole: (_role: "host" | "audience") => {},
   enableAudio: () => {},
-  setChannelProfile: (_profile: number) => {},
-  setClientRole: (_role: number) => {},
-  joinChannel: (_token: string | null, _ch: string, _info: string, _uid: number) => 0,
-  leaveChannel: () => 0,
-  muteLocalAudioStream: (_muted: boolean) => 0,
+  muteLocalAudioStream: (_muted: boolean) => {},
   destroy: () => {},
-  addListener: (_event: string, _cb: (...args: any[]) => void) => ({ remove: () => {} }),
 };
 
 function buildAgoraEngine() {
   if (AGORA_STUB || !AGORA_APP_ID) return AgoraStub;
-  // Real:
-  // const engine = createAgoraRtcEngine();
-  // engine.initialize({ appId: AGORA_APP_ID });
-  // return engine;
+  // Real: return createAgoraRtcEngine();
   return AgoraStub;
 }
 
 /* ─────────────────────────────────────────────────────────────────────
-   Credit gate constants
+   Firestore helpers for Live rooms
 ───────────────────────────────────────────────────────────────────── */
 
-const DAILY_CREDIT_LIMIT = 10;
-const CREDITS_PER_SESSION = 1; // 1 credit deducted per session join
+const ROOMS_COL = "rooms";
+
+/** Subscribe to all live rooms (kind == "live" and isLive == true). */
+function subscribeLiveRooms(onChange: (rooms: RoomDoc[]) => void): () => void {
+  return firestore()
+    .collection(ROOMS_COL)
+    .where("kind", "==", "live")
+    .where("isLive", "==", true)
+    .orderBy("memberCount", "desc")
+    .onSnapshot(
+      qs => {
+        const list: RoomDoc[] = [];
+        qs.forEach(doc => {
+          list.push({ id: doc.id, ...(doc.data() as Omit<RoomDoc, "id">) });
+        });
+        onChange(list);
+      },
+      () => onChange([])
+    );
+}
+
+/** Create a new live audio room. Returns the new room id. */
+async function createLiveRoom(args: {
+  name: string;
+  description: string;
+  language: string;
+  hostUid: string;
+  hostUsername: string;
+  accent: string;
+}): Promise<string> {
+  const ref = firestore().collection(ROOMS_COL).doc();
+  await ref.set({
+    name: args.name,
+    icon: "radio",
+    accent: args.accent,
+    description: args.description,
+    kind: "live",
+    language: args.language,
+    memberCount: 1,
+    lastMessagePreview: `${args.hostUsername} started a live room`,
+    lastMessageAt: serverTimestamp(),
+    lastMessageUid: args.hostUid,
+    lastMessageUsername: args.hostUsername,
+    isLive: true,
+    liveHostUid: args.hostUid,
+    createdAt: serverTimestamp(),
+    createdBy: args.hostUid,
+  });
+  return ref.id;
+}
+
+/** Increment or decrement listener count. */
+async function updateListenerCount(roomId: string, delta: 1 | -1): Promise<void> {
+  await firestore().collection(ROOMS_COL).doc(roomId).update({
+    memberCount: increment(delta),
+  });
+}
+
+/** Mark room as ended (isLive = false). */
+async function endLiveRoom(roomId: string): Promise<void> {
+  await firestore().collection(ROOMS_COL).doc(roomId).update({
+    isLive: false,
+    liveHostUid: null,
+  });
+}
 
 /* ─────────────────────────────────────────────────────────────────────
    Types
 ───────────────────────────────────────────────────────────────────── */
 
-type ParticipantRole = "host" | "speaker" | "listener";
+type LiveRoom = RoomDoc;
 
-type Participant = {
-  uid: string;
-  username: string;
-  role: ParticipantRole;
+type JoinedSession = {
+  roomId: string;
+  roomName: string;
+  isHost: boolean;
   muted: boolean;
-  handRaised: boolean;
-  agoraUid?: number;
-  joinedAt: number;
 };
 
-type LiveRoomState = {
-  name: string;
-  description: string;
-  hostUid: string;
-  hostUsername: string;
-  memberCount: number;
-  language: string;
-  accent: string;
-  isLive: boolean;
-  createdAt: unknown;
-};
+const LANGUAGE_OPTIONS = [
+  "Hindi", "English", "Hinglish", "Punjabi",
+  "Tamil", "Telugu", "Marathi", "Bengali",
+];
+
+const ACCENT_OPTIONS = [
+  orbit.accent,
+  orbit.success,
+  orbit.warning,
+  orbit.danger,
+];
 
 /* ─────────────────────────────────────────────────────────────────────
-   Firestore helpers
-───────────────────────────────────────────────────────────────────── */
-
-const ROOMS_COL = "rooms";
-const USERS_COL = "users";
-
-function todayKey(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-async function checkAndDebitDailyCreditGate(uid: string): Promise<boolean> {
-  const db = firestore();
-  const usageRef = db
-    .collection(USERS_COL)
-    .doc(uid)
-    .collection("liveUsage")
-    .doc(todayKey());
-
-  let allowed = false;
-  await db.runTransaction(async (tx) => {
-    const snap = await tx.get(usageRef);
-    const used: number = snap.exists() ? (snap.data() as any)?.creditsUsed ?? 0 : 0;
-    if (used >= DAILY_CREDIT_LIMIT) {
-      allowed = false;
-      return;
-    }
-    tx.set(usageRef, { creditsUsed: used + CREDITS_PER_SESSION }, { merge: true });
-    allowed = true;
-  });
-  return allowed;
-}
-
-function subscribeRoomDoc(
-  roomId: string,
-  cb: (doc: LiveRoomState | null) => void
-): () => void {
-  return firestore()
-    .collection(ROOMS_COL)
-    .doc(roomId)
-    .onSnapshot(
-      (snap) => cb(snap.exists() ? (snap.data() as LiveRoomState) : null),
-      () => cb(null)
-    );
-}
-
-function subscribeParticipants(
-  roomId: string,
-  cb: (list: Participant[]) => void
-): () => void {
-  return firestore()
-    .collection(ROOMS_COL)
-    .doc(roomId)
-    .collection("liveParticipants")
-    .orderBy("joinedAt", "asc")
-    .onSnapshot(
-      (qs) => {
-        const list: Participant[] = [];
-        qs.forEach((doc) => list.push(doc.data() as Participant));
-        cb(list);
-      },
-      () => cb([])
-    );
-}
-
-async function joinParticipant(
-  roomId: string,
-  participant: Participant
-): Promise<void> {
-  const db = firestore();
-  await db
-    .collection(ROOMS_COL)
-    .doc(roomId)
-    .collection("liveParticipants")
-    .doc(participant.uid)
-    .set(participant);
-  await db
-    .collection(ROOMS_COL)
-    .doc(roomId)
-    .update({ memberCount: increment(1) });
-}
-
-async function leaveParticipant(roomId: string, uid: string): Promise<void> {
-  const db = firestore();
-  await db
-    .collection(ROOMS_COL)
-    .doc(roomId)
-    .collection("liveParticipants")
-    .doc(uid)
-    .delete();
-  await db
-    .collection(ROOMS_COL)
-    .doc(roomId)
-    .update({ memberCount: increment(-1) });
-}
-
-async function updateParticipantField(
-  roomId: string,
-  uid: string,
-  patch: Partial<Participant>
-): Promise<void> {
-  await firestore()
-    .collection(ROOMS_COL)
-    .doc(roomId)
-    .collection("liveParticipants")
-    .doc(uid)
-    .update(patch);
-}
-
-async function endRoom(roomId: string): Promise<void> {
-  const db = firestore();
-  const pSnap = await db
-    .collection(ROOMS_COL)
-    .doc(roomId)
-    .collection("liveParticipants")
-    .get();
-  const batch = db.batch();
-  pSnap.forEach((doc) => batch.delete(doc.ref));
-  batch.update(db.collection(ROOMS_COL).doc(roomId), {
-    isLive: false,
-    liveHostUid: null,
-    memberCount: 0,
-  });
-  await batch.commit();
-}
-
-/* ─────────────────────────────────────────────────────────────────────
-   Sub-components
+   Live Room Card
 ───────────────────────────────────────────────────────────────────── */
 
 function LivePulse() {
-  const scale = useRef(new Animated.Value(1)).current;
-  const opacity = useRef(new Animated.Value(0.8)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const opacityAnim = useRef(new Animated.Value(0.8)).current;
 
   useEffect(() => {
     const loop = Animated.loop(
       Animated.parallel([
         Animated.sequence([
-          Animated.timing(scale, { toValue: 1.6, duration: 900, useNativeDriver: true }),
-          Animated.timing(scale, { toValue: 1, duration: 900, useNativeDriver: true }),
+          Animated.timing(scaleAnim, { toValue: 1.5, duration: 900, useNativeDriver: true }),
+          Animated.timing(scaleAnim, { toValue: 1, duration: 900, useNativeDriver: true }),
         ]),
         Animated.sequence([
-          Animated.timing(opacity, { toValue: 0, duration: 900, useNativeDriver: true }),
-          Animated.timing(opacity, { toValue: 0.8, duration: 900, useNativeDriver: true }),
+          Animated.timing(opacityAnim, { toValue: 0, duration: 900, useNativeDriver: true }),
+          Animated.timing(opacityAnim, { toValue: 0.8, duration: 900, useNativeDriver: true }),
         ]),
       ])
     );
     loop.start();
     return () => loop.stop();
-  }, [scale, opacity]);
+  }, [scaleAnim, opacityAnim]);
 
   return (
-    <View style={styles.pulseWrap}>
-      <Animated.View style={[styles.pulseRing, { transform: [{ scale }], opacity }]} />
-      <View style={styles.pulseDot} />
+    <View style={styles.livePulseWrap}>
+      <Animated.View
+        style={[
+          styles.livePulseRing,
+          { transform: [{ scale: scaleAnim }], opacity: opacityAnim },
+        ]}
+      />
+      <View style={styles.livePulseDot} />
     </View>
   );
 }
 
-function SpeakerCard({
-  participant,
-  isMe,
-  onTap,
-}: {
-  participant: Participant;
-  isMe: boolean;
-  onTap: () => void;
-}) {
-  const isHost = participant.role === "host";
-  const isSpeaker = participant.role === "speaker";
-
+function RoomCard({ room, onJoin }: { room: LiveRoom; onJoin: (room: LiveRoom) => void }) {
   return (
     <TouchableOpacity
-      style={styles.speakerCard}
-      onPress={onTap}
-      activeOpacity={0.8}
+      style={styles.roomCard}
+      activeOpacity={0.82}
+      onPress={() => onJoin(room)}
       accessibilityRole="button"
-      accessibilityLabel={`${participant.username}${isHost ? ", host" : ""}${participant.muted ? ", muted" : ""}`}
+      accessibilityLabel={`Join ${room.name}`}
     >
-      <View style={[styles.speakerAvatarWrap, participant.muted && styles.speakerAvatarMuted]}>
-        <Avatar name={participant.username} size={56} />
-        {!participant.muted && (
-          <View style={styles.speakerAudioRing} />
-        )}
-        {isHost && (
-          <View style={styles.hostBadgeWrap}>
-            <Feather name="star" size={9} color={orbit.white} />
+      <View style={styles.roomCardTop}>
+        {/* Icon */}
+        <View style={[styles.roomIconWrap, { backgroundColor: room.accent + "1A" }]}>
+          <Feather name="radio" size={18} color={room.accent} />
+        </View>
+
+        {/* Meta */}
+        <View style={{ flex: 1, marginLeft: 12 }}>
+          <Text style={styles.roomName} numberOfLines={1}>{room.name}</Text>
+          {room.description ? (
+            <Text style={styles.roomDesc} numberOfLines={1}>{room.description}</Text>
+          ) : null}
+        </View>
+
+        {/* Live badge + listener count */}
+        <View style={styles.roomBadgeCol}>
+          <View style={styles.liveBadge}>
+            <LivePulse />
+            <Text style={styles.liveBadgeText}>LIVE</Text>
           </View>
-        )}
+          <View style={styles.listenerRow}>
+            <Feather name="headphones" size={10} color={orbit.textTertiary} />
+            <Text style={styles.listenerCount}>
+              {room.memberCount.toLocaleString("en-IN")}
+            </Text>
+          </View>
+        </View>
       </View>
-      <Text style={styles.speakerName} numberOfLines={1}>
-        {isMe ? "You" : participant.username}
-      </Text>
-      <View style={styles.speakerStatus}>
-        {participant.handRaised && (
-          <Text style={styles.handRaisedEmoji}>✋</Text>
-        )}
-        {participant.muted ? (
-          <Feather name="mic-off" size={11} color={orbit.textTertiary} />
-        ) : (
-          <Feather name="mic" size={11} color={orbit.success} />
-        )}
+
+      {/* Join bar */}
+      <View style={[styles.roomJoinBar, { backgroundColor: room.accent }]}>
+        <Text style={styles.roomJoinText}>Tap to join</Text>
+        <Feather name="headphones" size={12} color={orbit.white} />
       </View>
     </TouchableOpacity>
   );
 }
 
-function ListenerRow({ participant }: { participant: Participant }) {
-  return (
-    <View style={styles.listenerRow}>
-      <Avatar name={participant.username} size={32} />
-      <Text style={styles.listenerName} numberOfLines={1}>
-        {participant.username}
-      </Text>
-      {participant.handRaised && (
-        <View style={styles.listenerHandBadge}>
-          <Text style={{ fontSize: 12 }}>✋</Text>
-        </View>
-      )}
-    </View>
-  );
+/* ─────────────────────────────────────────────────────────────────────
+   Go Live bottom sheet
+───────────────────────────────────────────────────────────────────── */
+
+interface GoLiveSheetProps {
+  visible: boolean;
+  onClose: () => void;
+  onLive: (roomId: string) => void;
+  hostUsername: string;
 }
 
-function CreditGateModal({
-  visible,
-  creditsUsedToday,
-  onClose,
-}: {
-  visible: boolean;
-  creditsUsedToday: number;
-  onClose: () => void;
-}) {
+function GoLiveSheet({ visible, onClose, onLive, hostUsername }: GoLiveSheetProps) {
+  const insets = useSafeAreaInsets();
+  const slideAnim = useRef(new Animated.Value(600)).current;
+
+  const [name, setName] = useState("");
+  const [desc, setDesc] = useState("");
+  const [language, setLanguage] = useState("Hinglish");
+  const [accent, setAccent] = useState(orbit.accent);
+  const [starting, setStarting] = useState(false);
+
+  useEffect(() => {
+    if (visible) {
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 80,
+        friction: 12,
+      }).start();
+    } else {
+      Animated.timing(slideAnim, {
+        toValue: 600,
+        duration: 220,
+        useNativeDriver: true,
+      }).start();
+      // Reset form
+      setName("");
+      setDesc("");
+      setLanguage("Hinglish");
+      setAccent(orbit.accent);
+      setStarting(false);
+    }
+  }, [visible, slideAnim]);
+
+  const { firebaseUser, user } = useAuth();
+
+  const handleStart = async () => {
+    const trimmedName = name.trim();
+    if (!trimmedName || starting || !firebaseUser) return;
+    setStarting(true);
+    try {
+      const roomId = await createLiveRoom({
+        name: trimmedName,
+        description: desc.trim(),
+        language,
+        hostUid: firebaseUser.uid,
+        hostUsername: user?.username ?? hostUsername,
+        accent,
+      });
+      onLive(roomId);
+      onClose();
+    } catch {
+      setStarting(false);
+    }
+  };
+
   return (
-    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
-      <View style={styles.modalBackdrop}>
-        <View style={styles.creditGateCard}>
-          <View style={styles.creditGateIconWrap}>
-            <Feather name="lock" size={28} color={orbit.warning} />
-          </View>
-          <Text style={styles.creditGateTitle}>Daily Limit Reached</Text>
-          <Text style={styles.creditGateSub}>
-            You've used {creditsUsedToday}/{DAILY_CREDIT_LIMIT} live room credits today.
-            Come back tomorrow for more sessions!
-          </Text>
-          <View style={styles.creditGateBar}>
-            <View
-              style={[
-                styles.creditGateFill,
-                { width: `${Math.min(100, (creditsUsedToday / DAILY_CREDIT_LIMIT) * 100)}%` },
-              ]}
+    <Modal
+      visible={visible}
+      transparent
+      animationType="none"
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
+      <Pressable style={styles.sheetBackdrop} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close">
+        <Animated.View
+          style={[
+            styles.sheetContainer,
+            {
+              paddingBottom: insets.bottom + 16,
+              transform: [{ translateY: slideAnim }],
+            },
+          ]}
+        >
+          <Pressable>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>Go Live</Text>
+            <Text style={styles.sheetSub}>Start an audio room — anyone on ORBIT can join.</Text>
+
+            {/* Room name */}
+            <Text style={styles.fieldLabel}>Room Name</Text>
+            <TextInput
+              style={styles.fieldInput}
+              value={name}
+              onChangeText={setName}
+              placeholder="e.g. Late Night Feels, Tech Talk…"
+              placeholderTextColor={orbit.textTertiary}
+              maxLength={60}
+              returnKeyType="next"
+              accessibilityLabel="Room name"
             />
-          </View>
-          <Text style={styles.creditGateBarLabel}>
-            {creditsUsedToday} / {DAILY_CREDIT_LIMIT} credits used today
-          </Text>
-          <TouchableOpacity
-            style={styles.creditGateBtn}
-            onPress={onClose}
-            activeOpacity={0.82}
-            accessibilityRole="button"
-            accessibilityLabel="Close"
-          >
-            <Text style={styles.creditGateBtnText}>Got it</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </Modal>
-  );
-}
 
-function RaiseHandQueueSheet({
-  visible,
-  raisedHands,
-  onPromote,
-  onDismiss,
-  onClose,
-}: {
-  visible: boolean;
-  raisedHands: Participant[];
-  onPromote: (uid: string) => void;
-  onDismiss: (uid: string) => void;
-  onClose: () => void;
-}) {
-  return (
-    <Modal visible={visible} transparent animationType="slide" statusBarTranslucent>
-      <Pressable style={styles.sheetBackdrop} onPress={onClose}>
-        <Pressable style={styles.sheetContainer} onPress={() => {}}>
-          <View style={styles.sheetHandle} />
-          <Text style={styles.sheetTitle}>Raised Hands</Text>
-          <Text style={styles.sheetSub}>{raisedHands.length} listener{raisedHands.length !== 1 ? "s" : ""} want to speak</Text>
-          {raisedHands.length === 0 ? (
-            <View style={styles.sheetEmpty}>
-              <Feather name="hand" size={32} color={orbit.textTertiary} />
-              <Text style={styles.sheetEmptyText}>No hands raised yet</Text>
-            </View>
-          ) : (
-            <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
-              {raisedHands.map((p) => (
-                <View key={p.uid} style={styles.handQueueRow}>
-                  <Avatar name={p.username} size={38} />
-                  <Text style={styles.handQueueName} numberOfLines={1}>{p.username}</Text>
-                  <View style={styles.handQueueActions}>
-                    <TouchableOpacity
-                      style={styles.handPromoteBtn}
-                      onPress={() => onPromote(p.uid)}
-                      activeOpacity={0.8}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Invite ${p.username} to speak`}
-                    >
-                      <Feather name="mic" size={13} color={orbit.white} />
-                      <Text style={styles.handPromoteBtnText}>Invite</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.handDismissBtn}
-                      onPress={() => onDismiss(p.uid)}
-                      hitSlop={6}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Dismiss ${p.username}`}
-                    >
-                      <Feather name="x" size={16} color={orbit.textTertiary} />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ))}
+            {/* Description */}
+            <Text style={styles.fieldLabel}>Description (optional)</Text>
+            <TextInput
+              style={[styles.fieldInput, { height: 72, paddingTop: 10 }]}
+              value={desc}
+              onChangeText={setDesc}
+              placeholder="What will you talk about?"
+              placeholderTextColor={orbit.textTertiary}
+              multiline
+              maxLength={140}
+              accessibilityLabel="Room description"
+            />
+
+            {/* Language */}
+            <Text style={styles.fieldLabel}>Language</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
+              <View style={styles.langRow}>
+                {LANGUAGE_OPTIONS.map(lang => (
+                  <TouchableOpacity
+                    key={lang}
+                    style={[styles.langChip, language === lang && styles.langChipActive]}
+                    onPress={() => setLanguage(lang)}
+                    activeOpacity={0.75}
+                    accessibilityRole="button"
+                    accessibilityLabel={lang}
+                  >
+                    <Text style={[styles.langChipText, language === lang && { color: orbit.accent }]}>
+                      {lang}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </ScrollView>
-          )}
-          <View style={{ height: 20 }} />
-        </Pressable>
+
+            {/* Accent color */}
+            <Text style={styles.fieldLabel}>Room Color</Text>
+            <View style={styles.accentRow}>
+              {ACCENT_OPTIONS.map(c => (
+                <TouchableOpacity
+                  key={c}
+                  style={[styles.accentDot, { backgroundColor: c }, accent === c && styles.accentDotActive]}
+                  onPress={() => setAccent(c)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Color ${c}`}
+                  hitSlop={6}
+                />
+              ))}
+            </View>
+
+            {/* CTA */}
+            <TouchableOpacity
+              style={[
+                styles.goLiveBtn,
+                { backgroundColor: accent },
+                (!name.trim() || starting) && { opacity: 0.5 },
+              ]}
+              onPress={handleStart}
+              disabled={!name.trim() || starting}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Start live room"
+            >
+              {starting ? (
+                <ActivityIndicator size="small" color={orbit.white} />
+              ) : (
+                <>
+                  <View style={styles.goLivePulseSmall} />
+                  <Text style={styles.goLiveBtnText}>Go Live</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </Pressable>
+        </Animated.View>
       </Pressable>
     </Modal>
   );
 }
 
 /* ─────────────────────────────────────────────────────────────────────
-   Screen
+   In-Room overlay (shown when user has joined a live room)
 ───────────────────────────────────────────────────────────────────── */
 
-export default function LiveRoomScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const router = useRouter();
+interface InRoomOverlayProps {
+  session: JoinedSession;
+  listenerCount: number;
+  onToggleMute: () => void;
+  onLeave: () => void;
+}
+
+function InRoomOverlay({ session, listenerCount, onToggleMute, onLeave }: InRoomOverlayProps) {
   const insets = useSafeAreaInsets();
+  const slideAnim = useRef(new Animated.Value(200)).current;
+
+  useEffect(() => {
+    Animated.spring(slideAnim, {
+      toValue: 0,
+      useNativeDriver: true,
+      tension: 80,
+      friction: 12,
+    }).start();
+  }, [slideAnim]);
+
+  return (
+    <Animated.View
+      style={[
+        styles.inRoomBar,
+        {
+          bottom: insets.bottom + 16,
+          transform: [{ translateY: slideAnim }],
+        },
+      ]}
+    >
+      <View style={styles.inRoomLeft}>
+        <View style={styles.inRoomLiveDot} />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.inRoomName} numberOfLines={1}>{session.roomName}</Text>
+          <View style={styles.inRoomMeta}>
+            <Feather name="headphones" size={10} color={orbit.textTertiary} />
+            <Text style={styles.inRoomCount}>{listenerCount.toLocaleString("en-IN")}</Text>
+            {session.isHost && (
+              <Text style={styles.inRoomHostBadge}>HOST</Text>
+            )}
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.inRoomActions}>
+        <TouchableOpacity
+          style={[styles.inRoomBtn, session.muted && styles.inRoomBtnMuted]}
+          onPress={onToggleMute}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={session.muted ? "Unmute" : "Mute"}
+        >
+          <Feather
+            name={session.muted ? "mic-off" : "mic"}
+            size={16}
+            color={session.muted ? orbit.danger : orbit.textPrimary}
+          />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.inRoomLeaveBtn}
+          onPress={onLeave}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Leave room"
+        >
+          <Text style={styles.inRoomLeaveText}>Leave</Text>
+        </TouchableOpacity>
+      </View>
+    </Animated.View>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   Main Screen
+───────────────────────────────────────────────────────────────────── */
+
+export default function LiveScreen() {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { firebaseUser, user } = useAuth();
 
   const myUid = firebaseUser?.uid ?? "";
-  const myUsername = user?.username ?? firebaseUser?.uid?.slice(0, 8) ?? "user";
+  const myUsername = user?.username ?? "you";
 
-  /* State */
-  const [roomDoc, setRoomDoc] = useState<LiveRoomState | null>(null);
-  const [participants, setParticipants] = useState<Participant[]>([]);
-  const [joined, setJoined] = useState(false);
-  const [joining, setJoining] = useState(false);
-  const [muted, setMuted] = useState(true);
-  const [handRaised, setHandRaised] = useState(false);
-  const [showHandQueue, setShowHandQueue] = useState(false);
-  const [creditGateVisible, setCreditGateVisible] = useState(false);
-  const [creditsUsedToday, setCreditsUsedToday] = useState(0);
+  const [rooms, setRooms] = useState<LiveRoom[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showGoLive, setShowGoLive] = useState(false);
+  const [session, setSession] = useState<JoinedSession | null>(null);
+  const [liveListenerCount, setLiveListenerCount] = useState(0);
 
-  /* Agora engine ref */
-  const engineRef = useRef<typeof AgoraStub | null>(null);
+  // Agora engine ref — lives for the duration of an active session
+  const engineRef = useRef<ReturnType<typeof buildAgoraEngine> | null>(null);
 
-  /* Derived */
-  const isHost = useMemo(
-    () => roomDoc?.hostUid === myUid,
-    [roomDoc, myUid]
-  );
+  const topPad = insets.top + (Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) : 0);
 
-  const myParticipant = useMemo(
-    () => participants.find((p) => p.uid === myUid),
-    [participants, myUid]
-  );
-
-  const speakers = useMemo(
-    () => participants.filter((p) => p.role === "host" || p.role === "speaker"),
-    [participants]
-  );
-
-  const listeners = useMemo(
-    () => participants.filter((p) => p.role === "listener"),
-    [participants]
-  );
-
-  const raisedHands = useMemo(
-    () => participants.filter((p) => p.role === "listener" && p.handRaised),
-    [participants]
-  );
-
-  /* Subscriptions */
+  /* ── Subscribe to live rooms ────────────────────────────────────── */
   useEffect(() => {
-    if (!id) return;
-    const unsub = subscribeRoomDoc(id, (doc) => {
-      setRoomDoc(doc);
+    const unsub = subscribeLiveRooms(list => {
+      setRooms(list);
       setLoading(false);
     });
     return unsub;
-  }, [id]);
+  }, []);
 
+  /* ── Subscribe to live listener count when in a room ───────────── */
   useEffect(() => {
-    if (!id) return;
-    const unsub = subscribeParticipants(id, setParticipants);
+    if (!session) return;
+    const unsub = firestore()
+      .collection(ROOMS_COL)
+      .doc(session.roomId)
+      .onSnapshot(snap => {
+        if (snapExists(snap)) {
+          setLiveListenerCount((snap.data() as RoomDoc).memberCount ?? 0);
+        }
+      }, () => {});
     return unsub;
-  }, [id]);
+  }, [session?.roomId]);
 
-  /* Cleanup on unmount */
+  /* ── Cleanup Agora on unmount ───────────────────────────────────── */
   useEffect(() => {
     return () => {
       if (engineRef.current) {
@@ -525,448 +584,202 @@ export default function LiveRoomScreen() {
         engineRef.current.destroy();
         engineRef.current = null;
       }
-      if (joined && id && myUid) {
-        leaveParticipant(id, myUid).catch(() => {});
-      }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* Join room */
-  const handleJoin = useCallback(async () => {
-    if (!id || !myUid || joining) return;
-    setJoining(true);
+  /* ── Join a room ────────────────────────────────────────────────── */
+  const handleJoin = useCallback(async (room: LiveRoom) => {
+    if (!myUid || session) return;
+
+    const isHost = room.liveHostUid === myUid;
 
     try {
-      // Credit gate check
-      const db = firestore();
-      const usageRef = db
-        .collection(USERS_COL)
-        .doc(myUid)
-        .collection("liveUsage")
-        .doc(todayKey());
-      const usageSnap = await usageRef.get();
-      const usedToday: number = usageSnap.exists()
-        ? (usageSnap.data() as any)?.creditsUsed ?? 0
-        : 0;
-
-      setCreditsUsedToday(usedToday);
-
-      if (usedToday >= DAILY_CREDIT_LIMIT && !isHost) {
-        setCreditGateVisible(true);
-        setJoining(false);
-        return;
-      }
-
-      // Debit credit (skip for host)
-      if (!isHost) {
-        const allowed = await checkAndDebitDailyCreditGate(myUid);
-        if (!allowed) {
-          setCreditsUsedToday(DAILY_CREDIT_LIMIT);
-          setCreditGateVisible(true);
-          setJoining(false);
-          return;
-        }
-      }
-
-      // Determine role
-      const role: ParticipantRole = isHost ? "host" : "listener";
-      const agoraRole = isHost ? 1 : 2; // 1 = broadcaster, 2 = audience in Agora
-
-      // Join Firestore
-      await joinParticipant(id, {
-        uid: myUid,
-        username: myUsername,
-        role,
-        muted: isHost ? false : true,
-        handRaised: false,
-        agoraUid: Math.floor(Math.random() * 1000000),
-        joinedAt: Date.now(),
-      });
+      // Increment listener count
+      await updateListenerCount(room.id, 1);
 
       // Init Agora
       const engine = buildAgoraEngine();
-      engine.initialize(AGORA_APP_ID);
-      engine.enableAudio();
-      engine.setChannelProfile(1); // LIVE_BROADCASTING
-      engine.setClientRole(agoraRole);
-
-      if (!AGORA_STUB) {
-        engine.addListener("userJoined", (agoraUid: number) => {
-          // remote user joined — RTC handles audio automatically
-        });
-        engine.addListener("userOffline", (agoraUid: number) => {
-          // remote user left
-        });
-      }
-
-      engine.joinChannel(null, id, "", 0);
       engineRef.current = engine;
+      engine.enableAudio();
+      engine.setClientRole(isHost ? "host" : "audience");
 
-      setMuted(isHost ? false : true);
-      setJoined(true);
-    } catch (e) {
-      Alert.alert("Couldn't join", "Please try again.");
-    } finally {
-      setJoining(false);
-    }
-  }, [id, myUid, joining, isHost, myUsername]);
-
-  /* Leave room */
-  const handleLeave = useCallback(async () => {
-    if (!id || !myUid) return;
-
-    if (isHost) {
-      Alert.alert(
-        "End Room?",
-        "Ending the room will remove all participants.",
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "End Room",
-            style: "destructive",
-            onPress: async () => {
-              engineRef.current?.leaveChannel();
-              engineRef.current?.destroy();
-              engineRef.current = null;
-              await endRoom(id);
-              setJoined(false);
-              router.back();
-            },
-          },
-        ]
-      );
-      return;
-    }
-
-    engineRef.current?.leaveChannel();
-    engineRef.current?.destroy();
-    engineRef.current = null;
-    await leaveParticipant(id, myUid);
-    setJoined(false);
-    router.back();
-  }, [id, myUid, isHost, router]);
-
-  /* Toggle mute */
-  const handleToggleMute = useCallback(async () => {
-    if (!joined || !id) return;
-    const newMuted = !muted;
-    engineRef.current?.muteLocalAudioStream(newMuted);
-    setMuted(newMuted);
-    await updateParticipantField(id, myUid, { muted: newMuted });
-  }, [joined, id, muted, myUid]);
-
-  /* Toggle raise hand */
-  const handleRaiseHand = useCallback(async () => {
-    if (!joined || !id || isHost || myParticipant?.role === "speaker") return;
-    const newRaised = !handRaised;
-    setHandRaised(newRaised);
-    await updateParticipantField(id, myUid, { handRaised: newRaised });
-  }, [joined, id, isHost, myParticipant, handRaised, myUid]);
-
-  /* Host: promote listener to speaker */
-  const handlePromoteSpeaker = useCallback(
-    async (targetUid: string) => {
-      if (!id || !isHost) return;
-      await updateParticipantField(id, targetUid, {
-        role: "speaker",
-        handRaised: false,
-        muted: false,
+      // Join Agora channel (stub: passes roomId as channel name)
+      // Real token should come from your backend token server.
+      await engine.joinChannel(room.id, Math.abs(myUid.hashCode?.() ?? Math.random() * 9999 | 0), {
+        clientRoleType: isHost ? 1 : 2, // HOST=1, AUDIENCE=2
+        token: "", // ← Replace with token from your backend
       });
-      setShowHandQueue(false);
-    },
-    [id, isHost]
-  );
 
-  /* Host: dismiss raised hand */
-  const handleDismissHand = useCallback(
-    async (targetUid: string) => {
-      if (!id || !isHost) return;
-      await updateParticipantField(id, targetUid, { handRaised: false });
-    },
-    [id, isHost]
-  );
+      setSession({
+        roomId: room.id,
+        roomName: room.name,
+        isHost,
+        muted: !isHost,
+      });
+    } catch {
+      // Agora init failed — update listener count back
+      await updateListenerCount(room.id, -1).catch(() => {});
+    }
+  }, [myUid, session]);
 
-  /* Tap a speaker card (host can mute/promote) */
-  const handleSpeakerTap = useCallback(
-    (participant: Participant) => {
-      if (!isHost || participant.uid === myUid) return;
-      Alert.alert(participant.username, "Manage speaker", [
-        {
-          text: participant.muted ? "Unmute" : "Mute",
-          onPress: () =>
-            updateParticipantField(id!, participant.uid, {
-              muted: !participant.muted,
-            }),
-        },
-        {
-          text: "Remove from stage",
-          style: "destructive",
-          onPress: () =>
-            updateParticipantField(id!, participant.uid, { role: "listener" }),
-        },
-        { text: "Cancel", style: "cancel" },
-      ]);
-    },
-    [isHost, myUid, id]
-  );
+  /* ── Leave room ─────────────────────────────────────────────────── */
+  const handleLeave = useCallback(async () => {
+    if (!session) return;
 
-  const topPad =
-    insets.top + (Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) : 0);
+    const { roomId, isHost } = session;
 
-  if (loading) {
-    return (
-      <View style={[styles.screen, styles.centered]}>
-        <ActivityIndicator color={orbit.accent} size="large" />
+    try {
+      if (engineRef.current) {
+        await engineRef.current.leaveChannel();
+        engineRef.current.destroy();
+        engineRef.current = null;
+      }
+      await updateListenerCount(roomId, -1);
+      if (isHost) await endLiveRoom(roomId);
+    } finally {
+      setSession(null);
+    }
+  }, [session]);
+
+  /* ── Toggle mute ────────────────────────────────────────────────── */
+  const handleToggleMute = useCallback(() => {
+    if (!session) return;
+    const next = !session.muted;
+    engineRef.current?.muteLocalAudioStream(next);
+    setSession(prev => prev ? { ...prev, muted: next } : prev);
+  }, [session]);
+
+  /* ── User went live (from GoLiveSheet) ─────────────────────────── */
+  const handleWentLive = useCallback(async (roomId: string) => {
+    if (!myUid) return;
+    // Don't double-increment — createLiveRoom already sets memberCount=1
+    const engine = buildAgoraEngine();
+    engineRef.current = engine;
+    engine.enableAudio();
+    engine.setClientRole("host");
+    await engine.joinChannel(roomId, Math.abs(myUid.split("").reduce((a, c) => a + c.charCodeAt(0), 0) % 99999), {
+      clientRoleType: 1,
+      token: "",
+    });
+    setSession({ roomId, roomName: "Your Room", isHost: true, muted: false });
+  }, [myUid]);
+
+  /* ── Render room card ───────────────────────────────────────────── */
+  const renderRoom = useCallback(({ item }: { item: LiveRoom }) => (
+    <RoomCard room={item} onJoin={handleJoin} />
+  ), [handleJoin]);
+
+  /* ── Empty state ────────────────────────────────────────────────── */
+  const EmptyLive = () => (
+    <View style={styles.emptyState}>
+      <View style={styles.emptyIconWrap}>
+        <Feather name="radio" size={40} color={orbit.textTertiary} />
       </View>
-    );
-  }
-
-  if (!roomDoc || !roomDoc.isLive) {
-    return (
-      <View style={[styles.screen, styles.centered]}>
-        <View style={styles.endedIconWrap}>
-          <Feather name="radio" size={32} color={orbit.textTertiary} />
-        </View>
-        <Text style={styles.endedTitle}>Room Ended</Text>
-        <Text style={styles.endedSub}>This live room is no longer active.</Text>
-        <TouchableOpacity
-          style={styles.endedBackBtn}
-          onPress={() => router.back()}
-          activeOpacity={0.8}
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-        >
-          <Text style={styles.endedBackBtnText}>Go Back</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+      <Text style={styles.emptyTitle}>No live rooms right now</Text>
+      <Text style={styles.emptySub}>
+        Be the first to start one — tap Go Live below.
+      </Text>
+    </View>
+  );
 
   return (
-    <View style={styles.screen}>
-      <StatusBar barStyle="light-content" />
-
-      {/* ── HEADER ──────────────────────────────────────────────── */}
-      <View style={[styles.header, { paddingTop: topPad + 8 }]}>
-        <Pressable
-          style={styles.backBtn}
-          onPress={joined ? handleLeave : () => router.back()}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel="Leave room"
-        >
-          <Feather
-            name={joined ? "log-out" : "arrow-left"}
-            size={20}
-            color={joined ? orbit.danger : orbit.textPrimary}
-          />
-        </Pressable>
-
-        <View style={styles.headerCenter}>
-          <View style={styles.headerTitleRow}>
-            <LivePulse />
-            <Text style={styles.headerTitle} numberOfLines={1}>
-              {roomDoc.name}
-            </Text>
-          </View>
-          <Text style={styles.headerSub}>
-            {roomDoc.memberCount} listening · {roomDoc.language}
-          </Text>
-        </View>
-
+    <View style={[styles.screen, { backgroundColor: orbit.bg }]}>
+      {/* ── HEADER ─────────────────────────────────────────────────── */}
+      <View style={[styles.header, { paddingTop: topPad + 12 }]}>
+        <Text style={styles.headerTitle}>ORBIT Live</Text>
         <View style={styles.headerRight}>
-          {isHost && raisedHands.length > 0 && (
-            <TouchableOpacity
-              style={styles.handQueueBtn}
-              onPress={() => setShowHandQueue(true)}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel={`${raisedHands.length} raised hands`}
-            >
-              <Text style={styles.handQueueBtnText}>✋ {raisedHands.length}</Text>
-            </TouchableOpacity>
+          {session && (
+            <View style={styles.onAirBadge}>
+              <View style={styles.onAirDot} />
+              <Text style={styles.onAirText}>ON AIR</Text>
+            </View>
           )}
           <TouchableOpacity
             hitSlop={8}
-            style={styles.headerActionBtn}
             accessibilityRole="button"
-            accessibilityLabel="Share room"
+            accessibilityLabel="Search rooms"
           >
-            <Feather name="share-2" size={19} color={orbit.textSecond} />
+            <Feather name="search" size={20} color={orbit.textSecond} />
           </TouchableOpacity>
         </View>
       </View>
-      <View style={styles.headerRule} />
 
-      <ScrollView
-        style={styles.body}
-        contentContainerStyle={styles.bodyContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* ── SPEAKERS GRID ──────────────────────────────────────── */}
-        <Text style={styles.sectionLabel}>On Stage</Text>
-        <View style={styles.speakersGrid}>
-          {speakers.length === 0 ? (
-            <View style={styles.emptyStagePlaceholder}>
-              <Feather name="mic-off" size={22} color={orbit.textTertiary} />
-              <Text style={styles.emptyStageText}>No speakers yet</Text>
-            </View>
-          ) : (
-            speakers.map((p) => (
-              <SpeakerCard
-                key={p.uid}
-                participant={p}
-                isMe={p.uid === myUid}
-                onTap={() => handleSpeakerTap(p)}
-              />
-            ))
-          )}
-        </View>
-
-        {/* ── LISTENERS ──────────────────────────────────────────── */}
-        {listeners.length > 0 && (
-          <>
-            <Text style={styles.sectionLabel}>
-              Listeners · {listeners.length}
-            </Text>
-            <View style={styles.listenersWrap}>
-              {listeners.map((p) => (
-                <ListenerRow key={p.uid} participant={p} />
-              ))}
-            </View>
-          </>
-        )}
-
-        {/* ── HOST REVENUE BADGE ─────────────────────────────────── */}
-        {isHost && joined && (
-          <View style={styles.revenueCard}>
-            <Feather name="trending-up" size={16} color={orbit.success} />
-            <Text style={styles.revenueText}>
-              Earning credits while you host
-            </Text>
-            <View style={styles.revenueBadge}>
-              <Feather name="zap" size={10} color={orbit.warning} />
-              <Text style={styles.revenueBadgeText}>LIVE</Text>
-            </View>
+      {/* ── FEATURED BANNER ────────────────────────────────────────── */}
+      <View style={styles.banner}>
+        <View style={styles.bannerContent}>
+          <View style={styles.bannerIconWrap}>
+            <Feather name="zap" size={18} color={orbit.accent} />
           </View>
-        )}
+          <View style={{ flex: 1 }}>
+            <Text style={styles.bannerTitle}>Evening Rush · 8-11 PM</Text>
+            <Text style={styles.bannerSub}>Most rooms are live now. Join the conversation.</Text>
+          </View>
+        </View>
+      </View>
 
-        <View style={{ height: 120 }} />
-      </ScrollView>
-
-      {/* ── BOTTOM CONTROLS ─────────────────────────────────────── */}
-      <View
-        style={[
-          styles.controls,
-          { paddingBottom: Math.max(insets.bottom, 12) + 8 },
-        ]}
-      >
-        {!joined ? (
-          <TouchableOpacity
-            style={[styles.joinBtn, joining && { opacity: 0.6 }]}
-            onPress={handleJoin}
-            disabled={joining}
-            activeOpacity={0.85}
-            accessibilityRole="button"
-            accessibilityLabel="Join room"
-          >
-            {joining ? (
-              <ActivityIndicator color={orbit.white} size="small" />
-            ) : (
-              <>
-                <Feather name="headphones" size={18} color={orbit.white} />
-                <Text style={styles.joinBtnText}>
-                  {isHost ? "Start Room" : "Join Room"}
+      {/* ── ROOMS LIST ─────────────────────────────────────────────── */}
+      {loading ? (
+        <View style={styles.loadingWrap}>
+          <ActivityIndicator color={orbit.accent} />
+        </View>
+      ) : (
+        <FlatList
+          data={rooms}
+          keyExtractor={item => item.id}
+          renderItem={renderRoom}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingBottom: insets.bottom + (session ? 110 : 100) },
+          ]}
+          ListEmptyComponent={EmptyLive}
+          showsVerticalScrollIndicator={false}
+          ListHeaderComponent={
+            rooms.length > 0 ? (
+              <View style={styles.listHeader}>
+                <Text style={styles.listHeaderLabel}>
+                  {rooms.length} ROOM{rooms.length !== 1 ? "S" : ""} LIVE
                 </Text>
-              </>
-            )}
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.controlRow}>
-            {/* Mute / unmute — only for host or speakers */}
-            {(isHost || myParticipant?.role === "speaker") && (
-              <TouchableOpacity
-                style={[styles.controlBtn, muted && styles.controlBtnActive]}
-                onPress={handleToggleMute}
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityLabel={muted ? "Unmute" : "Mute"}
-              >
-                <Feather
-                  name={muted ? "mic-off" : "mic"}
-                  size={20}
-                  color={muted ? orbit.danger : orbit.textPrimary}
-                />
-              </TouchableOpacity>
-            )}
+                <View style={styles.listHeaderDot} />
+              </View>
+            ) : null
+          }
+        />
+      )}
 
-            {/* Raise hand — listeners only */}
-            {myParticipant?.role === "listener" && (
-              <TouchableOpacity
-                style={[styles.controlBtn, handRaised && styles.controlBtnRaisedHand]}
-                onPress={handleRaiseHand}
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityLabel={handRaised ? "Lower hand" : "Raise hand"}
-              >
-                <Text style={styles.handEmoji}>{handRaised ? "✋" : "🤚"}</Text>
-              </TouchableOpacity>
-            )}
-
-            {/* Raise-hand queue — host only */}
-            {isHost && (
-              <TouchableOpacity
-                style={[styles.controlBtn, raisedHands.length > 0 && styles.controlBtnBadge]}
-                onPress={() => setShowHandQueue(true)}
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityLabel="Raised hands queue"
-              >
-                <Feather name="list" size={20} color={orbit.textPrimary} />
-                {raisedHands.length > 0 && (
-                  <View style={styles.badgeDot}>
-                    <Text style={styles.badgeDotText}>{raisedHands.length}</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            )}
-
-            {/* Spacer */}
-            <View style={{ flex: 1 }} />
-
-            {/* Leave */}
-            <TouchableOpacity
-              style={styles.leaveBtn}
-              onPress={handleLeave}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel={isHost ? "End room" : "Leave room"}
-            >
-              <Text style={styles.leaveBtnText}>
-                {isHost ? "End" : "Leave"}
-              </Text>
-            </TouchableOpacity>
+      {/* ── GO LIVE CTA ────────────────────────────────────────────── */}
+      <View style={[styles.ctaWrap, { bottom: insets.bottom + (session ? 86 : 16) }]}>
+        <TouchableOpacity
+          style={[styles.goLiveCta, session && { opacity: 0.45 }]}
+          onPress={() => !session && setShowGoLive(true)}
+          disabled={!!session}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={session ? "Already in a room" : "Go Live"}
+        >
+          <View style={styles.ctaPulseWrap}>
+            <View style={styles.ctaPulseDot} />
           </View>
-        )}
+          <Text style={styles.ctaBtnText}>Go Live</Text>
+          <Feather name="chevron-right" size={16} color={orbit.white} />
+        </TouchableOpacity>
       </View>
 
-      {/* ── MODALS ──────────────────────────────────────────────── */}
-      <CreditGateModal
-        visible={creditGateVisible}
-        creditsUsedToday={creditsUsedToday}
-        onClose={() => {
-          setCreditGateVisible(false);
-          router.back();
-        }}
-      />
+      {/* ── IN-ROOM OVERLAY ────────────────────────────────────────── */}
+      {session && (
+        <InRoomOverlay
+          session={session}
+          listenerCount={liveListenerCount}
+          onToggleMute={handleToggleMute}
+          onLeave={handleLeave}
+        />
+      )}
 
-      <RaiseHandQueueSheet
-        visible={showHandQueue}
-        raisedHands={raisedHands}
-        onPromote={handlePromoteSpeaker}
-        onDismiss={handleDismissHand}
-        onClose={() => setShowHandQueue(false)}
+      {/* ── GO LIVE SHEET ──────────────────────────────────────────── */}
+      <GoLiveSheet
+        visible={showGoLive}
+        onClose={() => setShowGoLive(false)}
+        onLive={handleWentLive}
+        hostUsername={myUsername}
       />
     </View>
   );
@@ -977,254 +790,209 @@ export default function LiveRoomScreen() {
 ───────────────────────────────────────────────────────────────────── */
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: orbit.bg,
-  },
-  centered: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  screen: { flex: 1 },
 
   /* Header */
   header: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
     paddingBottom: 12,
-    gap: 8,
-  },
-  backBtn: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
-    marginLeft: -6,
-  },
-  headerCenter: {
-    flex: 1,
-  },
-  headerTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
   },
   headerTitle: {
     color: orbit.textPrimary,
-    fontSize: 17,
+    fontSize: 24,
     fontWeight: "700",
-    letterSpacing: -0.2,
-    flexShrink: 1,
+    letterSpacing: -0.4,
   },
-  headerSub: {
-    color: orbit.textTertiary,
-    fontSize: 12,
-    fontWeight: "500",
-    marginTop: 2,
-  },
-  headerRight: {
+  headerRight: { flexDirection: "row", alignItems: "center", gap: 14 },
+  onAirBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-  },
-  headerActionBtn: {
-    width: 38,
-    height: 38,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  handQueueBtn: {
+    gap: 6,
     paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 99,
-    backgroundColor: orbit.warningSoft,
-    marginRight: 4,
-  },
-  handQueueBtnText: {
-    color: orbit.warning,
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  headerRule: {
-    height: 1,
-    backgroundColor: orbit.borderSubtle,
-  },
-
-  /* Live pulse */
-  pulseWrap: {
-    width: 12,
-    height: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  pulseRing: {
-    position: "absolute",
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: orbit.danger,
-  },
-  pulseDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: orbit.danger,
-  },
-
-  /* Body */
-  body: { flex: 1 },
-  bodyContent: {
-    paddingHorizontal: 16,
-    paddingTop: 20,
-  },
-  sectionLabel: {
-    color: orbit.textTertiary,
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 0.8,
-    textTransform: "uppercase",
-    marginBottom: 14,
-    marginTop: 8,
-  },
-
-  /* Speaker grid */
-  speakersGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-    marginBottom: 28,
-  },
-  speakerCard: {
-    alignItems: "center",
-    width: 80,
-  },
-  speakerAvatarWrap: {
-    position: "relative",
-    marginBottom: 6,
-  },
-  speakerAvatarMuted: {
-    opacity: 0.6,
-  },
-  speakerAudioRing: {
-    position: "absolute",
-    inset: -3,
-    borderRadius: 31,
-    borderWidth: 2,
-    borderColor: orbit.success,
-  },
-  hostBadgeWrap: {
-    position: "absolute",
-    bottom: 0,
-    right: 0,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: orbit.warning,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2,
-    borderColor: orbit.bg,
-  },
-  speakerName: {
-    color: orbit.textPrimary,
-    fontSize: 12,
-    fontWeight: "600",
-    textAlign: "center",
-    maxWidth: 76,
-  },
-  speakerStatus: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-    marginTop: 3,
-  },
-  handRaisedEmoji: {
-    fontSize: 12,
-  },
-  emptyStagePlaceholder: {
-    width: "100%",
-    height: 100,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: orbit.borderSubtle,
-    borderStyle: "dashed",
-    gap: 8,
-  },
-  emptyStageText: {
-    color: orbit.textTertiary,
-    fontSize: 13,
-  },
-
-  /* Listeners */
-  listenersWrap: {
-    gap: 8,
-    marginBottom: 24,
-  },
-  listenerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
     paddingVertical: 4,
+    borderRadius: 99,
+    backgroundColor: orbit.dangerSoft,
   },
-  listenerName: {
-    color: orbit.textSecond,
-    fontSize: 14,
-    fontWeight: "500",
-    flex: 1,
+  onAirDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: orbit.danger,
   },
-  listenerHandBadge: {
-    width: 24,
-    height: 24,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  /* Revenue */
-  revenueCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: orbit.successSoft,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginTop: 8,
-    borderWidth: 1,
-    borderColor: `rgba(43,182,115,0.2)`,
-  },
-  revenueText: {
-    color: orbit.success,
-    fontSize: 13,
-    fontWeight: "600",
-    flex: 1,
-  },
-  revenueBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-    backgroundColor: orbit.warningSoft,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  revenueBadgeText: {
-    color: orbit.warning,
+  onAirText: {
+    color: orbit.danger,
     fontSize: 10,
     fontWeight: "700",
-    letterSpacing: 0.5,
+    letterSpacing: 1,
   },
 
-  /* Controls */
-  controls: {
-    borderTopWidth: 1,
-    borderTopColor: orbit.borderSubtle,
-    backgroundColor: orbit.bg,
-    paddingTop: 14,
-    paddingHorizontal: 16,
+  /* Banner */
+  banner: {
+    marginHorizontal: 20,
+    marginBottom: 16,
+    borderRadius: 14,
+    backgroundColor: orbit.accentSoftSolid,
+    borderWidth: 1,
+    borderColor: orbit.accentSoft,
+    padding: 14,
   },
-  joinBtn: {
+  bannerContent: { flexDirection: "row", alignItems: "center", gap: 12 },
+  bannerIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: orbit.accentSoft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  bannerTitle: { color: orbit.textPrimary, fontSize: 14, fontWeight: "600" },
+  bannerSub: { color: orbit.textSecond, fontSize: 12, marginTop: 3 },
+
+  /* List */
+  listContent: { paddingHorizontal: 20, paddingTop: 4 },
+  listHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+  },
+  listHeaderLabel: {
+    color: orbit.textTertiary,
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 0.6,
+  },
+  listHeaderDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: orbit.danger,
+  },
+
+  loadingWrap: { flex: 1, alignItems: "center", justifyContent: "center" },
+
+  /* Room card */
+  roomCard: {
+    borderRadius: 14,
+    backgroundColor: orbit.surface1,
+    borderWidth: 1,
+    borderColor: orbit.borderSubtle,
+    marginBottom: 12,
+    overflow: "hidden",
+  },
+  roomCardTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 14,
+  },
+  roomIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  roomName: {
+    color: orbit.textPrimary,
+    fontSize: 15,
+    fontWeight: "600",
+    letterSpacing: -0.1,
+  },
+  roomDesc: {
+    color: orbit.textSecond,
+    fontSize: 12,
+    marginTop: 3,
+  },
+  roomBadgeCol: { alignItems: "flex-end", gap: 6 },
+  liveBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 99,
+    backgroundColor: orbit.dangerSoft,
+  },
+  liveBadgeText: {
+    color: orbit.danger,
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1,
+  },
+  listenerRow: { flexDirection: "row", alignItems: "center", gap: 3 },
+  listenerCount: { color: orbit.textTertiary, fontSize: 11, fontWeight: "500" },
+  roomJoinBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 10,
+  },
+  roomJoinText: { color: orbit.white, fontSize: 13, fontWeight: "600" },
+
+  /* Live pulse animation */
+  livePulseWrap: {
+    width: 10,
+    height: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  livePulseRing: {
+    position: "absolute",
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: orbit.danger,
+  },
+  livePulseDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: orbit.danger,
+  },
+
+  /* Empty state */
+  emptyState: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 60,
+    paddingHorizontal: 40,
+  },
+  emptyIconWrap: {
+    width: 80,
+    height: 80,
+    borderRadius: 20,
+    backgroundColor: orbit.surface2,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+  },
+  emptyTitle: {
+    color: orbit.textPrimary,
+    fontSize: 18,
+    fontWeight: "700",
+    textAlign: "center",
+    letterSpacing: -0.2,
+  },
+  emptySub: {
+    marginTop: 8,
+    color: orbit.textSecond,
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 21,
+  },
+
+  /* Go Live CTA */
+  ctaWrap: {
+    position: "absolute",
+    left: 20,
+    right: 20,
+  },
+  goLiveCta: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -1233,194 +1001,82 @@ const styles = StyleSheet.create({
     borderRadius: 26,
     backgroundColor: orbit.danger,
     shadowColor: orbit.danger,
-    shadowOpacity: 0.35,
+    shadowOpacity: 0.4,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
     elevation: 6,
   },
-  joinBtnText: {
-    color: orbit.white,
-    fontSize: 16,
-    fontWeight: "700",
-    letterSpacing: -0.1,
-  },
-  controlRow: {
+  ctaPulseWrap: { width: 12, height: 12, alignItems: "center", justifyContent: "center" },
+  ctaPulseDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: orbit.white },
+  ctaBtnText: { color: orbit.white, fontSize: 16, fontWeight: "700", letterSpacing: -0.1 },
+
+  /* In-room bar */
+  inRoomBar: {
+    position: "absolute",
+    left: 16,
+    right: 16,
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-  },
-  controlBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
     backgroundColor: orbit.surface2,
-    alignItems: "center",
-    justifyContent: "center",
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: orbit.borderSubtle,
+    borderColor: orbit.borderStrong,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 10,
+    shadowColor: orbit.black,
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
   },
-  controlBtnActive: {
-    backgroundColor: orbit.dangerSoft,
-    borderColor: orbit.danger,
-  },
-  controlBtnRaisedHand: {
-    backgroundColor: orbit.warningSoft,
-    borderColor: orbit.warning,
-  },
-  controlBtnBadge: {
-    borderColor: orbit.accent,
-  },
-  handEmoji: {
-    fontSize: 20,
-  },
-  badgeDot: {
-    position: "absolute",
-    top: -2,
-    right: -2,
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
+  inRoomLeft: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10 },
+  inRoomLiveDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: orbit.danger,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 3,
-    borderWidth: 2,
-    borderColor: orbit.bg,
   },
-  badgeDotText: {
-    color: orbit.white,
+  inRoomName: {
+    color: orbit.textPrimary,
+    fontSize: 13,
+    fontWeight: "600",
+    letterSpacing: -0.1,
+  },
+  inRoomMeta: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2 },
+  inRoomCount: { color: orbit.textTertiary, fontSize: 11, fontWeight: "500" },
+  inRoomHostBadge: {
+    color: orbit.accent,
     fontSize: 9,
     fontWeight: "700",
+    letterSpacing: 0.8,
+    backgroundColor: orbit.accentSoft,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
   },
-  leaveBtn: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+  inRoomActions: { flexDirection: "row", alignItems: "center", gap: 8 },
+  inRoomBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: orbit.surface3,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  inRoomBtnMuted: { backgroundColor: orbit.dangerSoft },
+  inRoomLeaveBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     borderRadius: 99,
     backgroundColor: orbit.dangerSoft,
   },
-  leaveBtnText: {
-    color: orbit.danger,
-    fontSize: 14,
-    fontWeight: "700",
-  },
+  inRoomLeaveText: { color: orbit.danger, fontSize: 13, fontWeight: "600" },
 
-  /* Ended state */
-  endedIconWrap: {
-    width: 72,
-    height: 72,
-    borderRadius: 18,
-    backgroundColor: orbit.surface2,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16,
-  },
-  endedTitle: {
-    color: orbit.textPrimary,
-    fontSize: 20,
-    fontWeight: "700",
-    letterSpacing: -0.2,
-    marginBottom: 8,
-  },
-  endedSub: {
-    color: orbit.textSecond,
-    fontSize: 14,
-    textAlign: "center",
-    marginBottom: 24,
-    paddingHorizontal: 32,
-  },
-  endedBackBtn: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 99,
-    backgroundColor: orbit.surface2,
-    borderWidth: 1,
-    borderColor: orbit.borderStrong,
-  },
-  endedBackBtnText: {
-    color: orbit.textPrimary,
-    fontSize: 15,
-    fontWeight: "600",
-  },
-
-  /* Credit gate modal */
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 24,
-  },
-  creditGateCard: {
-    width: "100%",
-    backgroundColor: orbit.surface1,
-    borderRadius: 20,
-    padding: 24,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: orbit.borderStrong,
-  },
-  creditGateIconWrap: {
-    width: 60,
-    height: 60,
-    borderRadius: 15,
-    backgroundColor: orbit.warningSoft,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16,
-  },
-  creditGateTitle: {
-    color: orbit.textPrimary,
-    fontSize: 19,
-    fontWeight: "700",
-    letterSpacing: -0.2,
-    marginBottom: 8,
-  },
-  creditGateSub: {
-    color: orbit.textSecond,
-    fontSize: 14,
-    textAlign: "center",
-    lineHeight: 21,
-    marginBottom: 20,
-  },
-  creditGateBar: {
-    width: "100%",
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: orbit.surface3,
-    marginBottom: 8,
-    overflow: "hidden",
-  },
-  creditGateFill: {
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: orbit.warning,
-  },
-  creditGateBarLabel: {
-    color: orbit.textTertiary,
-    fontSize: 11,
-    fontWeight: "600",
-    marginBottom: 20,
-  },
-  creditGateBtn: {
-    width: "100%",
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: orbit.surface2,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: orbit.borderStrong,
-  },
-  creditGateBtnText: {
-    color: orbit.textPrimary,
-    fontSize: 15,
-    fontWeight: "600",
-  },
-
-  /* Raise-hand sheet */
+  /* Go Live sheet */
   sheetBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.55)",
+    backgroundColor: "rgba(0,0,0,0.6)",
     justifyContent: "flex-end",
   },
   sheetContainer: {
@@ -1429,7 +1085,6 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     paddingTop: 12,
     paddingHorizontal: 20,
-    paddingBottom: 24,
   },
   sheetHandle: {
     width: 36,
@@ -1441,64 +1096,76 @@ const styles = StyleSheet.create({
   },
   sheetTitle: {
     color: orbit.textPrimary,
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "700",
-    letterSpacing: -0.2,
+    letterSpacing: -0.3,
     marginBottom: 4,
   },
   sheetSub: {
     color: orbit.textSecond,
     fontSize: 13,
+    marginBottom: 20,
+  },
+  fieldLabel: {
+    color: orbit.textTertiary,
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  fieldInput: {
+    backgroundColor: orbit.surface2,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: orbit.borderStrong,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    color: orbit.textPrimary,
+    fontSize: 15,
     marginBottom: 16,
   },
-  sheetEmpty: {
-    alignItems: "center",
-    paddingVertical: 32,
-    gap: 10,
-  },
-  sheetEmptyText: {
-    color: orbit.textTertiary,
-    fontSize: 14,
-  },
-  handQueueRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: orbit.borderSubtle,
-  },
-  handQueueName: {
-    color: orbit.textPrimary,
-    fontSize: 14,
-    fontWeight: "600",
-    flex: 1,
-  },
-  handQueueActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  handPromoteBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 12,
+  langRow: { flexDirection: "row", gap: 8, paddingVertical: 4 },
+  langChip: {
+    paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: 99,
-    backgroundColor: orbit.accent,
+    backgroundColor: orbit.surface2,
+    borderWidth: 1,
+    borderColor: orbit.borderSubtle,
   },
-  handPromoteBtnText: {
-    color: orbit.white,
-    fontSize: 12,
-    fontWeight: "700",
+  langChipActive: {
+    backgroundColor: orbit.accentSoft,
+    borderColor: orbit.accent,
   },
-  handDismissBtn: {
-    width: 32,
-    height: 32,
+  langChipText: { color: orbit.textSecond, fontSize: 13, fontWeight: "500" },
+  accentRow: { flexDirection: "row", gap: 12, marginBottom: 20 },
+  accentDot: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+  },
+  accentDotActive: {
+    borderWidth: 3,
+    borderColor: orbit.white,
+    shadowColor: orbit.black,
+    shadowOpacity: 0.4,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+  },
+  goLiveBtn: {
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 16,
-    backgroundColor: orbit.surface2,
+    gap: 10,
+    height: 52,
+    borderRadius: 26,
   },
+  goLivePulseSmall: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: orbit.white,
+  },
+  goLiveBtnText: { color: orbit.white, fontSize: 16, fontWeight: "700" },
 });
