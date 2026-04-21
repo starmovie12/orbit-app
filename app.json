@@ -16,14 +16,12 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.nooralam.orbit",
-      "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
-      "package": "com.nooralam.orbit",
-      "googleServicesFile": "./google-services.json"
+      "package": "com.nooralam.orbit"
     },
     "web": {
       "favicon": "./assets/images/icon.png"
