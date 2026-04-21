@@ -1,29 +1,53 @@
 /**
- * Central Firebase entry point — NATIVE (Android/iOS) build.
+ * lib/firebase.ts
  *
- * Metro bundler ke platform-extensions ki wajah se automatically:
- *   - Web build         → lib/firebase.web.ts  (Firebase Web SDK compat)
- *   - iOS/Android build → this file             (@react-native-firebase)
- *
- * Is file ko mat chhedna. Sab web-specific kaam firebase.web.ts mein hota hai.
- *
- * @react-native-firebase auto-initializes from google-services.json (Android)
- * and GoogleService-Info.plist (iOS) at native startup — so we don't call
- * initializeApp() ourselves here.
+ * ✅ JS-only Firebase SDK (no native modules needed — works in Expo Go)
+ * ✅ Real config: orbit-app-5b4b3
+ * ✅ Auth persisted via AsyncStorage (session survives app restarts)
  */
 
-import auth from "@react-native-firebase/auth";
-import firestore, {
-  FirebaseFirestoreTypes,
-} from "@react-native-firebase/firestore";
+import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
+import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
+import {
+  initializeAuth,
+  getAuth,
+  getReactNativePersistence,
+  Auth,
+} from "firebase/auth";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-export { auth, firestore };
-export type FirestoreTypes = FirebaseFirestoreTypes.Module;
+// ─── Firebase project config (orbit-app-5b4b3) ───────────────────────────────
+const firebaseConfig = {
+  apiKey:            "AIzaSyBAeFZfk-TLk3WxhSLobX8AYjteSv-g344",
+  authDomain:        "orbit-app-5b4b3.firebaseapp.com",
+  projectId:         "orbit-app-5b4b3",
+  storageBucket:     "orbit-app-5b4b3.firebasestorage.app",
+  messagingSenderId: "250454225022",
+  appId:             "1:250454225022:web:285ff43d617e9230e6a82f",
+  measurementId:     "G-ZG0JCXJ26V",
+};
 
-/** Firestore server timestamp shortcut (for createdAt / updatedAt). */
-export const serverTimestamp = () =>
-  firestore.FieldValue.serverTimestamp();
+// ─── App (guard against duplicate init on hot-reload) ────────────────────────
+const app: FirebaseApp =
+  getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-/** Atomic increment helper (used for karma, credits counters). */
-export const increment = (by: number) =>
-  firestore.FieldValue.increment(by);
+// ─── Auth (with AsyncStorage persistence) ────────────────────────────────────
+let auth: Auth;
+try {
+  auth = initializeAuth(app, {
+    persistence: getReactNativePersistence(AsyncStorage),
+  });
+} catch {
+  // Already initialized (happens during Expo fast-refresh)
+  auth = getAuth(app);
+}
+
+// ─── Firestore ────────────────────────────────────────────────────────────────
+const db = getFirestore(app);
+
+// ─── Storage ─────────────────────────────────────────────────────────────────
+const storage = getStorage(app);
+
+export { app, auth, db, storage };
+export default app;
