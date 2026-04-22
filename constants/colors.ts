@@ -1,19 +1,35 @@
 /**
- * ORBIT — Design Tokens v2
+ * ORBIT — Design Tokens v3 (Golden Edition)
  *
- * Single source of truth. Do NOT inline hex values anywhere else.
- *
- * Philosophy: Quiet luxury. ONE accent. Hierarchy by space and weight,
- * not by competing colors. Beat Telegram by being simpler, beat Discord
- * by being calmer, beat WhatsApp by being more capable.
- *
- * Both dark (default) and light themes are defined here.
- * CSS equivalents live in tokens.css / globals.css for web/preview use.
+ * White + Gold premium theme — matching the CROWN HTML design.
+ * Background: warm white (#FDF8F2), Accent: rich gold (#C8871A)
  */
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   DARK THEME (app default)
-───────────────────────────────────────────────────────────────────────────── */
+const orbitGold = {
+  bg:           "#FDF8F2",
+  surface1:     "#FFFFFF",
+  surface2:     "#FFF8ED",
+  surface3:     "#F5EDE0",
+  borderSubtle: "#E8D9C8",
+  borderStrong: "#D4BFA0",
+  textPrimary:  "#1A1208",
+  textSecond:   "#5C4A2E",
+  textTertiary: "#8B6D4A",
+  textInverse:  "#FFFFFF",
+  accent:          "#C8871A",
+  accentHover:     "#A0620A",
+  accentSoft:      "rgba(200, 135, 26, 0.10)",
+  accentSoftSolid: "#FDF3E1",
+  success:      "#2BB673",
+  successSoft:  "rgba(43, 182, 115, 0.12)",
+  warning:      "#E8A93A",
+  warningSoft:  "rgba(232, 169, 58, 0.12)",
+  danger:       "#E5484D",
+  dangerSoft:   "rgba(229, 72, 77, 0.12)",
+  white: "#FFFFFF",
+  black: "#000000",
+} as const;
+
 const orbitDark = {
   bg:           "#0A0A0B",
   surface1:     "#131316",
@@ -25,51 +41,26 @@ const orbitDark = {
   textSecond:   "#A1A1AA",
   textTertiary: "#6B6B73",
   textInverse:  "#0A0A0B",
-  accent:          "#5B7FFF",
-  accentHover:     "#4A6FF0",
-  accentSoft:      "rgba(91, 127, 255, 0.10)",
-  accentSoftSolid: "#16193A",
+  accent:          "#C8871A",
+  accentHover:     "#A0620A",
+  accentSoft:      "rgba(200, 135, 26, 0.10)",
+  accentSoftSolid: "#2A1F0A",
   success:      "#2BB673",
   successSoft:  "rgba(43, 182, 115, 0.12)",
-  warning:      "#E8A33D",
-  warningSoft:  "rgba(232, 163, 61, 0.12)",
+  warning:      "#E8A93A",
+  warningSoft:  "rgba(232, 169, 58, 0.12)",
   danger:       "#E5484D",
   dangerSoft:   "rgba(229, 72, 77, 0.12)",
   white: "#FFFFFF",
   black: "#000000",
 } as const;
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   LIGHT THEME
-───────────────────────────────────────────────────────────────────────────── */
-const orbitLight = {
-  bg:           "#F7F7F8",
-  surface1:     "#FFFFFF",
-  surface2:     "#F0F0F2",
-  surface3:     "#E8E8EC",
-  borderSubtle: "#E4E4E8",
-  borderStrong: "#CBCBD2",
-  textPrimary:  "#0A0A0B",
-  textSecond:   "#52525B",
-  textTertiary: "#A1A1AA",
-  textInverse:  "#FFFFFF",
-  accent:          "#5B7FFF",
-  accentHover:     "#4A6FF0",
-  accentSoft:      "rgba(91, 127, 255, 0.10)",
-  accentSoftSolid: "#E8ECFF",
-  success:      "#1DA360",
-  successSoft:  "rgba(29, 163, 96, 0.10)",
-  warning:      "#C97D1A",
-  warningSoft:  "rgba(201, 125, 26, 0.10)",
-  danger:       "#D93025",
-  dangerSoft:   "rgba(217, 48, 37, 0.10)",
-  white: "#FFFFFF",
-  black: "#000000",
-} as const;
+const orbitLight = orbitGold;
 
-export const orbit = orbitDark;
+// Golden white theme is now the default
+export const orbit = orbitGold;
 
-function makePalette(o: typeof orbitDark) {
+function makePalette(o: typeof orbitGold) {
   return {
     text:                o.textPrimary,
     tint:                o.accent,
@@ -110,7 +101,7 @@ const colors = {
 } as const;
 
 export default colors;
-export { orbitDark, orbitLight };
+export { orbitDark, orbitLight, orbitGold };
 
-export type OrbitTokens  = typeof orbitDark;
+export type OrbitTokens  = typeof orbitGold;
 export type ColorPalette = ReturnType<typeof makePalette>;
