@@ -5,11 +5,18 @@
  * and uses firebase.ts for iOS/Android. Same import path in app code:
  *     import { auth, firestore } from "@/lib/firebase";
  *
- * Why `firebase/compat/*` instead of the v9 modular SDK?
- *   @react-native-firebase's API is namespaced (`auth()`, `firestore().collection(...)`,
+ * Why `firebase/compat/*` for Firestore?
+ *   @react-native-firebase's API is namespaced (`firestore()`, `firestore().collection(...)`,
  *   `firestore.FieldValue.serverTimestamp()`). firebase/compat preserves that exact
- *   namespaced API, so every existing call site in `lib/auth.ts`, `lib/firestore-users.ts`,
- *   etc. works identically on web — zero rewrites needed.
+ *   namespaced API, so every existing call site in `lib/firestore-users.ts`, etc.
+ *   works identically on web — zero rewrites needed.
+ *
+ * Why modular `getAuth()` for Auth?
+ *   All call sites in `lib/auth.ts` and `contexts/AuthContext.tsx` use the modular SDK:
+ *   `onAuthStateChanged(auth, ...)`, `signInWithPhoneNumber(auth, ...)`, etc.
+ *   These functions require a modular Auth instance, NOT the compat `firebase.auth`
+ *   namespace function. Exporting `firebase.auth` caused the runtime crash:
+ *   "onAuthStateChanged is not a function".
  *
  * --------------------------------------------------------------------------
  * SECURITY NOTE for whoever reads this in the git log:
@@ -23,8 +30,8 @@
  */
 
 import firebase from "firebase/compat/app";
-import "firebase/compat/auth";
 import "firebase/compat/firestore";
+import { getAuth, type Auth } from "firebase/auth";
 
 const FIREBASE_WEB_CONFIG = {
   apiKey: "AIzaSyDPXJ6oj2ac-5QsgDWDSslN_AaVrM7KQ2w",
@@ -41,11 +48,24 @@ if (!firebase.apps.length) {
 }
 
 /**
- * `auth` and `firestore` are callable (`auth()`, `firestore()`) AND carry
- * static members (`firestore.FieldValue.serverTimestamp()` etc.). This
- * structurally matches @react-native-firebase's exports.
+ * `auth` — modular Auth instance obtained via getAuth().
+ *
+ * firebase/compat and firebase modular share the same underlying app registry,
+ * so `firebase.app()` returns the app initialized above, and `getAuth()` wraps
+ * it in a proper modular Auth instance that works with all v9+ modular functions:
+ *   onAuthStateChanged(auth, ...)
+ *   signInWithPhoneNumber(auth, ...)
+ *   signInWithCredential(auth, ...)
+ *   signOut(auth)
  */
-export const auth = firebase.auth;
+export const auth: Auth = getAuth(firebase.app());
+
+/**
+ * `firestore` — compat callable namespace.
+ * Call sites use it as both a function (`firestore()`) and a static
+ * namespace (`firestore.FieldValue.serverTimestamp()`), which is why
+ * we keep compat here instead of switching to modular getFirestore().
+ */
 export const firestore = firebase.firestore;
 
 /** Firestore server timestamp shortcut (for createdAt / updatedAt). */
