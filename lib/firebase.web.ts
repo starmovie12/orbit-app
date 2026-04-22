@@ -1,84 +1,68 @@
 /**
- * Central Firebase entry point — WEB build.
+ * lib/firebase.web.ts — WEB build only
  *
- * Metro automatically picks this file when bundling for platform=web,
- * and uses firebase.ts for iOS/Android. Same import path in app code:
- *     import { auth, firestore } from "@/lib/firebase";
+ * Metro automatically picks this file for platform=web.
  *
- * Why `firebase/compat/*` for Firestore?
- *   @react-native-firebase's API is namespaced (`firestore()`, `firestore().collection(...)`,
- *   `firestore.FieldValue.serverTimestamp()`). firebase/compat preserves that exact
- *   namespaced API, so every existing call site in `lib/firestore-users.ts`, etc.
- *   works identically on web — zero rewrites needed.
+ * ROOT CAUSE FIX:
+ *   Previous code did: getAuth(firebase.app())  ← compat app passed to modular getAuth
+ *   This caused: "getModularInstance(...).onAuthStateChanged is not a function"
  *
- * Why modular `getAuth()` for Auth?
- *   All call sites in `lib/auth.ts` and `contexts/AuthContext.tsx` use the modular SDK:
- *   `onAuthStateChanged(auth, ...)`, `signInWithPhoneNumber(auth, ...)`, etc.
- *   These functions require a modular Auth instance, NOT the compat `firebase.auth`
- *   namespace function. Exporting `firebase.auth` caused the runtime crash:
- *   "onAuthStateChanged is not a function".
- *
- * --------------------------------------------------------------------------
- * SECURITY NOTE for whoever reads this in the git log:
- *   The apiKey below IS NOT A SECRET. Firebase Web API keys are designed to
- *   be public (they only identify the project to Google's API). Security is
- *   enforced via Firebase Security Rules + App Check, not by hiding this key.
- *
- *   Real secrets (Admin SDK service-account JSON, private keys, tokens)
- *   MUST NEVER be committed to this repo. Ever. Not in any file.
- * --------------------------------------------------------------------------
+ *   FIX: Initialize a PROPER modular app via initializeApp(), then pass
+ *   THAT modular app to getAuth(). Compat SDK is kept only for Firestore
+ *   because call sites use namespaced API (firestore().collection(...),
+ *   firestore.FieldValue.serverTimestamp()).
  */
 
 import firebase from "firebase/compat/app";
 import "firebase/compat/firestore";
+import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
 
 const FIREBASE_WEB_CONFIG = {
-  apiKey: "AIzaSyDPXJ6oj2ac-5QsgDWDSslN_AaVrM7KQ2w",
-  authDomain: "orbit-app-5b4b3.firebaseapp.com",
-  projectId: "orbit-app-5b4b3",
-  storageBucket: "orbit-app-5b4b3.firebasestorage.app",
+  apiKey:            "AIzaSyDPXJ6oj2ac-5QsgDWDSslN_AaVrM7KQ2w",
+  authDomain:        "orbit-app-5b4b3.firebaseapp.com",
+  projectId:         "orbit-app-5b4b3",
+  storageBucket:     "orbit-app-5b4b3.firebasestorage.app",
   messagingSenderId: "250454225022",
-  appId: "1:250454225022:android:44b3e0a7ac0268cfe6a82f",
+  appId:             "1:250454225022:android:44b3e0a7ac0268cfe6a82f",
 };
 
-// Idempotent init — hot-reload pe double-init crash nahi hoga
+// ── 1. Modular app (used for Auth) ──────────────────────────────────────────
+//    getAuth() requires a MODULAR FirebaseApp, not a compat app.
+//    Using the compat app caused: "getModularInstance(...).onAuthStateChanged
+//    is not a function" — because the compat wrapper has no `.onAuthStateChanged`
+//    internal method that the modular bridge expects.
+const modularApp: FirebaseApp =
+  getApps().length === 0
+    ? initializeApp(FIREBASE_WEB_CONFIG)
+    : getApp();
+
+// ── 2. Compat app (used for Firestore only) ──────────────────────────────────
+//    All Firestore call sites use namespaced API:
+//      firestore().collection("users").doc(uid).get()
+//      firestore.FieldValue.serverTimestamp()
+//    firebase/compat preserves that API so no rewrites needed.
 if (!firebase.apps.length) {
   firebase.initializeApp(FIREBASE_WEB_CONFIG);
 }
 
-/**
- * `auth` — modular Auth instance obtained via getAuth().
- *
- * firebase/compat and firebase modular share the same underlying app registry,
- * so `firebase.app()` returns the app initialized above, and `getAuth()` wraps
- * it in a proper modular Auth instance that works with all v9+ modular functions:
- *   onAuthStateChanged(auth, ...)
- *   signInWithPhoneNumber(auth, ...)
- *   signInWithCredential(auth, ...)
- *   signOut(auth)
- */
-export const auth: Auth = getAuth(firebase.app());
+// ── 3. Auth — modular instance from MODULAR app ──────────────────────────────
+//    Works correctly with all modular functions:
+//      onAuthStateChanged(auth, callback)   ✅
+//      signInWithPhoneNumber(auth, ...)     ✅
+//      signInWithCredential(auth, ...)      ✅
+//      signOut(auth)                        ✅
+export const auth: Auth = getAuth(modularApp);
 
-/**
- * `firestore` — compat callable namespace.
- * Call sites use it as both a function (`firestore()`) and a static
- * namespace (`firestore.FieldValue.serverTimestamp()`), which is why
- * we keep compat here instead of switching to modular getFirestore().
- */
+// ── 4. Firestore — compat namespace ─────────────────────────────────────────
 export const firestore = firebase.firestore;
 
-/** Firestore server timestamp shortcut (for createdAt / updatedAt). */
-export const serverTimestamp = () =>
+/** Shortcut for Firestore server timestamp. */
+export const serverTimestamp = (): firebase.firestore.FieldValue =>
   firebase.firestore.FieldValue.serverTimestamp();
 
-/** Atomic increment helper (used for karma, credits counters). */
-export const increment = (by: number) =>
+/** Atomic counter increment helper. */
+export const increment = (by: number): firebase.firestore.FieldValue =>
   firebase.firestore.FieldValue.increment(by);
 
-/**
- * Type alias — in native build this points to @react-native-firebase's
- * Firestore Module type. On web we don't have that exact type, but `any`
- * is sufficient because TypeScript erases `import type` at build time.
- */
 export type FirestoreTypes = any;
