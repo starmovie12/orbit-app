@@ -1,27 +1,30 @@
 /**
- * lib/firebase.ts
+ * lib/firebase.ts — NATIVE build (iOS / Android)
  *
- * ✅ JS-only Firebase SDK (no native modules needed — works in Expo Go)
- * ✅ Real config: orbit-app-5b4b3
- * ✅ Auth persisted via AsyncStorage (session survives app restarts)
+ * Metro uses this file for iOS/Android.
+ * Web uses firebase.web.ts instead (resolved automatically by Metro).
+ *
+ * FIX: Removed mixed compat + modular import that caused auth conflicts.
+ *   Old code imported firebase/compat AND firebase/auth together → crash.
+ *   New code uses ONLY modular SDK for auth (correct approach for RN).
+ *   Compat is kept ONLY for Firestore (call sites use namespaced API).
  */
 
-import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
+import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import {
   initializeAuth,
   getAuth,
   getReactNativePersistence,
-  Auth,
+  type Auth,
 } from "firebase/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// 🔴 BUG FIX: Humne Firebase Compat SDK import kiya hai taaki `firestore()` function chal sake
+// Compat — only for Firestore (namespaced API used in firestore-users.ts etc.)
 import firebase from "firebase/compat/app";
 import "firebase/compat/firestore";
 
-// ─── Firebase project config (orbit-app-5b4b3) ───────────────────────────────
 const firebaseConfig = {
   apiKey:            "AIzaSyBAeFZfk-TLk3WxhSLobX8AYjteSv-g344",
   authDomain:        "orbit-app-5b4b3.firebaseapp.com",
@@ -32,35 +35,40 @@ const firebaseConfig = {
   measurementId:     "G-ZG0JCXJ26V",
 };
 
-// ─── App (guard against duplicate init on hot-reload) ────────────────────────
+// ── Modular app (for Auth, Firestore modular, Storage) ──────────────────────
 const app: FirebaseApp =
-  getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+  getApps().length === 0
+    ? initializeApp(firebaseConfig)
+    : getApp();
 
-// 🔴 BUG FIX: Initialize Compat app side-by-side
+// ── Compat app (for namespaced Firestore only) ───────────────────────────────
 if (!firebase.apps.length) {
   firebase.initializeApp(firebaseConfig);
 }
 
-// ─── Auth (with AsyncStorage persistence) ────────────────────────────────────
+// ── Auth — AsyncStorage persistence so session survives restarts ─────────────
 let auth: Auth;
 try {
   auth = initializeAuth(app, {
     persistence: getReactNativePersistence(AsyncStorage),
   });
 } catch {
-  // Already initialized (happens during Expo fast-refresh)
+  // Already initialized (Expo fast-refresh)
   auth = getAuth(app);
 }
 
-// ─── Firestore (Modular) ─────────────────────────────────────────────────────
+// ── Firestore (modular instance — for subscribeRooms, etc.) ─────────────────
 const db = getFirestore(app);
 
-// ─── Storage ─────────────────────────────────────────────────────────────────
+// ── Storage ──────────────────────────────────────────────────────────────────
 const storage = getStorage(app);
 
-// 🔴 BUG FIX: Create functions that `lib/firestore-users.ts` is desperately looking for
-const firestore = () => firebase.firestore();
-const serverTimestamp = firebase.firestore.FieldValue.serverTimestamp;
+// ── Compat Firestore (for call sites using namespaced API) ───────────────────
+const firestore = firebase.firestore;
+const serverTimestamp = (): firebase.firestore.FieldValue =>
+  firebase.firestore.FieldValue.serverTimestamp();
+const increment = (by: number): firebase.firestore.FieldValue =>
+  firebase.firestore.FieldValue.increment(by);
 
-export { app, auth, db, storage, firestore, serverTimestamp };
+export { app, auth, db, storage, firestore, serverTimestamp, increment };
 export default app;
