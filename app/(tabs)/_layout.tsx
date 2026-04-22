@@ -4,18 +4,7 @@ import { Platform, StyleSheet, Text, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { orbit } from "@/constants/colors";
 
-/**
- * Custom tab bar item — guarantees high contrast active/inactive states.
- * Active: accent icon + primary-text label (weight 600) + 3px accent pill above.
- * Inactive: tertiary-text icon + tertiary label.
- */
-function TabIcon({
-  name,
-  focused,
-}: {
-  name: any;
-  focused: boolean;
-}) {
+function TabIcon({ name, focused }: { name: any; focused: boolean }) {
   return (
     <View style={styles.iconWrap}>
       {focused && <View style={styles.activeIndicator} />}
@@ -34,8 +23,8 @@ function TabLabel({ label, focused }: { label: string; focused: boolean }) {
       style={[
         styles.label,
         {
-          color: focused ? orbit.textPrimary : orbit.textTertiary,
-          fontWeight: focused ? "600" : "500",
+          color: focused ? orbit.accent : orbit.textTertiary,
+          fontWeight: focused ? "700" : "500",
         },
       ]}
     >
@@ -54,13 +43,17 @@ export default function TabLayout() {
         headerShown: false,
         tabBarShowLabel: true,
         tabBarStyle: {
-          backgroundColor: orbit.surface1,
+          backgroundColor: "rgba(255,255,255,0.96)",
           borderTopWidth: 1,
-          borderTopColor: orbit.borderSubtle,
+          borderTopColor: "#E8D9C8",
           elevation: 0,
           height: isWeb ? 84 : isIOS ? 82 : 68,
           paddingBottom: isWeb ? 28 : isIOS ? 22 : 10,
           paddingTop: 8,
+          shadowColor: "#000",
+          shadowOpacity: 0.06,
+          shadowRadius: 12,
+          shadowOffset: { width: 0, height: -2 },
         },
         tabBarItemStyle: {
           paddingVertical: 4,
@@ -128,7 +121,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 3,
     borderRadius: 1.5,
-    backgroundColor: orbit.accent,
+    backgroundColor: "#C8871A",
   },
   label: {
     fontSize: 11,
