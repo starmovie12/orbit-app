@@ -19,10 +19,7 @@ import {
   authErrorMessage,
   isValidE164,
   normalizeIndianPhone,
-  sendOtp,
 } from "@/lib/auth";
-// 🔴 Yahan naya import add kiya hai Mobile reCAPTCHA ke liye
-import { FirebaseRecaptchaVerifierModal } from "expo-firebase-recaptcha";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -38,7 +35,6 @@ const FIREBASE_WEB_CONFIG = {
   appId: "1:250454225022:android:44b3e0a7ac0268cfe6a82f",
 };
 
-let webAuthRef: any = null;
 let webVerifierRef: any = null;
 
 async function sendOtpWeb(phoneE164: string): Promise<any> {
@@ -48,7 +44,7 @@ async function sendOtpWeb(phoneE164: string): Promise<any> {
   );
 
   const app = getApps().length ? getApp() : initializeApp(FIREBASE_WEB_CONFIG);
-  webAuthRef = getAuth(app);
+  const webAuthRef = getAuth(app);
 
   let container = document.getElementById("recaptcha-container");
   if (!container) {
@@ -65,6 +61,15 @@ async function sendOtpWeb(phoneE164: string): Promise<any> {
   }
 
   return await signInWithPhoneNumber(webAuthRef, phoneE164, webVerifierRef);
+}
+
+/**
+ * On native we use @react-native-firebase/auth which handles SafetyNet /
+ * App Attest reCAPTCHA at the SDK level — no ApplicationVerifier needed.
+ */
+async function sendOtpNative(phoneE164: string): Promise<any> {
+  const rnAuth = (await import("@react-native-firebase/auth")).default;
+  return rnAuth().signInWithPhoneNumber(phoneE164);
 }
 
 /**
@@ -94,9 +99,6 @@ export default function PhoneScreen() {
   const router = useRouter();
   const inputRef = useRef<TextInput>(null);
 
-  // 🔴 Yahan Mobile ke reCAPTCHA ke liye ek Ref banaya hai
-  const recaptchaVerifier = useRef<any>(null);
-
   const [raw, setRaw] = useState("");
   const [sending, setSending] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -119,11 +121,10 @@ export default function PhoneScreen() {
     if (!valid || sending) return;
     setSending(true);
     try {
-      // 🔴 Yahan fix apply kiya hai: Mobile par ab recaptchaVerifier.current bheja jayega
       const handle =
-        Platform.OS === "web" 
-          ? await sendOtpWeb(e164) 
-          : await sendOtp(e164, recaptchaVerifier.current);
+        Platform.OS === "web"
+          ? await sendOtpWeb(e164)
+          : await sendOtpNative(e164);
 
       globalThis.__orbitOtp = { handle, phone: e164 };
       router.push("/(auth)/otp");
@@ -154,15 +155,6 @@ export default function PhoneScreen() {
       style={[styles.root, { backgroundColor: orbit.bg }]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      {/* 🔴 Yahan Mobile ke liye Invisible reCAPTCHA Modal lagaya hai */}
-      {Platform.OS !== "web" && (
-        <FirebaseRecaptchaVerifierModal
-          ref={recaptchaVerifier}
-          firebaseConfig={FIREBASE_WEB_CONFIG}
-          attemptInvisibleVerification={true}
-        />
-      )}
-
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={12} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Go back">
           <Feather name="arrow-left" size={22} color={orbit.textPrimary} />
