@@ -4,10 +4,10 @@
  * Metro uses this file for iOS/Android.
  * Web uses firebase.web.ts instead (resolved automatically by Metro).
  *
- * FIX: Removed mixed compat + modular import that caused auth conflicts.
- *   Old code imported firebase/compat AND firebase/auth together → crash.
- *   New code uses ONLY modular SDK for auth (correct approach for RN).
- *   Compat is kept ONLY for Firestore (call sites use namespaced API).
+ * FIX v3:
+ *   - Uses ONLY modular Firebase JS SDK for Auth (no mixing compat + modular)
+ *   - Compat kept ONLY for Firestore (namespaced API used in firestore-*.ts)
+ *   - `firebase` package now in package.json so all imports resolve correctly
  */
 
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
@@ -21,7 +21,7 @@ import {
 } from "firebase/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// Compat — only for Firestore (namespaced API used in firestore-users.ts etc.)
+// Compat — only for Firestore (namespaced API)
 import firebase from "firebase/compat/app";
 import "firebase/compat/firestore";
 
@@ -35,38 +35,40 @@ const firebaseConfig = {
   measurementId:     "G-ZG0JCXJ26V",
 };
 
-// ── Modular app (for Auth, Firestore modular, Storage) ──────────────────────
+// ── Modular app ──────────────────────────────────────────────────────────────
 const app: FirebaseApp =
   getApps().length === 0
     ? initializeApp(firebaseConfig)
     : getApp();
 
-// ── Compat app (for namespaced Firestore only) ───────────────────────────────
+// ── Compat app (for Firestore only) ─────────────────────────────────────────
 if (!firebase.apps.length) {
   firebase.initializeApp(firebaseConfig);
 }
 
-// ── Auth — AsyncStorage persistence so session survives restarts ─────────────
+// ── Auth — AsyncStorage persistence ──────────────────────────────────────────
 let auth: Auth;
 try {
   auth = initializeAuth(app, {
     persistence: getReactNativePersistence(AsyncStorage),
   });
 } catch {
-  // Already initialized (Expo fast-refresh)
+  // Already initialized on hot-refresh
   auth = getAuth(app);
 }
 
-// ── Firestore (modular instance — for subscribeRooms, etc.) ─────────────────
+// ── Firestore (modular) ──────────────────────────────────────────────────────
 const db = getFirestore(app);
 
 // ── Storage ──────────────────────────────────────────────────────────────────
 const storage = getStorage(app);
 
-// ── Compat Firestore (for call sites using namespaced API) ───────────────────
+// ── Firestore compat namespace ───────────────────────────────────────────────
 const firestore = firebase.firestore;
+
 const serverTimestamp = (): firebase.firestore.FieldValue =>
   firebase.firestore.FieldValue.serverTimestamp();
+
 const increment = (by: number): firebase.firestore.FieldValue =>
   firebase.firestore.FieldValue.increment(by);
 
