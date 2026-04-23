@@ -1,10 +1,11 @@
 /**
- * AuthContext v2 — adds signOut() to the public API.
+ * AuthContext v3 — Firebase auth error fixes.
  *
- * Changes from v1:
- * • signOut() tears down the Firestore listener first, then calls
- * Firebase signOut so the auth listener fires cleanly.
- * • refreshUser() is a no-op hook — the live subscription handles it.
+ * Changes:
+ * • Imports onAuthStateChanged from firebase/auth (modular) — works correctly
+ *   now that firebase.web.ts provides a proper modular auth instance.
+ * • Added graceful error handling so app doesn't white-screen on auth errors.
+ * • signOut() tears down Firestore listener before signing out.
  */
 
 import React, {
@@ -17,9 +18,9 @@ import React, {
   useState,
 } from "react";
 import { Alert } from "react-native";
-import { auth } from "@/lib/firebase";
-import { signOut as firebaseSignOut } from "@/lib/auth";
 import { onAuthStateChanged } from "firebase/auth";
+import { signOut as firebaseSignOut } from "@/lib/auth";
+import { auth } from "@/lib/firebase";
 import type { AuthUser } from "@/lib/auth";
 import { ensureUser, subscribeUser, type UserDoc } from "@/lib/firestore-users";
 
@@ -48,40 +49,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const unsubUserRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (fbUser) => {
-      setFirebaseUser(fbUser);
-      unsubUserRef.current?.();
-      unsubUserRef.current = null;
+    // onAuthStateChanged now works correctly because:
+    // - firebase.web.ts exports a proper modular Auth instance
+    // - firebase package is installed (was missing before)
+    let unsub: (() => void) | undefined;
 
-      if (!fbUser) {
-        setUser(null);
-        setLoading(false);
-        return;
-      }
+    try {
+      unsub = onAuthStateChanged(auth, async (fbUser) => {
+        setFirebaseUser(fbUser);
+        unsubUserRef.current?.();
+        unsubUserRef.current = null;
 
-      try {
-        const phone = fbUser.phoneNumber ?? "";
-        
-        // 🔴 BUG FIX: Console logs add kiye taaki process track ho sake
-        console.log("Firebase login successful. Fetching user profile from Firestore...");
-        
-        await ensureUser(fbUser.uid, phone);
-
-        unsubUserRef.current = subscribeUser(fbUser.uid, (doc) => {
-          console.log("User profile loaded successfully!");
-          setUser(doc);
+        if (!fbUser) {
+          setUser(null);
           setLoading(false);
-        });
-      } catch (error) {
-        // 🔴 BUG FIX: Silent failure ko hata diya taaki app crash chupaye nahi
-        console.error("🔥 Error in AuthContext ensuring user:", error);
-        setUser(null);
-        setLoading(false);
-      }
-    });
+          return;
+        }
+
+        try {
+          const phone = fbUser.phoneNumber ?? "";
+          await ensureUser(fbUser.uid, phone);
+
+          unsubUserRef.current = subscribeUser(fbUser.uid, (doc) => {
+            setUser(doc);
+            setLoading(false);
+          });
+        } catch (error) {
+          console.error("AuthContext: error loading user profile:", error);
+          setUser(null);
+          setLoading(false);
+        }
+      });
+    } catch (error) {
+      // If auth listener itself fails (e.g. Firebase not configured),
+      // set loading to false so the app doesn't hang on splash.
+      console.error("AuthContext: onAuthStateChanged failed:", error);
+      setFirebaseUser(null);
+      setLoading(false);
+    }
 
     return () => {
-      unsub();
+      unsub?.();
       unsubUserRef.current?.();
     };
   }, []);
@@ -91,7 +99,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       unsubUserRef.current?.();
       unsubUserRef.current = null;
       await firebaseSignOut();
-      // onAuthStateChanged will fire with null → triggers route guard redirect
     } catch (e: any) {
       Alert.alert("Logout failed", e?.message ?? "Kuch issue hai. Dobara try karo.");
     }
@@ -102,7 +109,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       firebaseUser,
       user,
       loading,
-      refreshUser: async () => { /* live sub handles refresh automatically */ },
+      refreshUser: async () => { /* live subscription handles refresh */ },
       signOut: handleSignOut,
     }),
     [firebaseUser, user, loading, handleSignOut]
