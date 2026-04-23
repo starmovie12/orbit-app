@@ -1,492 +1,524 @@
 /**
- * ORBIT — Home Tab (index.tsx)
+ * ORBIT — World Tab (index.tsx) — v4 Golden PRD Design
  *
- * Real home screen replacing the old rooms.tsx re-export.
- *
- * Features:
- *   • Greeting header + Credits pill (live from UserDoc)
- *   • Daily Challenge hero card (top challenge from WEEKLY_CHALLENGES)
- *   • Mood Rooms horizontal scroll (from MOOD_ROOMS mock, navigates to rooms tab)
- *   • Trending Rooms (live Firestore /rooms, top 4 by memberCount)
- *
- * Wiring:
- *   • useAuth() → user.credits + user.username for personalisation
- *   • subscribeRooms() → trending list (falls back gracefully while loading)
- *   • Navigation: expo-router useRouter
+ * Full redesign matching the CROWN HTML (index__10_.html):
+ *   • Header: Logo + "ORBIT • City" title + Credits pill + DM button
+ *   • City Status Bar: rank badge + animated BLAZING PULSE heat meter
+ *   • City Tabs: horizontal scroll with live counts
+ *   • City Wars Banner: dark gradient card showing live city competition
+ *   • Chat messages with identity tags: [Colony], ✔ verified, ⚡ credits, LOCAL/VISITOR
+ *   • Mayor card (pinned announcement)
+ *   • Quick actions: BOOST / CHECK-IN / CHALLENGE
+ *   • 4-tab bottom nav pill
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
   ScrollView,
   TouchableOpacity,
   StyleSheet,
+  TextInput,
   Platform,
-  ActivityIndicator,
+  KeyboardAvoidingView,
+  Animated,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import {
-  ScreenHeader,
-  CreditPill,
-  WalletDrawer,
-  IconBox,
-  Divider,
-} from '@/components/shared';
-import { orbit } from '@/constants/colors';
 import { useAuth } from '@/contexts/AuthContext';
-import { MOOD_ROOMS, WEEKLY_CHALLENGES, MY_PROFILE } from '@/constants/data';
-import { subscribeRooms, type RoomDoc } from '@/lib/firestore-rooms';
 
-/* ─── Time helper (same pattern as rooms.tsx) ──────────────────────── */
-function fmtTime(ts: any): string {
-  if (!ts) return '';
-  const d: Date | null =
-    typeof ts?.toDate === 'function' ? ts.toDate() :
-    ts instanceof Date ? ts : null;
-  if (!d) return '';
-  const diff = Date.now() - d.getTime();
-  if (diff < 60_000) return 'now';
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m`;
-  const sameDay = d.toDateString() === new Date().toDateString();
-  if (sameDay) return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false });
-  if (d.toDateString() === new Date(Date.now() - 86_400_000).toDateString()) return 'Yesterday';
-  return d.toLocaleDateString('en-IN', { weekday: 'short' });
+/* ─── Types ─────────────────────────────────────────────────────────── */
+type City = { id: string; name: string; liveCount: string };
+
+type MsgTag = {
+  colony?: string;
+  verified?: boolean;
+  credits?: string;
+  isLocal?: boolean;
+  isVisitor?: boolean;
+};
+
+type ChatMsg = {
+  id: string;
+  user?: string;
+  tags?: MsgTag;
+  text: string;
+  time: string;
+  isMine?: boolean;
+  reactions?: { emoji: string; count: number }[];
+  isMayor?: boolean;
+  mayorName?: string;
+  isCityWars?: boolean;
+};
+
+/* ─── Mock Data ──────────────────────────────────────────────────────── */
+const CITIES: City[] = [
+  { id: 'all',  name: 'All India',   liveCount: '12,847' },
+  { id: 'chd',  name: 'Chandigarh',  liveCount: '2,140'  },
+  { id: 'mum',  name: 'Mumbai',      liveCount: '4,890'  },
+  { id: 'ldh',  name: 'Ludhiana',    liveCount: '1,230'  },
+  { id: 'ddn',  name: 'Dehradun',    liveCount: '850'    },
+  { id: 'hyd',  name: 'Hyderabad',   liveCount: '3,100'  },
+];
+
+const INITIAL_MSGS: ChatMsg[] = [
+  {
+    id: 'wars', isCityWars: true,
+    text: '', time: '',
+  },
+  {
+    id: '1',
+    user: 'Aman_Dhanas',
+    tags: { colony: 'Dhanas', verified: true, credits: '1.2k' },
+    text: 'Chandigarh Sector 17 mein food festival start ho gaya hai! Kaun kaun aa raha hai? 🥘',
+    time: '7:11 AM',
+    reactions: [{ emoji: '🔥', count: 94 }, { emoji: '🙌', count: 58 }],
+  },
+  {
+    id: '2', isMine: true,
+    tags: { isLocal: true },
+    text: 'Main 20 mins mein wahan pahunch raha hoon. Wait karna! 🚀',
+    time: '7:13 AM',
+  },
+  {
+    id: 'mayor', isMayor: true, mayorName: 'Rajveer Singh',
+    text: "Sector 17 is buzzing tonight! 🌆 Jo sabse zyada active rahega aaj, use 'Golden Citizen' badge milega!",
+    time: '7:15 AM',
+  },
+  {
+    id: '3',
+    user: 'Rahul_Dev',
+    tags: { colony: 'Delhi', isVisitor: true },
+    text: 'Hi guys! Main iss weekend Chandigarh ghoomne aa raha hu. Koi badhiya jagah batao?',
+    time: '7:22 AM',
+  },
+  {
+    id: '4',
+    user: 'Simran_Kaur',
+    tags: { colony: 'Sec 22', verified: true },
+    text: 'Hello everyone! Koi abhi Elante ke paas hai kya? Traffic kaisa hai wahan?',
+    time: '7:24 AM',
+  },
+  {
+    id: '5',
+    user: 'Kabir_Singh',
+    tags: { colony: 'Mohali', credits: '450' },
+    text: 'Haan bilkul! Ek local Sufi band perform karega raat 8:30 baje se. Bahut badiya mahol hone wala hai. 🎸🎤',
+    time: '7:33 AM',
+    reactions: [{ emoji: '🎶', count: 18 }],
+  },
+];
+
+/* ─── Sub-components ─────────────────────────────────────────────────── */
+
+/** Animated red pulse dot for heat meter */
+function HeatPulse() {
+  const pulse = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 400, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0, duration: 400, useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
+  const scale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.5] });
+  return (
+    <Animated.View style={[s.heatDot, { transform: [{ scale }] }]} />
+  );
 }
 
-/* ─── Sub-components ───────────────────────────────────────────────── */
+/** Blinking dot for live count in city tab */
+function BlinkDot() {
+  const op = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(op, { toValue: 0.2, duration: 700, useNativeDriver: true }),
+        Animated.timing(op, { toValue: 1.0, duration: 700, useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
+  return <Animated.View style={[s.blinkDot, { opacity: op }]} />;
+}
 
-function LivePill() {
+/** City War Banner */
+function CityWarsBanner() {
   return (
-    <View style={styles.livePill}>
-      <View style={styles.liveDot} />
-      <Text style={styles.liveText}>LIVE</Text>
+    <View style={s.cwBanner}>
+      <View style={s.cwHeader}>
+        <Text style={s.cwHeaderText}>🔥 City Wars Live</Text>
+        <Text style={s.cwHeaderText}>Ends in 03:14:00</Text>
+      </View>
+      <View style={s.cwTeams}>
+        <Text style={s.cwTeamLeft}>CHANDIGARH</Text>
+        <Text style={s.cwVs}>VS</Text>
+        <Text style={s.cwTeamRight}>DELHI</Text>
+      </View>
+      <View style={s.cwBarBg}>
+        <View style={[s.cwBarFill, { flex: 55, backgroundColor: '#C8871A' }]} />
+        <View style={[s.cwBarFill, { flex: 45, backgroundColor: '#EF4444' }]} />
+      </View>
+      <View style={s.cwScores}>
+        <Text style={s.cwScoreText}>12,450 pts</Text>
+        <Text style={s.cwScoreText}>11,200 pts</Text>
+      </View>
     </View>
   );
 }
 
-function DailyChallengeCard({ onPress }: { onPress: () => void }) {
-  const challenge = WEEKLY_CHALLENGES[0];
+/** Identity tags row for a message */
+function MetaTags({ user, tags }: { user?: string; tags?: MsgTag }) {
   return (
-    <TouchableOpacity
-      style={styles.challengeCard}
-      activeOpacity={0.85}
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={`Daily challenge: ${challenge.title}`}
-    >
-      {/* Left content */}
-      <View style={styles.challengeLeft}>
-        <View style={styles.dailyBadge}>
-          <Text style={styles.dailyBadgeText}>DAILY</Text>
+    <View style={s.metaRow}>
+      {user && <Text style={s.metaUser}>{user}</Text>}
+      {tags?.colony && (
+        <Text style={s.tagColony}>[{tags.colony}]</Text>
+      )}
+      {tags?.verified && (
+        <View style={s.tagVerified}>
+          <Text style={s.tagVerifiedText}>✔</Text>
         </View>
-        <Text style={styles.challengeTitle} numberOfLines={2}>
-          {challenge.title}
-        </Text>
-        <Text style={styles.challengeMeta}>
-          {challenge.entries} entries · ends in {challenge.ends}
-        </Text>
-        <View style={styles.challengeEnterBtn}>
-          <Feather name="arrow-right" size={13} color={orbit.white} />
-          <Text style={styles.challengeEnterText}>Enter challenge</Text>
+      )}
+      {tags?.credits && (
+        <View style={s.tagCredits}>
+          <Text style={s.tagCreditsText}>⚡ {tags.credits}</Text>
         </View>
-      </View>
-
-      {/* Right — prize */}
-      <View style={styles.challengeRight}>
-        <View style={styles.prizeCircle}>
-          <Feather name={challenge.icon as any} size={22} color={orbit.accent} />
+      )}
+      {tags?.isLocal && (
+        <View style={s.tagLocal}>
+          <Text style={s.tagLocalText}>LOCAL</Text>
         </View>
-        <Text style={styles.prizeAmount}>+{challenge.prize}</Text>
-        <Text style={styles.prizeLabel}>credits</Text>
-      </View>
-    </TouchableOpacity>
+      )}
+      {tags?.isVisitor && (
+        <View style={s.tagVisitor}>
+          <Text style={s.tagVisitorText}>VISITOR</Text>
+        </View>
+      )}
+    </View>
   );
 }
 
-/* ─── Main Screen ───────────────────────────────────────────────────── */
+/** Mayor pinned card */
+function MayorCard({ msg }: { msg: ChatMsg }) {
+  return (
+    <View style={s.mayorCard}>
+      <View style={s.mayorHead}>
+        <View style={s.mayorAv}>
+          <Text style={s.mayorAvText}>{msg.mayorName?.[0] ?? 'M'}</Text>
+        </View>
+        <Text style={s.mayorName}>{msg.mayorName}</Text>
+        <View style={s.mayorBadge}>
+          <Text style={s.mayorBadgeText}>MAYOR</Text>
+        </View>
+      </View>
+      <Text style={s.mayorText}>{msg.text}</Text>
+    </View>
+  );
+}
 
-export default function HomeScreen() {
+/** Regular chat bubble */
+function Bubble({ msg }: { msg: ChatMsg }) {
+  if (msg.isCityWars) return <CityWarsBanner />;
+  if (msg.isMayor) return <MayorCard msg={msg} />;
+
+  return (
+    <View style={[s.msgWrap, msg.isMine && s.msgWrapRight]}>
+      <MetaTags user={msg.isMine ? undefined : msg.user} tags={msg.tags} />
+      <View style={[s.bubble, msg.isMine ? s.bubbleRight : s.bubbleLeft]}>
+        <Text style={[s.bubbleText, msg.isMine && s.bubbleTextRight]}>
+          {msg.text}
+        </Text>
+        <View style={s.msgInfo}>
+          <Text style={[s.msgTime, msg.isMine && s.msgTimeRight]}>
+            {msg.time}
+          </Text>
+          {msg.isMine && <Text style={s.ticks}>✓✓</Text>}
+        </View>
+      </View>
+      {msg.reactions && msg.reactions.length > 0 && (
+        <View style={s.reactRow}>
+          {msg.reactions.map((r, i) => (
+            <TouchableOpacity key={i} style={s.reactPill} activeOpacity={0.7}>
+              <Text style={s.reactText}>{r.emoji} {r.count}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+/* ─── Main Screen ────────────────────────────────────────────────────── */
+export default function WorldScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
 
-  const [walletVisible, setWallet] = useState(false);
-  const [trending, setTrending] = useState<RoomDoc[]>([]);
-  const [loadingTrending, setLoading] = useState(true);
+  const [selectedCity, setSelectedCity] = useState<City>(CITIES[0]);
+  const [msgs, setMsgs] = useState<ChatMsg[]>(INITIAL_MSGS);
+  const [inputText, setInputText] = useState('');
+  const scrollRef = useRef<ScrollView>(null);
 
-  /* Live from Firestore — top 4 by memberCount */
-  useEffect(() => {
-    const unsub = subscribeRooms((rooms) => {
-      const sorted = [...rooms]
-        .sort((a, b) => b.memberCount - a.memberCount)
-        .slice(0, 4);
-      setTrending(sorted);
-      setLoading(false);
-    });
-    return unsub;
-  }, []);
+  const credits = user?.credits ?? 542;
 
-  const credits      = user?.credits      ?? MY_PROFILE.credits;
-  const rawName      = user?.username     ?? MY_PROFILE.name;
-  const firstName    = rawName.replace(/_/g, ' ').split(' ')[0];
+  const nowStr = () => {
+    const d = new Date();
+    let h = d.getHours(), m = d.getMinutes();
+    const ap = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 || 12;
+    return `${h}:${m < 10 ? '0' + m : m} ${ap}`;
+  };
 
-  const bottomPad = Platform.OS === 'web' ? 90 : insets.bottom + 70;
+  const sendMessage = () => {
+    const text = inputText.trim();
+    if (!text) return;
+    setMsgs(prev => [...prev, {
+      id: Date.now().toString(),
+      isMine: true,
+      tags: { isLocal: true },
+      text,
+      time: nowStr(),
+    }]);
+    setInputText('');
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80);
+  };
+
+  const padBottom = Platform.OS === 'web' ? 90 : insets.bottom + 70;
 
   return (
-    <View style={[styles.screen, { backgroundColor: orbit.bg }]}>
-      <ScreenHeader
-        title={`Hey, ${firstName}`}
-        right={
-          <CreditPill count={credits} onPress={() => setWallet(true)} />
-        }
-      />
+    <KeyboardAvoidingView
+      style={s.screen}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      {/* ── HEADER ── */}
+      <View style={[s.header, { paddingTop: insets.top + 8 }]}>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: bottomPad }}
-      >
-        {/* ── Daily Challenge ── */}
-        <View style={styles.sectionPad}>
-          <DailyChallengeCard onPress={() => router.push('/(tabs)/discover' as never)} />
+        {/* Top row: logo + title + actions */}
+        <View style={s.headerTop}>
+          <View style={s.logoRow}>
+            <View style={s.logoIcon}>
+              <Feather name="globe" size={18} color="#FFF" />
+            </View>
+            <View>
+              <Text style={s.appTitle}>
+                ORBIT{'  '}
+                <Text style={s.cityTag}>• {selectedCity.name}</Text>
+              </Text>
+            </View>
+          </View>
+          <View style={s.headerActions}>
+            <View style={s.coinPill}>
+              <View style={s.coinCircle}><Text style={s.coinRs}>₹</Text></View>
+              <Text style={s.coinText}>{credits}</Text>
+            </View>
+            <TouchableOpacity
+              style={s.dmBtn}
+              activeOpacity={0.75}
+              onPress={() => router.push('/dm/inbox' as never)}
+            >
+              <Feather name="message-circle" size={26} color="#C8871A" />
+              <View style={s.dmBadge}><Text style={s.dmBadgeText}>5</Text></View>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {/* ── Mood Rooms ── */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Mood Rooms</Text>
-          <TouchableOpacity
-            hitSlop={8}
-            onPress={() => router.push('/(tabs)/discover' as never)}
-            accessibilityRole="link"
-            accessibilityLabel="See all mood rooms"
-          >
-            <Text style={styles.seeAll}>See all</Text>
-          </TouchableOpacity>
+        {/* City Rank + Heat Meter */}
+        <View style={s.cityStatusBar}>
+          <Text style={s.cityRank}>🏆 #2 Most Active Today</Text>
+          <View style={s.heatMeter}>
+            <HeatPulse />
+            <Text style={s.heatText}>BLAZING PULSE</Text>
+          </View>
         </View>
 
+        {/* City tabs */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 20, gap: 12, paddingVertical: 4 }}
+          style={s.cityScroll}
+          contentContainerStyle={s.cityScrollContent}
         >
-          {MOOD_ROOMS.map(m => (
+          {CITIES.map(city => (
             <TouchableOpacity
-              key={m.id}
-              style={styles.moodCard}
-              activeOpacity={0.85}
-              onPress={() => router.push('/(tabs)/rooms' as never)}
+              key={city.id}
+              style={[s.cityBtn, selectedCity.id === city.id && s.cityBtnActive]}
+              onPress={() => setSelectedCity(city)}
+              activeOpacity={0.75}
             >
-              {/* Accent stripe — category cue, never a neon background */}
-              <View style={[styles.moodStripe, { backgroundColor: m.accent }]} />
-              <View style={styles.moodInner}>
-                <View style={styles.moodIconBox}>
-                  <Feather name={m.icon as any} size={20} color={orbit.textPrimary} />
+              <Text style={[s.cityBtnText, selectedCity.id === city.id && s.cityBtnTextActive]}>
+                {city.name}
+              </Text>
+              {selectedCity.id === city.id && (
+                <View style={s.livePill}>
+                  <BlinkDot />
+                  <Text style={s.livePillText}>{city.liveCount} Live</Text>
                 </View>
-                <Text style={styles.moodName} numberOfLines={2}>{m.name}</Text>
-                <Text style={styles.moodMembers}>{m.members} online</Text>
-                <View style={styles.moodTagPill}>
-                  <Text style={styles.moodTagText}>{m.tag}</Text>
-                </View>
-              </View>
+              )}
             </TouchableOpacity>
           ))}
         </ScrollView>
+      </View>
 
-        {/* ── Trending ── */}
-        <View style={[styles.sectionHeader, { marginTop: 28 }]}>
-          <Text style={styles.sectionTitle}>Trending Now</Text>
-          <TouchableOpacity
-            hitSlop={8}
-            onPress={() => router.push('/(tabs)/rooms' as never)}
-            accessibilityRole="link"
-          >
-            <Text style={styles.seeAll}>All rooms</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.trendingCard}>
-          {loadingTrending ? (
-            <View style={styles.loadingRow}>
-              <ActivityIndicator size="small" color={orbit.textTertiary} />
-            </View>
-          ) : (
-            trending.map((room, i) => (
-              <React.Fragment key={room.id}>
-                <TouchableOpacity
-                  style={styles.trendingRow}
-                  activeOpacity={0.7}
-                  onPress={() => router.push(`/room/${room.id}` as never)}
-                >
-                  <Text style={styles.trendingRank}>#{i + 1}</Text>
-                  <IconBox icon={room.icon} size={40} />
-                  <View style={styles.trendingBody}>
-                    <View style={styles.trendingNameRow}>
-                      <Text style={styles.trendingName} numberOfLines={1}>
-                        {room.name}
-                      </Text>
-                      {room.isLive && <LivePill />}
-                    </View>
-                    <Text style={styles.trendingMeta}>
-                      {room.memberCount.toLocaleString()} online
-                      {room.lastMessagePreview
-                        ? ` · ${room.lastMessagePreview.slice(0, 28)}…`
-                        : ''}
-                    </Text>
-                  </View>
-                  <Feather name="chevron-right" size={16} color={orbit.textTertiary} />
-                </TouchableOpacity>
-                {i < trending.length - 1 && <Divider />}
-              </React.Fragment>
-            ))
-          )}
-        </View>
+      {/* ── CHAT ── */}
+      <ScrollView
+        ref={scrollRef}
+        style={s.chat}
+        contentContainerStyle={[s.chatContent, { paddingBottom: padBottom }]}
+        showsVerticalScrollIndicator={false}
+        onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
+      >
+        {msgs.map(msg => <Bubble key={msg.id} msg={msg} />)}
       </ScrollView>
 
-      <WalletDrawer
-        visible={walletVisible}
-        onClose={() => setWallet(false)}
-        credits={credits}
-      />
-    </View>
+      {/* ── INPUT AREA ── */}
+      <View style={[s.inputArea, { paddingBottom: insets.bottom + 8 }]}>
+        <View style={s.quickBtns}>
+          <TouchableOpacity style={s.qb} activeOpacity={0.75}>
+            <Feather name="zap" size={11} color="#C8871A" />
+            <Text style={s.qbText}>BOOST</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.qb} activeOpacity={0.75}>
+            <Feather name="map-pin" size={11} color="#2E7D32" />
+            <Text style={s.qbText}>CHECK-IN</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.qb} activeOpacity={0.75}>
+            <Feather name="target" size={11} color="#C0392B" />
+            <Text style={s.qbText}>CHALLENGE</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={s.inputBox}>
+          <TouchableOpacity style={s.iconBtn}>
+            <Feather name="image" size={18} color="#B09880" />
+          </TouchableOpacity>
+          <TextInput
+            style={s.txtIn}
+            value={inputText}
+            onChangeText={setInputText}
+            placeholder="Say something to the crowd…"
+            placeholderTextColor="#C4AC96"
+            onSubmitEditing={sendMessage}
+            returnKeyType="send"
+          />
+          <TouchableOpacity style={s.iconBtn}>
+            <Feather name="smile" size={18} color="#B09880" />
+          </TouchableOpacity>
+          <TouchableOpacity style={s.sendBtn} onPress={sendMessage}>
+            <Feather name="send" size={14} color="#FFF" />
+          </TouchableOpacity>
+        </View>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
-/* ─── Styles ────────────────────────────────────────────────────────── */
-const styles = StyleSheet.create({
-  screen: { flex: 1 },
+/* ─── Styles ─────────────────────────────────────────────────────────── */
+const GOLD = '#C8871A';
+const BG   = '#FDF8F2';
+const WHITE = '#FFFFFF';
 
-  sectionPad: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 4,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 12,
-  },
-  sectionTitle: {
-    color: orbit.textPrimary,
-    fontSize: 17,
-    fontWeight: '600',
-    letterSpacing: -0.2,
-  },
-  seeAll: {
-    color: orbit.accent,
-    fontSize: 14,
-    fontWeight: '500',
-  },
+const s = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: BG },
 
-  /* Daily Challenge card */
-  challengeCard: {
-    flexDirection: 'row',
-    backgroundColor: orbit.accentSoftSolid,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: orbit.accent,
-    padding: 20,
-    overflow: 'hidden',
-  },
-  challengeLeft: {
-    flex: 1,
-    gap: 6,
-    marginRight: 16,
-  },
-  dailyBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: orbit.accent,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    marginBottom: 4,
-  },
-  dailyBadgeText: {
-    color: orbit.white,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-  },
-  challengeTitle: {
-    color: orbit.textPrimary,
-    fontSize: 15,
-    fontWeight: '700',
-    lineHeight: 20,
-  },
-  challengeMeta: {
-    color: orbit.textSecond,
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  challengeEnterBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: orbit.accent,
-    alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 8,
-    marginTop: 6,
-  },
-  challengeEnterText: {
-    color: orbit.white,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  challengeRight: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    minWidth: 64,
-  },
-  prizeCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: orbit.accentSoft,
-    borderWidth: 1,
-    borderColor: orbit.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  prizeAmount: {
-    color: orbit.accent,
-    fontSize: 18,
-    fontWeight: '700',
-    letterSpacing: -0.5,
-  },
-  prizeLabel: {
-    color: orbit.textTertiary,
-    fontSize: 11,
-    fontWeight: '500',
-  },
+  /* Header */
+  header: { backgroundColor: WHITE, borderBottomWidth: 1, borderBottomColor: '#E8D9C8', zIndex: 10 },
+  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 18, paddingBottom: 8 },
+  logoRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  logoIcon: { width: 40, height: 40, borderRadius: 14, backgroundColor: GOLD, alignItems: 'center', justifyContent: 'center' },
+  appTitle: { fontSize: 22, fontWeight: '800', color: '#1A1208', letterSpacing: -0.2 },
+  cityTag: { fontSize: 13, fontWeight: '600', color: '#8B6D4A' },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  coinPill: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#FFF8ED', borderWidth: 1, borderColor: '#E8C97A', borderRadius: 20, paddingVertical: 5, paddingHorizontal: 10 },
+  coinCircle: { width: 18, height: 18, borderRadius: 9, backgroundColor: GOLD, alignItems: 'center', justifyContent: 'center' },
+  coinRs: { fontSize: 10, fontWeight: '800', color: WHITE },
+  coinText: { fontSize: 13, fontWeight: '700', color: '#A0620A' },
+  dmBtn: { position: 'relative', alignItems: 'center', justifyContent: 'center' },
+  dmBadge: { position: 'absolute', top: -4, right: -6, backgroundColor: '#A0620A', minWidth: 18, height: 18, borderRadius: 9, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: WHITE, paddingHorizontal: 3 },
+  dmBadgeText: { fontSize: 10, fontWeight: '800', color: WHITE },
 
-  /* Mood Rooms */
-  moodCard: {
-    width: 148,
-    height: 176,
-    borderRadius: 16,
-    backgroundColor: orbit.surface1,
-    borderWidth: 1,
-    borderColor: orbit.borderSubtle,
-    overflow: 'hidden',
-    flexDirection: 'row',
-  },
-  moodStripe: {
-    width: 3,
-    height: '100%',
-    opacity: 0.75,
-  },
-  moodInner: {
-    flex: 1,
-    padding: 14,
-  },
-  moodIconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 9,
-    backgroundColor: orbit.surface2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 10,
-  },
-  moodName: {
-    color: orbit.textPrimary,
-    fontSize: 13,
-    fontWeight: '600',
-    lineHeight: 17,
-  },
-  moodMembers: {
-    color: orbit.textTertiary,
-    fontSize: 11,
-    marginTop: 3,
-  },
-  moodTagPill: {
-    alignSelf: 'flex-start',
-    backgroundColor: orbit.surface2,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 5,
-    marginTop: 'auto',
-  },
-  moodTagText: {
-    color: orbit.textSecond,
-    fontSize: 10,
-    fontWeight: '600',
-    letterSpacing: 0.2,
-  },
+  /* City Status Bar */
+  cityStatusBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 18, paddingBottom: 10 },
+  cityRank: { fontSize: 11, fontWeight: '800', color: GOLD, textTransform: 'uppercase', letterSpacing: 0.5 },
+  heatMeter: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  heatDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#EF4444' },
+  heatText: { fontSize: 11, fontWeight: '800', color: '#EF4444', textTransform: 'uppercase', letterSpacing: 0.5 },
 
-  /* Trending */
-  trendingCard: {
-    marginHorizontal: 20,
-    backgroundColor: orbit.surface1,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: orbit.borderSubtle,
-    overflow: 'hidden',
-  },
-  trendingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    gap: 12,
-  },
-  trendingRank: {
-    width: 24,
-    color: orbit.textTertiary,
-    fontSize: 12,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  trendingBody: { flex: 1 },
-  trendingNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 3,
-  },
-  trendingName: {
-    color: orbit.textPrimary,
-    fontSize: 14,
-    fontWeight: '600',
-    flex: 1,
-  },
-  trendingMeta: {
-    color: orbit.textTertiary,
-    fontSize: 12,
-  },
+  /* City Tabs */
+  cityScroll: { borderTopWidth: 1, borderTopColor: '#E8D9C8', borderStyle: 'dashed' },
+  cityScrollContent: { flexDirection: 'row', gap: 8, paddingHorizontal: 14, paddingVertical: 10 },
+  cityBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: '#E8D9C8', backgroundColor: WHITE, gap: 6 },
+  cityBtnActive: { backgroundColor: GOLD, borderColor: GOLD },
+  cityBtnText: { fontSize: 13, fontWeight: '600', color: '#8B6D4A' },
+  cityBtnTextActive: { color: WHITE },
+  livePill: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2 },
+  livePillText: { fontSize: 11, fontWeight: '700', color: WHITE },
+  blinkDot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: WHITE },
 
-  /* Live pill */
-  livePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(229,72,77,0.12)',
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 6,
-    gap: 4,
-  },
-  liveDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: orbit.danger,
-  },
-  liveText: {
-    color: orbit.danger,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
+  /* Chat */
+  chat: { flex: 1, backgroundColor: BG },
+  chatContent: { padding: 14, gap: 16 },
 
-  loadingRow: {
-    paddingVertical: 24,
-    alignItems: 'center',
-  },
+  /* City Wars Banner */
+  cwBanner: { backgroundColor: '#1A1208', borderRadius: 14, padding: 12, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 15, shadowOffset: { width: 0, height: 4 }, elevation: 4 },
+  cwHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
+  cwHeaderText: { fontSize: 10, fontWeight: '800', color: '#C4AC96', textTransform: 'uppercase' },
+  cwTeams: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  cwTeamLeft: { fontSize: 13, fontWeight: '800', color: '#F59E0B' },
+  cwVs: { fontSize: 10, fontWeight: '700', color: '#8B6D4A' },
+  cwTeamRight: { fontSize: 13, fontWeight: '800', color: '#EF4444' },
+  cwBarBg: { flexDirection: 'row', height: 6, borderRadius: 3, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.1)' },
+  cwBarFill: { height: 6 },
+  cwScores: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 5 },
+  cwScoreText: { fontSize: 9, fontWeight: '700', color: '#E8D9C8' },
+
+  /* Message meta tags */
+  metaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4, marginBottom: 4, paddingHorizontal: 4 },
+  metaUser: { fontSize: 11, fontWeight: '600', color: '#B09880' },
+  tagColony: { fontSize: 11, fontWeight: '700', color: '#8B6D4A' },
+  tagVerified: { width: 14, height: 14, borderRadius: 7, backgroundColor: '#4F8FFF', alignItems: 'center', justifyContent: 'center' },
+  tagVerifiedText: { fontSize: 7, color: WHITE, fontWeight: '800' },
+  tagCredits: { backgroundColor: '#FFF8ED', borderWidth: 1, borderColor: '#E8C97A', borderRadius: 6, paddingHorizontal: 4, paddingVertical: 1 },
+  tagCreditsText: { fontSize: 9, fontWeight: '700', color: '#A0620A' },
+  tagLocal: { backgroundColor: '#E8F5E9', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 },
+  tagLocalText: { fontSize: 8, fontWeight: '800', color: '#2E7D32', textTransform: 'uppercase', letterSpacing: 0.5 },
+  tagVisitor: { backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FECACA', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 },
+  tagVisitorText: { fontSize: 8, fontWeight: '800', color: '#EF4444', textTransform: 'uppercase', letterSpacing: 0.5 },
+
+  /* Bubbles */
+  msgWrap: { maxWidth: '85%', alignSelf: 'flex-start', alignItems: 'flex-start' },
+  msgWrapRight: { alignSelf: 'flex-end', alignItems: 'flex-end' },
+  bubble: { padding: 8, paddingHorizontal: 12, borderRadius: 18, borderWidth: 1, borderColor: '#EDE0CF', backgroundColor: WHITE },
+  bubbleLeft: { borderTopLeftRadius: 4 },
+  bubbleRight: { borderTopRightRadius: 4, backgroundColor: GOLD, borderColor: 'transparent' },
+  bubbleText: { fontSize: 13.5, lineHeight: 20, color: '#2A1F12' },
+  bubbleTextRight: { color: WHITE },
+  msgInfo: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 3, marginTop: 3, opacity: 0.75 },
+  msgTime: { fontSize: 9.5, color: '#8B6D4A' },
+  msgTimeRight: { color: 'rgba(255,255,255,0.9)' },
+  ticks: { fontSize: 10, color: 'rgba(255,255,255,0.9)', fontWeight: '700', letterSpacing: -2 },
+  reactRow: { flexDirection: 'row', gap: 5, marginTop: 5, paddingHorizontal: 4 },
+  reactPill: { backgroundColor: WHITE, borderWidth: 1, borderColor: '#EDE0CF', borderRadius: 12, paddingVertical: 3, paddingHorizontal: 8 },
+  reactText: { fontSize: 11, color: '#8B6D4A' },
+
+  /* Mayor */
+  mayorCard: { backgroundColor: '#FFFBF5', borderWidth: 1.5, borderColor: '#E8C97A', borderRadius: 16, padding: 14, maxWidth: '90%', alignSelf: 'flex-start' },
+  mayorHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 7 },
+  mayorAv: { width: 30, height: 30, borderRadius: 10, backgroundColor: GOLD, alignItems: 'center', justifyContent: 'center' },
+  mayorAvText: { fontSize: 12, fontWeight: '800', color: WHITE },
+  mayorName: { fontSize: 13, fontWeight: '700', color: '#A0620A' },
+  mayorBadge: { backgroundColor: '#FFF3CD', borderWidth: 1, borderColor: '#E8C97A', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2 },
+  mayorBadgeText: { fontSize: 9, fontWeight: '800', color: '#A0620A', textTransform: 'uppercase', letterSpacing: 0.5 },
+  mayorText: { fontSize: 13, color: '#2A1F12', lineHeight: 20 },
+
+  /* Input */
+  inputArea: { backgroundColor: WHITE, borderTopWidth: 1, borderTopColor: '#E8D9C8', paddingHorizontal: 12, paddingTop: 8 },
+  quickBtns: { flexDirection: 'row', gap: 6, marginBottom: 8 },
+  qb: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.95)', borderWidth: 1, borderColor: '#E8D9C8', borderRadius: 16, paddingVertical: 5, paddingHorizontal: 10 },
+  qbText: { fontSize: 11, fontWeight: '700', color: '#8B6D4A' },
+  inputBox: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: WHITE, borderWidth: 1.5, borderColor: '#E8D9C8', borderRadius: 24, paddingVertical: 6, paddingLeft: 8, paddingRight: 8 },
+  iconBtn: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  txtIn: { flex: 1, fontSize: 13, color: '#2A1F12', paddingVertical: 0 },
+  sendBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: GOLD, alignItems: 'center', justifyContent: 'center' },
 });
