@@ -1,28 +1,26 @@
 /**
  * lib/firebase.web.ts — WEB only
  *
- * ROOT CAUSE FIX (v3):
+ * ROOT CAUSE FIX (v4 — FINAL):
  *   Error: "getModularInstance(...).onAuthStateChanged is not a function"
  *
- *   Cause 1: `firebase` JS SDK was NOT in package.json — only
- *             @react-native-firebase was listed. Web needs the JS SDK.
- *             FIX → Added "firebase": "^11.0.0" to package.json.
+ *   Root Cause: In Firebase v11, initializing the compat app BEFORE the
+ *   modular app causes getAuth() to return an internally compat-wrapped
+ *   Auth instance. The modular onAuthStateChanged() then calls
+ *   getModularInstance(auth) on it, but the method is missing → crash.
  *
- *   Cause 2: Auth was initialized from a compat-wrapped app instance.
- *             Compat wraps the modular app, and passing a compat instance
- *             to getAuth() returns a compat Auth, not a modular Auth.
- *             Modular onAuthStateChanged() then fails on it.
- *             FIX → Let compat initialize the default app first (it also
- *             registers in the modular registry), then call getApp() to
- *             get the real modular FirebaseApp, and pass THAT to getAuth().
+ *   FIX: Always initialize the MODULAR app first via initializeApp().
+ *   Then initialize compat AFTER (it re-uses the same underlying app).
+ *   getAuth(app) on the modular app gives a proper modular Auth instance
+ *   that works correctly with all modular auth functions. ✅
  */
 
-import firebase from "firebase/compat/app";
-import "firebase/compat/firestore";
-import { getApps, getApp, initializeApp, type FirebaseApp } from "firebase/app";
+import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
+import firebase from "firebase/compat/app";
+import "firebase/compat/firestore";
 
 const FIREBASE_CONFIG = {
   apiKey:            "AIzaSyDPXJ6oj2ac-5QsgDWDSslN_AaVrM7KQ2w",
@@ -33,33 +31,30 @@ const FIREBASE_CONFIG = {
   appId:             "1:250454225022:android:44b3e0a7ac0268cfe6a82f",
 };
 
-// ── Step 1: Initialize compat app (also registers in modular registry) ───────
-// Compat's initializeApp() internally calls the modular initializeApp(),
-// so after this, getApps() returns the same app.
+// ── Step 1: MODULAR app — always initialize first ────────────────────────────
+// This must happen before compat setup. getAuth() on this instance returns
+// a proper modular Auth, not a compat-wrapped one.
+const app: FirebaseApp =
+  getApps().length === 0 ? initializeApp(FIREBASE_CONFIG) : getApp();
+
+// ── Step 2: Auth — purely modular, no compat involvement ────────────────────
+// onAuthStateChanged(auth, callback) ✅  signInWithPhoneNumber ✅
+export const auth: Auth = getAuth(app);
+
+// ── Step 3: Firestore + Storage (modular) ────────────────────────────────────
+export const db      = getFirestore(app);
+export const storage = getStorage(app);
+
+// ── Step 4: Compat app — initialized AFTER modular ───────────────────────────
+// Compat internally detects the already-initialized modular app and reuses it.
+// This keeps the compat Firestore API (used widely in the codebase) working.
 if (!firebase.apps.length) {
   firebase.initializeApp(FIREBASE_CONFIG);
 }
 
-// ── Step 2: Get the modular FirebaseApp from the registry ────────────────────
-// This is the REAL modular instance — NOT a compat wrapper.
-// getAuth(modularApp) returns a proper modular Auth, which works with
-// all modular functions: onAuthStateChanged, signInWithPhoneNumber, etc.
-const modularApp: FirebaseApp =
-  getApps().length > 0 ? getApp() : initializeApp(FIREBASE_CONFIG);
-
-// ── Step 3: Auth — modular instance from modular app ────────────────────────
-// onAuthStateChanged(auth, ...) will now work correctly ✅
-export const auth: Auth = getAuth(modularApp);
-
-// ── Step 4: Firestore modular instance ───────────────────────────────────────
-export const db = getFirestore(modularApp);
-
-// ── Step 5: Storage ──────────────────────────────────────────────────────────
-export const storage = getStorage(modularApp);
-
-// ── Step 6: Compat Firestore namespace (for call sites using namespaced API) ─
-// firestore().collection("users").doc(uid).get()  ← compat pattern
-// firestore.FieldValue.serverTimestamp()           ← compat pattern
+// ── Step 5: Compat Firestore namespace ───────────────────────────────────────
+// firestore().collection("users").doc(uid).get()   ← used across codebase
+// firestore.FieldValue.serverTimestamp()            ← used across codebase
 export const firestore = firebase.firestore;
 
 /** Shortcut for Firestore server timestamp. */
@@ -71,4 +66,4 @@ export const increment = (by: number): firebase.firestore.FieldValue =>
   firebase.firestore.FieldValue.increment(by);
 
 // Default export for compatibility
-export default modularApp;
+export default app;
