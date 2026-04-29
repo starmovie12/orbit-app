@@ -1,10 +1,16 @@
 /**
- * ORBIT — globals.css
- * Tailwind base layer + design token utility mappings.
- * Import ORDER: tokens.css → globals.css → component styles
- *
- * Naming convention: bg-surface-1 maps to var(--bg-surface-1), etc.
- * This file bridges the CSS variable system with Tailwind utility classes.
+ * ╔══════════════════════════════════════════════════════════════════════════╗
+ * ║   CROWD WORLD — globals.css  v2.0                                       ║
+ * ║   Tailwind base layer + design token utility mappings + component layer ║
+ * ║                                                                          ║
+ * ║   IMPORT ORDER (mandatory):                                              ║
+ * ║     1. tokens.css   → CSS custom properties                             ║
+ * ║     2. globals.css  → this file (base reset, utilities, components)     ║
+ * ║     3. component styles                                                  ║
+ * ║                                                                          ║
+ * ║   Every utility class maps directly to a token from tokens.css.         ║
+ * ║   No hard-coded colors outside tokens.css.                              ║
+ * ╚══════════════════════════════════════════════════════════════════════════╝
  */
 
 @import "./tokens.css";
@@ -12,174 +18,453 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   BASE RESET
-───────────────────────────────────────────────────────────────────────────── */
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   § 1 — BASE RESET
+═══════════════════════════════════════════════════════════════════════════ */
 @layer base {
+
   *, *::before, *::after {
     box-sizing: border-box;
-    border-color: var(--border-subtle);
+    border-color: var(--border-default);
   }
 
   html {
-    font-family: var(--font-sans);
-    font-size: 16px;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    text-rendering: optimizeLegibility;
+    font-family:              var(--font-body);
+    font-size:                16px;
+    -webkit-font-smoothing:   antialiased;
+    -moz-osx-font-smoothing:  grayscale;
+    text-rendering:           optimizeLegibility;
+    font-feature-settings:    "kern" 1, "liga" 1;
   }
 
   body {
     background-color: var(--bg-base);
-    color: var(--text-primary);
-    min-height: 100dvh;
-    overflow-x: hidden;
+    color:            var(--fg-primary);
+    min-height:       100dvh;
+    overflow-x:       hidden;
+    /* Subtle warm background texture — barely visible, adds depth */
+    background-image: radial-gradient(
+      ellipse at 80% 0%,
+      rgba(197, 162, 39, 0.03) 0%,
+      transparent 60%
+    );
   }
 
-  /* Remove default focus outline — we'll use our own */
+  /* Focus states — remove browser default, use our WCAG-compliant ring */
   :focus {
     outline: none;
   }
 
-  /* WCAG-compliant keyboard focus ring */
   :focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-    border-radius: 4px;
+    outline:        var(--focus-ring-width) solid var(--focus-ring);
+    outline-offset: var(--focus-ring-offset);
+    border-radius:  var(--radius-sm);
   }
 
-  /* Numeric tokens get tabular figures */
+  /* Numeric tokens get tabular figures for stable widths */
   [data-numeric],
   .tabular-nums {
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum";
   }
 
-  /* Scrollbar — dark, minimal */
+  /* Heading elements inherit heading font */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-body);
+    font-weight: 700;
+    color:       var(--fg-primary);
+    letter-spacing: var(--tracking-tight);
+  }
+
+  /* Links — brand text treatment */
+  a {
+    color: var(--fg-brand-text);
+    text-decoration: none;
+  }
+  a:hover {
+    color: var(--fg-brand);
+    text-decoration: underline;
+  }
+
+  /* Scrollbar — cream, warm, minimal */
   ::-webkit-scrollbar             { width: 4px; height: 4px; }
   ::-webkit-scrollbar-track       { background: transparent; }
-  ::-webkit-scrollbar-thumb       { background: var(--border-strong); border-radius: var(--radius-pill); }
-  ::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }
+  ::-webkit-scrollbar-thumb       {
+    background: var(--cream-400);
+    border-radius: var(--radius-pill);
+  }
+  ::-webkit-scrollbar-thumb:hover { background: var(--gold-400); }
+
+  /* Selection highlight — brand gold */
+  ::selection {
+    background-color: rgba(197, 162, 39, 0.20);
+    color: var(--fg-primary);
+  }
+
+  /* Inputs — global reset */
+  input, textarea, select {
+    font-family: var(--font-body);
+    color: var(--fg-primary);
+    background-color: var(--bg-surface);
+  }
+
+  /* Placeholder */
+  ::placeholder {
+    color: var(--fg-placeholder);
+    opacity: 1;
+  }
+
+  /* Remove default button styles */
+  button {
+    cursor: pointer;
+    font-family: var(--font-body);
+  }
+
+  /* Images */
+  img, svg {
+    display: block;
+    max-width: 100%;
+  }
 }
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   BACKGROUND UTILITIES  →  var()
-───────────────────────────────────────────────────────────────────────────── */
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   § 2 — BACKGROUND UTILITIES
+═══════════════════════════════════════════════════════════════════════════ */
 @layer utilities {
-  .bg-base         { background-color: var(--bg-base); }
-  .bg-surface-1    { background-color: var(--bg-surface-1); }
-  .bg-surface-2    { background-color: var(--bg-surface-2); }
-  .bg-surface-3    { background-color: var(--bg-surface-3); }
-  .bg-accent       { background-color: var(--accent); }
-  .bg-accent-soft  { background-color: var(--accent-soft); }
-  .bg-success-soft { background-color: var(--success-soft); }
-  .bg-warning-soft { background-color: var(--warning-soft); }
-  .bg-danger-soft  { background-color: var(--danger-soft); }
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   TEXT UTILITIES
-───────────────────────────────────────────────────────────────────────────── */
-  .text-primary   { color: var(--text-primary); }
-  .text-secondary { color: var(--text-secondary); }
-  .text-tertiary  { color: var(--text-tertiary); }
-  .text-inverse   { color: var(--text-inverse); }
-  .text-accent    { color: var(--accent); }
-  .text-success   { color: var(--success); }
-  .text-warning   { color: var(--warning); }
-  .text-danger    { color: var(--danger); }
+  /* Surfaces */
+  .bg-base          { background-color: var(--bg-base); }
+  .bg-surface       { background-color: var(--bg-surface); }
+  .bg-subtle        { background-color: var(--bg-subtle); }
+  .bg-card          { background-color: var(--bg-card); }
+  .bg-card-hover    { background-color: var(--bg-card-hover); }
+  .bg-card-pressed  { background-color: var(--bg-card-pressed); }
+  .bg-skeleton      { background-color: var(--bg-skeleton); }
+  .bg-glass         { background-color: var(--bg-glass); }
+  .bg-scrim         { background-color: var(--bg-scrim); }
+  .bg-disabled      { background-color: var(--bg-disabled); }
+  .bg-inverse       { background-color: var(--bg-inverse); }
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   BORDER UTILITIES
-───────────────────────────────────────────────────────────────────────────── */
-  .border-subtle  { border-color: var(--border-subtle); }
-  .border-strong  { border-color: var(--border-strong); }
-  .border-accent  { border-color: var(--accent); }
+  /* Legacy aliases (for components using old ORBIT naming) */
+  .bg-surface-1     { background-color: var(--bg-base); }
+  .bg-surface-2     { background-color: var(--bg-card); }
+  .bg-surface-3     { background-color: var(--bg-card-hover); }
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   TYPOGRAPHY UTILITIES
-───────────────────────────────────────────────────────────────────────────── */
+  /* Brand backgrounds */
+  .bg-accent        { background-color: var(--accent); }
+  .bg-accent-soft   { background-color: var(--accent-soft); }
+  .bg-gold-50       { background-color: var(--gold-50); }
+  .bg-gold-100      { background-color: var(--gold-100); }
+  .bg-gold-400      { background-color: var(--gold-400); }
+  .bg-gold-600      { background-color: var(--gold-600); }
+  .bg-cream-50      { background-color: var(--cream-50); }
+  .bg-cream-100     { background-color: var(--cream-100); }
+  .bg-cream-200     { background-color: var(--cream-200); }
+
+  /* Semantic backgrounds */
+  .bg-success-soft  { background-color: var(--success-soft); }
+  .bg-warning-soft  { background-color: var(--warning-soft); }
+  .bg-danger-soft   { background-color: var(--danger-soft); }
+
+  /* Gradient backgrounds */
+  .bg-gradient-brand     { background-image: var(--gradient-brand); }
+  .bg-gradient-amber     { background-image: var(--gradient-amber); }
+  .bg-gradient-heat      { background-image: var(--gradient-heat); }
+  .bg-gradient-celebrate { background-image: var(--gradient-bg-celebration); }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   § 3 — TEXT UTILITIES
+═══════════════════════════════════════════════════════════════════════════ */
+
+  /* Semantic text colors */
+  .text-primary   { color: var(--fg-primary); }
+  .text-secondary { color: var(--fg-secondary); }
+  .text-tertiary  { color: var(--fg-tertiary); }
+  .text-inverse   { color: var(--fg-on-inverse); }
+  .text-on-brand  { color: var(--fg-on-brand); }
+  .text-on-card   { color: var(--fg-on-card); }
+  .text-on-glass  { color: var(--fg-on-glass); }
+
+  /* Brand text */
+  .text-brand        { color: var(--fg-brand); }
+  .text-brand-hover  { color: var(--fg-brand-hover); }
+  .text-brand-subtle { color: var(--fg-brand-subtle); }
+  .text-brand-text   { color: var(--fg-brand-text); }
+  .text-accent       { color: var(--accent); }
+
+  /* Status / semantic */
+  .text-success   { color: var(--fg-success); }
+  .text-warning   { color: var(--fg-warning); }
+  .text-danger    { color: var(--fg-error); }
+  .text-error     { color: var(--fg-error); }
+  .text-celebrate { color: var(--fg-celebrate); }
+  .text-saffron   { color: var(--fg-saffron); }
+  .text-disabled  { color: var(--fg-disabled); }
+
+  /* Specific gold/amber tones */
+  .text-gold-400  { color: var(--gold-400); }
+  .text-gold-600  { color: var(--gold-600); }
+  .text-gold-700  { color: var(--gold-700); }
+  .text-gold-800  { color: var(--gold-800); }
+  .text-amber-600 { color: var(--amber-600); }
+  .text-ink-500   { color: var(--ink-500); }
+  .text-ink-600   { color: var(--ink-600); }
+  .text-ink-950   { color: var(--ink-950); }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   § 4 — BORDER UTILITIES
+═══════════════════════════════════════════════════════════════════════════ */
+
+  .border-default         { border-color: var(--border-default); }
+  .border-subtle          { border-color: var(--border-subtle); }
+  .border-strong          { border-color: var(--border-strong); }
+  .border-card            { border-color: var(--border-card); }
+  .border-card-emphasis   { border-color: var(--border-card-emphasis); }
+  .border-accent          { border-color: var(--accent); }
+  .border-input-idle      { border-color: var(--border-input-idle); }
+  .border-input-focus     { border-color: var(--border-input-focus); }
+  .border-input-filled    { border-color: var(--border-input-filled); }
+  .border-input-error     { border-color: var(--border-input-error); }
+  .border-input-success   { border-color: var(--border-input-success); }
+  .border-glass           { border-color: var(--border-glass-edge); }
+
+  /* Avatar border — always gold-600 (per blueprint spec) */
+  .border-avatar {
+    border: 3px solid var(--gold-600);
+    border-radius: var(--radius-avatar);
+  }
+  .border-avatar-sm {
+    border: 2px solid var(--gold-600);
+    border-radius: var(--radius-avatar);
+  }
+  .border-avatar-hero {
+    border: 4px solid var(--gold-600);
+    border-radius: var(--radius-avatar);
+  }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   § 5 — TYPOGRAPHY UTILITIES
+═══════════════════════════════════════════════════════════════════════════ */
+
+  /* ── Font families ────────────────────────────────────────────────────── */
+  .font-heading { font-family: var(--font-heading); }
+  .font-body    { font-family: var(--font-body); }
+
+  /* ── Display / Hero (Cormorant-eligible contexts) ─────────────────────── */
   .text-display {
-    font-size: var(--text-display-size);
+    font-size:   var(--text-display-size);
     line-height: var(--text-display-lh);
     font-weight: var(--text-display-weight);
     letter-spacing: -0.01em;
   }
 
+  /* Cormorant Garamond hero (Splash wordmark · large variant) */
+  .text-hero {
+    font-family: var(--font-heading);
+    font-size:   var(--text-hero-size);
+    line-height: var(--text-hero-lh);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+
+  /* ── H1 — 24px, weight 700 ────────────────────────────────────────────── */
   .text-h1 {
-    font-size: var(--text-h1-size);
-    line-height: var(--text-h1-lh);
-    font-weight: var(--text-h1-weight);
+    font-size:      var(--text-h1-size);
+    line-height:    var(--text-h1-lh);
+    font-weight:    var(--text-h1-weight);
     letter-spacing: var(--text-h1-tracking);
   }
 
+  /* ── H2 — 22px, weight 700 ────────────────────────────────────────────── */
   .text-h2 {
-    font-size: var(--text-h2-size);
-    line-height: var(--text-h2-lh);
-    font-weight: var(--text-h2-weight);
-    letter-spacing: var(--text-h2-tracking);
+    font-size:      var(--text-h2-size);
+    line-height:    var(--text-h2-lh);
+    font-weight:    var(--text-h2-weight);
+    letter-spacing: -0.01em;
   }
 
+  /* ── H3 — 18px, weight 700 ────────────────────────────────────────────── */
   .text-h3 {
-    font-size: var(--text-h3-size);
+    font-size:   var(--text-h3-size);
     line-height: var(--text-h3-lh);
     font-weight: var(--text-h3-weight);
   }
 
+  /* ── Section title — 18px 700 (section headers in lists) ─────────────── */
+  .text-section-title {
+    font-size:   var(--text-h3-size);
+    line-height: var(--text-h3-lh);
+    font-weight: 700;
+    color:       var(--fg-primary);
+  }
+
+  /* ── Body Large — 15px 400 ────────────────────────────────────────────── */
   .text-body-l {
-    font-size: var(--text-body-l-size);
+    font-size:   var(--text-body-l-size);
     line-height: var(--text-body-l-lh);
     font-weight: var(--text-body-l-weight);
   }
 
+  /* ── Body Medium — 16px 400 ───────────────────────────────────────────── */
   .text-body-m {
-    font-size: var(--text-body-m-size);
+    font-size:   var(--text-body-m-size);
     line-height: var(--text-body-m-lh);
     font-weight: var(--text-body-m-weight);
   }
 
+  /* ── Caption — 12px 400 ───────────────────────────────────────────────── */
   .text-caption {
-    font-size: var(--text-caption-size);
-    line-height: var(--text-caption-lh);
-    font-weight: var(--text-caption-weight);
+    font-size:   var(--text-cap-size);
+    line-height: var(--text-cap-lh);
+    font-weight: var(--text-cap-weight);
   }
 
+  /* ── Overline — 11px 600 uppercase ───────────────────────────────────── */
   .text-overline {
-    font-size: var(--text-overline-size);
-    line-height: var(--text-overline-lh);
-    font-weight: var(--text-overline-weight);
+    font-size:      var(--text-overline-size);
+    line-height:    var(--text-overline-lh);
+    font-weight:    var(--text-overline-weight);
     letter-spacing: var(--text-overline-tracking);
     text-transform: uppercase;
   }
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   BORDER RADIUS UTILITIES
-───────────────────────────────────────────────────────────────────────────── */
+  /* ── Meta / Micro — 11px ─────────────────────────────────────────────── */
+  .text-meta {
+    font-size:   var(--text-sm-size);
+    line-height: var(--text-sm-lh);
+    font-weight: var(--text-sm-weight);
+  }
+
+  /* ── Specific semantic text styles ───────────────────────────────────── */
+
+  /* Wordmark (standard header 24px H — per LAW 15) */
+  .text-wordmark {
+    font-family:    var(--font-heading);
+    font-size:      var(--text-wordmark-h);
+    font-weight:    700;
+    color:          var(--fg-brand-subtle);
+    line-height:    1;
+  }
+
+  /* Balance number (40px Wallet hero) */
+  .text-balance {
+    font-size:   var(--text-balance-size);
+    line-height: var(--text-balance-lh);
+    font-weight: var(--text-balance-weight);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+    color: var(--pure-white);
+  }
+
+  /* OTP digit box text */
+  .text-otp {
+    font-size:      22px;
+    line-height:    1;
+    font-weight:    700;
+    letter-spacing: var(--tracking-otp);
+    color:          var(--fg-primary);
+    text-align:     center;
+  }
+
+  /* Phone input text */
+  .text-phone-input {
+    font-size:      18px;
+    line-height:    1;
+    font-weight:    600;
+    letter-spacing: var(--tracking-phone);
+    color:          var(--fg-primary);
+  }
+
+  /* Username / handle */
+  .text-handle {
+    font-size:   var(--text-md-size);
+    line-height: var(--text-md-lh);
+    font-weight: 500;
+    color:       var(--fg-tertiary);
+  }
+
+  /* Step indicator (e.g. "1 / 5") */
+  .text-step {
+    font-size:   var(--text-cap-size);
+    line-height: 1;
+    font-weight: 600;
+    color:       var(--fg-secondary);
+  }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   § 6 — BORDER RADIUS UTILITIES
+═══════════════════════════════════════════════════════════════════════════ */
+
+  .rounded-xs     { border-radius: var(--radius-xs); }
+  .rounded-sm     { border-radius: var(--radius-sm); }
+  .rounded-md     { border-radius: var(--radius-md); }
+  .rounded-lg     { border-radius: var(--radius-lg); }
+  .rounded-xl     { border-radius: var(--radius-xl); }
+  .rounded-2xl    { border-radius: var(--radius-2xl); }
   .rounded-btn    { border-radius: var(--radius-btn); }
   .rounded-input  { border-radius: var(--radius-input); }
   .rounded-card   { border-radius: var(--radius-card); }
-  .rounded-sheet  { border-radius: var(--radius-sheet) var(--radius-sheet) 0 0; }
   .rounded-modal  { border-radius: var(--radius-modal); }
   .rounded-avatar { border-radius: var(--radius-avatar); }
   .rounded-pill   { border-radius: var(--radius-pill); }
+  .rounded-badge  { border-radius: var(--radius-badge); }
+  .rounded-otp    { border-radius: var(--radius-otp); }
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   SHADOW UTILITIES (floating elements only — not cards in dark mode)
-───────────────────────────────────────────────────────────────────────────── */
-  .shadow-orbit-sm { box-shadow: var(--shadow-sm); }
-  .shadow-orbit-md { box-shadow: var(--shadow-md); }
-  .shadow-orbit-lg { box-shadow: var(--shadow-lg); }
+  /* Bottom sheet — rounded top corners only */
+  .rounded-sheet {
+    border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  }
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   SCREEN LAYOUT UTILITIES
-───────────────────────────────────────────────────────────────────────────── */
-  .screen-px    { padding-left: var(--screen-px); padding-right: var(--screen-px); }
-  .card-p       { padding: var(--card-p); }
-  .section-gap  { gap: var(--section-gap); }
-  .block-gap    { gap: var(--block-gap); }
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   TOUCH TARGET UTILITIES
-───────────────────────────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════════
+   § 7 — SHADOW UTILITIES
+═══════════════════════════════════════════════════════════════════════════ */
+
+  .shadow-0    { box-shadow: var(--shadow-0); }
+  .shadow-1    { box-shadow: var(--shadow-1); }
+  .shadow-2    { box-shadow: var(--shadow-2); }
+  .shadow-3    { box-shadow: var(--shadow-3); }
+  .shadow-4    { box-shadow: var(--shadow-4); }
+  .shadow-5    { box-shadow: var(--shadow-5); }
+  .shadow-glass { box-shadow: var(--shadow-glass); }
+
+  /* Legacy aliases */
+  .shadow-orbit-sm { box-shadow: var(--shadow-1); }
+  .shadow-orbit-md { box-shadow: var(--shadow-3); }
+  .shadow-orbit-lg { box-shadow: var(--shadow-4); }
+
+  /* Golden focus glow ring (CTA hover / earned states) */
+  .shadow-gold-ring {
+    box-shadow: 0 0 0 3px rgba(197, 162, 39, 0.35);
+  }
+  .shadow-gold-glow {
+    box-shadow: 0 0 16px rgba(197, 162, 39, 0.30);
+  }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   § 8 — SPACING UTILITIES
+═══════════════════════════════════════════════════════════════════════════ */
+
+  .screen-px   { padding-left: var(--screen-px); padding-right: var(--screen-px); }
+  .card-p      { padding: var(--card-p); }
+  .card-p-lg   { padding: var(--card-p-lg); }
+  .section-gap { gap: var(--section-gap); }
+  .block-gap   { gap: var(--block-gap); }
+  .field-gap   { gap: var(--field-gap); }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   § 9 — TOUCH TARGET UTILITIES
+═══════════════════════════════════════════════════════════════════════════ */
+
+  /* Standard 44×44 touch target — WCAG 2.5.5 minimum */
   .touch-target {
     min-width:  var(--touch-min);
     min-height: var(--touch-min);
@@ -187,6 +472,7 @@
     align-items: center;
     justify-content: center;
   }
+
   .touch-nav {
     min-width:  var(--touch-nav);
     min-height: var(--touch-nav);
@@ -194,93 +480,1053 @@
     align-items: center;
     justify-content: center;
   }
-}
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   COMPONENT LAYER — reusable primitives
-───────────────────────────────────────────────────────────────────────────── */
+  .touch-lg {
+    min-width:  var(--touch-lg);
+    min-height: var(--touch-lg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   § 10 — Z-INDEX UTILITIES
+═══════════════════════════════════════════════════════════════════════════ */
+
+  .z-base    { z-index: var(--z-base); }
+  .z-raised  { z-index: var(--z-raised); }
+  .z-sticky  { z-index: var(--z-sticky); }
+  .z-header  { z-index: var(--z-header); }
+  .z-glass   { z-index: var(--z-glass); }
+  .z-scrim   { z-index: var(--z-scrim); }
+  .z-sheet   { z-index: var(--z-sheet); }
+  .z-modal   { z-index: var(--z-modal); }
+  .z-toast   { z-index: var(--z-toast); }
+
+} /* end @layer utilities */
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   § 11 — COMPONENT LAYER
+   Reusable primitives. All spec'd from the v5.0 BAAP Edition blueprints.
+═══════════════════════════════════════════════════════════════════════════ */
 @layer components {
 
-  /* Divider */
-  .divider {
-    height: 1px;
-    background-color: var(--border-subtle);
-    border: none;
-    margin: 0;
+  /* ── § 11.1 — BUTTONS ──────────────────────────────────────────────────
+     Three sizes × four variants (Primary · Secondary · Ghost · Destructive)
+     All: min-height 44px touch target · transition · press scale
+     ──────────────────────────────────────────────────────────────────── */
+
+  /* --- Shared base --- */
+  .btn {
+    display:         inline-flex;
+    align-items:     center;
+    justify-content: center;
+    gap:             var(--space-2);
+    font-family:     var(--font-body);
+    font-weight:     700;
+    border:          none;
+    cursor:          pointer;
+    white-space:     nowrap;
+    -webkit-user-select: none;
+    user-select:     none;
+    transition:
+      background-color var(--duration-base) var(--ease-out),
+      color            var(--duration-base) var(--ease-out),
+      box-shadow       var(--duration-base) var(--ease-out),
+      transform        var(--duration-micro) var(--ease-out),
+      opacity          var(--duration-base) var(--ease-out);
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled,
+  .btn[disabled] {
+    opacity:        0.40;
+    pointer-events: none;
+    cursor:         not-allowed;
   }
 
-  /* ── Skeleton shimmer ─────────────────────────────────────────────────── */
+  /* --- Large Primary CTA (54px H — Splash, Onboarding, Wallet) --- */
+  .btn-primary {
+    height:           var(--btn-h-lg);
+    width:            100%;
+    padding:          var(--btn-lg-py) var(--btn-lg-px);
+    font-size:        var(--text-body-m-size);
+    font-weight:      700;
+    background-color: var(--fg-brand);
+    color:            var(--fg-on-brand);
+    border-radius:    var(--radius-btn);
+    box-shadow:       var(--shadow-2);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background-color: var(--fg-brand-hover);
+    box-shadow:       var(--shadow-3), 0 0 0 3px rgba(197, 162, 39, 0.20);
+  }
+  .btn-primary:focus-visible {
+    box-shadow: 0 0 0 2px var(--bg-base), 0 0 0 4px var(--focus-ring);
+  }
+
+  /* --- Medium Secondary (36px H — Quick actions, auto-detect, "Visit" etc.) --- */
+  .btn-secondary {
+    height:           var(--btn-h-sm);
+    padding:          var(--btn-md-py) var(--btn-md-px);
+    font-size:        var(--text-base-size);
+    font-weight:      600;
+    background-color: var(--gold-50);
+    color:            var(--fg-brand-text);
+    border:           1.5px solid var(--fg-brand);
+    border-radius:    18px;
+    box-shadow:       none;
+  }
+  .btn-secondary:hover:not(:disabled) {
+    background-color: var(--gold-100);
+    box-shadow:       var(--shadow-1);
+  }
+
+  /* --- Ghost (44px H — secondary CTAs, "Sign In" on splash) --- */
+  .btn-ghost {
+    height:           var(--btn-h-md);
+    padding:          var(--btn-md-py) var(--btn-md-px);
+    font-size:        var(--text-md-size);
+    font-weight:      600;
+    background-color: transparent;
+    color:            var(--fg-brand-text);
+    border:           none;
+    border-radius:    var(--radius-btn);
+  }
+  .btn-ghost:hover:not(:disabled) {
+    background-color: var(--gold-50);
+  }
+
+  /* --- Destructive Primary (54px H — Delete, Logout confirm) --- */
+  .btn-destructive {
+    height:           var(--btn-h-lg);
+    width:            100%;
+    padding:          var(--btn-lg-py) var(--btn-lg-px);
+    font-size:        var(--text-body-m-size);
+    font-weight:      700;
+    background-color: var(--fg-error);
+    color:            var(--pure-white);
+    border-radius:    var(--radius-btn);
+  }
+  .btn-destructive:hover:not(:disabled) {
+    background-color: var(--fg-error-hover);
+  }
+
+  /* --- On-gold Secondary (white bg, gold text — inside gradient cards) --- */
+  .btn-on-gold {
+    height:           var(--btn-h-sm);
+    padding:          var(--btn-md-py) var(--btn-md-px);
+    font-size:        var(--text-base-size);
+    font-weight:      600;
+    background-color: var(--pure-white);
+    color:            var(--gold-700);
+    border-radius:    18px;
+    border:           none;
+  }
+  .btn-on-gold:hover:not(:disabled) {
+    background-color: var(--cream-50);
+    transform: scale(0.98);
+  }
+
+  /* --- Icon-only Button (44×44) --- */
+  .btn-icon {
+    width:            var(--touch-min);
+    height:           var(--touch-min);
+    padding:          0;
+    background-color: transparent;
+    color:            var(--fg-primary);
+    border-radius:    var(--radius-avatar);
+    flex-shrink:      0;
+  }
+  .btn-icon:hover:not(:disabled) {
+    background-color: var(--bg-subtle);
+  }
+
+  /* ── § 11.2 — INPUTS ────────────────────────────────────────────────── */
+
+  /* Base input wrapper (includes label + field + helper pattern) */
+  .input-group {
+    display:        flex;
+    flex-direction: column;
+    gap:            var(--field-gap);
+  }
+
+  /* Field label */
+  .input-label {
+    font-size:   var(--text-base-size);
+    font-weight: 600;
+    color:       var(--fg-secondary);
+    line-height: 1;
+  }
+
+  /* Helper / caption beneath input */
+  .input-helper {
+    font-size:   var(--text-cap-size);
+    font-weight: 400;
+    color:       var(--fg-tertiary);
+    line-height: var(--text-cap-lh);
+    margin-top:  var(--field-helper-gap);
+  }
+  .input-helper--error { color: var(--fg-error); }
+  .input-helper--success { color: var(--fg-success); }
+
+  /* Standard text input */
+  .input-field {
+    height:           var(--input-h);
+    width:            100%;
+    padding:          0 var(--card-p);
+    font-family:      var(--font-body);
+    font-size:        var(--text-body-m-size);
+    font-weight:      600;
+    color:            var(--fg-primary);
+    background-color: var(--bg-surface);
+    border:           1px solid var(--border-input-idle);
+    border-radius:    var(--radius-input);
+    transition:
+      border-color var(--duration-base) var(--ease-out),
+      border-width var(--duration-base) var(--ease-out),
+      box-shadow   var(--duration-base) var(--ease-out);
+  }
+  .input-field::placeholder {
+    color:       var(--fg-placeholder);
+    font-weight: 400;
+    font-size:   var(--text-body-l-size);
+  }
+  .input-field:focus {
+    border:     2px solid var(--border-input-focus);
+    outline:    none;
+    box-shadow: var(--shadow-1);
+  }
+  .input-field.is-filled {
+    border-color: var(--border-input-filled);
+  }
+  .input-field.is-success {
+    border-right: 3px solid var(--border-input-success);
+  }
+  .input-field.is-error {
+    border-color: var(--border-input-error);
+  }
+  .input-field:disabled {
+    background-color: var(--bg-disabled);
+    color:            var(--fg-disabled);
+    cursor:           not-allowed;
+  }
+
+  /* Prominent input (56px H — phone number, display name) */
+  .input-field--lg {
+    height:      var(--input-h-lg);
+    font-size:   18px;
+    font-weight: 600;
+    letter-spacing: var(--tracking-phone);
+  }
+
+  /* Textarea */
+  .input-textarea {
+    min-height:    96px;
+    padding:       var(--space-3) var(--card-p);
+    font-family:   var(--font-body);
+    font-size:     var(--text-md-size);
+    font-weight:   400;
+    line-height:   var(--text-body-l-lh);
+    color:         var(--fg-primary);
+    background-color: var(--bg-surface);
+    border:        1px solid var(--border-input-idle);
+    border-radius: var(--radius-input);
+    resize:        vertical;
+    transition:    border-color var(--duration-base) var(--ease-out);
+  }
+  .input-textarea:focus {
+    border:  2px solid var(--border-input-focus);
+    outline: none;
+  }
+
+  /* Phone prefix box (part of custom phone input) */
+  .input-phone-prefix {
+    display:          flex;
+    align-items:      center;
+    justify-content:  center;
+    width:            60px;
+    flex-shrink:      0;
+    background-color: var(--bg-subtle);
+    border-right:     1px solid var(--border-default);
+    font-size:        var(--text-body-m-size);
+    font-weight:      600;
+    color:            var(--fg-primary);
+    border-radius:    var(--radius-input) 0 0 var(--radius-input);
+  }
+
+  /* OTP digit box */
+  .otp-box {
+    width:            var(--input-otp-box);
+    height:           var(--input-otp-box);
+    background-color: var(--bg-surface);
+    border:           1px solid var(--border-input-idle);
+    border-radius:    var(--radius-otp);
+    font-family:      var(--font-body);
+    font-size:        22px;
+    font-weight:      700;
+    color:            var(--fg-primary);
+    text-align:       center;
+    transition:
+      border-color var(--duration-base) var(--ease-out),
+      border-width var(--duration-fast) var(--ease-out);
+  }
+  .otp-box:focus          { border: 2px solid var(--border-input-focus); outline: none; }
+  .otp-box.is-filled      { border: 2px solid var(--border-input-success); }
+  .otp-box.is-error       { border: 1px solid var(--border-input-error); }
+  .otp-box.is-locked      { opacity: 0.40; pointer-events: none; }
+
+  /* In-field character counter */
+  .input-counter {
+    position:    absolute;
+    right:       var(--space-3);
+    top:         50%;
+    transform:   translateY(-50%);
+    font-size:   var(--text-xs-size);
+    font-weight: 400;
+    color:       var(--fg-tertiary);
+    pointer-events: none;
+  }
+  .input-counter.is-warning {
+    color: var(--fg-brand);
+    font-weight: 600;
+  }
+
+  /* ── § 11.3 — CARDS ─────────────────────────────────────────────────── */
+
+  /* Standard card */
+  .card {
+    background-color: var(--bg-card);
+    border:           1px solid var(--border-card);
+    border-radius:    var(--radius-card);
+    padding:          var(--card-p);
+    box-shadow:       var(--shadow-1);
+    transition:       box-shadow var(--duration-base) var(--ease-out),
+                      background-color var(--duration-fast) var(--ease-out);
+  }
+  .card:is([role="button"], button):hover {
+    box-shadow:       var(--shadow-2);
+    background-color: var(--bg-card-hover);
+  }
+  .card:is([role="button"], button):active {
+    background-color: var(--bg-card-pressed);
+    transform:        scale(0.99);
+  }
+
+  /* Featured banner card (200px H with hero image area) */
+  .card-featured {
+    height:           var(--card-featured-h);
+    background-color: var(--bg-card);
+    border:           1px solid var(--border-card);
+    border-radius:    var(--radius-lg);
+    overflow:         hidden;
+    box-shadow:       var(--shadow-2);
+  }
+
+  /* Wallet balance hero card (gradient gold) */
+  .card-balance {
+    height:        var(--card-balance-h);
+    border-radius: var(--radius-xl);
+    background:    var(--gradient-brand);
+    border:        none;
+    padding:       var(--card-p-lg);
+    box-shadow:    var(--shadow-3);
+    overflow:      hidden;
+    position:      relative;
+  }
+  /* Subtle inner shine on balance card */
+  .card-balance::before {
+    content:  '';
+    position: absolute;
+    inset:    0;
+    background: linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.12) 0%,
+      transparent 60%
+    );
+    pointer-events: none;
+  }
+
+  /* CROWN / Founder Pass card */
+  .card-crown {
+    min-height:    var(--card-crown-h);
+    border-radius: var(--radius-lg);
+    background:    var(--gradient-brand);
+    border:        1px solid var(--gold-700);
+    padding:       var(--card-p-lg);
+    box-shadow:    var(--shadow-3);
+    position:      relative;
+    overflow:      hidden;
+  }
+  .card-crown::before {
+    content:  '';
+    position: absolute;
+    top: -40px; right: -40px;
+    width:  160px; height: 160px;
+    border-radius: var(--radius-avatar);
+    background: rgba(255, 255, 255, 0.06);
+    pointer-events: none;
+  }
+
+  /* Founder Pass variant (warmer amber gradient) */
+  .card-founder {
+    background: var(--gradient-amber);
+    border-color: var(--gold-800);
+  }
+
+  /* Trending sector carousel card */
+  .card-sector {
+    width:            var(--card-sector-w);
+    flex-shrink:      0;
+    background-color: var(--bg-card);
+    border:           1px solid var(--border-card);
+    border-radius:    var(--radius-md);
+    padding:          var(--space-3);
+    box-shadow:       var(--shadow-1);
+  }
+
+  /* Settings category card */
+  .card-settings {
+    background-color: var(--bg-surface);
+    border-radius:    var(--radius-card);
+    overflow:         hidden;
+    border:           1px solid var(--border-default);
+  }
+
+  /* Auto-detect location card */
+  .card-auto-detect {
+    width:            100%;
+    background-color: var(--cream-100);
+    border:           1px solid var(--border-card);
+    border-radius:    var(--radius-lg);
+    padding:          var(--card-p);
+    display:          flex;
+    align-items:      center;
+    justify-content:  space-between;
+    gap:              var(--space-4);
+  }
+
+  /* Stat receipt card (cashout success) */
+  .card-receipt {
+    background-color: var(--bg-card);
+    border:           1px solid var(--border-card);
+    border-radius:    var(--radius-lg);
+    padding:          var(--card-p);
+  }
+
+  /* Danger zone card */
+  .card-danger {
+    background-color: var(--cream-50);
+    border:           1px solid rgba(181, 57, 43, 0.20);
+    border-radius:    var(--radius-card);
+    padding:          var(--card-p-lg);
+  }
+
+  /* ── § 11.4 — LIST ROWS ─────────────────────────────────────────────── */
+
+  /* Standard list row (64px H) */
+  .list-row {
+    display:          flex;
+    align-items:      center;
+    gap:              var(--space-3);
+    padding:          var(--list-item-py) var(--screen-px);
+    background-color: var(--bg-surface);
+    border-bottom:    1px solid var(--border-default);
+    min-height:       var(--row-h-md);
+    cursor:           pointer;
+    transition:       background-color var(--duration-fast) var(--ease-out);
+  }
+  .list-row:last-child  { border-bottom: none; }
+  .list-row:hover       { background-color: var(--bg-subtle); }
+  .list-row:active      { background-color: var(--cream-200); }
+
+  /* Transaction row (72px H · with status badge) */
+  .list-row--transaction {
+    min-height:   var(--row-h-lg);
+    align-items:  flex-start;
+    padding-top:  var(--space-3);
+    padding-bottom: var(--space-3);
+  }
+
+  /* Earning announcement row (80px H) */
+  .list-row--earning {
+    min-height: var(--row-h-xl);
+    background-color: var(--bg-card);
+    border:     1px solid var(--border-card);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-3);
+    border-bottom: 1px solid var(--border-card);
+  }
+
+  /* "YOU" row (leaderboard highlight) */
+  .list-row--you {
+    background-color: var(--accent-soft);
+    border-left:      3px solid var(--accent);
+  }
+
+  /* Settings row — with icon box */
+  .list-row--settings {
+    min-height: 56px;
+    padding:    0 var(--screen-px);
+  }
+
+  /* ── § 11.5 — BADGES & PILLS ────────────────────────────────────────── */
+
+  /* Base badge */
+  .badge {
+    display:          inline-flex;
+    align-items:      center;
+    gap:              var(--space-1);
+    padding:          0 var(--chip-px);
+    height:           var(--badge-h);
+    font-size:        var(--text-cap-size);
+    font-weight:      700;
+    border-radius:    var(--radius-badge);
+    white-space:      nowrap;
+    flex-shrink:      0;
+  }
+
+  /* LIVE badge (amber-600) */
+  .badge-live {
+    background-color: var(--amber-600);
+    color:            var(--pure-white);
+  }
+
+  /* CROWN badge (gold-600) */
+  .badge-crown {
+    background-color: var(--gold-600);
+    color:            var(--pure-white);
+  }
+
+  /* Mayor badge (gold-100, gold-800 text) */
+  .badge-mayor {
+    background-color: var(--gold-100);
+    color:            var(--gold-800);
+    border:           1px solid var(--gold-300);
+  }
+
+  /* Founder badge (gold-400 bg, ink-950 text) */
+  .badge-founder {
+    background-color: var(--gold-400);
+    color:            var(--ink-950);
+  }
+
+  /* Heat pill (amber → gold gradient) */
+  .badge-heat {
+    background:    var(--gradient-heat);
+    color:         var(--pure-white);
+    font-size:     var(--text-sm-size);
+    font-weight:   700;
+    height:        var(--badge-h);
+    padding:       0 var(--space-2);
+    border-radius: 11px;
+  }
+
+  /* Status chips — inline ghost style */
+  .badge-status-completed  { color: var(--fg-success);  font-weight: 500; font-size: var(--text-sm-size); }
+  .badge-status-pending    { color: var(--fg-warning);  font-weight: 500; font-size: var(--text-sm-size); }
+  .badge-status-failed     { color: var(--fg-error);    font-weight: 500; font-size: var(--text-sm-size); }
+
+  /* Location picker pill (city/sector — Row 2) */
+  .location-pill {
+    display:          inline-flex;
+    align-items:      center;
+    gap:              var(--space-1);
+    height:           var(--pill-h-lg);
+    padding:          0 var(--chip-px);
+    background-color: var(--bg-card);
+    border:           1px solid var(--border-card);
+    border-radius:    var(--radius-pill);
+    font-size:        var(--text-base-size);
+    font-weight:      600;
+    color:            var(--fg-primary);
+    cursor:           pointer;
+    transition:       background-color var(--duration-fast) var(--ease-out),
+                      border-color     var(--duration-fast) var(--ease-out);
+  }
+  .location-pill:hover  { background-color: var(--bg-card-hover); }
+  .location-pill:active { background-color: var(--bg-card-pressed); }
+
+  /* Quick amount chip (Cashout flow) */
+  .amount-chip {
+    display:          inline-flex;
+    align-items:      center;
+    height:           32px;
+    padding:          0 var(--chip-px);
+    background-color: var(--cream-50);
+    border:           1px solid var(--border-card);
+    border-radius:    var(--radius-md);
+    font-size:        var(--text-md-size);
+    font-weight:      500;
+    color:            var(--fg-primary);
+    cursor:           pointer;
+    transition:       background-color var(--duration-fast) var(--ease-out),
+                      border-color     var(--duration-fast) var(--ease-out);
+  }
+  .amount-chip:hover  { background-color: var(--gold-50); border-color: var(--gold-300); }
+  .amount-chip:active { background-color: var(--gold-100); transform: scale(0.97); }
+
+  /* Ghost pill (tag / interest chips) */
+  .ghost-pill {
+    display:          inline-flex;
+    align-items:      center;
+    padding:          var(--chip-py) var(--chip-px);
+    background-color: var(--bg-card);
+    border:           1px solid var(--border-card);
+    color:            var(--fg-secondary);
+    border-radius:    var(--radius-pill);
+    font-size:        var(--text-cap-size);
+    font-weight:      500;
+    line-height:      var(--text-cap-lh);
+    cursor:           pointer;
+  }
+  .ghost-pill:hover  { background-color: var(--bg-card-hover); }
+
+  /* Sort toggle pill (Sector Picker) */
+  .sort-pill {
+    height:           32px;
+    padding:          0 var(--card-p);
+    border-radius:    var(--radius-md);
+    font-size:        var(--text-md-size);
+    font-weight:      600;
+    cursor:           pointer;
+    transition:       background-color var(--duration-base) var(--ease-out),
+                      color            var(--duration-base) var(--ease-out);
+  }
+  .sort-pill--active   { background-color: var(--gold-600); color: var(--pure-white); }
+  .sort-pill--inactive { background-color: var(--cream-50); color: var(--ink-700); border: 1px solid var(--border-card); }
+
+  /* ── § 11.6 — AVATARS ───────────────────────────────────────────────── */
+
+  .avatar {
+    border-radius: var(--radius-avatar);
+    object-fit:    cover;
+    flex-shrink:   0;
+    overflow:      hidden;
+    background-color: var(--bg-card);
+  }
+  .avatar--sm   { width: var(--avatar-sm);   height: var(--avatar-sm);   }
+  .avatar--md   { width: var(--avatar-md);   height: var(--avatar-md);   }
+  .avatar--lg   { width: var(--avatar-lg);   height: var(--avatar-lg);   }
+  .avatar--hero { width: var(--avatar-hero); height: var(--avatar-hero); }
+
+  /* Avatar initials fallback */
+  .avatar-initials {
+    display:          flex;
+    align-items:      center;
+    justify-content:  center;
+    font-family:      var(--font-body);
+    font-weight:      700;
+    color:            var(--fg-primary);
+    background-color: var(--bg-card);
+  }
+  .avatar-initials--hero {
+    font-size: 36px;
+    font-weight: 700;
+  }
+
+  /* Online dot indicator */
+  .avatar-online-dot {
+    position:         absolute;
+    bottom:           -1px;
+    right:            -1px;
+    width:            10px;
+    height:           10px;
+    background-color: var(--status-online);
+    border:           1.5px solid var(--bg-surface);
+    border-radius:    var(--radius-avatar);
+  }
+
+  /* Icon box (settings list items) */
+  .icon-box {
+    width:            32px;
+    height:           32px;
+    border-radius:    var(--radius-sm);
+    background-color: var(--bg-card);
+    display:          flex;
+    align-items:      center;
+    justify-content:  center;
+    flex-shrink:      0;
+    color:            var(--fg-secondary);
+  }
+
+  /* Transaction type icon circle */
+  .tx-icon {
+    width:            44px;
+    height:           44px;
+    border-radius:    var(--radius-avatar);
+    display:          flex;
+    align-items:      center;
+    justify-content:  center;
+    flex-shrink:      0;
+    background-color: var(--bg-card);
+  }
+
+  /* ── § 11.7 — DIVIDERS ──────────────────────────────────────────────── */
+
+  .divider {
+    height:           1px;
+    background-color: var(--border-default);
+    border:           none;
+    margin:           0;
+    flex-shrink:      0;
+  }
+  .divider--strong { background-color: var(--border-strong); }
+  .divider--subtle { background-color: var(--border-subtle); }
+
+  /* OR divider (Location screen) */
+  .or-divider {
+    display:     flex;
+    align-items: center;
+    gap:         var(--space-3);
+  }
+  .or-divider::before,
+  .or-divider::after {
+    content:    '';
+    flex:       1;
+    height:     1px;
+    background: var(--border-default);
+  }
+  .or-divider span {
+    font-size:   var(--text-cap-size);
+    font-weight: 600;
+    color:       var(--fg-tertiary);
+    flex-shrink: 0;
+  }
+
+  /* ── § 11.8 — SKELETON SHIMMER ─────────────────────────────────────── */
+
   .skeleton {
-    background-color: var(--bg-surface-2);
-    border-radius: var(--radius-card);
-    overflow: hidden;
-    position: relative;
+    background-color: var(--bg-skeleton);
+    border-radius:    var(--radius-card);
+    overflow:         hidden;
+    position:         relative;
   }
   .skeleton::after {
-    content: '';
-    position: absolute;
-    inset: 0;
+    content:    '';
+    position:   absolute;
+    inset:      0;
     background: linear-gradient(
       90deg,
       transparent 0%,
-      rgba(255,255,255,0.04) 50%,
+      rgba(255, 255, 255, 0.55) 50%,
       transparent 100%
     );
-    animation: shimmer 1.4s ease-in-out infinite;
+    animation: shimmer var(--duration-shimmer) ease-in-out infinite;
   }
   @keyframes shimmer {
     0%   { transform: translateX(-100%); }
     100% { transform: translateX(100%); }
   }
 
-  /* ── Button press micro-interaction ──────────────────────────────────── */
-  .btn-press {
-    transition: transform var(--duration-micro) var(--ease-out),
-                background-color var(--duration-base) var(--ease-out);
-  }
-  .btn-press:active {
-    transform: scale(0.97);
+  /* Skeleton size presets */
+  .skeleton-text-sm     { height: 12px; border-radius: var(--radius-xs); margin-bottom: var(--space-1); }
+  .skeleton-text-md     { height: 16px; border-radius: var(--radius-xs); }
+  .skeleton-text-lg     { height: 22px; border-radius: var(--radius-sm); }
+  .skeleton-circle      { border-radius: var(--radius-avatar) !important; }
+  .skeleton-row         { height: var(--row-h-md); border-radius: 0; }
+  .skeleton-card        { height: 144px; border-radius: var(--radius-lg); }
+  .skeleton-banner      { height: var(--card-featured-h); border-radius: var(--radius-lg); }
+  .skeleton-crown-card  { height: var(--card-crown-h); border-radius: var(--radius-lg); }
+
+  /* ── § 11.9 — HEADERS ───────────────────────────────────────────────── */
+
+  /* Two-row sticky header (LAW 15 · § 1 correction) */
+  .header {
+    position:   sticky;
+    top:        0;
+    width:      100%;
+    background: var(--bg-surface);
+    z-index:    var(--z-header);
+    flex-shrink: 0;
   }
 
-  /* ── Bottom sheet backdrop ───────────────────────────────────────────── */
+  /* Brand header row (Row 1 · 56px) */
+  .header-brand-row {
+    display:         flex;
+    align-items:     center;
+    justify-content: space-between;
+    height:          var(--header-brand-h);
+    padding:         var(--space-3) var(--screen-px);
+  }
+
+  /* Location row (Row 2 · 44px · sub-header below brand) */
+  .header-location-row {
+    display:      flex;
+    align-items:  center;
+    height:       var(--header-location-h);
+    padding:      var(--space-1) var(--screen-px);
+    gap:          var(--space-2);
+    border-bottom: 1px solid var(--border-default);
+  }
+
+  /* Online count strip (32px · below location row) */
+  .header-online-strip {
+    display:          flex;
+    align-items:      center;
+    height:           var(--online-strip-h);
+    padding:          0 var(--screen-px);
+    background-color: var(--bg-subtle);
+    border-bottom:    1px solid var(--border-subtle);
+    font-size:        var(--text-sm-size);
+    font-weight:      500;
+    color:            var(--fg-secondary);
+    gap:              var(--space-1);
+  }
+
+  /* Sub-screen header (pushed views — no LAW 15 wordmark) */
+  .header-sub {
+    display:          flex;
+    align-items:      center;
+    justify-content:  space-between;
+    height:           var(--header-brand-h);
+    padding:          var(--space-3) var(--screen-px);
+    background-color: var(--bg-surface);
+    border-bottom:    1px solid var(--border-default);
+    position:         sticky;
+    top:              0;
+    z-index:          var(--z-header);
+  }
+
+  .header-title {
+    font-size:   var(--text-h3-size);
+    font-weight: 700;
+    color:       var(--fg-primary);
+    text-align:  center;
+    flex:        1;
+  }
+
+  /* ── § 11.10 — GLASS ISLAND (LAW 13) ────────────────────────────────── */
+
+  /* The floating nav island — fixed bottom center */
+  .glass-island {
+    position:         fixed;
+    bottom:           calc(var(--glass-bottom) + env(safe-area-inset-bottom, 0px));
+    left:             50%;
+    transform:        translateX(-50%);
+    min-width:        var(--glass-min-w);
+    height:           var(--glass-h);
+    background:       var(--glass-bg);
+    backdrop-filter:  blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border-radius:    var(--glass-radius);
+    border:           0.5px solid var(--glass-border);
+    box-shadow:       var(--shadow-glass);
+    z-index:          var(--z-glass);
+    display:          flex;
+    align-items:      center;
+    padding:          0 var(--space-3);
+    gap:              var(--space-1);
+    transition:       transform var(--duration-sheet) var(--ease-out),
+                      opacity   var(--duration-medium) var(--ease-out);
+  }
+
+  /* Glass tab button */
+  .glass-tab {
+    display:          flex;
+    flex-direction:   column;
+    align-items:      center;
+    justify-content:  center;
+    gap:              var(--space-1);
+    width:            var(--glass-tab-w);
+    height:           100%;
+    cursor:           pointer;
+    background:       transparent;
+    border:           none;
+    padding:          0;
+    transition:       opacity var(--duration-fast) var(--ease-out);
+  }
+  .glass-tab:active { transform: scale(0.94); }
+
+  .glass-tab__icon {
+    width:  var(--glass-icon-size);
+    height: var(--glass-icon-size);
+    color:  var(--glass-icon-inactive);
+    transition: color var(--duration-base) var(--ease-out);
+  }
+  .glass-tab__label {
+    font-size:   var(--text-sm-size);
+    font-weight: var(--glass-tab-label-weight);
+    color:       var(--glass-tab-inactive-color);
+    transition:  color var(--duration-base) var(--ease-out);
+  }
+
+  .glass-tab--active .glass-tab__icon  { color: var(--glass-tab-active-color); }
+  .glass-tab--active .glass-tab__label { color: var(--glass-tab-active-color); }
+
+  /* Hide Glass Island on scroll-up (JS toggles .is-hidden) */
+  .glass-island.is-hidden {
+    transform: translateX(-50%) translateY(120%);
+    opacity:   0;
+    pointer-events: none;
+  }
+
+  /* ── § 11.11 — BOTTOM SHEETS ────────────────────────────────────────── */
+
+  /* Scrim backdrop */
   .sheet-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    z-index: 40;
+    position:             fixed;
+    inset:                0;
+    background:           var(--bg-scrim);
+    backdrop-filter:      blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index:              var(--z-scrim);
+    animation:            scrim-in var(--duration-medium) var(--ease-out) forwards;
+  }
+  @keyframes scrim-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
   }
 
-  /* ── Toast ───────────────────────────────────────────────────────────── */
+  /* Sheet container */
+  .sheet {
+    position:         fixed;
+    bottom:           0;
+    left:             0;
+    right:            0;
+    background:       var(--bg-surface);
+    border-radius:    var(--radius-sheet) var(--radius-sheet) 0 0;
+    z-index:          var(--z-sheet);
+    box-shadow:       var(--shadow-4);
+    padding-bottom:   env(safe-area-inset-bottom, 0px);
+    animation:        sheet-in var(--duration-sheet) var(--ease-out) forwards;
+    overflow:         hidden;
+  }
+  @keyframes sheet-in {
+    from { transform: translateY(100%); }
+    to   { transform: translateY(0); }
+  }
+  .sheet.is-closing {
+    animation: sheet-out var(--duration-medium) var(--ease-in) forwards;
+  }
+  @keyframes sheet-out {
+    from { transform: translateY(0); }
+    to   { transform: translateY(100%); }
+  }
+
+  /* Half sheet (50% of screen — City/Sector pickers) */
+  .sheet--half { max-height: 60vh; }
+
+  /* Mini sheet (40% of screen — Message action) */
+  .sheet--mini { max-height: 50vh; }
+
+  /* Drag handle */
+  .sheet-handle {
+    width:            40px;
+    height:           4px;
+    background-color: var(--border-default);
+    border-radius:    var(--radius-pill);
+    margin:           var(--space-3) auto var(--space-2);
+    flex-shrink:      0;
+  }
+
+  /* Sheet title bar */
+  .sheet-header {
+    display:         flex;
+    align-items:     center;
+    justify-content: center;
+    position:        relative;
+    padding:         var(--space-3) var(--screen-px) var(--space-3);
+  }
+  .sheet-title {
+    font-size:   var(--text-h3-size);
+    font-weight: 700;
+    color:       var(--fg-primary);
+    text-align:  center;
+  }
+  .sheet-close {
+    position:  absolute;
+    right:     var(--screen-px);
+    top:       50%;
+    transform: translateY(-50%);
+  }
+
+  /* Sheet search input (City / Sector pickers) */
+  .sheet-search {
+    display:          flex;
+    align-items:      center;
+    gap:              var(--space-2);
+    height:           44px;
+    padding:          0 var(--card-p);
+    background-color: var(--bg-subtle);
+    border:           1px solid var(--border-card);
+    border-radius:    22px;
+    margin:           var(--space-2) var(--screen-px) var(--space-2);
+  }
+  .sheet-search input {
+    flex:             1;
+    border:           none;
+    background:       transparent;
+    font-size:        var(--text-body-l-size);
+    font-weight:      400;
+    color:            var(--fg-primary);
+    outline:          none;
+  }
+  .sheet-search input::placeholder { color: var(--fg-placeholder); }
+
+  /* Centered modal */
+  .modal {
+    position:         fixed;
+    top:              50%;
+    left:             50%;
+    transform:        translate(-50%, -50%);
+    width:            calc(100% - 48px);
+    max-width:        360px;
+    background:       var(--bg-surface);
+    border-radius:    var(--radius-modal);
+    z-index:          var(--z-modal);
+    box-shadow:       var(--shadow-5);
+    padding:          var(--card-p-lg);
+    animation:        modal-in var(--duration-sheet) var(--ease-spring) forwards;
+  }
+  @keyframes modal-in {
+    from { transform: translate(-50%, -50%) scale(0.92); opacity: 0; }
+    to   { transform: translate(-50%, -50%) scale(1.00); opacity: 1; }
+  }
+
+  /* ── § 11.12 — TOASTS / SNACKBARS ───────────────────────────────────── */
+
   .toast {
-    position: fixed;
-    bottom: calc(var(--space-4) + env(safe-area-inset-bottom));
-    left: var(--screen-px);
-    right: var(--screen-px);
-    background-color: var(--bg-surface-3);
-    color: var(--text-primary);
-    padding: var(--space-3) var(--space-4);
-    border-radius: var(--radius-card);
-    box-shadow: var(--shadow-lg);
-    z-index: 50;
-    animation: toast-in var(--duration-sheet) var(--ease-out) forwards;
+    position:         fixed;
+    bottom:           calc(var(--space-4) + var(--glass-h) + var(--glass-bottom) + env(safe-area-inset-bottom, 0px) + var(--space-2));
+    left:             var(--screen-px);
+    right:            var(--screen-px);
+    background-color: var(--bg-inverse);
+    color:            var(--fg-on-inverse);
+    padding:          var(--space-3) var(--space-4);
+    border-radius:    var(--radius-card);
+    box-shadow:       var(--shadow-glass);
+    z-index:          var(--z-toast);
+    font-size:        var(--text-md-size);
+    font-weight:      500;
+    text-align:       center;
+    animation:        toast-in var(--duration-sheet) var(--ease-out) forwards;
   }
   @keyframes toast-in {
     from { transform: translateY(16px); opacity: 0; }
     to   { transform: translateY(0);    opacity: 1; }
   }
+  .toast.is-dismissing {
+    animation: toast-out var(--duration-medium) var(--ease-in) forwards;
+  }
+  @keyframes toast-out {
+    from { transform: translateY(0);    opacity: 1; }
+    to   { transform: translateY(16px); opacity: 0; }
+  }
 
-  /* ── Page transition ─────────────────────────────────────────────────── */
+  /* ── § 11.13 — PAGE & TAB TRANSITIONS ──────────────────────────────── */
+
+  /* Page enter (push navigation) */
   .page-enter {
     animation: page-enter var(--duration-sheet) var(--ease-out) forwards;
   }
   @keyframes page-enter {
-    from { transform: translateY(8px); opacity: 0; }
-    to   { transform: translateY(0);   opacity: 1; }
+    from { transform: translateY(10px); opacity: 0; }
+    to   { transform: translateY(0);    opacity: 1; }
   }
 
-  /* Tab content fade */
+  /* Tab content fade (Glass Island switch) */
   .tab-fade-in {
     animation: tab-fade-in var(--duration-base) var(--ease-out) forwards;
   }
@@ -289,58 +1535,445 @@
     to   { opacity: 1; }
   }
 
-  /* ── Accent "YOU" row (leaderboard) ──────────────────────────────────── */
-  .you-row {
-    background-color: var(--accent-soft);
-    border-left: 2px solid var(--accent);
+  /* Discover sub-tab content cross-fade */
+  .subtab-fade {
+    animation: subtab-fade var(--duration-medium) var(--ease-out) forwards;
+  }
+  @keyframes subtab-fade {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
   }
 
-  /* ── Orbit card gradient border ──────────────────────────────────────── */
-  .orbit-card-border {
+  /* ── § 11.14 — ONBOARDING ANIMATIONS ────────────────────────────────── */
+
+  /* Splash wordmark reveal (scale + fade) */
+  .anim-wordmark-reveal {
+    animation:
+      wordmark-scale var(--duration-spring) var(--ease-spring) both,
+      wordmark-fade  400ms var(--ease-out) both;
+  }
+  @keyframes wordmark-scale {
+    from { transform: scale(0.8); }
+    to   { transform: scale(1.0); }
+  }
+  @keyframes wordmark-fade {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  /* Hero illustration fade */
+  .anim-hero-fade {
+    animation: hero-fade var(--duration-spring) var(--ease-out) both;
+    animation-delay: 200ms;
+  }
+  @keyframes hero-fade {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  /* Text stagger (headline) */
+  .anim-text-reveal {
+    animation:
+      text-fade  var(--duration-reveal) var(--ease-out) both,
+      text-slide var(--duration-reveal) var(--ease-out) both;
+    animation-delay: 400ms;
+  }
+  @keyframes text-fade  { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes text-slide {
+    from { transform: translateY(12px); }
+    to   { transform: translateY(0); }
+  }
+
+  /* Subhead stagger (slightly later) */
+  .anim-subhead-reveal {
+    animation:
+      text-fade  var(--duration-reveal) var(--ease-out) both,
+      text-slide var(--duration-reveal) var(--ease-out) both;
+    animation-delay: 600ms;
+  }
+
+  /* CTA reveal (scale spring) */
+  .anim-cta-reveal {
+    animation:
+      cta-fade  var(--duration-reveal) var(--ease-out) both,
+      cta-scale var(--duration-reveal) var(--ease-spring) both;
+    animation-delay: 800ms;
+  }
+  @keyframes cta-fade  { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes cta-scale {
+    from { transform: scale(0.95); }
+    to   { transform: scale(1.0); }
+  }
+
+  /* Welcome burst avatar scale-in (bouncy spring) */
+  .anim-avatar-burst {
+    animation: avatar-burst var(--duration-spring) var(--ease-spring) both;
+  }
+  @keyframes avatar-burst {
+    0%   { transform: scale(0); }
+    70%  { transform: scale(1.2); }
+    100% { transform: scale(1.0); }
+  }
+
+  /* Golden glow ring pulse (CTA idle invitation) */
+  .anim-glow-pulse {
+    animation: glow-pulse 2000ms var(--ease-out) infinite;
+  }
+  @keyframes glow-pulse {
+    0%   { box-shadow: 0 0 0 0   rgba(197, 162, 39, 0.4); }
+    50%  { box-shadow: 0 0 0 6px rgba(197, 162, 39, 0.0); }
+    100% { box-shadow: 0 0 0 0   rgba(197, 162, 39, 0.0); }
+  }
+
+  /* Balance count-up shimmer layer */
+  .anim-count-in {
+    animation: count-in var(--duration-count) var(--ease-out) both;
+  }
+  @keyframes count-in {
+    from { opacity: 0.2; }
+    to   { opacity: 1; }
+  }
+
+  /* Confetti burst — each particle has unique delay via nth-child */
+  .confetti-particle {
+    position:   absolute;
+    width:      6px;
+    height:     6px;
+    border-radius: var(--radius-avatar);
+    animation:  confetti-fall var(--duration-confetti) var(--ease-out) both;
+    opacity:    0;
+  }
+  @keyframes confetti-fall {
+    0%   { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+    100% { transform: translateY(200px) rotate(720deg); opacity: 0; }
+  }
+
+  /* OTP box shake (wrong OTP) */
+  .anim-shake {
+    animation: shake 200ms var(--ease-out) both;
+  }
+  @keyframes shake {
+    0%   { transform: translateX(0); }
+    20%  { transform: translateX(-8px); }
+    40%  { transform: translateX(8px); }
+    60%  { transform: translateX(-4px); }
+    80%  { transform: translateX(4px); }
+    100% { transform: translateX(0); }
+  }
+
+  /* Upload ring fill (avatar upload progress) */
+  .upload-ring {
+    position:       absolute;
+    inset:          -3px;
+    border-radius:  var(--radius-avatar);
+    border:         3px solid var(--gold-600);
+    clip-path:      inset(0 100% 0 0);
+    transition:     clip-path 100ms linear;
+    pointer-events: none;
+  }
+
+  /* ── § 11.15 — PROGRESS & BARS ──────────────────────────────────────── */
+
+  /* Trust / Heat score bar */
+  .bar-track {
+    height:           6px;
+    background-color: var(--bg-card);
+    border:           1px solid var(--border-default);
+    border-radius:    var(--radius-pill);
+    overflow:         hidden;
+  }
+  .bar-fill {
+    height:           100%;
+    border-radius:    var(--radius-pill);
+    background:       var(--gradient-heat);
+    transition:       width 0.6s var(--ease-out);
+  }
+
+  /* Onboarding step dots */
+  .step-dot {
+    width:            8px;
+    height:           8px;
+    border-radius:    var(--radius-avatar);
+    background-color: var(--border-default);
+    transition:       background-color var(--duration-base) var(--ease-out),
+                      width            var(--duration-base) var(--ease-out);
+  }
+  .step-dot--active {
+    background-color: var(--gold-600);
+    width:            24px;
+  }
+
+  /* ── § 11.16 — SECURITY STRIP (Wallet / Cashout) ────────────────────── */
+
+  .security-strip {
+    display:          flex;
+    align-items:      center;
+    justify-content:  center;
+    gap:              var(--space-2);
+    height:           32px;
+    background-color: var(--bg-subtle);
+    font-size:        var(--text-cap-size);
+    font-weight:      500;
+    color:            var(--fg-secondary);
+  }
+
+  /* ── § 11.17 — DISCOVER SUB-TABS ────────────────────────────────────── */
+
+  .subtab-bar {
+    display:          flex;
+    align-items:      center;
+    height:           44px;
+    border-bottom:    1px solid var(--border-default);
+    background:       var(--bg-surface);
+    padding:          0 var(--screen-px);
+    gap:              var(--space-2);
+    overflow-x:       auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width:  none;
+  }
+  .subtab-bar::-webkit-scrollbar { display: none; }
+
+  .subtab {
+    display:         flex;
+    align-items:     center;
+    height:          36px;
+    padding:         0 var(--card-p);
+    font-size:       var(--text-md-size);
+    font-weight:     500;
+    color:           var(--fg-secondary);
+    border-bottom:   2px solid transparent;
+    cursor:          pointer;
+    white-space:     nowrap;
+    flex-shrink:     0;
+    transition:      color       var(--duration-base) var(--ease-out),
+                     border-color var(--duration-base) var(--ease-out),
+                     font-weight  var(--duration-base) var(--ease-out);
+  }
+  .subtab--active {
+    color:           var(--fg-brand-text);
+    font-weight:     600;
+    border-bottom-color: var(--fg-brand);
+  }
+  .subtab:hover:not(.subtab--active) { color: var(--fg-primary); }
+
+  /* ── § 11.18 — EMPTY STATES ─────────────────────────────────────────── */
+
+  .empty-state {
+    display:         flex;
+    flex-direction:  column;
+    align-items:     center;
+    justify-content: center;
+    text-align:      center;
+    padding:         var(--space-8) var(--screen-px);
+    gap:             var(--space-4);
+  }
+  .empty-state__icon {
+    font-size:  var(--icon-empty);
+    line-height: 1;
+    color:      var(--fg-celebrate);
+    opacity:    0.8;
+  }
+  .empty-state__title {
+    font-size:   var(--text-h3-size);
+    font-weight: 700;
+    color:       var(--fg-primary);
+  }
+  .empty-state__subtitle {
+    font-size:   var(--text-body-l-size);
+    font-weight: 400;
+    color:       var(--fg-secondary);
+    max-width:   280px;
+  }
+
+  /* ── § 11.19 — QUICK ACTIONS GRID (Wallet) ─────────────────────────── */
+
+  .quick-actions-grid {
+    display:               grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap:                   var(--space-2);
+    padding:               0 var(--screen-px);
+  }
+
+  .quick-action {
+    display:          flex;
+    flex-direction:   column;
+    align-items:      center;
+    justify-content:  center;
+    gap:              var(--space-2);
+    width:            100%;
+    aspect-ratio:     1;
+    background-color: var(--bg-card);
+    border:           1px solid var(--border-card);
+    border-radius:    var(--radius-md);
+    cursor:           pointer;
+    transition:       background-color var(--duration-fast) var(--ease-out),
+                      transform        var(--duration-micro) var(--ease-out);
+  }
+  .quick-action:hover  { background-color: var(--bg-card-hover); }
+  .quick-action:active { transform: scale(0.96); background-color: var(--bg-card-pressed); }
+  .quick-action__label {
+    font-size:   var(--text-sm-size);
+    font-weight: 600;
+    color:       var(--fg-primary);
+    text-align:  center;
+  }
+
+  /* ── § 11.20 — STATS GRID (Profile screens) ─────────────────────────── */
+
+  .stats-grid {
+    display:               grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap:                   var(--space-2);
+    padding:               var(--card-p);
+    background-color:      var(--bg-card);
+    border:                1px solid var(--border-card);
+    border-radius:         var(--radius-card);
+    margin:                0 var(--screen-px);
+  }
+
+  .stats-grid--3col {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .stat-cell {
+    display:         flex;
+    flex-direction:  column;
+    align-items:     center;
+    justify-content: center;
+    gap:             var(--space-1);
+    padding:         var(--space-2) 0;
+    cursor:          pointer;
+    border-radius:   var(--radius-sm);
+    transition:      background-color var(--duration-fast) var(--ease-out);
+  }
+  .stat-cell:hover  { background-color: var(--bg-card-hover); }
+  .stat-cell:active { background-color: var(--bg-card-pressed); }
+
+  .stat-cell__value {
+    font-size:   20px;
+    font-weight: 700;
+    color:       var(--fg-primary);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+    line-height: 1;
+  }
+  .stat-cell__value--credits  { color: var(--gold-700); }
+  .stat-cell__value--sparks   { color: var(--amber-600); }
+  .stat-cell__value--emerald  { color: var(--fg-success); }
+
+  .stat-cell__label {
+    font-size:   var(--text-sm-size);
+    font-weight: 500;
+    color:       var(--fg-secondary);
+    text-align:  center;
+  }
+
+  /* ── § 11.21 — UTILITY CLASSES (misc) ────────────────────────────────── */
+
+  /* Mayor active row (active city/sector in pickers) */
+  .active-selector-row {
+    background-color: var(--cream-50);
+    border-left:      2px solid var(--gold-600);
+  }
+
+  /* Savings card border (gradient border like orbit-card-border) */
+  .card-gradient-border {
     border: 1px solid transparent;
     background-image:
-      linear-gradient(var(--bg-surface-1), var(--bg-surface-1)),
-      linear-gradient(135deg, var(--accent), var(--accent-soft));
+      linear-gradient(var(--bg-card), var(--bg-card)),
+      var(--gradient-brand);
     background-origin: border-box;
-    background-clip: padding-box, border-box;
+    background-clip:   padding-box, border-box;
   }
 
-  /* ── Icon box (settings list items) ─────────────────────────────────── */
-  .icon-box {
-    width:  32px;
-    height: 32px;
-    border-radius: 8px;
-    background-color: var(--bg-surface-2);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    color: var(--text-secondary);
+  /* Danger text (Settings destructive rows) */
+  .text-destructive {
+    font-size:   var(--text-body-l-size);
+    font-weight: 500;
+    color:       var(--fg-error);
   }
 
-  /* ── Trust score progress bar ────────────────────────────────────────── */
-  .trust-bar-track {
-    height: 6px;
-    background-color: var(--bg-surface-2);
-    border-radius: var(--radius-pill);
-    overflow: hidden;
-  }
-  .trust-bar-fill {
-    height: 100%;
-    border-radius: var(--radius-pill);
-    transition: width 0.6s var(--ease-out);
+  /* Section header row (e.g. "Privacy & Safety" in Settings) */
+  .settings-section-header {
+    height:           32px;
+    display:          flex;
+    align-items:      flex-end;
+    padding:          0 var(--screen-px) var(--space-1);
+    background-color: var(--bg-subtle);
+    font-size:        var(--text-sm-size);
+    font-weight:      600;
+    color:            var(--fg-secondary);
+    text-transform:   uppercase;
+    letter-spacing:   var(--tracking-wide);
   }
 
-  /* ── Ghost pill (tags, interest chips) ──────────────────────────────── */
-  .ghost-pill {
-    display: inline-flex;
-    align-items: center;
-    padding: var(--space-1) var(--space-3);
-    background-color: var(--bg-surface-2);
-    color: var(--text-secondary);
-    border-radius: var(--radius-pill);
-    font-size: var(--text-caption-size);
-    font-weight: var(--text-caption-weight);
-    line-height: var(--text-caption-lh);
+  /* Price disclosure (DPDP / Terms copy) */
+  .disclosure-text {
+    font-size:   var(--text-cap-size);
+    font-weight: 400;
+    color:       var(--fg-tertiary);
+    text-align:  center;
+    line-height: var(--text-cap-lh);
   }
-}
+  .disclosure-text a {
+    color:  var(--fg-brand-text);
+    font-weight: 600;
+    text-decoration: underline;
+  }
+
+  /* User mini-card (Settings hub top) */
+  .user-mini-card {
+    display:          flex;
+    align-items:      center;
+    gap:              var(--space-3);
+    padding:          var(--card-p);
+    background-color: var(--bg-card);
+    border:           1px solid var(--border-card);
+    border-radius:    var(--radius-card);
+    margin:           var(--space-4) var(--screen-px);
+    cursor:           pointer;
+    transition:       background-color var(--duration-fast) var(--ease-out);
+  }
+  .user-mini-card:hover  { background-color: var(--bg-card-hover); }
+  .user-mini-card:active { background-color: var(--bg-card-pressed); transform: scale(0.99); }
+
+  /* App version footer */
+  .version-footer {
+    text-align:   center;
+    padding:      var(--space-8) var(--screen-px);
+    font-size:    var(--text-xxs-size);
+    color:        var(--fg-disabled);
+    line-height:  var(--space-4);
+  }
+
+  /* ── § 11.22 — REDUCED MOTION OVERRIDES ─────────────────────────────── */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration:   0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration:  0.01ms !important;
+    }
+
+    /* Skeleton shimmer still visible — just no movement */
+    .skeleton::after {
+      animation: none;
+      background: rgba(255, 255, 255, 0.20);
+    }
+
+    /* Confetti particles hidden */
+    .confetti-particle {
+      display: none;
+    }
+
+    /* Scale animations replaced with opacity */
+    .anim-wordmark-reveal,
+    .anim-cta-reveal,
+    .anim-avatar-burst {
+      animation: none;
+      opacity: 1;
+    }
+  }
+
+} /* end @layer components */
