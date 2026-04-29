@@ -1888,7 +1888,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: TOKEN.fgBrand,                  // gold[600]
   },
-});
   /* ── Root ── */
   screen: {
     flex: 1,
