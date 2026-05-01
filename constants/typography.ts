@@ -8,7 +8,8 @@
  * ║   Companion to: Part 1 + Part 2 + Part 3 Blueprints                    ║
  * ╠══════════════════════════════════════════════════════════════════════════╣
  * ║   FONT FAMILIES                                                          ║
- * ║     Cormorant Garamond (600 · 700 · 800) — Brand headings & hero titles ║
+ * ║     Cormorant Garamond (600 · 700) — Brand headings & hero titles       ║
+ * ║       ⚠️  Max weight is 700Bold — no 800 variant exists in this typeface  ║
  * ║     DM Sans (400 · 500 · 600 · 700 · 800) — All UI text & body copy    ║
  * ║                                                                          ║
  * ║   INSTALL (run once):                                                    ║
@@ -42,10 +43,10 @@ import { TextStyle as RNTextStyle } from "react-native";
 import { useFonts as useExpoFonts } from "expo-font";
 
 // ── Cormorant Garamond imports ───────────────────────────────────────────────
+// Available weights: 300 · 400 · 500 · 600 · 700 (no 800 in this typeface)
 import {
   CormorantGaramond_600SemiBold,
   CormorantGaramond_700Bold,
-  CormorantGaramond_800ExtraBold,
 } from "@expo-google-fonts/cormorant-garamond";
 
 // ── DM Sans imports ──────────────────────────────────────────────────────────
@@ -63,11 +64,18 @@ import {
 // Always pass fontWeight too — some RN bridge versions need both.
 // ═══════════════════════════════════════════════════════════════════════════
 
-/** Cormorant Garamond — brand serif headings (H1/H2/H3, CROWN pass numerals) */
+/** Cormorant Garamond — brand serif headings (H1/H2/H3, CROWN pass numerals)
+ *
+ *  ⚠️  Cormorant Garamond tops out at 700Bold in Google Fonts.
+ *      There is no 800ExtraBold variant for this typeface.
+ *      `extraBold` is an alias of `bold` — both resolve to CormorantGaramond_700Bold.
+ *      Use `bold` for new code; `extraBold` retained for backward compatibility.
+ */
 export const FONT_HEADING = {
   semiBold:  "CormorantGaramond_600SemiBold",  // weight 600
-  bold:      "CormorantGaramond_700Bold",       // weight 700
-  extraBold: "CormorantGaramond_800ExtraBold",  // weight 800
+  bold:      "CormorantGaramond_700Bold",       // weight 700 — heaviest available
+  /** @deprecated Alias of bold — Cormorant has no 800 weight. Use FONT_HEADING.bold. */
+  extraBold: "CormorantGaramond_700Bold",       // weight 700 (no 800 exists)
 } as const;
 
 /** DM Sans — all body copy, UI labels, captions, CTAs, inputs, meta */
@@ -223,6 +231,40 @@ export const LETTER_SPACING = {
 } as const;
 
 // ═══════════════════════════════════════════════════════════════════════════
+// § 4.5 — FONT WEIGHT MAP
+// Named map of fontWeight string values — mirrors the weight keys in FONT_BODY
+// and FONT_HEADING. Use for inline fontWeight overrides or style composition.
+//
+// USAGE:
+//   import { fontWeight } from '@/constants/typography';
+//   <Text style={{ fontFamily: FONT_BODY.bold, fontWeight: fontWeight.bold }}>
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const fontWeight = {
+  /** "400" — Default readable body, input placeholder, inactive labels */
+  regular:   "400" as const,
+  /** "500" — Slightly emphasized text, captions, meta labels, row values */
+  medium:    "500" as const,
+  /** "600" — Form field labels, section headers, CTA secondary, sheetRow */
+  semibold:  "600" as const,
+  /** "700" — Strong UI text, screen headlines, primary CTA labels, chat sender */
+  bold:      "700" as const,
+  /** "800" — Badge text, numeric counts, hero numbers, Cormorant impact moments */
+  extrabold: "800" as const,
+} as const;
+
+/**
+ * letterSpacing — lowercase camelCase alias of LETTER_SPACING.
+ * Exported for API symmetry with `fontWeight` — both are now available
+ * in camelCase. The uppercase LETTER_SPACING constant is also retained.
+ *
+ * @example
+ *   import { letterSpacing } from '@/constants/typography';
+ *   <Text style={{ letterSpacing: letterSpacing.uppercase }}>LIVE</Text>
+ */
+export const letterSpacing = LETTER_SPACING;
+
+// ═══════════════════════════════════════════════════════════════════════════
 // § 5 — SEMANTIC TYPOGRAPHY STYLES
 //
 // Every style is a complete React Native TextStyle-compatible object with:
@@ -301,11 +343,11 @@ export const typography = {
    * Hero brand titles, large CROWN Pass name, high-impact serif moments.
    */
   h1: {
-    fontFamily:    FONT_HEADING.extraBold,
-    fontSize:      FONT_SIZE.h1,            // 32
-    fontWeight:    "800" as const,
-    lineHeight:    lh(32, "snug"),           // 40
-    letterSpacing: LETTER_SPACING.wide,      // 0.3 — .app-title match
+    fontFamily:    FONT_HEADING.bold,            // CormorantGaramond_700Bold (heaviest weight)
+    fontSize:      FONT_SIZE.h1,                // 32
+    fontWeight:    "700" as const,              // 700 — Cormorant max weight
+    lineHeight:    lh(32, "snug"),              // 40
+    letterSpacing: LETTER_SPACING.wide,         // 0.3 — .app-title match
   },
 
   /**
@@ -1362,6 +1404,147 @@ export const typography = {
 } as const;
 
 // ═══════════════════════════════════════════════════════════════════════════
+// § 5.5 — NAMED SIZE SCALE
+// 7 named style presets keyed by semantic role + size.
+// "Quick-grab" styles for new screens — one import covers 90% of text needs
+// without hunting through the full semantic set.
+//
+// Rules:
+//   • display32  → Cormorant Garamond (FONT_HEADING) — all others → DM Sans (FONT_BODY)
+//   • Zero hardcoded family strings — every fontFamily via FONT_BODY.* / FONT_HEADING.*
+//   • fontWeight references fontWeight.* map — no raw string literals
+//   • lineHeight computed via lh() — no magic numbers
+//
+// Blueprint Part 1 § 3: "Cormorant for CROWN wordmark and Wallet hero" → display32
+//
+// USAGE:
+//   import { scale } from '@/constants/typography';
+//   <Text style={[scale.body15, { color: colors.fg.primary }]}>Hello</Text>
+//   <Text style={[scale.display32, { color: colors.fg.brand }]}>CROWD</Text>
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const scale = {
+
+  /**
+   * display32 — 32px 800 Cormorant Garamond · snug leading · wide tracking
+   *
+   * The ONLY Cormorant entry in the named scale.
+   * Use for: CROWN wordmark hero, Wallet balance hero card,
+   *          large branded serif moments (e.g. CROWN Pass title).
+   *
+   * Blueprint Part 1 § 3: "Cormorant for CROWN wordmark and Wallet hero."
+   * Semantic equivalent: typography.h1
+   */
+  display32: {
+    fontFamily:    FONT_HEADING.bold,               // CormorantGaramond_700Bold (max weight)
+    fontSize:      FONT_SIZE.h1,                    // 32
+    fontWeight:    fontWeight.bold,                 // "700" — Cormorant tops out at 700
+    lineHeight:    lh(32, "snug"),                  // 40
+    letterSpacing: LETTER_SPACING.wide,             // 0.3 — brand serif tracking
+  },
+
+  /**
+   * heading24 — 24px 700 DM Sans · snug leading
+   *
+   * Use for: screen-level headings, cashout success headline ("Cashout successful!"),
+   *          sub-screen push titles, prominent card headers.
+   *
+   * Semantic equivalent: typography.displaySm
+   */
+  heading24: {
+    fontFamily:    FONT_BODY.bold,                   // DMSans_700Bold
+    fontSize:      FONT_SIZE.h2lg,                   // 24
+    fontWeight:    fontWeight.bold,                  // "700"
+    lineHeight:    lh(24, "snug"),                   // 30
+    letterSpacing: LETTER_SPACING.normal,            // 0
+  },
+
+  /**
+   * heading20 — 20px 700 DM Sans · tight leading
+   *
+   * Use for: profile stat values (Credits · Sparks · Days · Sectors),
+   *          section numeric heroes, sub-section strong headings.
+   *
+   * Semantic equivalent: typography.statValue
+   */
+  heading20: {
+    fontFamily:    FONT_BODY.bold,                   // DMSans_700Bold
+    fontSize:      FONT_SIZE.h4,                     // 20
+    fontWeight:    fontWeight.bold,                  // "700"
+    lineHeight:    lh(20, "tight"),                  // 23
+    letterSpacing: LETTER_SPACING.normal,            // 0
+  },
+
+  /**
+   * subhead17 — 17px 600 DM Sans · snug leading
+   *
+   * Use for: intermediate subheadings, elevated section labels, step titles,
+   *          any copy that sits between a heading and body text.
+   * Size 17px is used 11× across app screens (blueprint size audit).
+   */
+  subhead17: {
+    fontFamily:    FONT_BODY.semiBold,               // DMSans_600SemiBold
+    fontSize:      FONT_SIZE.lgPlus,                 // 17
+    fontWeight:    fontWeight.semibold,              // "600"
+    lineHeight:    lh(17, "snug"),                   // 21
+    letterSpacing: LETTER_SPACING.normal,            // 0
+  },
+
+  /**
+   * body15 — 15px 400 DM Sans · relaxed leading (reading-optimised)
+   *
+   * Use for: chat bubbles, primary body copy, sector descriptions,
+   *          card body text, onboarding paragraph text.
+   * v5.0 preferred body size (upgraded from 14px for legibility).
+   *
+   * Semantic equivalent: typography.chatBubble / typography.bodyLg
+   */
+  body15: {
+    fontFamily:    FONT_BODY.regular,                // DMSans_400Regular
+    fontSize:      FONT_SIZE.mdLg,                   // 15
+    fontWeight:    fontWeight.regular,               // "400"
+    lineHeight:    lh(15, "relaxed"),                // 23
+    letterSpacing: LETTER_SPACING.normal,            // 0
+  },
+
+  /**
+   * caption13 — 13px 400 DM Sans · relaxed leading
+   *
+   * Use for: form context, confirmation previews, small body text,
+   *          activity descriptions, card secondary copy.
+   *
+   * Semantic equivalent: typography.bodySm
+   */
+  caption13: {
+    fontFamily:    FONT_BODY.regular,                // DMSans_400Regular
+    fontSize:      FONT_SIZE.base,                   // 13
+    fontWeight:    fontWeight.regular,               // "400"
+    lineHeight:    lh(13, "relaxed"),                // 20
+    letterSpacing: LETTER_SPACING.normal,            // 0
+  },
+
+  /**
+   * micro11 — 11px 400 DM Sans · relaxed leading
+   *
+   * Use for: timestamps, read-receipts, auto-redirect countdowns,
+   *          Glass Island inactive tab labels, online counts in meta contexts.
+   *
+   * Semantic equivalent: typography.metaRegular
+   */
+  micro11: {
+    fontFamily:    FONT_BODY.regular,                // DMSans_400Regular
+    fontSize:      FONT_SIZE.sm,                     // 11
+    fontWeight:    fontWeight.regular,               // "400"
+    lineHeight:    lh(11, "relaxed"),                // 17
+    letterSpacing: LETTER_SPACING.normal,            // 0
+  },
+
+} as const;
+
+/** Union of named scale keys */
+export type NamedScaleKey = keyof typeof scale;
+
+// ═══════════════════════════════════════════════════════════════════════════
 // § 6 — useCrowdFonts HOOK
 //
 // Loads both font families simultaneously.
@@ -1375,10 +1558,9 @@ export const typography = {
 
 export function useCrowdFonts() {
   return useExpoFonts({
-    // ── Cormorant Garamond ─────────────────────────────────────────────────
+    // ── Cormorant Garamond (weights 600 + 700 — no 800 in this typeface) ──
     CormorantGaramond_600SemiBold,
     CormorantGaramond_700Bold,
-    CormorantGaramond_800ExtraBold,
 
     // ── DM Sans ───────────────────────────────────────────────────────────
     DMSans_400Regular,
@@ -1602,8 +1784,82 @@ export type LetterSpacingKey = keyof typeof LETTER_SPACING;
 /** LINE_HEIGHT_RATIO key union */
 export type LineHeightKey = keyof typeof LINE_HEIGHT_RATIO;
 
+/** fontWeight key union */
+export type FontWeightKey = keyof typeof fontWeight;
+
+/**
+ * TypographyScale — interface for one complete, renderable typography style entry.
+ *
+ * Every entry in both `typography` (semantic set) and `scale` (named size set)
+ * conforms to this interface. Use it as a prop type when a component accepts
+ * a typography style injected from the outside.
+ *
+ * @example
+ *   interface LabelProps {
+ *     textStyle?: TypographyScale;
+ *   }
+ *   function Label({ textStyle = scale.caption13 }: LabelProps) {
+ *     return <Text style={textStyle} />;
+ *   }
+ */
+export interface TypographyScale {
+  fontFamily:    string;
+  fontSize:      number;
+  fontWeight:    RNTextStyle["fontWeight"];
+  lineHeight:    number;
+  letterSpacing: number;
+  fontStyle?:    RNTextStyle["fontStyle"];
+}
+
+/**
+ * ScaleMap — strongly-typed map of all 7 named size scale entries.
+ * Use when you need to accept or pass the full scale object as a value.
+ *
+ * @example
+ *   function resolveStyle(key: NamedScaleKey): TypographyScale {
+ *     return (scale as ScaleMap)[key];
+ *   }
+ */
+export type ScaleMap = Record<NamedScaleKey, TypographyScale>;
+
 // ═══════════════════════════════════════════════════════════════════════════
 // § 10 — EXPORTS
+//
+// Named exports from this file:
+//
+//   FONT CONFIG (Expo):
+//     useCrowdFonts()    — hook for app/_layout.tsx · loads both font families
+//     FONT_HEADING       — Cormorant Garamond family constant strings
+//     FONT_BODY          — DM Sans family constant strings
+//
+//   PRIMITIVE SCALES:
+//     FONT_SIZE          — 18-step size scale (xs → display)
+//     LINE_HEIGHT_RATIO  — multiplier presets (tight → loose)
+//     LETTER_SPACING     — spacing map (tightest → uppercase)
+//     letterSpacing      — lowercase alias of LETTER_SPACING
+//     fontWeight         — weight map { regular · medium · semibold · bold · extrabold }
+//
+//   STYLE HELPERS:
+//     lh()               — compute absolute lineHeight from fontSize + ratio key
+//     createTextStyle()  — build one-off style not in the semantic set
+//     withSize()         — override fontSize on any semantic style
+//     withWeight()       — swap fontFamily + fontWeight on any DM Sans style
+//
+//   SEMANTIC STYLES:
+//     typography / t     — full semantic style map (A–O groups, 60+ entries)
+//
+//   NAMED SCALE (NEW v2.0):
+//     scale              — 7 named presets: display32 · heading24 · heading20 ·
+//                          subhead17 · body15 · caption13 · micro11
+//
+//   TYPESCRIPT TYPES:
+//     TypographyScale    — interface for any single style entry (use as prop type)
+//     ScaleMap           — Record<NamedScaleKey, TypographyScale>
+//     TypographyKey      — keyof typeof typography
+//     NamedScaleKey      — keyof typeof scale
+//     TextStyleDef       — shape of a style object
+//     HeadingFont / BodyFont / AppFont  — fontFamily string unions
+//     FontSizeKey / LetterSpacingKey / LineHeightKey / FontWeightKey
 // ═══════════════════════════════════════════════════════════════════════════
 
 /** Shorthand alias — import { t } from '@/constants/typography' */
