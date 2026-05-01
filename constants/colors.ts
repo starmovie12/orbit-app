@@ -1,22 +1,26 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
  * ║   CROWD WORLD — Premium Design Token System                             ║
- * ║   Version: v2.0  (against v5.0 BAAP EDITION blueprint)                 ║
+ * ║   Version: v2.0  (against v5.0 BAAP EDITION blueprint · Part 3 § 2)    ║
  * ║   Philosophy: Champagne Gold · Warm Ivory · Refined Espresso            ║
  * ║   WCAG 2.2 AA compliant — all critical text/bg pairs verified           ║
  * ║                                                                          ║
  * ║   Generated: 29 April 2026 · Chandigarh · Owner: Ail (Founder)         ║
  * ║   Companion to: Part 1 + Part 2 + Part 3 Blueprints                    ║
  * ╠══════════════════════════════════════════════════════════════════════════╣
- * ║   Migration from v1.0:                                                  ║
- * ║     #D4A017 → gold[600]           Champagne gold · -10% saturation      ║
- * ║     #E07B20 → amber[600]          Burnished amber · less aggressive      ║
- * ║     #F5C842 → gold[400]           Refined celebrate state               ║
- * ║     #F5E6C8 → cream[200]          Warm ivory · cleaner                  ║
- * ║     #1A1A1A → ink[950]            Warm ink · slight golden undertone     ║
- * ║     #6B5B2E → ink[600]            Espresso · feels human                ║
- * ║     #E8D5A0 → cream[400]          Refined divider · slightly stronger   ║
- * ║     rgba(13,16,24,0.85) → glass.bg  Warmer · matches palette            ║
+ * ║   Migration from v1.0 (Part 3 § 2 map):                                ║
+ * ║     #D4A017 → gold[600]  = #C9A227  Champagne Gold · -10% sat          ║
+ * ║     #E07B20 → amber[600] = #D4651A  Burnished Amber · less aggressive  ║
+ * ║     #F5C842 → gold[400]  = #E2C66B  Refined celebrate state            ║
+ * ║     #F5E6C8 → cream[200]            Warm ivory · cleaner               ║
+ * ║     #1A1A1A → ink[950]   = #1A1208  Warm Ink · golden undertone        ║
+ * ║     #6B5B2E → ink[600]   = #6B5B47  Espresso Brown · feels human       ║
+ * ║     #E8D5A0 → cream[400]            Refined divider · stronger         ║
+ * ║     rgba(13,16,24,0.85) → glass.bg  Warmer · matches palette           ║
+ * ║     Success  → emerald[600] = #1A7A4A  Forest Emerald                  ║
+ * ║     Error    → crimson[600] = #C4294F  Crimson Rose                    ║
+ * ║   NEW in v2.0: semanticSuccess · semanticError · semanticWarning ·     ║
+ * ║                semanticInfo · lightTheme · darkTheme exports            ║
  * ╚══════════════════════════════════════════════════════════════════════════╝
  */
 
@@ -41,7 +45,7 @@ export const palette = {
     700: '#524539',  // Dark espresso
     800: '#3D342A',  // Very dark warm brown
     900: '#2A2520',  // Near-black warm
-    950: '#1C1814',  // ⭐ Text Primary — warm ink (NOT cold #1A1A1A)
+    950: '#1A1208',  // ⭐ Text Primary — Warm Ink (#1A1208 · golden undertone · Part 3 § 2)
   },
 
   // ── GOLD ────────────────────────────────────────────────────────────────
@@ -53,7 +57,7 @@ export const palette = {
     300: '#ECD58F',  // Soft gold — subtle borders
     400: '#E2C66B',  // ⭐ Celebrate / earned states (replaces #F5C842)
     500: '#D4B244',  // Mid brand gold
-    600: '#C5A227',  // ⭐ PRIMARY brand gold — champagne luxury (replaces #D4A017)
+    600: '#C9A227',  // ⭐ PRIMARY brand gold — Champagne Gold (#C9A227 · Part 3 § 2)
     700: '#A88A24',  // ⭐ Hover / pressed brand / links on white
     800: '#8B6F18',  // ⭐ Brand wordmark on light bg (LAW 15)
     900: '#6B5512',  // Deep antique gold
@@ -63,7 +67,7 @@ export const palette = {
   // ── CREAM ───────────────────────────────────────────────────────────────
   // Warm surface family — ivory-toned. Replaces flat buttery cream.
   cream: {
-    50:  '#FEFAF1',  // Ultra-light cream — subtle tint surfaces
+    50:  '#FFF9EC',  // ⭐ Warm Ivory Cream — subtle surface (#FFF9EC · Part 3 § 2 spec)
     100: '#FBF4E2',  // Card hover bg
     200: '#F7ECD0',  // ⭐ Card bg / primary surface (replaces #F5E6C8)
     300: '#F0DEB6',  // Card pressed bg
@@ -80,7 +84,7 @@ export const palette = {
     300: '#EDB85E',
     400: '#DEA044',
     500: '#CD8A33',
-    600: '#BD8531',  // ⭐ PRIMARY amber — WhatsApp button / LIVE badge (replaces #E07B20)
+    600: '#D4651A',  // ⭐ PRIMARY amber — Burnished Amber (#D4651A · warning · Part 3 § 2)
     700: '#A67224',  // Hover amber
     800: '#8B5A18',  // Deep amber
     900: '#6B4310',
@@ -94,7 +98,7 @@ export const palette = {
     100: '#D1FAE5',
     400: '#34D399',
     500: '#10B981',
-    600: '#059669',  // ⭐ PRIMARY success — check states / validation
+    600: '#1A7A4A',  // ⭐ PRIMARY success — Forest Emerald (#1A7A4A · Part 3 § 2)
     700: '#047857',
   },
 
@@ -105,7 +109,7 @@ export const palette = {
     100: '#FDD0C7',
     400: '#D85F4F',
     500: '#C84B3D',
-    600: '#B5392B',  // ⭐ PRIMARY error — destructive (warm red, not cold)
+    600: '#C4294F',  // ⭐ PRIMARY error — Crimson Rose (#C4294F · Part 3 § 2)
     700: '#9B2C1F',
     800: '#7E2316',
   },
@@ -157,9 +161,9 @@ export const colors = {
     toast:            palette.ink[950],           // Toast bg (dark pill)
     overlay:          'rgba(28, 24, 20, 0.55)',   // Full screen overlay
     offlineBanner:    palette.ink[950],           // Offline alert banner
-    successSoft:      'rgba(5, 150, 105, 0.10)',  // Success wash bg
-    errorSoft:        'rgba(181, 57, 43, 0.10)',  // Error wash bg
-    warningSoft:      'rgba(189, 133, 49, 0.10)', // Warning wash bg
+    successSoft:      'rgba(26, 122, 74, 0.10)',   // Forest Emerald wash bg (#1A7A4A)
+    errorSoft:        'rgba(196, 41, 79, 0.10)',   // Crimson Rose wash bg (#C4294F)
+    warningSoft:      'rgba(212, 101, 26, 0.10)',  // Burnished Amber wash bg (#D4651A)
     goldSoft:         palette.gold[50],           // Light gold tint — hover states
     amberSoft:        palette.amber[50],          // Light amber tint
   },
@@ -665,18 +669,18 @@ const orbitGold = {
   accentHover:     palette.gold[700],
   goldLight:       palette.gold[400],
   accentSoftSolid: palette.gold[50],
-  accentSoft:      'rgba(197, 162, 39, 0.10)',
+  accentSoft:      'rgba(201, 162, 39, 0.10)',   // Champagne Gold (#C9A227) soft wash
 
   // Shadows
-  shadowGold:      '0 4px 16px rgba(197, 162, 39, 0.35)',
+  shadowGold:      '0 4px 16px rgba(201, 162, 39, 0.35)', // Champagne Gold glow
 
   // Status
   success:         palette.emerald[600],
-  successSoft:     'rgba(5, 150, 105, 0.10)',
+  successSoft:     'rgba(26, 122, 74, 0.10)',    // Forest Emerald (#1A7A4A) wash
   warning:         palette.amber[600],
-  warningSoft:     'rgba(189, 133, 49, 0.10)',
+  warningSoft:     'rgba(212, 101, 26, 0.10)',   // Burnished Amber (#D4651A) wash
   danger:          palette.crimson[600],
-  dangerSoft:      'rgba(181, 57, 43, 0.10)',
+  dangerSoft:      'rgba(196, 41, 79, 0.10)',    // Crimson Rose (#C4294F) wash
 
   // Absolutes
   white:           palette.white,
@@ -700,14 +704,14 @@ const orbitDark = {
   accentHover:     palette.gold[700],
   goldLight:       palette.gold[400],
   accentSoftSolid: '#2A1F0A',
-  accentSoft:      'rgba(197, 162, 39, 0.10)',
-  shadowGold:      '0 4px 16px rgba(197, 162, 39, 0.35)',
+  accentSoft:      'rgba(201, 162, 39, 0.10)',   // Champagne Gold (#C9A227) soft wash
+  shadowGold:      '0 4px 16px rgba(201, 162, 39, 0.35)',
   success:         '#2BB673',
   successSoft:     'rgba(43, 182, 115, 0.10)',
   warning:         palette.amber[600],
-  warningSoft:     'rgba(189, 133, 49, 0.10)',
+  warningSoft:     'rgba(212, 101, 26, 0.10)',   // Burnished Amber (#D4651A) wash
   danger:          palette.crimson[600],
-  dangerSoft:      'rgba(181, 57, 43, 0.10)',
+  dangerSoft:      'rgba(196, 41, 79, 0.10)',    // Crimson Rose (#C4294F) wash
   white:           palette.white,
   black:           palette.black,
 } as const;
@@ -843,6 +847,77 @@ const legacyColors = {
 } as const;
 
 // ═══════════════════════════════════════════════════════════════════════════
+// § 13.5 — SEMANTIC STATE ALIASES (v2.0 — Blueprint Part 3 § 2)
+// Four-channel semantic objects: fg · bg · border · icon.
+// Import: import { semanticSuccess, semanticError, semanticWarning, semanticInfo } from '@/constants/colors';
+// Usage: <View style={{ backgroundColor: semanticSuccess.bg }}>
+//          <Text style={{ color: semanticSuccess.fg }}>Verified ✓</Text>
+//        </View>
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const semanticSuccess = {
+  /** Foreground: Forest Emerald — text · icons on light or white bg */
+  fg:     palette.emerald[600],          // #1A7A4A
+  /** Soft background wash — success banners · toast bg · validation bg */
+  bg:     'rgba(26, 122, 74, 0.10)',     // #1A7A4A @ 10%
+  /** Border — success input ring · success card outline */
+  border: palette.emerald[600],          // #1A7A4A
+  /** Icon color — checkmark · shield · badge icon */
+  icon:   palette.emerald[600],          // #1A7A4A
+  /** Hover — pressed state icon / text */
+  fgHover: palette.emerald[700],         // #047857
+} as const;
+
+export const semanticError = {
+  /** Foreground: Crimson Rose — error text · icons on light or white bg */
+  fg:     palette.crimson[600],          // #C4294F
+  /** Soft background wash — error banners · validation failure bg */
+  bg:     'rgba(196, 41, 79, 0.10)',     // #C4294F @ 10%
+  /** Border — error input ring · destructive card outline */
+  border: palette.crimson[600],          // #C4294F
+  /** Icon color — alert · X · trash icon in destructive states */
+  icon:   palette.crimson[600],          // #C4294F
+  /** Hover — pressed state */
+  fgHover: palette.crimson[700],         // #9B2C1F
+} as const;
+
+export const semanticWarning = {
+  /** Foreground: Burnished Amber — LIVE badges · WhatsApp · caution text */
+  fg:     palette.amber[600],            // #D4651A
+  /** Soft background wash — warning banners · caution states */
+  bg:     'rgba(212, 101, 26, 0.10)',    // #D4651A @ 10%
+  /** Border — warning input ring · caution card outline */
+  border: palette.amber[600],            // #D4651A
+  /** Icon color — triangle alert · info-circle in warning context */
+  icon:   palette.amber[600],            // #D4651A
+  /** Hover — pressed state */
+  fgHover: palette.amber[700],           // #A67224
+} as const;
+
+export const semanticInfo = {
+  /** Foreground: Champagne Gold — informational text · tips · hints */
+  fg:     palette.gold[700],             // #A88A24 — AA-safe on white (5.0:1)
+  /** Soft background wash — info banners · onboarding tips */
+  bg:     palette.gold[50],              // #FCF7E5
+  /** Border — info card outline · tip container ring */
+  border: palette.gold[300],             // #ECD58F
+  /** Icon color — info circle · lightbulb · sparkle */
+  icon:   palette.gold[600],             // #C9A227
+  /** Hover — pressed state */
+  fgHover: palette.gold[800],            // #8B6F18
+} as const;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// § 13.6 — LIGHT / DARK THEME OBJECTS (v2.0 — explicit named exports)
+// Structured theme objects built from makePalette — ready for ThemeProvider,
+// React Navigation, or any library that accepts a flat color map.
+// Usage: import { lightTheme, darkTheme } from '@/constants/colors';
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const lightTheme = makePalette(orbitLight);
+export const darkTheme  = makePalette(orbitDark);
+
+// ═══════════════════════════════════════════════════════════════════════════
 // § 14 — EXPORTS
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -850,17 +925,23 @@ export default legacyColors;
 export { orbitDark, orbitLight, orbitGold, makePalette };
 
 // TypeScript Types
-export type OrbitTokens   = typeof orbitGold;
-export type ColorPalette  = ReturnType<typeof makePalette>;
-export type Colors        = typeof colors;
-export type Palette       = typeof palette;
-export type Typography    = typeof typography;
-export type Spacing       = typeof spacing;
-export type Radii         = typeof radii;
-export type ZIndex        = typeof zIndex;
-export type Animation     = typeof animation;
-export type Dimensions    = typeof dimensions;
-export type Tokens        = typeof tokens;
+export type OrbitTokens      = typeof orbitGold;
+export type ColorPalette     = ReturnType<typeof makePalette>;
+export type Colors           = typeof colors;
+export type Palette          = typeof palette;
+export type Typography       = typeof typography;
+export type Spacing          = typeof spacing;
+export type Radii            = typeof radii;
+export type ZIndex           = typeof zIndex;
+export type Animation        = typeof animation;
+export type Dimensions       = typeof dimensions;
+export type Tokens           = typeof tokens;
+export type SemanticSuccess  = typeof semanticSuccess;
+export type SemanticError    = typeof semanticError;
+export type SemanticWarning  = typeof semanticWarning;
+export type SemanticInfo     = typeof semanticInfo;
+export type LightTheme       = typeof lightTheme;
+export type DarkTheme        = typeof darkTheme;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // § 15 — CONTRAST AUDIT (WCAG 2.2 AA — all verified)
@@ -929,4 +1010,32 @@ export type Tokens        = typeof tokens;
 //
 // BRAND WORDMARK (LAW 15):
 //   <Text style={{ color: colors.fg.brandSubtle, height: 24 }}>CROWD</Text>
+//
+// SEMANTIC ALIASES (v2.0 — Blueprint Part 3 § 2):
+//   import { semanticSuccess, semanticError, semanticWarning, semanticInfo } from '@/constants/colors';
+//
+//   // Success toast
+//   <View style={{ backgroundColor: semanticSuccess.bg, borderColor: semanticSuccess.border }}>
+//     <Text style={{ color: semanticSuccess.fg }}>Payment successful ✓</Text>
+//   </View>
+//
+//   // Error input state
+//   <TextInput style={{ borderColor: semanticError.border }} />
+//   <Text style={{ color: semanticError.fg }}>OTP galat hai. Try karo.</Text>
+//
+//   // Warning LIVE badge
+//   <View style={{ backgroundColor: semanticWarning.bg }}>
+//     <Text style={{ color: semanticWarning.fg }}>⬤ LIVE</Text>
+//   </View>
+//
+//   // Info tip banner
+//   <View style={{ backgroundColor: semanticInfo.bg, borderColor: semanticInfo.border }}>
+//     <Text style={{ color: semanticInfo.fg }}>Pro tip: Sector 17 hai sabse active!</Text>
+//   </View>
+//
+// LIGHT / DARK THEMES (v2.0 — explicit named exports):
+//   import { lightTheme, darkTheme } from '@/constants/colors';
+//   // Pass to React Navigation ThemeProvider or any theming library.
+//   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
+//   <NavigationContainer theme={{ colors: theme }}>...</NavigationContainer>
 // ═══════════════════════════════════════════════════════════════════════════
