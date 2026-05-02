@@ -1,104 +1,132 @@
 /**
  * Skeleton — components/atoms/Skeleton.tsx
  * ─────────────────────────────────────────────────────────────────────────────
- * CROWD WORLD · Blueprint v5.0 BAAP EDITION · Layer: atom · Status: new · P1
+ * CROWD WORLD · Blueprint v5.0 BAAP EDITION · Layer: atom · Status: final · P1
  *
- * A warm-ivory shimmer skeleton used while content loads. A LinearGradient
- * sweeps left-to-right inside an overflow:hidden container, driven by a single
- * Animated.Value (0 → 1) loop over 1400ms.
+ * Base shimmer block. Building block for ALL loading states in the app.
  *
- * Shimmer colors
- *   base     : colors.bg.skeleton      (cream[200]  #F7ECD0) — at-rest surface
- *   highlight: colors.bg.skeletonShimmer (white     #FFFFFF) — light sweep peak
+ * Shimmer strategy
+ * ────────────────
+ *   • Reanimated 3 (react-native-reanimated) — animation runs entirely on the
+ *     UI thread; zero JS-thread jank even during heavy Firestore writes.
+ *   • Container width measured via onLayout so shimmer sweeps precisely from
+ *     off-screen left → off-screen right regardless of flex/percent widths.
+ *   • 5-stop gradient: base → shoulder → white peak → shoulder → base.
+ *     Produces a smooth bell-curve highlight instead of a hard-edged slash.
+ *   • Colors: cream[200] #F7ECD0 → blended shoulder → white → blended → cream[200]
  *
- * Reduced motion: static cream rectangle · no shimmer loop (blueprint table)
+ * Blueprint animation table
+ * ─────────────────────────
+ *   animation.duration.skeleton = 1200ms  (§ 5.N pulseDot: 1200ms — matched)
+ *   Reduced Motion → static cream rectangle, shimmer loop stopped
+ *
+ * Reduced-motion
+ * ──────────────
+ *   Reads useReducedMotion() from @/constants/animations (already subscribed to
+ *   system AccessibilityInfo changes — no duplication needed here).
+ *   iOS  : UIAccessibility.isReduceMotionEnabled
+ *   Android: Settings.Global.TRANSITION_ANIMATION_SCALE
+ *
+ * Sizing
+ * ──────
+ *   width  — pixels or percent string ('60%') — resolved against parent
+ *   height — always logical pixels
+ *
+ * Color
+ * ─────
+ *   Default baseColor = colors.bg.skeleton (cream[200] · #F7ECD0)
+ *   Bubble shells     = colors.bg.subtle   (cream[50]  · #FEFAF1 — lighter
+ *   so the line bones inside pop against the shell)
  *
  * Exports
- *   Skeleton       — single loading bar / block (React.memo)
- *   SkeletonGroup  — vertical stack wrapper with consistent gap (React.memo)
+ * ───────
+ *   Skeleton        (default + named) — single loading block
+ *   SkeletonGroup   (named)           — vertical stack wrapper with uniform gap
  *
- * Used by: message list · discover feed · wallet transaction rows
+ * Re-used by: SkeletonBubble · HeatScoreSkeleton · AvatarSkeleton · PickerSkeleton
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  Animated,
+import React, { useCallback, useState } from 'react';
+import { LayoutChangeEvent, StyleSheet, View, ViewStyle } from 'react-native';
+import Animated, {
   Easing,
-  LayoutChangeEvent,
-  StyleSheet,
-  View,
-  ViewStyle,
-} from 'react-native';
+  cancelAnimation,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 
-import { colors, spacing, radii } from '@/constants/colors';
-import {
-  useReducedMotion,
-  getEffectiveDuration,
-} from '@/constants/animations';
+import { animation, colors, radii, spacing } from '@/constants/colors';
+import { useReducedMotion } from '@/constants/animations';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// § 1 — CONSTANTS
+// § 1 — ANIMATION CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
-
-/** Full shimmer sweep duration in ms. Task spec: 1400ms. */
-const SHIMMER_DURATION = 1400 as const;
 
 /**
- * The shimmer gradient is rendered at this multiple of the container's
- * measured width. It needs to be wider than the container so the highlight
- * never clips at either edge during the sweep.
+ * Shimmer duration from Blueprint § animation.duration.skeleton = 1200ms.
+ * Matches pulseDot duration for perceptual rhythm consistency.
+ */
+const SHIMMER_DURATION_MS: number = animation.duration.skeleton; // 1200
+
+/**
+ * The shimmer gradient renders at this multiple of the container's measured
+ * pixel width. Must be wide enough that the highlight never clips at either
+ * edge during the full left-to-right sweep.
  *
- * 3× means: the gradient covers [left_edge - W, left_edge + 2W] at start.
- * After a full translateX of +2W, its right edge just clears the container.
+ * Layout geometry (W = containerWidth):
+ *   Gradient width  = 3W   (GRADIENT_WIDTH_MULTIPLIER)
+ *   Initial left    = -2W  → gradient spans [-2W … +W]  (peak off-screen left ✓)
+ *   translateX end  = +3W  → gradient spans [+W … +4W]  (peak off-screen right ✓)
+ *
+ * This guarantees the shimmer ENTERS from fully off-screen and EXITS fully
+ * off-screen — no flash at frame 0, no clipped tail at frame N.
  */
 const GRADIENT_WIDTH_MULTIPLIER = 3 as const;
 
-/**
- * Gradient color stops (left → center → right).
- *
- * Using the skeleton token pair from the design system:
- *   colors.bg.skeleton        → warm cream base   (#F7ECD0 · cream[200])
- *   colors.bg.skeletonShimmer → white highlight   (#FFFFFF)
- *
- * The 5-stop shape (base · soft · peak · soft · base) produces a smooth
- * bell-curve highlight instead of a hard-edged slash.
- */
-const SHIMMER_COLORS: readonly [string, string, string, string, string] = [
-  colors.bg.skeleton,                       // far left  — base
-  blendToWhite(colors.bg.skeleton, 0.4),    // shoulder  — 40% toward white
-  colors.bg.skeletonShimmer,                // center    — full white peak
-  blendToWhite(colors.bg.skeleton, 0.4),    // shoulder  — 40% toward white
-  colors.bg.skeleton,                       // far right — base
-] as const;
-
-/** Color-stop positions matching the 5-stop gradient array above. */
-const SHIMMER_LOCATIONS: readonly [number, number, number, number, number] = [
-  0, 0.3, 0.5, 0.7, 1,
-] as const;
-
 // ─────────────────────────────────────────────────────────────────────────────
-// § 2 — HELPER
+// § 2 — GRADIENT HELPER
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Linearly blend a hex color toward pure white by `factor` (0–1).
- * Used to build the shimmer gradient shoulders so the transition is smooth.
+ * Produces the smooth shoulder blends in the shimmer bell-curve.
  *
- * @param hex    — source hex color, 6-digit, with or without '#'
- * @param factor — 0 = source unchanged · 1 = pure white
+ * @param hex    6-digit hex color with or without '#'
+ * @param factor 0 = source unchanged · 1 = pure white
  */
 function blendToWhite(hex: string, factor: number): string {
-  const n   = parseInt(hex.replace('#', ''), 16);
-  const r   = (n >> 16) & 0xff;
-  const g   = (n >> 8)  & 0xff;
-  const b   = n         & 0xff;
-  const rr  = Math.round(r + (255 - r) * factor);
-  const gg  = Math.round(g + (255 - g) * factor);
-  const bb  = Math.round(b + (255 - b) * factor);
+  const n  = parseInt(hex.replace('#', ''), 16);
+  const r  = (n >> 16) & 0xff;
+  const g  = (n >> 8)  & 0xff;
+  const b  =  n        & 0xff;
+  const rr = Math.round(r + (255 - r) * factor);
+  const gg = Math.round(g + (255 - g) * factor);
+  const bb = Math.round(b + (255 - b) * factor);
   return `rgb(${rr}, ${gg}, ${bb})`;
 }
+
+/**
+ * 5-stop shimmer gradient:  base · shoulder · white peak · shoulder · base
+ * Built at module init — no per-render allocation.
+ *
+ * colors.bg.skeleton        = cream[200]  #F7ECD0  (at-rest fill)
+ * colors.bg.skeletonShimmer = white       #FFFFFF  (peak highlight)
+ */
+const SHIMMER_COLORS: readonly [string, string, string, string, string] = [
+  colors.bg.skeleton,                        // [0.0] far left  — base
+  blendToWhite(colors.bg.skeleton, 0.4),     // [0.3] shoulder  — 40% toward white
+  colors.bg.skeletonShimmer,                 // [0.5] center    — full white peak
+  blendToWhite(colors.bg.skeleton, 0.4),     // [0.7] shoulder  — 40% toward white
+  colors.bg.skeleton,                        // [1.0] far right — base
+] as const;
+
+const SHIMMER_LOCATIONS: readonly [number, number, number, number, number] = [
+  0, 0.3, 0.5, 0.7, 1,
+] as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // § 3 — PROPS
@@ -107,22 +135,39 @@ function blendToWhite(hex: string, factor: number): string {
 export interface SkeletonProps {
   /**
    * Width of the skeleton block.
-   * Pass a number for a fixed logical-pixel width, or a string like `'100%'`,
-   * `'80%'`, `'60%'` for flex-driven widths.
+   * • number → logical pixels (fixed)
+   * • string → CSS percent, e.g. '60%' (resolved against parent content width)
    */
-  width: number | string;
+  width: number | `${number}%`;
 
-  /** Height of the skeleton block in logical pixels. */
+  /**
+   * Height of the skeleton block in logical pixels.
+   * Text line bones: 12. Timestamps: 11. Avatars: same as width (circle).
+   */
   height: number;
 
   /**
-   * Border radius of the block in logical pixels.
-   * @default radii.sm — 6px (matches most text-line skeletons)
+   * Border radius in logical pixels.
+   * • Text line bones : radii.xs = 4
+   * • Bubble shell    : radii.lg = 16
+   * • Avatar circle   : half of the size (e.g. 18 for 36×36)
+   * @default radii.xs — 4px
    */
   radius?: number;
 
+  /**
+   * Base fill color.
+   * • Default (lines, avatar) : colors.bg.skeleton  — cream[200] #F7ECD0
+   * • Bubble shell containers : colors.bg.subtle    — cream[50]  #FFF9EC
+   *
+   * Shell is lighter → line bones inside it are visible (darker cream[200]).
+   */
+  baseColor?: string;
+
   /** Additional styles applied to the outer container View. */
   style?: ViewStyle;
+
+  testID?: string;
 }
 
 export interface SkeletonGroupProps {
@@ -131,7 +176,7 @@ export interface SkeletonGroupProps {
 
   /**
    * Vertical gap between children in logical pixels.
-   * @default spacing.sm — 8px (tight, dense loading layouts)
+   * @default spacing.sm — 8px
    */
   gap?: number;
 
@@ -146,142 +191,133 @@ export interface SkeletonGroupProps {
 /**
  * Skeleton
  *
- * Single loading placeholder block with a left-to-right shimmer sweep.
+ * Rectangular or circular shimmer placeholder. Use wherever a UI element is
+ * loading and its final shape is known in advance.
  *
  * @example
- * // Fixed-width text line skeleton
- * <Skeleton width={200} height={14} />
+ * // Text bone — 2 lines
+ * <Skeleton width="80%" height={12} radius={radii.xs} />
+ * <Skeleton width="55%" height={12} radius={radii.xs} style={{ marginTop: 8 }} />
  *
  * @example
- * // Full-width avatar + text row
- * <View style={{ flexDirection: 'row', gap: 12 }}>
- *   <Skeleton width={40} height={40} radius={20} />   // avatar circle
- *   <View style={{ flex: 1, gap: 6 }}>
- *     <Skeleton width="70%" height={14} />             // name line
- *     <Skeleton width="50%" height={12} />             // subtitle line
- *   </View>
- * </View>
+ * // Circular avatar
+ * <Skeleton width={36} height={36} radius={18} />
  *
  * @example
- * // Message bubble skeleton (right-aligned own message)
- * <Skeleton width="55%" height={48} radius={radii.lg} style={{ alignSelf: 'flex-end' }} />
+ * // Bubble shell (lighter bg so inner lines contrast)
+ * <Skeleton
+ *   width="60%"
+ *   height={56}
+ *   radius={radii.lg}
+ *   baseColor={colors.bg.subtle}
+ * />
+ *
+ * @example
+ * // Heat Score pill
+ * <Skeleton width={60} height={22} radius={radii.xl} />
  */
-const Skeleton: React.FC<SkeletonProps> = ({
+const SkeletonBase: React.FC<SkeletonProps> = ({
   width,
   height,
-  radius = radii.sm,
+  radius    = radii.xs,
+  baseColor,
   style,
+  testID,
 }) => {
+  const fillColor    = baseColor ?? colors.bg.skeleton;
   const reducedMotion = useReducedMotion();
 
-  // ── Measured container width ─────────────────────────────────────────────
-  // We need the actual rendered px width to calculate the gradient translateX.
-  // `width` can be a % string, so onLayout is the only reliable source.
+  // ── Container width measurement ───────────────────────────────────────────
+  // Required to compute exact translateX sweep distance.
+  // `width` can be a percent string, so onLayout is the only reliable source.
   const [containerWidth, setContainerWidth] = useState<number>(0);
 
   const onLayout = useCallback((e: LayoutChangeEvent) => {
     const measured = e.nativeEvent.layout.width;
-    if (measured > 0) {
-      setContainerWidth(measured);
-    }
+    if (measured > 0) setContainerWidth(measured);
   }, []);
 
-  // ── Shimmer animation ────────────────────────────────────────────────────
-  // A single value travels 0 → 1. We interpolate it into a translateX that
-  // moves the gradient from fully off-screen left to fully off-screen right.
+  // ── Shimmer animation (Reanimated 3 — UI thread) ─────────────────────────
+  // Shared value drives translateX of the gradient track.
+  // Value range: 0 → 3W (one full sweep across the 3× wide gradient).
   //
-  // Gradient layout:
-  //   width:  containerWidth × 3
-  //   left:   -containerWidth          (starts 1× off to the left)
-  //
-  // translateX journey:
-  //   0    → gradient left edge at -containerWidth  (hidden, left)
-  //   1    → gradient left edge at +containerWidth  (hidden, right)
-  //          (traveled 2× containerWidth — full sweep)
-  const progress = useRef(new Animated.Value(0)).current;
+  // Initial gradient position: left = -2W
+  //   At progress 0 (translateX = 0)  : gradient spans [-2W …  +W]  — peak hidden left  ✓
+  //   At progress 1 (translateX = +3W): gradient spans [+W  … +4W]  — peak hidden right ✓
+  const translateX = useSharedValue<number>(0);
 
-  useEffect(() => {
+  // Start / stop shimmer based on reduced-motion setting and measured width
+  React.useEffect(() => {
     if (reducedMotion || containerWidth === 0) {
-      // Static cream block — no shimmer
-      progress.setValue(0);
+      cancelAnimation(translateX);
+      translateX.value = 0;
       return;
     }
 
-    // Reset before each start so runtime reduceMotion toggles work cleanly
-    progress.setValue(0);
+    const sweepDistance = containerWidth * GRADIENT_WIDTH_MULTIPLIER; // 3W
 
-    const duration = getEffectiveDuration(SHIMMER_DURATION, reducedMotion);
-
-    const shimmer = Animated.loop(
-      Animated.timing(progress, {
-        toValue:         1,
-        duration,
-        easing:          Easing.linear,   // linear sweep — consistent speed across full width
-        useNativeDriver: true,
+    translateX.value = withRepeat(
+      withTiming(sweepDistance, {
+        duration: SHIMMER_DURATION_MS,
+        easing:   Easing.linear, // constant velocity → natural sweep
       }),
+      -1,    // repeat infinitely
+      false, // no reverse — restart from left each cycle
     );
 
-    shimmer.start();
-
     return () => {
-      shimmer.stop();
-      progress.setValue(0);
+      cancelAnimation(translateX);
+      translateX.value = 0;
     };
-  }, [reducedMotion, containerWidth, progress]);
+  }, [reducedMotion, containerWidth, translateX]);
 
-  // ── translateX interpolation ─────────────────────────────────────────────
-  // Geometry (W = containerWidth, gradient width = 3W):
-  //
-  //   left = -2W  →  gradient initially spans [-2W … +1W]
-  //                  peak (at 1.5W into gradient) = -2W + 1.5W = -0.5W  ← off-screen ✓
-  //
-  //   translateX travels 0 → 3W:
-  //   At end: gradient spans [+1W … +4W]
-  //           peak = -2W + 1.5W + 3W = +2.5W  ← off-screen right ✓
-  //
-  // This ensures the highlight ENTERS fully from off-screen left and EXITS
-  // fully off-screen right — no flash at frame 0, no clipped tail at frame N.
-  const gradientWidth = containerWidth * GRADIENT_WIDTH_MULTIPLIER;  // 3W
-  const sweepDistance = containerWidth * 3;   // full 3W travel
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }));
 
-  const translateX = progress.interpolate({
-    inputRange:  [0, 1],
-    outputRange: [0, sweepDistance],
-    extrapolate: 'clamp',
-  });
+  // ── Derived gradient geometry ─────────────────────────────────────────────
+  const gradientWidth = containerWidth * GRADIENT_WIDTH_MULTIPLIER; // 3W
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <View
+      testID={testID}
       onLayout={onLayout}
       style={[
         styles.container,
         {
           width,
           height,
-          borderRadius: radius,
+          borderRadius:    radius,
+          backgroundColor: fillColor,
         },
         style,
       ]}
     >
       {/*
-       * The shimmer gradient is only rendered after layout — before that,
-       * the container shows the plain base color (colors.bg.skeleton) via
-       * its backgroundColor, which is seamless.
+       * Shimmer track — rendered only after layout (containerWidth > 0) and
+       * only when animation is active. Before layout, the plain baseColor
+       * backgroundColor of the container is shown seamlessly.
        */}
       {!reducedMotion && containerWidth > 0 && (
         <Animated.View
+          pointerEvents="none"
           style={[
             styles.shimmerTrack,
             {
-              width:     gradientWidth,
+              width:  gradientWidth,
               height,
-              left:      -containerWidth * 2,   // start 2× off-screen left — peak enters clean
-              transform: [{ translateX }],
+              // Start 2W to the left so the peak enters clean from off-screen
+              left:   -(containerWidth * 2),
             },
+            animatedStyle,
           ]}
         >
           <LinearGradient
+            /**
+             * Blueprint shimmer: cream[200] → white → cream[200]
+             * 5-stop bell-curve: smooth shoulder transitions, no hard edges.
+             */
             colors={SHIMMER_COLORS}
             locations={SHIMMER_LOCATIONS}
             start={{ x: 0, y: 0 }}
@@ -302,11 +338,11 @@ const Skeleton: React.FC<SkeletonProps> = ({
  * SkeletonGroup
  *
  * Vertical stack wrapper that adds uniform spacing between Skeleton children.
- * Keeps loading layout consistent without manually adding marginBottom.
+ * Eliminates manual marginBottom scattered across loading layouts.
  *
  * @example
  * // Transaction row loading state
- * <SkeletonGroup gap={12}>
+ * <SkeletonGroup gap={spacing.md}>
  *   <Skeleton width="100%" height={64} radius={radii.md} />
  *   <Skeleton width="100%" height={64} radius={radii.md} />
  *   <Skeleton width="100%" height={64} radius={radii.md} />
@@ -319,7 +355,7 @@ const Skeleton: React.FC<SkeletonProps> = ({
  *   <Skeleton width="100%" height={144} radius={radii.lg} />
  * </SkeletonGroup>
  */
-const SkeletonGroup: React.FC<SkeletonGroupProps> = ({
+const SkeletonGroupBase: React.FC<SkeletonGroupProps> = ({
   children,
   gap = spacing.sm,
   style,
@@ -346,13 +382,13 @@ const SkeletonGroup: React.FC<SkeletonGroupProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: colors.bg.skeleton,   // cream[200] #F7ECD0 — base warm ivory
-    overflow:        'hidden',             // clips the sweeping gradient
+    // overflow MUST be hidden — clips the shimmer band to the skeleton's bounds
+    overflow: 'hidden',
   },
   shimmerTrack: {
     position: 'absolute',
     top:      0,
-    // `left` and `width` set inline; `transform` is animated
+    // `left`, `width`, and `transform` are all set inline / via Reanimated
   },
   group: {
     // No flex or padding — callers own their layout context
@@ -361,11 +397,12 @@ const styles = StyleSheet.create({
 
 // ─────────────────────────────────────────────────────────────────────────────
 // § 7 — EXPORTS
-// React.memo on both — neither needs to re-render unless props change
+// React.memo on both — props are primitives or stable refs; shallow compare
+// is sufficient to prevent unnecessary re-renders.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const MemoSkeleton      = React.memo(Skeleton);
-const MemoSkeletonGroup = React.memo(SkeletonGroup);
+const Skeleton      = React.memo(SkeletonBase);
+const SkeletonGroup = React.memo(SkeletonGroupBase);
 
-export { MemoSkeleton as Skeleton, MemoSkeletonGroup as SkeletonGroup };
-export default MemoSkeleton;
+export { Skeleton, SkeletonGroup };
+export default Skeleton;
