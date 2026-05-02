@@ -885,6 +885,7 @@ export default function HomeScreen() {
   const [notificationCount] = useState(3); // mock · replace with Firestore listener
   const [isLoading, setIsLoading] = useState(true);      // skeleton until first load
   const [isRefreshing, setIsRefreshing] = useState(false); // pull-to-refresh
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
   /* ── Refs ── */
   const flatListRef = useRef<FlatList>(null);
@@ -916,24 +917,31 @@ export default function HomeScreen() {
 
   /* ── Glass Island: hide on keyboard open ── */
   useEffect(() => {
-    const showSub = Keyboard.addListener('keyboardWillShow', () => {
+    const hide = () => {
+      setIsKeyboardVisible(true);
       Animated.timing(glassTranslateY, {
         toValue: 120,
         duration: 250,
         useNativeDriver: true,
       }).start();
-    });
-    const hideSub = Keyboard.addListener('keyboardWillHide', () => {
+    };
+    const show = () => {
+      setIsKeyboardVisible(false);
       Animated.timing(glassTranslateY, {
         toValue: 0,
         duration: 250,
         useNativeDriver: true,
       }).start();
-    });
-    return () => {
-      showSub.remove();
-      hideSub.remove();
     };
+    // keyboardWillShow/Hide = iOS only (smooth)
+    // keyboardDidShow/Hide  = Android + Web fallback
+    const subs = [
+      Keyboard.addListener('keyboardWillShow', hide),
+      Keyboard.addListener('keyboardDidShow',  hide),
+      Keyboard.addListener('keyboardWillHide', show),
+      Keyboard.addListener('keyboardDidHide',  show),
+    ];
+    return () => subs.forEach((s) => s.remove());
   }, []);
 
   /* ── Helpers ── */
@@ -1034,7 +1042,10 @@ export default function HomeScreen() {
   const glassBottom = insets.bottom + 16;
 
   // Chat list bottom padding: input area + glass island + gap
-  const chatPaddingBottom = 64 + insets.bottom + 56 + 16 + 8;
+  // When keyboard is open: Glass Island is hidden → no need for its 72px space
+  const chatPaddingBottom = isKeyboardVisible
+    ? 64 + 12
+    : 64 + insets.bottom + 56 + 16 + 8;
 
   /* ── Inverted data ── */
   const invertedMsgs = useMemo(() => [...msgs].reverse(), [msgs]);
@@ -1057,8 +1068,11 @@ export default function HomeScreen() {
   );
 
   /* ── Input area bottom padding ── */
-  // Sits above Glass Island — Glass Island height = 56px + 16px above safe-area
-  const inputPaddingBottom = insets.bottom + 56 + 16 + 4;
+  // When keyboard is open: Glass Island is off-screen → only need safe-area + small gap
+  // When keyboard is closed: need space for Glass Island (56px) + 16px gap above it
+  const inputPaddingBottom = isKeyboardVisible
+    ? insets.bottom + 12
+    : insets.bottom + 56 + 16 + 4;
 
   return (
     <View style={styles.screen}>
