@@ -22,6 +22,26 @@
  *   snap.exists() ❌  never use — was root cause of April 21 incident
  * ─────────────────────────────────────────────────────────────────────────────
  *
+ * ─── isDeleted filter — WHY IT IS ABSENT FROM subscribeToMessages ─────────
+ * We intentionally do NOT filter `isDeleted == false` in the Firestore query.
+ * Instead, message bubble components check `message.isDeleted` and render a
+ * "Message deleted" shell when the flag is true. This approach:
+ *   1. Lets existing listeners receive the change event and re-render the shell
+ *      in place — preserving thread continuity in the UI.
+ *   2. Avoids a Firestore composite-index requirement on (isDeleted, timestamp).
+ *   3. Keeps the listener consistent with the final document state rather than
+ *      silently dropping documents from the list mid-session.
+ * Hard deletes (document removal) are handled server-side by moderation
+ * Cloud Functions only; those will naturally trigger a "removed" snapshot event.
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * ─── savedAt — serverTimestamp(), NOT Date.now() ─────────────────────────
+ * CWSavedMessage.savedAt uses firestore serverTimestamp() rather than the
+ * client-side Date.now(). Client clocks can be wrong (timezone drift, manual
+ * adjustments, low-end Android devices). Server timestamps guarantee correct
+ * sort order across all devices for the "Saved" tab.
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
  * Exported surface (public API)
  * ─────────────────────────────
  * Types     : Unsubscribe · SaveMessageSnapshot
@@ -33,7 +53,6 @@
 import { firestore, serverTimestamp, increment } from '@/lib/firebase';
 import type {
   CWMessage,
-  CWMessageVariant,
   CWMessageStatus,
   CWMessageType,
   CWSavedMessage,
@@ -66,22 +85,29 @@ export type SaveMessageSnapshot = {
 
 // ─── Collection paths ─────────────────────────────────────────────────────────
 
-const ROOMS = 'rooms';
+const ROOMS      = 'rooms';
 const DM_THREADS = 'dmThreads';
-const MESSAGES = 'messages';
-const SAVED = 'saved';
-const USERS = 'users';
+const MESSAGES   = 'messages';
+const SAVED      = 'saved';
+const USERS      = 'users';
 
 // ─── snap.exists boolean helper ───────────────────────────────────────────────
+
 /**
  * Reads DocumentSnapshot.exists as a boolean property.
- * Never calls it as a function — see file header note.
+ *
+ * NEVER calls it as a function — on @react-native-firebase (native) .exists is
+ * a plain boolean; calling snap.exists() is a TypeError. On firebase/compat
+ * (web) calling it as a function returns a truthy function reference, not the
+ * actual boolean — root cause of the April 21 incident.
+ *
+ * Always use snapExists(snap) for any existence check inside this file.
  */
 function snapExists(snap: any): boolean {
   return !!snap.exists;
 }
 
-// ─── Internal: parent collection ref ─────────────────────────────────────────
+// ─── Internal helpers ─────────────────────────────────────────────────────────
 
 type ParentKind = 'room' | 'dm';
 
@@ -91,12 +117,16 @@ function parentRef(kind: ParentKind, parentId: string) {
     .doc(parentId);
 }
 
-/** Returns the messages subcollection ref for a room. */
+/** Typed reference to /rooms/{roomId}/messages */
 function roomMessagesRef(roomId: string) {
   return firestore().collection(ROOMS).doc(roomId).collection(MESSAGES);
 }
 
-/** Generates a Firestore-compatible client-side document ID (no DB round-trip). */
+/**
+ * Generates a Firestore-compatible client-side document ID without a DB
+ * round-trip. Used so the caller can render optimistically before the write
+ * confirms.
+ */
 function newDocId(): string {
   return firestore().collection('_').doc().id;
 }
@@ -112,9 +142,14 @@ function newDocId(): string {
  * The result list is reversed to oldest-first before being emitted so
  * a standard (non-inverted) FlatList can render it naturally.
  *
+ * isDeleted filter is intentionally ABSENT — see file header note.
+ * Bubble components check `message.isDeleted` and render a deleted shell in
+ * place. This preserves thread continuity and avoids a composite Firestore
+ * index on (isDeleted, timestamp).
+ *
  * The listener emits an empty array on any Firestore error (permissions
- * revoked, offline) rather than throwing — the chat screen handles the
- * empty state.
+ * revoked, offline) rather than throwing — the chat screen handles the empty
+ * state gracefully.
  *
  * @param roomId  Firestore room document ID, e.g. "chandigarh_sector-17".
  * @param limit   Max messages to load (pass a larger value for pagination preview).
@@ -135,7 +170,6 @@ export function subscribeToMessages(
   }
 
   return roomMessagesRef(roomId)
-    .where('isDeleted', '==', false)
     .orderBy('timestamp', 'desc')
     .limit(limit)
     .onSnapshot(
@@ -171,34 +205,35 @@ export function subscribeToMessages(
  *
  * @param roomId   Firestore room document ID.
  * @param message  Partial<CWMessage> — id/roomId/timestamp/reactions/isMicDrop/
- *                 isDeleted/editedAt/status are set/defaulted automatically.
- * @throws         Never swallows errors — Firestore write failures propagate.
+ *                 isDeleted/editedAt/status are set or defaulted automatically.
+ * @throws         Never swallows errors — Firestore write failures propagate to
+ *                 the caller so the chat input can surface a retry prompt.
  */
 export async function sendMessage(
   roomId: string,
   message: Partial<CWMessage>,
 ): Promise<void> {
-  const text = message.text?.trim() ?? null;
+  const text     = message.text?.trim() ?? null;
   const imageURL = message.imageURL ?? null;
 
-  // Reject empty messages (no text and no image)
+  // Reject empty messages (no text and no image attachment)
   if (!text && !imageURL) return;
 
   const id = message.id ?? newDocId();
 
   const doc: Omit<CWMessage, 'id'> = {
     roomId,
-    uid:        message.uid ?? '',
+    uid:       message.uid ?? '',
     text,
     imageURL,
-    variant:    message.variant ?? 'right',
-    reactions:  {},
-    replyToId:  message.replyToId ?? null,
-    isMicDrop:  false,
-    isDeleted:  false,
-    editedAt:   null,
-    timestamp:  serverTimestamp() as any,
-    status:     (message.status ?? 'sent') as CWMessageStatus,
+    variant:   message.variant ?? 'right',
+    reactions: {},
+    replyToId: message.replyToId ?? null,
+    isMicDrop: false,
+    isDeleted: false,
+    editedAt:  null,
+    timestamp: serverTimestamp() as any,
+    status:    (message.status ?? 'sent') as CWMessageStatus,
   };
 
   await roomMessagesRef(roomId).doc(id).set(doc);
@@ -211,14 +246,10 @@ export async function sendMessage(
 /**
  * Soft-delete a message.
  *
- * Sets `isDeleted: true` — the document remains in Firestore. The UI renders
- * a "message deleted" shell bubble instead of the original content (per
- * CWMessage spec). Hard deletes are handled server-side by moderation
- * Cloud Functions only.
- *
- * The `subscribeToMessages` query filters `isDeleted == false`, so soft-deleted
- * messages are automatically excluded from new listeners. Existing listeners
- * will receive a change event and re-render with the deleted shell.
+ * Sets `isDeleted: true` — the document remains in Firestore. Because
+ * subscribeToMessages does NOT filter on isDeleted, the listener will receive
+ * a change event and the bubble component re-renders as a "Message deleted"
+ * shell. Hard deletes are handled server-side by moderation Cloud Functions.
  *
  * @param roomId     Firestore room document ID.
  * @param messageId  Firestore message document ID.
@@ -246,13 +277,14 @@ export async function deleteMessage(
  * with no read-then-write race.
  *
  * MicDrop threshold check (PRD §10.5 — isMicDrop when total reactions ≥ 50):
- * A transaction reads the current reactions map, computes the new total,
- * and sets `isMicDrop: true` once the threshold is crossed. After that
- * the flag is never unset (reactions are never decremented in Phase 1).
+ * A transaction reads the current reactions map, computes the projected new
+ * total after this increment, and latches `isMicDrop: true` once the
+ * threshold is crossed. The flag is never unset (reactions are never
+ * decremented in Phase 1).
  *
  * Deduplication: Phase 1 counts aggregate reactions only — the `uid` param
- * is accepted for API compatibility and future per-user dedup (Phase 2 will
- * write a `/rooms/{roomId}/messages/{id}/reactors/{uid}` presence doc).
+ * is accepted for API compatibility and future per-user dedup. Phase 2 will
+ * write a /rooms/{roomId}/messages/{id}/reactors/{uid} presence doc.
  *
  * @param roomId     Firestore room document ID.
  * @param messageId  Firestore message document ID.
@@ -272,23 +304,26 @@ export async function addReaction(
 
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
+
+    // snapExists reads the boolean property — never calls it as a function.
     if (!snapExists(snap)) return;
 
     const data = snap.data() as CWMessage;
 
-    // Compute what the new total will be after this increment
     const currentReactions = data.reactions ?? {};
     const currentCount     = currentReactions[emoji] ?? 0;
-    const newTotal         = Object.values(currentReactions).reduce(
-      (sum, n) => sum + n,
-      0,
-    ) - currentCount + (currentCount + 1);
+
+    // Projected total after this increment: swap the old count for (count + 1).
+    const newTotal =
+      Object.values(currentReactions).reduce((sum, n) => sum + n, 0) -
+      currentCount +
+      (currentCount + 1);
 
     const update: Record<string, any> = {
       [`reactions.${emoji}`]: increment(1),
     };
 
-    // Promote to MicDrop once total crosses the threshold (latch — never unset)
+    // Latch isMicDrop once the threshold is reached — never unset.
     if (!data.isMicDrop && newTotal >= 50) {
       update.isMicDrop = true;
     }
@@ -308,9 +343,9 @@ export async function addReaction(
  * All snapshot fields are captured at save time — if the original message
  * is later deleted or edited, the saved copy is unaffected.
  *
- * `savedAtMs` uses `Date.now()` (Unix ms) as specified in CWSavedMessage.
- * This is stored as a plain number (not a Firestore Timestamp) so it can
- * be sorted client-side without deserialization.
+ * savedAt uses Firestore serverTimestamp() (not client Date.now()) so sort
+ * order in the "Saved" tab is correct across all devices regardless of
+ * client clock drift. See file header note for full rationale.
  *
  * @param uid        UID of the user saving the message (the collection owner).
  * @param messageId  Original CWMessage document ID.
@@ -332,13 +367,13 @@ export async function saveMessage(
   const saved: Omit<CWSavedMessage, 'id'> = {
     uid,
     messageId,
-    sectorId:        roomId,
-    sectorName:      snapshot.sectorName,
-    text:            text ?? '',
-    senderName:      snapshot.senderName,
-    senderHandle:    snapshot.senderHandle,
-    messageType:     snapshot.messageType ?? 'text',
-    savedAtMs:       Date.now(),
+    sectorId:    roomId,
+    sectorName:  snapshot.sectorName,
+    text:        text ?? '',
+    senderName:  snapshot.senderName,
+    senderHandle: snapshot.senderHandle,
+    messageType: snapshot.messageType ?? 'text',
+    savedAt:     serverTimestamp() as any,
     ...(snapshot.voiceDurationSec !== undefined && {
       voiceDurationSec: snapshot.voiceDurationSec,
     }),
@@ -352,12 +387,13 @@ export async function saveMessage(
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// § 6 — DEPRECATED LEGACY API (kept for backward compat — do not use in new code)
+// § 6 — DEPRECATED LEGACY API
+// Keep for backward compat — do not use in new code.
+// Scheduled for removal when DM chat migrates to its own service (Phase 2).
 // ═════════════════════════════════════════════════════════════════════════════
 
 /**
  * @deprecated Use subscribeToMessages() — room-specific, typed with CWMessage.
- * subscribeMessages() will be removed when DM chat is migrated to its own service.
  */
 export function subscribeMessages(
   kind: ParentKind,
@@ -459,13 +495,13 @@ export type MessageType = 'text' | 'voice' | 'image' | 'system';
 
 /** @deprecated Replaced by CWMessage from @/types/cw. */
 export type MessageDoc = {
-  id: string;
-  uid: string;
-  username: string;
-  type: MessageType;
-  text: string | null;
-  duration: number | null;
-  imageUrl: string | null;
-  caption: string | null;
+  id:        string;
+  uid:       string;
+  username:  string;
+  type:      MessageType;
+  text:      string | null;
+  duration:  number | null;
+  imageUrl:  string | null;
+  caption:   string | null;
   createdAt: unknown;
 };
