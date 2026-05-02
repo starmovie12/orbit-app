@@ -79,6 +79,12 @@ const CreditCard = ({ size, color }: { size: number; color: string; strokeWidth?
 const User = ({ size, color }: { size: number; color: string; strokeWidth?: number }) => (
   <Feather name="user" size={size} color={color} />
 );
+const SendIcon = ({ size, color }: { size: number; color: string; strokeWidth?: number }) => (
+  <Feather name="send" size={size} color={color} />
+);
+const Check = ({ size, color }: { size: number; color: string; strokeWidth?: number }) => (
+  <Feather name="check" size={size} color={color} />
+);
 
 /* ─────────────────────────────────────────────────────────────────────────
    DESIGN TOKEN BRIDGE — maps legacy TOKEN.* names to canonical
