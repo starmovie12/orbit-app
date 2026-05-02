@@ -43,56 +43,76 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Feather } from '@expo/vector-icons';
+import {
+  Bell,
+  Check,
+  ChevronDown,
+  Compass,
+  CreditCard,
+  Home as HomeIcon,
+  Send as SendIcon,
+  User,
+} from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 
+import { colors, palette, spacing, radii, zIndex } from '@/constants/colors';
+import {
+  durations,
+  easings,
+  fadeConfig,
+  useReducedMotion,
+} from '@/constants/animations';
+import PullIndicator from '@/components/atoms/PullIndicator';
+import ScrollFAB from '@/components/atoms/ScrollFAB';
+import SkeletonBubble from '@/components/atoms/SkeletonBubble';
+
 /* ─────────────────────────────────────────────────────────────────────────
-   DESIGN TOKENS v2.0 — Premium Color System (Blueprint v5.0 Part 3 § 2)
-   Philosophy: Champagne Gold · Warm Ivory · Refined Espresso
-   WCAG 2.2 AA compliant · all text/bg pairs verified
+   DESIGN TOKEN BRIDGE — maps legacy TOKEN.* names to canonical
+   @/constants/colors semantic tokens. Zero hardcoded hex values.
    ───────────────────────────────────────────────────────────────────────── */
 const TOKEN = {
   /* ── Backgrounds ── */
-  bgSurface:      '#FFFFFF',          // Screen bg (all primary screens)
-  bgCard:         '#F7ECD0',          // cream[200] — Warm ivory (refined #F5E6C8)
-  bgCardHover:    '#FBF4E2',          // cream[100]
-  bgCardPressed:  '#F0DEB6',          // cream[300]
-  bgSubtle:       '#FEFAF1',          // cream[50] — ultra-light tint
-  bgApp:          '#FFFFFF',
+  bgSurface:          colors.bg.surface,
+  bgCard:             colors.bg.card,
+  bgCardHover:        colors.bg.cardHover,
+  bgCardPressed:      colors.bg.cardPressed,
+  bgSubtle:           colors.bg.subtle,
+  bgApp:              colors.bg.surface,
 
   /* ── Foregrounds ── */
-  fgPrimary:      '#1C1814',          // ink[950] — Warm ink (refined #1A1A1A)
-  fgSecondary:    '#6B5B47',          // ink[600] — Espresso (refined #6B5B2E)
-  fgTertiary:     '#8A7960',          // ink[500] — De-emphasised / placeholder
-  fgBrand:        '#C5A227',          // gold[600] — Champagne luxury (refined #D4A017)
-  fgBrandHover:   '#A88A24',          // gold[700] — Hover / pressed brand
-  fgBrandSubtle:  '#8B6F18',          // gold[800] — Wordmark / text on light bg (WCAG AA 6.4:1)
-  fgBrandText:    '#A88A24',          // gold[700] — Links (WCAG AA 5.0:1)
-  fgOnBrand:      '#FFFFFF',          // Text on golden buttons
-  fgCelebrate:    '#E2C66B',          // gold[400] — CROWN markers / earned states
-  fgWarning:      '#BD8531',          // amber[600] — Burnished amber (refined #E07B20)
-  fgSuccess:      '#059669',          // emerald[600]
-  fgError:        '#B5392B',          // crimson[600] — Warm red
-  fgMuted:        '#A89A85',          // ink[400] — Disabled text
+  fgPrimary:          colors.fg.primary,
+  fgSecondary:        colors.fg.secondary,
+  fgTertiary:         colors.fg.tertiary,
+  fgBrand:            colors.fg.brand,
+  fgBrandHover:       colors.fg.brandHover,
+  fgBrandSubtle:      colors.fg.brandSubtle,
+  fgBrandText:        colors.fg.brandText,
+  fgOnBrand:          colors.fg.onBrand,
+  fgCelebrate:        colors.fg.celebrate,
+  fgWarning:          colors.fg.warning,
+  fgSuccess:          colors.fg.success,
+  fgError:            colors.fg.error,
+  fgMuted:            colors.fg.disabled,
+  errorRed:           colors.fg.error,
 
   /* ── Borders ── */
-  borderHair:     '#E5CC95',          // cream[400] — Hairline (refined #E8D5A0)
-  borderPill:     '#E5CC95',          // cream[400]
-  borderSector:   '#BD8531',          // amber[600] — Sector pill emphasis
-  borderInputIdle:'#E5CC95',          // cream[400]
-  borderInputFocus:'#C5A227',         // gold[600]
-  borderCardEmphasis: '#C5A227',      // gold[600] — Mayor card 2px border
+  borderHair:         colors.border.default,
+  borderPill:         colors.border.default,
+  borderSector:       colors.fg.warning,
+  borderInputIdle:    colors.border.inputIdle,
+  borderInputFocus:   colors.border.inputFocus,
+  borderCardEmphasis: colors.border.cardEmphasis,
 
-  /* ── Glass Island (LAW 13) — warm-tinted navy ── */
-  glassIslandBg:      'rgba(20,16,12,0.85)',   // Warmer navy (refined rgba(13,16,24,0.85))
-  glassIslandActive:  '#C5A227',               // gold[600]
-  glassIslandInactive:'rgba(255,255,255,0.70)',
-  glassIslandShadow:  'rgba(20,16,12,0.40)',
+  /* ── Glass Island (LAW 13) ── */
+  glassIslandBg:      colors.bg.glass,
+  glassIslandActive:  colors.fg.brand,
+  glassIslandInactive:'rgba(255,255,255,0.70)' as const,
+  glassIslandShadow:  palette.glass.shadow,
 
   /* ── Semantic ── */
-  offlineBg:      '#1C1814',          // ink[950]
-  scrim:          'rgba(28,24,20,0.55)', // Warm modal scrim
+  offlineBg:          colors.bg.inverse,
+  scrim:              colors.bg.scrim,
 } as const;
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -243,7 +263,7 @@ const INITIAL_MSGS: ChatMsg[] = [
    ANIMATED HELPERS
    ───────────────────────────────────────────────────────────────────────── */
 
-/** Pulsing orange dot — Online count strip */
+/** Pulsing amber dot — Online count strip. Uses animation tokens per Blueprint §5.N */
 function OnlinePulseDot() {
   const opacity = useRef(new Animated.Value(1)).current;
   useEffect(() => {
@@ -251,12 +271,14 @@ function OnlinePulseDot() {
       Animated.sequence([
         Animated.timing(opacity, {
           toValue: 0.3,
-          duration: 600,
+          duration: durations.ripple,   // 600ms — blueprint §5.N pulseHalf
+          easing:   easings.easeInOut,
           useNativeDriver: true,
         }),
         Animated.timing(opacity, {
           toValue: 1,
-          duration: 600,
+          duration: durations.ripple,
+          easing:   easings.easeInOut,
           useNativeDriver: true,
         }),
       ])
@@ -331,7 +353,7 @@ function HomeHeader({
             }
             testID="home-header-notifications"
           >
-            <Feather name="bell" size={22} color={TOKEN.fgPrimary} />
+            <Bell size={22} color={TOKEN.fgPrimary} strokeWidth={1.5} />
             {notificationCount > 0 && (
               <View style={styles.notifBadge}>
                 <Text style={styles.notifBadgeText}>
@@ -376,7 +398,7 @@ function HomeHeader({
           <Text style={styles.pillText} numberOfLines={1}>
             {city.name}
           </Text>
-          <Feather name="chevron-down" size={12} color={TOKEN.fgSecondary} />
+          <ChevronDown size={12} color={TOKEN.fgSecondary} strokeWidth={1.5} />
         </TouchableOpacity>
 
         {/* Sector Picker Pill */}
@@ -392,7 +414,7 @@ function HomeHeader({
           <Text style={styles.pillText} numberOfLines={1}>
             {sector.name}
           </Text>
-          <Feather name="chevron-down" size={12} color={TOKEN.fgSecondary} />
+          <ChevronDown size={12} color={TOKEN.fgSecondary} strokeWidth={1.5} />
         </TouchableOpacity>
 
       </View>
@@ -686,53 +708,6 @@ function MessageItem({ item }: { item: ChatMsg }) {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   NEW MESSAGES FLOATING CHIP
-   ───────────────────────────────────────────────────────────────────────── */
-interface NewMsgChipProps {
-  count: number;
-  onPress: () => void;
-}
-
-function NewMsgChip({ count, onPress }: NewMsgChipProps) {
-  const translateY = useRef(new Animated.Value(20)).current;
-  const opacity = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(translateY, {
-        toValue: 0,
-        duration: 240,
-        useNativeDriver: true,
-      }),
-      Animated.timing(opacity, {
-        toValue: 1,
-        duration: 240,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, []);
-
-  return (
-    <Animated.View
-      style={[
-        styles.newMsgChip,
-        { transform: [{ translateY }], opacity },
-      ]}
-    >
-      <TouchableOpacity
-        onPress={onPress}
-        activeOpacity={0.85}
-        accessibilityRole="button"
-        accessibilityLabel={`${count} new messages. Tap to scroll to latest.`}
-        testID="home-new-messages-chip"
-      >
-        <Text style={styles.newMsgChipText}>↓ {count} nayi</Text>
-      </TouchableOpacity>
-    </Animated.View>
-  );
-}
-
-/* ─────────────────────────────────────────────────────────────────────────
    GLASS ISLAND NAV BAR  (LAW 13)
    ───────────────────────────────────────────────────────────────────────── */
 interface GlassIslandProps {
@@ -744,13 +719,13 @@ interface GlassIslandProps {
 
 const GLASS_TABS: Array<{
   id: 'home' | 'discover' | 'wallet' | 'profile';
-  icon: string;
+  Icon: React.ComponentType<{ size: number; color: string; strokeWidth: number }>;
   label: string;
 }> = [
-  { id: 'home', icon: 'home', label: 'Home' },
-  { id: 'discover', icon: 'compass', label: 'Discover' },
-  { id: 'wallet', icon: 'credit-card', label: 'Wallet' },
-  { id: 'profile', icon: 'user', label: 'Profile' },
+  { id: 'home',     Icon: HomeIcon,    label: 'Home' },
+  { id: 'discover', Icon: Compass,     label: 'Discover' },
+  { id: 'wallet',   Icon: CreditCard,  label: 'Wallet' },
+  { id: 'profile',  Icon: User,        label: 'Profile' },
 ];
 
 function GlassIsland({
@@ -785,9 +760,9 @@ function GlassIsland({
                   : `${tab.label}, double tap to switch`
               }
             >
-              <Feather
-                name={tab.icon as any}
+              <tab.Icon
                 size={22}
+                strokeWidth={1.5}
                 color={
                   isActive
                     ? TOKEN.glassIslandActive
@@ -853,7 +828,7 @@ function PickerSheet({
                   {item.name}
                 </Text>
                 {selectedId === item.id && (
-                  <Feather name="check" size={16} color={TOKEN.fgBrand} />
+                  <Check size={16} color={TOKEN.fgBrand} strokeWidth={1.5} />
                 )}
               </TouchableOpacity>
             ))}
@@ -889,6 +864,8 @@ export default function HomeScreen() {
   const [isScrolledUp, setIsScrolledUp] = useState(false);
   const [isSendDisabled, setIsSendDisabled] = useState(true);
   const [notificationCount] = useState(3); // mock · replace with Firestore listener
+  const [isLoading, setIsLoading] = useState(true);      // skeleton until first load
+  const [isRefreshing, setIsRefreshing] = useState(false); // pull-to-refresh
 
   /* ── Refs ── */
   const flatListRef = useRef<FlatList>(null);
@@ -901,6 +878,22 @@ export default function HomeScreen() {
     const t = setTimeout(() => setShowTrustAnchor(false), 60000);
     return () => clearTimeout(t);
   }, [showTrustAnchor]);
+
+  /* ── Initial data load — dismiss skeleton after first Firestore fetch ── */
+  /* Replace this timeout with your real Firestore listener's onSuccess callback */
+  useEffect(() => {
+    const t = setTimeout(() => setIsLoading(false), 1200);
+    return () => clearTimeout(t);
+  }, []);
+
+  /* ── Pull-to-refresh handler ── */
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    // Replace with real Firestore re-fetch:
+    //   await fetchLatestMessages(selectedSector.id);
+    await new Promise<void>((r) => setTimeout(r, 1000));
+    setIsRefreshing(false);
+  }, []);
 
   /* ── Glass Island: hide on keyboard open ── */
   useEffect(() => {
@@ -1081,6 +1074,12 @@ export default function HomeScreen() {
         keyboardVerticalOffset={0}
       >
         {/* ── CHAT BODY ── */}
+        {isLoading ? (
+          /* Loading state: 8 premium skeleton bubbles while Firestore fetches */
+          <View style={styles.chatList} testID="home-chat-skeleton">
+            <SkeletonBubble />
+          </View>
+        ) : (
         <FlatList
           ref={flatListRef}
           data={invertedMsgs}
@@ -1103,21 +1102,24 @@ export default function HomeScreen() {
           onScroll={handleScroll}
           scrollEventThrottle={16}
           maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+          refreshControl={
+            <PullIndicator
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+            />
+          }
         />
-
-        {/* ── NEW MESSAGES CHIP ── */}
-        {isScrolledUp && newMsgCount > 0 && (
-          <NewMsgChip
-            count={newMsgCount}
-            onPress={() => {
-              flatListRef.current?.scrollToOffset({
-                offset: 0,
-                animated: true,
-              });
-              setNewMsgCount(0);
-            }}
-          />
         )}
+
+        {/* ── SCROLL FAB — "New messages" pill (ScrollFAB replaces NewMsgChip) ── */}
+        <ScrollFAB
+          visible={isScrolledUp && newMsgCount > 0}
+          label={newMsgCount > 0 ? `${newMsgCount} nayi messages` : 'New messages'}
+          onPress={() => {
+            flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+            setNewMsgCount(0);
+          }}
+        />
 
         {/* ── STICKY INPUT AREA ── */}
         {/* Rule 04: static position · flush above Glass Island · z-935 */}
@@ -1169,10 +1171,10 @@ export default function HomeScreen() {
             accessibilityState={{ disabled: isSendDisabled }}
             testID="home-send-button"
           >
-            <Feather
-              name="send"
+            <SendIcon
               size={18}
-              color={isSendDisabled ? TOKEN.fgSecondary : '#FFFFFF'}
+              strokeWidth={1.5}
+              color={isSendDisabled ? TOKEN.fgSecondary : TOKEN.fgOnBrand}
             />
           </TouchableOpacity>
         </View>
@@ -1726,31 +1728,6 @@ const styles = StyleSheet.create({
     color: TOKEN.fgSecondary,
   },
 
-  /* ── New Messages Chip ── */
-  newMsgChip: {
-    position: 'absolute',
-    alignSelf: 'center',
-    bottom: 76,
-    zIndex: 935,
-    backgroundColor: TOKEN.fgPrimary,     // ink[950]
-    borderWidth: 1,
-    borderColor: TOKEN.fgBrand,            // gold[600]
-    borderRadius: 18,
-    height: 36,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  newMsgChipText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-
   /* ── Input Area — Rule 04: static · z-935 · flush above Glass Island ── */
   inputArea: {
     flexDirection: 'row',
@@ -1887,617 +1864,5 @@ const styles = StyleSheet.create({
   sheetRowTextActive: {
     fontWeight: '700',
     color: TOKEN.fgBrand,                  // gold[600]
-  },
-  /* ── Root ── */
-  screen: {
-    flex: 1,
-    backgroundColor: TOKEN.bgApp,
-  },
-
-  /* ── Header ── */
-  header: {
-    backgroundColor: TOKEN.bgSurface,
-    borderBottomWidth: 1,
-    borderBottomColor: TOKEN.borderHair,
-    zIndex: 900,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-  },
-  headerInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  pillsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flex: 1,
-  },
-
-  /* City pill */
-  cityPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    height: 36,
-    paddingHorizontal: 12,
-    borderRadius: 18,
-    backgroundColor: TOKEN.bgCard,
-    borderWidth: 1,
-    borderColor: TOKEN.borderPill,
-    maxWidth: 140,
-  },
-  pillIcon: {
-    fontSize: 13,
-  },
-  pillText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: TOKEN.fgPrimary,
-    flex: 1,
-  },
-
-  /* Sector pill */
-  sectorPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    height: 36,
-    paddingHorizontal: 12,
-    borderRadius: 18,
-    backgroundColor: TOKEN.bgCard,
-    borderWidth: 1,
-    borderColor: TOKEN.borderSector,
-    maxWidth: 160,
-  },
-
-  /* CROWN wordmark — § 5.A — NO animation · NO gradient · NO icon */
-  crownWordmark: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: TOKEN.fgBrand,
-    letterSpacing: -0.4,
-    lineHeight: 22,
-    marginLeft: 12,
-  },
-
-  /* ── Offline Banner ── */
-  offlineBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    height: 32,
-    backgroundColor: TOKEN.offlineBg,
-    paddingHorizontal: 16,
-    zIndex: 935,
-  },
-  offlineIcon: {
-    fontSize: 13,
-  },
-  offlineText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#FFFFFF',
-    flex: 1,
-  },
-
-  /* ── Online Count Strip ── */
-  onlineStrip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    height: 32,
-    backgroundColor: TOKEN.bgSurface,
-    borderBottomWidth: 1,
-    borderBottomColor: TOKEN.borderHair,
-    paddingHorizontal: 16,
-    zIndex: 900,
-  },
-  onlineLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  onlineDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: TOKEN.fgOrange,
-    borderWidth: 2,
-    borderColor: TOKEN.bgSurface,
-  },
-  onlineText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: TOKEN.fgPrimary,
-  },
-  onlineRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  trustChip: {
-    height: 24,
-    paddingHorizontal: 10,
-    borderRadius: 12,
-    backgroundColor: TOKEN.bgCard,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  trustChipText: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: TOKEN.fgSecondary,
-  },
-  heatPill: {
-    height: 22,
-    paddingHorizontal: 8,
-    borderRadius: 11,
-    backgroundColor: TOKEN.fgOrange,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  heatPillText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-
-  /* ── Chat ── */
-  chatInputWrapper: {
-    flex: 1,
-  },
-  chatList: {
-    flex: 1,
-    backgroundColor: TOKEN.bgSurface,
-  },
-  chatContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    gap: 8,
-  },
-
-  /* ── OWN BUBBLE ── */
-  ownWrap: {
-    alignSelf: 'flex-end',
-    alignItems: 'flex-end',
-    maxWidth: '75%',
-    marginVertical: 4,
-  },
-  ownBubble: {
-    backgroundColor: TOKEN.fgBrand,
-    borderRadius: 16,
-    borderBottomRightRadius: 4,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    minHeight: 36,
-    shadowColor: TOKEN.fgBrand,
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 2,
-  },
-  ownText: {
-    fontSize: 15,
-    fontWeight: '400',
-    color: '#FFFFFF',
-    lineHeight: 22,
-  },
-  ownMeta: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 4,
-  },
-  ownTime: {
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.70)',
-  },
-  tickText: {
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.70)',
-  },
-  tickRead: {
-    letterSpacing: -2,
-    color: 'rgba(255,255,255,0.90)',
-  },
-
-  /* ── OTHER / AI BUBBLE ── */
-  otherWrap: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    alignSelf: 'flex-start',
-    maxWidth: '85%',
-    gap: 8,
-    marginVertical: 4,
-  },
-  avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: TOKEN.bgCard,
-    borderWidth: 1,
-    borderColor: TOKEN.borderHair,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarAI: {
-    borderStyle: 'dashed',
-    borderColor: TOKEN.fgSecondary,
-  },
-  avatarText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: TOKEN.fgSecondary,
-  },
-  otherContent: {
-    flex: 1,
-    gap: 3,
-  },
-  otherNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 4,
-    paddingHorizontal: 2,
-  },
-  otherName: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: TOKEN.fgSecondary,
-  },
-  colonyTag: {
-    backgroundColor: TOKEN.bgCard,
-    borderRadius: 4,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-  },
-  colonyTagText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: TOKEN.fgSecondary,
-  },
-  verifiedBadge: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: '#4F8FFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  verifiedText: {
-    fontSize: 7,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  founderBadge: {
-    backgroundColor: '#FFF8ED',
-    borderWidth: 1,
-    borderColor: '#E8C97A',
-    borderRadius: 4,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-  },
-  founderText: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: '#A0620A',
-    letterSpacing: 0.3,
-  },
-  mayorInlineBadge: {
-    backgroundColor: '#FFF3CD',
-    borderWidth: 1,
-    borderColor: '#E8C97A',
-    borderRadius: 4,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-  },
-  mayorInlineText: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: '#A0620A',
-  },
-  aiBadge: {
-    backgroundColor: TOKEN.bgCard,
-    borderRadius: 4,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-  },
-  aiBadgeText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: TOKEN.fgSecondary,
-    fontStyle: 'italic',
-  },
-  otherBubble: {
-    backgroundColor: TOKEN.bgCard,
-    borderRadius: 16,
-    borderBottomLeftRadius: 4,
-    borderWidth: 1,
-    borderColor: TOKEN.borderHair,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    minHeight: 36,
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 1,
-  },
-  otherBubbleAI: {
-    borderStyle: 'dashed',
-  },
-  otherText: {
-    fontSize: 15,
-    fontWeight: '400',
-    color: TOKEN.fgPrimary,
-    lineHeight: 22,
-  },
-  otherTime: {
-    fontSize: 11,
-    color: TOKEN.fgSecondary,
-    marginTop: 4,
-  },
-
-  /* ── Reactions ── */
-  reactRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 5,
-    marginTop: 5,
-    paddingHorizontal: 2,
-  },
-  reactPill: {
-    backgroundColor: TOKEN.bgSurface,
-    borderWidth: 1,
-    borderColor: TOKEN.borderHair,
-    borderRadius: 12,
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-  },
-  reactText: {
-    fontSize: 12,
-    color: TOKEN.fgSecondary,
-  },
-
-  /* ── Mayor announcement ── */
-  mayorWrap: {
-    alignSelf: 'center',
-    width: '92%',
-    marginVertical: 8,
-    position: 'relative',
-  },
-  mayorCrown: {
-    fontSize: 20,
-    textAlign: 'center',
-    position: 'absolute',
-    top: -10,
-    left: 0,
-    right: 0,
-    zIndex: 1,
-  },
-  mayorCard: {
-    backgroundColor: TOKEN.bgCard,
-    borderWidth: 2,
-    borderColor: TOKEN.fgBrand,
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 8,
-  },
-  mayorCardHeader: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: TOKEN.fgBrand,
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  mayorCardText: {
-    fontSize: 15,
-    fontWeight: '400',
-    color: TOKEN.fgPrimary,
-    lineHeight: 22,
-  },
-  mayorCardTime: {
-    fontSize: 11,
-    color: TOKEN.fgSecondary,
-    textAlign: 'center',
-    marginTop: 8,
-  },
-
-  /* ── System message ── */
-  systemWrap: {
-    alignSelf: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  systemText: {
-    fontSize: 12,
-    fontWeight: '400',
-    color: TOKEN.fgSecondary,
-    textAlign: 'center',
-  },
-
-  /* ── Date separator ── */
-  dateSepWrap: {
-    alignItems: 'center',
-    marginVertical: 12,
-  },
-  dateSepChip: {
-    height: 24,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    backgroundColor: TOKEN.bgCard,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dateSepText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: TOKEN.fgSecondary,
-  },
-
-  /* ── New messages chip ── */
-  newMsgChip: {
-    position: 'absolute',
-    alignSelf: 'center',
-    bottom: 76,
-    zIndex: 935,
-    backgroundColor: TOKEN.fgPrimary,
-    borderWidth: 1,
-    borderColor: TOKEN.fgBrand,
-    borderRadius: 18,
-    height: 36,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  newMsgChipText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-
-  /* ── Input Area ── */
-  /* Rule 04: static · flush above Glass Island · z-935 */
-  inputArea: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: TOKEN.bgSurface,
-    borderTopWidth: 1,
-    borderTopColor: TOKEN.borderHair,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    zIndex: 935,
-  },
-  inputField: {
-    flex: 1,
-    minHeight: 40,
-    maxHeight: 120,
-    backgroundColor: TOKEN.bgCard,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: TOKEN.borderPill,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    fontSize: 15,
-    fontWeight: '400',
-    color: TOKEN.fgPrimary,
-  },
-  inputFieldActive: {
-    borderWidth: 2,
-    borderColor: TOKEN.fgBrand,
-  },
-  sendBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: TOKEN.fgBrand,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: TOKEN.fgBrand,
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 4,
-  },
-  sendBtnDisabled: {
-    backgroundColor: TOKEN.bgCard,
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-
-  /* ── Glass Island ── */
-  glassIslandWrapper: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    zIndex: 950,
-  },
-  glassIsland: {
-    flexDirection: 'row',
-    width: 280,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: TOKEN.glassIslandBg,
-    alignItems: 'center',
-    shadowColor: 'rgba(13,16,24,1)',
-    shadowOpacity: 0.35,
-    shadowRadius: 32,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 16,
-    overflow: 'hidden',
-  },
-  glassTab: {
-    flex: 1,
-    height: 56,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-  },
-  glassActiveDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: TOKEN.glassIslandActive,
-  },
-
-  /* ── Picker Sheet ── */
-  sheetOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.40)',
-    justifyContent: 'flex-end',
-    zIndex: 999,
-  },
-  sheetContainer: {
-    backgroundColor: TOKEN.bgSurface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 40,
-    gap: 4,
-  },
-  sheetHandle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: TOKEN.borderHair,
-    alignSelf: 'center',
-    marginBottom: 12,
-  },
-  sheetTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: TOKEN.fgPrimary,
-    marginBottom: 8,
-    paddingHorizontal: 4,
-  },
-  sheetRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    paddingHorizontal: 4,
-    borderBottomWidth: 1,
-    borderBottomColor: TOKEN.borderHair,
-  },
-  sheetRowActive: {
-    borderBottomColor: 'transparent',
-  },
-  sheetRowText: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: TOKEN.fgPrimary,
-  },
-  sheetRowTextActive: {
-    fontWeight: '700',
-    color: TOKEN.fgBrand,
   },
 });
