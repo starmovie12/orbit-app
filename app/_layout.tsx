@@ -3,34 +3,34 @@
  * CROWD WORLD — Root Layout v4.1
  *
  * ─── Provider hierarchy (outer → inner) ──────────────────────────────────────
- *   SafeAreaProvider          → device insets for all screens
- *   ErrorBoundary             → catches unhandled render errors, prevents white-screen
- *   QueryClientProvider       → React Query for server-state caching
- *   GestureHandlerRootView    → required root for react-native-gesture-handler
- *   KeyboardProvider          → react-native-keyboard-controller (Rule 04)
- *   StatusBar                 → light icons on dark bg (orbit.bg)
- *   AuthProvider              → Firebase auth + Firestore profile (contexts/AuthContext)
- *   SplashGate                → holds children until fonts are ready; shows spinner
- *   RouteGuard                → auth + onboarding redirect logic (inside Expo Router tree)
+ * SafeAreaProvider          → device insets for all screens
+ * ErrorBoundary             → catches unhandled render errors, prevents white-screen
+ * QueryClientProvider       → React Query for server-state caching
+ * GestureHandlerRootView    → required root for react-native-gesture-handler
+ * KeyboardProvider          → react-native-keyboard-controller (Rule 04)
+ * StatusBar                 → light icons on dark bg (orbit.bg)
+ * AuthProvider              → Firebase auth + Firestore profile (contexts/AuthContext)
+ * SplashGate                → holds children until fonts are ready; shows spinner
+ * RouteGuard                → auth + onboarding redirect logic (inside Expo Router tree)
  *
  * ─── SplashGate behaviour ────────────────────────────────────────────────────
  * `ready` prop = fontsLoaded || !!fontError.
  * While ready=false → renders ActivityIndicator (spinner).
  * While ready=false → SplashScreen.hideAsync() has NOT been called yet, so the
- *   native splash screen is still covering the UI on iOS/Android.
+ * native splash screen is still covering the UI on iOS/Android.
  * Once ready=true  → SplashScreen.hideAsync() fires → native splash dismisses →
- *   children (RouteGuard → screens) appear.
+ * children (RouteGuard → screens) appear.
  *
  * ❌ `if (!fontsLoaded && !fontError) return null` has been removed.
- *    That early return prevented the entire provider tree from mounting,
- *    meaning SplashGate's ActivityIndicator was never reachable — dead code.
- *    Without the early return, SplashGate correctly shows the spinner while
- *    the native splash is still visible, then hands off to RouteGuard.
+ * That early return prevented the entire provider tree from mounting,
+ * meaning SplashGate's ActivityIndicator was never reachable — dead code.
+ * Without the early return, SplashGate correctly shows the spinner while
+ * the native splash is still visible, then hands off to RouteGuard.
  *
  * ─── RouteGuard redirect table ───────────────────────────────────────────────
- *   Not signed in                     → /(auth)/welcome
- *   Signed in · onboarding incomplete → /(onboarding)/{currentStep}
- *   Signed in · onboarding complete   → /(tabs)
+ * Not signed in                     → /(auth)/welcome
+ * Signed in · onboarding incomplete → /(onboarding)/{currentStep}
+ * Signed in · onboarding complete   → /(tabs)
  */
 
 import {
@@ -77,38 +77,34 @@ function RouteGuard() {
   const router   = useRouter();
 
   useEffect(() => {
-    // Hold all routing until both Firebase Auth and Firestore profile resolve.
-    // firebaseUser === undefined  →  onAuthStateChanged hasn't fired yet.
-    // loading === true            →  first onSnapshot hasn't arrived yet.
-    if (loading || firebaseUser === undefined) return;
+    // ── BYPASS LOADING ───────────────────────────────────────────────────────
+    // if (loading || firebaseUser === undefined) return;
 
     const group        = segments[0];
     const inAuth       = group === "(auth)";
     const inOnboarding = group === "(onboarding)";
     const inTabs       = group === "(tabs)";
 
-    // ── Not signed in ────────────────────────────────────────────────────────
-    if (!firebaseUser) {
-      if (!inAuth) router.replace("/(auth)/welcome");
-      return;
-    }
+    // ── BYPASS AUTH CHECK ────────────────────────────────────────────────────
+    // if (!firebaseUser) {
+    //   if (!inAuth) router.replace("/(auth)/welcome");
+    //   return;
+    // }
 
-    // ── Signed in · Firestore profile still loading ──────────────────────────
-    if (!user) return;
+    // ── BYPASS PROFILE CHECK ─────────────────────────────────────────────────
+    // if (!user) return;
 
-    // ── Signed in · onboarding incomplete ───────────────────────────────────
-    if (!isOnboarded) {
-      // Defensive: "done" step + onboardingComplete:false should never coexist,
-      // but guard against it to prevent an infinite redirect loop.
-      const step: string =
-        !onboardingStep || onboardingStep === "done" ? "language" : onboardingStep;
-      if (!inOnboarding) {
-        router.replace(`/(onboarding)/${step}` as never);
-      }
-      return;
-    }
+    // ── BYPASS ONBOARDING CHECK ──────────────────────────────────────────────
+    // if (!isOnboarded) {
+    //   const step: string =
+    //     !onboardingStep || onboardingStep === "done" ? "language" : onboardingStep;
+    //   if (!inOnboarding) {
+    //     router.replace(`/(onboarding)/${step}` as never);
+    //   }
+    //   return;
+    // }
 
-    // ── Signed in · onboarding complete ─────────────────────────────────────
+    // ── FORCED ENTRY TO TABS (HOME SCREEN) ───────────────────────────────────
     if (!inTabs) router.replace("/(tabs)");
   }, [firebaseUser, user, loading, isOnboarded, onboardingStep, segments, router]);
 
@@ -212,16 +208,6 @@ export default function RootLayout() {
       SplashScreen.hideAsync();
     }
   }, [fontsLoaded, fontError]);
-
-  // ❌ `if (!fontsLoaded && !fontError) return null` intentionally removed.
-  //
-  //    Previously this early return prevented SplashGate from mounting, making
-  //    its ActivityIndicator unreachable (dead code). Without it:
-  //      • The full provider tree mounts immediately on first render.
-  //      • SplashGate receives ready=false → renders the spinner.
-  //      • The native splash screen is still covering the UI at this point
-  //        (preventAutoHideAsync is active), so there is zero visual flash.
-  //      • Once fontsLoaded=true → hideAsync() fires → SplashGate shows children.
 
   return (
     <SafeAreaProvider>
