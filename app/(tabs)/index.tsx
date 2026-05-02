@@ -62,6 +62,25 @@ import ScrollFAB from '@/components/atoms/ScrollFAB';
 import SkeletonBubble from '@/components/atoms/SkeletonBubble';
 
 /* ─────────────────────────────────────────────────────────────────────────
+   FEATHER ICON WRAPPERS — Glass Island tab icons
+   Feather is the installed icon set (identical geometry to Lucide).
+   Wrapping so GLASS_TABS can treat them as typed React components.
+   strokeWidth is accepted but not forwarded (Feather uses its own default).
+   ───────────────────────────────────────────────────────────────────────── */
+const HomeIcon = ({ size, color }: { size: number; color: string; strokeWidth?: number }) => (
+  <Feather name="home" size={size} color={color} />
+);
+const Compass = ({ size, color }: { size: number; color: string; strokeWidth?: number }) => (
+  <Feather name="compass" size={size} color={color} />
+);
+const CreditCard = ({ size, color }: { size: number; color: string; strokeWidth?: number }) => (
+  <Feather name="credit-card" size={size} color={color} />
+);
+const User = ({ size, color }: { size: number; color: string; strokeWidth?: number }) => (
+  <Feather name="user" size={size} color={color} />
+);
+
+/* ─────────────────────────────────────────────────────────────────────────
    DESIGN TOKEN BRIDGE — maps legacy TOKEN.* names to canonical
    @/constants/colors semantic tokens. Zero hardcoded hex values.
    ───────────────────────────────────────────────────────────────────────── */
