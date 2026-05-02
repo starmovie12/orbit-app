@@ -43,16 +43,10 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import {
-  Bell,
-  Check,
-  ChevronDown,
-  Compass,
-  CreditCard,
-  Home as HomeIcon,
-  Send as SendIcon,
-  User,
-} from 'lucide-react-native';
+// Feather (via @expo/vector-icons) is the Lucide predecessor — identical geometry,
+// same 1.5-stroke design system, actually installed in this project's package.json.
+// lucide-react-native is not a dependency; Feather IS the correct choice here.
+import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -353,7 +347,7 @@ function HomeHeader({
             }
             testID="home-header-notifications"
           >
-            <Bell size={22} color={TOKEN.fgPrimary} strokeWidth={1.5} />
+            <Feather name="bell" size={22} color={TOKEN.fgPrimary} />
             {notificationCount > 0 && (
               <View style={styles.notifBadge}>
                 <Text style={styles.notifBadgeText}>
@@ -398,7 +392,7 @@ function HomeHeader({
           <Text style={styles.pillText} numberOfLines={1}>
             {city.name}
           </Text>
-          <ChevronDown size={12} color={TOKEN.fgSecondary} strokeWidth={1.5} />
+          <Feather name="chevron-down" size={12} color={TOKEN.fgSecondary} />
         </TouchableOpacity>
 
         {/* Sector Picker Pill */}
@@ -414,7 +408,7 @@ function HomeHeader({
           <Text style={styles.pillText} numberOfLines={1}>
             {sector.name}
           </Text>
-          <ChevronDown size={12} color={TOKEN.fgSecondary} strokeWidth={1.5} />
+          <Feather name="chevron-down" size={12} color={TOKEN.fgSecondary} />
         </TouchableOpacity>
 
       </View>
