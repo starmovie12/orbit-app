@@ -1,11 +1,30 @@
 /**
  * CROWD WORLD — Home Screen (index.tsx) — Blueprint v5.0 BAAP EDITION
  *
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * FIXES APPLIED (v5.1-patch):
+ *   FIX 1 — BUG ROOT CAUSE: contentContainerStyle `paddingTop` was set to
+ *            `chatPaddingBottom` (~178px). For an inverted FlatList, paddingTop
+ *            maps to the VISUAL BOTTOM (first thing rendered on screen open).
+ *            This created a 178px blank zone at the bottom → messages appeared
+ *            above the visible area. Fixed: paddingTop → 8px.
+ *   FIX 2 — isLoading initialised to `false`. INITIAL_MSGS is synchronous mock
+ *            data — the 1200ms skeleton timeout blocked the FlatList for no reason.
+ *   FIX 3 — Removed getItemLayout. Messages have variable heights (40px–180px).
+ *            The hardcoded `length: 80` caused wrong item offsets and skipped
+ *            renders for tall items (mayor card, AI message with reactions, etc.)
+ *   FIX 4 — KAV behavior: `"height"` on Android shrinks KAV by full keyboard
+ *            height. With the inputArea's paddingBottom (~110px) included, the
+ *            FlatList collapsed to 0 height when keyboard opened. Fixed:
+ *            behavior is now `"padding"` on iOS only, `undefined` on Android.
+ *            keyboardVerticalOffset accounts for the sticky header stack height.
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ *
  * Chat-First Landing · Hyper-Local Sector Chat
  *
  * Layout Stack (top → bottom):
  *   [1] Status Bar (system)
- *   [2] Header — City Pill + Sector Pill + CROWN Wordmark
+ *   [2] Header — CROWD Wordmark + City Pill + Sector Pill
  *   [3] Offline Banner (conditional)
  *   [4] Online Count Strip (pulsing dot · Heat Score · Trust Anchor)
  *   [5] Chat Body — Inverted FlatList (6 message variants)
@@ -28,7 +47,6 @@ import React, {
   useState,
 } from 'react';
 import {
-  AccessibilityInfo,
   Animated,
   FlatList,
   Keyboard,
@@ -43,29 +61,18 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-// Feather (via @expo/vector-icons) is the Lucide predecessor — identical geometry,
-// same 1.5-stroke design system, actually installed in this project's package.json.
-// lucide-react-native is not a dependency; Feather IS the correct choice here.
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 
 import { colors, palette, spacing, radii, zIndex } from '@/constants/colors';
-import {
-  durations,
-  easings,
-  fadeConfig,
-  useReducedMotion,
-} from '@/constants/animations';
+import { durations, easings, useReducedMotion } from '@/constants/animations';
 import PullIndicator from '@/components/atoms/PullIndicator';
 import ScrollFAB from '@/components/atoms/ScrollFAB';
 import SkeletonBubble from '@/components/atoms/SkeletonBubble';
 
 /* ─────────────────────────────────────────────────────────────────────────
-   FEATHER ICON WRAPPERS — Glass Island tab icons
-   Feather is the installed icon set (identical geometry to Lucide).
-   Wrapping so GLASS_TABS can treat them as typed React components.
-   strokeWidth is accepted but not forwarded (Feather uses its own default).
+   FEATHER ICON WRAPPERS
    ───────────────────────────────────────────────────────────────────────── */
 const HomeIcon = ({ size, color }: { size: number; color: string; strokeWidth?: number }) => (
   <Feather name="home" size={size} color={color} />
@@ -87,8 +94,7 @@ const Check = ({ size, color }: { size: number; color: string; strokeWidth?: num
 );
 
 /* ─────────────────────────────────────────────────────────────────────────
-   DESIGN TOKEN BRIDGE — maps legacy TOKEN.* names to canonical
-   @/constants/colors semantic tokens. Zero hardcoded hex values.
+   DESIGN TOKEN BRIDGE
    ───────────────────────────────────────────────────────────────────────── */
 const TOKEN = {
   /* ── Backgrounds ── */
@@ -96,8 +102,8 @@ const TOKEN = {
   bgCard:             colors.bg.card,
   bgCardHover:        colors.bg.cardHover,
   bgCardPressed:      colors.bg.cardPressed,
-  bgSubtle:           colors.bg.subtle,
-  bgApp:              colors.bg.surface,
+  bgSubtle:           colors.bg.subtle,        // cream[50] #FFF9EC — warm ivory screen bg
+  bgApp:              colors.bg.subtle,         // FIX: warm ivory instead of pure white
 
   /* ── Foregrounds ── */
   fgPrimary:          colors.fg.primary,
@@ -126,7 +132,7 @@ const TOKEN = {
   /* ── Glass Island (LAW 13) ── */
   glassIslandBg:      colors.bg.glass,
   glassIslandActive:  colors.fg.brand,
-  glassIslandInactive:'rgba(255,255,255,0.70)' as const,
+  glassIslandInactive:'rgba(255,255,255,0.58)' as const,  // FIX: 58% per spec (was 70%)
   glassIslandShadow:  palette.glass.shadow,
 
   /* ── Semantic ── */
@@ -138,26 +144,15 @@ const TOKEN = {
    TYPES
    ───────────────────────────────────────────────────────────────────────── */
 type MsgStatus = 'sending' | 'sent' | 'read' | 'failed';
+type MsgVariant = 'own' | 'other' | 'ai' | 'system' | 'mayor' | 'date_separator';
 
-type MsgVariant =
-  | 'own'
-  | 'other'
-  | 'ai'
-  | 'system'
-  | 'mayor'
-  | 'date_separator';
-
-interface Reaction {
-  emoji: string;
-  count: number;
-}
+interface Reaction { emoji: string; count: number; }
 
 interface ChatMsg {
   id: string;
   variant: MsgVariant;
   text: string;
   time: string;
-  /* own + other + ai */
   displayName?: string;
   colonyTag?: string;
   isVerified?: boolean;
@@ -166,22 +161,14 @@ interface ChatMsg {
   reactions?: Reaction[];
   status?: MsgStatus;
   isAI?: boolean;
-  /* mayor */
   mayorName?: string;
 }
 
-interface City {
-  id: string;
-  name: string;
-}
-
-interface Sector {
-  id: string;
-  name: string;
-}
+interface City   { id: string; name: string; }
+interface Sector { id: string; name: string; }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   MOCK DATA  (replace with Firestore queries in production)
+   MOCK DATA
    ───────────────────────────────────────────────────────────────────────── */
 const CITIES: City[] = [
   { id: 'chd', name: 'Chandigarh' },
@@ -201,18 +188,8 @@ const SECTORS: Sector[] = [
 
 /* Sorted ascending by time — FlatList inverted handles display order */
 const INITIAL_MSGS: ChatMsg[] = [
-  {
-    id: 'date_1',
-    variant: 'date_separator',
-    text: 'Aaj',
-    time: '',
-  },
-  {
-    id: 'sys_1',
-    variant: 'system',
-    text: 'Sector 17 abhi Heat 67 pe hai 🔥',
-    time: '7:00 AM',
-  },
+  { id: 'date_1', variant: 'date_separator', text: 'Aaj', time: '' },
+  { id: 'sys_1', variant: 'system', text: 'Sector 17 abhi Heat 67 pe hai 🔥', time: '7:00 AM' },
   {
     id: 'mayor_pin',
     variant: 'mayor',
@@ -237,10 +214,7 @@ const INITIAL_MSGS: ChatMsg[] = [
     isVerified: true,
     text: 'Chandigarh Sector 17 mein food festival start ho gaya hai! Kaun kaun aa raha hai? 🥘',
     time: '7:11 AM',
-    reactions: [
-      { emoji: '🔥', count: 94 },
-      { emoji: '🙌', count: 58 },
-    ],
+    reactions: [{ emoji: '🔥', count: 94 }, { emoji: '🙌', count: 58 }],
   },
   {
     id: 'msg_2',
@@ -281,108 +255,60 @@ const INITIAL_MSGS: ChatMsg[] = [
 /* ─────────────────────────────────────────────────────────────────────────
    ANIMATED HELPERS
    ───────────────────────────────────────────────────────────────────────── */
-
-/** Pulsing amber dot — Online count strip. Uses animation tokens per Blueprint §5.N */
 function OnlinePulseDot() {
   const opacity = useRef(new Animated.Value(1)).current;
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
-        Animated.timing(opacity, {
-          toValue: 0.3,
-          duration: durations.ripple,   // 600ms — blueprint §5.N pulseHalf
-          easing:   easings.easeInOut,
-          useNativeDriver: true,
-        }),
-        Animated.timing(opacity, {
-          toValue: 1,
-          duration: durations.ripple,
-          easing:   easings.easeInOut,
-          useNativeDriver: true,
-        }),
+        Animated.timing(opacity, { toValue: 0.3, duration: durations.ripple, easing: easings.easeInOut, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 1,   duration: durations.ripple, easing: easings.easeInOut, useNativeDriver: true }),
       ])
     ).start();
   }, []);
-  return (
-    <Animated.View
-      style={[styles.onlineDot, { opacity }]}
-      accessibilityElementsHidden
-    />
-  );
+  return <Animated.View style={[styles.onlineDot, { opacity }]} accessibilityElementsHidden />;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   HEADER COMPONENT — Two-Row Architecture (Part 3 § 1 Correction)
-   Row 1: CROWD wordmark (left) · Notifications + Avatar (right)
-   Row 2: City Pill · Sector Pill
-   Total sticky height: 100px (56px + 44px, excluding safe-area-top)
+   HEADER — Two-Row Architecture
    ───────────────────────────────────────────────────────────────────────── */
 interface HeaderProps {
-  city: City;
-  sector: Sector;
-  onCityPress: () => void;
-  onSectorPress: () => void;
-  onNotificationsPress: () => void;
-  onProfilePress: () => void;
-  paddingTop: number;
-  notificationCount?: number;
+  city: City; sector: Sector;
+  onCityPress: () => void; onSectorPress: () => void;
+  onNotificationsPress: () => void; onProfilePress: () => void;
+  paddingTop: number; notificationCount?: number;
 }
 
-function HomeHeader({
-  city,
-  sector,
-  onCityPress,
-  onSectorPress,
-  onNotificationsPress,
-  onProfilePress,
-  paddingTop,
-  notificationCount = 0,
-}: HeaderProps) {
+function HomeHeader({ city, sector, onCityPress, onSectorPress, onNotificationsPress, onProfilePress, paddingTop, notificationCount = 0 }: HeaderProps) {
   return (
     <View style={[styles.header, { paddingTop }]} testID="home-header">
-
-      {/* ── ROW 1 — Brand Row (56px H) ── */}
-      {/* CROWD wordmark left · Notifications + Avatar right */}
+      {/* ROW 1 — Brand Row */}
       <View style={styles.headerRow1}>
-
-        {/* CROWD Wordmark — LAW 15 · left edge · gold-800 · pure typography */}
         <Text
           style={styles.crownWordmark}
           accessibilityRole="header"
           accessibilityLabel="CROWD WORLD"
-          importantForAccessibility="yes"
           testID="home-header-brand-logo"
         >
           CROWD
         </Text>
 
-        {/* Right actions: Notifications + Profile Avatar */}
         <View style={styles.headerRightActions}>
-
-          {/* Notifications Bell */}
           <TouchableOpacity
             style={styles.headerIconBtn}
             onPress={onNotificationsPress}
             activeOpacity={0.75}
             accessibilityRole="button"
-            accessibilityLabel={
-              notificationCount > 0
-                ? `Notifications · ${notificationCount} unread`
-                : 'Notifications'
-            }
+            accessibilityLabel={notificationCount > 0 ? `Notifications · ${notificationCount} unread` : 'Notifications'}
             testID="home-header-notifications"
           >
             <Feather name="bell" size={22} color={TOKEN.fgPrimary} />
             {notificationCount > 0 && (
               <View style={styles.notifBadge}>
-                <Text style={styles.notifBadgeText}>
-                  {notificationCount > 9 ? '9+' : notificationCount}
-                </Text>
+                <Text style={styles.notifBadgeText}>{notificationCount > 9 ? '9+' : notificationCount}</Text>
               </View>
             )}
           </TouchableOpacity>
 
-          {/* Profile Avatar — Rule 03: THIS is the sole valid location */}
           <TouchableOpacity
             style={styles.headerAvatarBtn}
             onPress={onProfilePress}
@@ -395,47 +321,29 @@ function HomeHeader({
               <Text style={styles.headerAvatarText}>A</Text>
             </View>
           </TouchableOpacity>
-
         </View>
       </View>
 
-      {/* ── ROW 2 — Location Row (44px H) ── */}
-      {/* City Pill + Sector Pill */}
+      {/* ROW 2 — Location Row */}
       <View style={styles.headerRow2}>
-
-        {/* City Picker Pill */}
         <TouchableOpacity
-          style={styles.cityPill}
-          onPress={onCityPress}
-          activeOpacity={0.8}
-          accessibilityRole="button"
-          accessibilityLabel={`Change city. Currently ${city.name}.`}
-          accessibilityHint="Double tap to open city picker"
+          style={styles.cityPill} onPress={onCityPress} activeOpacity={0.8}
+          accessibilityRole="button" accessibilityLabel={`Change city. Currently ${city.name}.`}
           testID="home-header-city-pill"
         >
           <Text style={styles.pillIcon}>📍</Text>
-          <Text style={styles.pillText} numberOfLines={1}>
-            {city.name}
-          </Text>
+          <Text style={styles.pillText} numberOfLines={1}>{city.name}</Text>
           <Feather name="chevron-down" size={12} color={TOKEN.fgSecondary} />
         </TouchableOpacity>
 
-        {/* Sector Picker Pill */}
         <TouchableOpacity
-          style={styles.sectorPill}
-          onPress={onSectorPress}
-          activeOpacity={0.8}
-          accessibilityRole="button"
-          accessibilityLabel={`Change sector. Currently ${sector.name}, ${city.name}.`}
-          accessibilityHint="Double tap to open sector picker"
+          style={styles.sectorPill} onPress={onSectorPress} activeOpacity={0.8}
+          accessibilityRole="button" accessibilityLabel={`Change sector. Currently ${sector.name}, ${city.name}.`}
           testID="home-header-sector-pill"
         >
-          <Text style={styles.pillText} numberOfLines={1}>
-            {sector.name}
-          </Text>
+          <Text style={styles.pillText} numberOfLines={1}>{sector.name}</Text>
           <Feather name="chevron-down" size={12} color={TOKEN.fgSecondary} />
         </TouchableOpacity>
-
       </View>
     </View>
   );
@@ -444,54 +352,25 @@ function HomeHeader({
 /* ─────────────────────────────────────────────────────────────────────────
    ONLINE COUNT STRIP
    ───────────────────────────────────────────────────────────────────────── */
-interface OnlineStripProps {
-  count: number;
-  heatScore: number;
-  showTrustAnchor: boolean;
-}
-
-function OnlineCountStrip({ count, heatScore, showTrustAnchor }: OnlineStripProps) {
-  const displayCount = count >= 10000
-    ? `${(count / 1000).toFixed(1)}K`
-    : count.toLocaleString('en-IN');
-
+function OnlineCountStrip({ count, heatScore, showTrustAnchor }: { count: number; heatScore: number; showTrustAnchor: boolean }) {
+  const displayCount = count >= 10000 ? `${(count / 1000).toFixed(1)}K` : count.toLocaleString('en-IN');
   return (
     <View style={styles.onlineStrip} testID="home-online-strip">
-      {/* Online member count */}
       <View style={styles.onlineLeft}>
         <OnlinePulseDot />
-        <Text
-          style={styles.onlineText}
-          accessibilityLabel={`${displayCount} members online in this sector`}
-          accessibilityLiveRegion="polite"
-          testID="home-online-count"
-        >
+        <Text style={styles.onlineText} accessibilityLabel={`${displayCount} members online`} accessibilityLiveRegion="polite" testID="home-online-count">
           {displayCount} yahan online
         </Text>
       </View>
-
       <View style={styles.onlineRight}>
-        {/* Trust anchor — first session of day only */}
         {showTrustAnchor && (
           <View style={styles.trustChip} testID="home-trust-anchor">
-            <Text
-              style={styles.trustChipText}
-              accessibilityLabel="Trusted by over 1 lakh users"
-            >
-              👥 1 Lakh+
-            </Text>
+            <Text style={styles.trustChipText} accessibilityLabel="Trusted by over 1 lakh users">👥 1 Lakh+</Text>
           </View>
         )}
-
-        {/* Heat Score pill — visible when >= 30 */}
         {heatScore >= 30 && (
           <View style={styles.heatPill} testID="home-heat-score">
-            <Text
-              style={styles.heatPillText}
-              accessibilityLabel={`Heat Score ${heatScore} out of 100`}
-            >
-              🔥 {heatScore}
-            </Text>
+            <Text style={styles.heatPillText} accessibilityLabel={`Heat Score ${heatScore}`}>🔥 {heatScore}</Text>
           </View>
         )}
       </View>
@@ -504,27 +383,14 @@ function OnlineCountStrip({ count, heatScore, showTrustAnchor }: OnlineStripProp
    ───────────────────────────────────────────────────────────────────────── */
 function OfflineBanner({ visible }: { visible: boolean }) {
   const translateY = useRef(new Animated.Value(-32)).current;
-
   useEffect(() => {
-    Animated.timing(translateY, {
-      toValue: visible ? 0 : -32,
-      duration: visible ? 240 : 200,
-      useNativeDriver: true,
-    }).start();
+    Animated.timing(translateY, { toValue: visible ? 0 : -32, duration: visible ? 240 : 200, useNativeDriver: true }).start();
   }, [visible]);
-
   if (!visible) return null;
-
   return (
-    <Animated.View
-      style={[styles.offlineBanner, { transform: [{ translateY }] }]}
-      accessibilityLiveRegion="polite"
-      testID="home-offline-banner"
-    >
+    <Animated.View style={[styles.offlineBanner, { transform: [{ translateY }] }]} accessibilityLiveRegion="polite" testID="home-offline-banner">
       <Text style={styles.offlineIcon}>📶</Text>
-      <Text style={styles.offlineText} numberOfLines={1}>
-        Offline · saved messages dikha rahe hain
-      </Text>
+      <Text style={styles.offlineText} numberOfLines={1}>Offline · saved messages dikha rahe hain</Text>
     </Animated.View>
   );
 }
@@ -532,42 +398,27 @@ function OfflineBanner({ visible }: { visible: boolean }) {
 /* ─────────────────────────────────────────────────────────────────────────
    MESSAGE BUBBLE VARIANTS
    ───────────────────────────────────────────────────────────────────────── */
-
-/** Status tick for own messages */
 function StatusTick({ status }: { status?: MsgStatus }) {
   if (!status) return null;
   if (status === 'sending') return <Text style={styles.tickText}>⏳</Text>;
-  if (status === 'failed')
-    return <Text style={[styles.tickText, { color: TOKEN.errorRed }]}>⚠️</Text>;
-  if (status === 'read')
-    return (
-      <Text style={[styles.tickText, styles.tickRead]}>✓✓</Text>
-    );
+  if (status === 'failed')  return <Text style={[styles.tickText, { color: TOKEN.errorRed }]}>⚠️</Text>;
+  if (status === 'read')    return <Text style={[styles.tickText, styles.tickRead]}>✓✓</Text>;
   return <Text style={styles.tickText}>✓</Text>;
 }
 
-/** Reactions row */
 function ReactionsRow({ reactions }: { reactions: Reaction[] }) {
   if (!reactions.length) return null;
   return (
     <View style={styles.reactRow}>
       {reactions.map((r, i) => (
-        <TouchableOpacity
-          key={i}
-          style={styles.reactPill}
-          activeOpacity={0.75}
-          accessibilityLabel={`${r.count} ${r.emoji} reactions`}
-        >
-          <Text style={styles.reactText}>
-            {r.emoji} {r.count}
-          </Text>
+        <TouchableOpacity key={i} style={styles.reactPill} activeOpacity={0.75} accessibilityLabel={`${r.count} ${r.emoji} reactions`}>
+          <Text style={styles.reactText}>{r.emoji} {r.count}</Text>
         </TouchableOpacity>
       ))}
     </View>
   );
 }
 
-/** OWN MESSAGE — right-aligned golden bubble */
 function OwnBubble({ msg }: { msg: ChatMsg }) {
   return (
     <View style={styles.ownWrap}>
@@ -583,91 +434,49 @@ function OwnBubble({ msg }: { msg: ChatMsg }) {
   );
 }
 
-/** OTHER / AI MESSAGE — left-aligned cream bubble with avatar */
 function OtherBubble({ msg }: { msg: ChatMsg }) {
   const router = useRouter();
   const isAI = msg.variant === 'ai';
   const initials = (msg.displayName ?? 'U').charAt(0).toUpperCase();
-
   return (
     <View style={styles.otherWrap}>
-      {/* Avatar */}
       <TouchableOpacity
         style={[styles.avatar, isAI && styles.avatarAI]}
         activeOpacity={0.8}
         onPress={() => !isAI && router.push(`/user/${msg.id}` as never)}
-        accessibilityLabel={
-          isAI ? `AI companion ${msg.displayName}` : `View ${msg.displayName}'s profile`
-        }
+        accessibilityLabel={isAI ? `AI companion ${msg.displayName}` : `View ${msg.displayName}'s profile`}
       >
         <Text style={styles.avatarText}>{initials}</Text>
       </TouchableOpacity>
 
       <View style={styles.otherContent}>
-        {/* Name row */}
         <View style={styles.otherNameRow}>
           <Text style={styles.otherName}>{msg.displayName}</Text>
-          {msg.colonyTag && (
-            <View style={styles.colonyTag}>
-              <Text style={styles.colonyTagText}>{msg.colonyTag}</Text>
-            </View>
-          )}
-          {msg.isVerified && (
-            <View style={styles.verifiedBadge}>
-              <Text style={styles.verifiedText}>✔</Text>
-            </View>
-          )}
-          {msg.isFounder && (
-            <View style={styles.founderBadge}>
-              <Text style={styles.founderText}>FOUNDER</Text>
-            </View>
-          )}
-          {msg.isMayor && (
-            <View style={styles.mayorInlineBadge}>
-              <Text style={styles.mayorInlineText}>👑 Mayor</Text>
-            </View>
-          )}
-          {isAI && (
-            <View style={styles.aiBadge}>
-              <Text style={styles.aiBadgeText}>🤖 AI</Text>
-            </View>
-          )}
+          {msg.colonyTag   && <View style={styles.colonyTag}><Text style={styles.colonyTagText}>{msg.colonyTag}</Text></View>}
+          {msg.isVerified  && <View style={styles.verifiedBadge}><Text style={styles.verifiedText}>✔</Text></View>}
+          {msg.isFounder   && <View style={styles.founderBadge}><Text style={styles.founderText}>FOUNDER</Text></View>}
+          {msg.isMayor     && <View style={styles.mayorInlineBadge}><Text style={styles.mayorInlineText}>👑 Mayor</Text></View>}
+          {isAI            && <View style={styles.aiBadge}><Text style={styles.aiBadgeText}>🤖 AI</Text></View>}
         </View>
-
-        {/* Bubble */}
         <View style={[styles.otherBubble, isAI && styles.otherBubbleAI]}>
           <Text style={styles.otherText}>{msg.text}</Text>
           <Text style={styles.otherTime}>{msg.time}</Text>
         </View>
-
         {msg.reactions && <ReactionsRow reactions={msg.reactions} />}
       </View>
     </View>
   );
 }
 
-/** MAYOR ANNOUNCEMENT — centered golden card */
 function MayorBubble({ msg }: { msg: ChatMsg }) {
   const [expanded, setExpanded] = useState(false);
   return (
     <TouchableWithoutFeedback onPress={() => setExpanded(!expanded)}>
-      <View
-        style={styles.mayorWrap}
-        accessibilityRole="text"
-        accessibilityLabel={`Pinned Mayor announcement from ${msg.mayorName}: ${msg.text}`}
-      >
-        {/* Crown icon overlapping top edge */}
+      <View style={styles.mayorWrap} accessibilityRole="text" accessibilityLabel={`Mayor announcement: ${msg.text}`}>
         <Text style={styles.mayorCrown}>👑</Text>
         <View style={styles.mayorCard}>
-          <Text style={styles.mayorCardHeader}>
-            📌 {msg.mayorName} · Mayor
-          </Text>
-          <Text
-            style={styles.mayorCardText}
-            numberOfLines={expanded ? undefined : 4}
-          >
-            {msg.text}
-          </Text>
+          <Text style={styles.mayorCardHeader}>📌 {msg.mayorName} · Mayor</Text>
+          <Text style={styles.mayorCardText} numberOfLines={expanded ? undefined : 4}>{msg.text}</Text>
           <Text style={styles.mayorCardTime}>{msg.time}</Text>
         </View>
       </View>
@@ -675,90 +484,59 @@ function MayorBubble({ msg }: { msg: ChatMsg }) {
   );
 }
 
-/** SYSTEM MESSAGE — centered, no bubble */
 function SystemMsg({ msg }: { msg: ChatMsg }) {
   return (
     <View style={styles.systemWrap}>
-      <Text
-        style={styles.systemText}
-        accessibilityRole="text"
-        accessibilityLabel={`System: ${msg.text}`}
-      >
-        {msg.text}
-      </Text>
+      <Text style={styles.systemText} accessibilityRole="text" accessibilityLabel={`System: ${msg.text}`}>{msg.text}</Text>
     </View>
   );
 }
 
-/** DATE SEPARATOR */
 function DateSeparator({ msg }: { msg: ChatMsg }) {
   return (
     <View style={styles.dateSepWrap}>
       <View style={styles.dateSepChip}>
-        <Text
-          style={styles.dateSepText}
-          accessibilityRole="header"
-          accessibilityLabel={`Messages from ${msg.text}`}
-        >
-          {msg.text}
-        </Text>
+        <Text style={styles.dateSepText} accessibilityRole="header" accessibilityLabel={`Messages from ${msg.text}`}>{msg.text}</Text>
       </View>
     </View>
   );
 }
 
-/** Master bubble switcher */
 function MessageItem({ item }: { item: ChatMsg }) {
   switch (item.variant) {
-    case 'own':
-      return <OwnBubble msg={item} />;
+    case 'own':           return <OwnBubble msg={item} />;
     case 'other':
-    case 'ai':
-      return <OtherBubble msg={item} />;
-    case 'mayor':
-      return <MayorBubble msg={item} />;
-    case 'system':
-      return <SystemMsg msg={item} />;
-    case 'date_separator':
-      return <DateSeparator msg={item} />;
-    default:
-      return null;
+    case 'ai':            return <OtherBubble msg={item} />;
+    case 'mayor':         return <MayorBubble msg={item} />;
+    case 'system':        return <SystemMsg msg={item} />;
+    case 'date_separator':return <DateSeparator msg={item} />;
+    default:              return null;
   }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   GLASS ISLAND NAV BAR  (LAW 13)
+   GLASS ISLAND NAV BAR (LAW 13)
    ───────────────────────────────────────────────────────────────────────── */
-interface GlassIslandProps {
-  activeTab: 'home' | 'discover' | 'wallet' | 'profile';
-  onTabPress: (tab: 'home' | 'discover' | 'wallet' | 'profile') => void;
-  translateY: Animated.Value;
-  bottomInset: number;
-}
-
 const GLASS_TABS: Array<{
   id: 'home' | 'discover' | 'wallet' | 'profile';
   Icon: React.ComponentType<{ size: number; color: string; strokeWidth: number }>;
   label: string;
 }> = [
-  { id: 'home',     Icon: HomeIcon,    label: 'Home' },
-  { id: 'discover', Icon: Compass,     label: 'Discover' },
-  { id: 'wallet',   Icon: CreditCard,  label: 'Wallet' },
-  { id: 'profile',  Icon: User,        label: 'Profile' },
+  { id: 'home',     Icon: HomeIcon,   label: 'Home' },
+  { id: 'discover', Icon: Compass,    label: 'Discover' },
+  { id: 'wallet',   Icon: CreditCard, label: 'Wallet' },
+  { id: 'profile',  Icon: User,       label: 'Profile' },
 ];
 
-function GlassIsland({
-  activeTab,
-  onTabPress,
-  translateY,
-  bottomInset,
-}: GlassIslandProps) {
+function GlassIsland({ activeTab, onTabPress, translateY, bottomInset }: {
+  activeTab: 'home' | 'discover' | 'wallet' | 'profile';
+  onTabPress: (tab: 'home' | 'discover' | 'wallet' | 'profile') => void;
+  translateY: Animated.Value;
+  bottomInset: number;
+}) {
   return (
     <Animated.View
-      style={[
-        styles.glassIslandWrapper,
-        { bottom: bottomInset + 16, transform: [{ translateY }] },
-      ]}
+      style={[styles.glassIslandWrapper, { bottom: bottomInset + 16, transform: [{ translateY }] }]}
       accessibilityRole="tablist"
       testID="home-glass-island"
     >
@@ -773,21 +551,10 @@ function GlassIsland({
               activeOpacity={0.75}
               accessibilityRole="tab"
               accessibilityState={{ selected: isActive }}
-              accessibilityLabel={
-                isActive
-                  ? `${tab.label}, currently selected`
-                  : `${tab.label}, double tap to switch`
-              }
+              accessibilityLabel={isActive ? `${tab.label}, currently selected` : `${tab.label}`}
             >
-              <tab.Icon
-                size={22}
-                strokeWidth={1.5}
-                color={
-                  isActive
-                    ? TOKEN.glassIslandActive
-                    : TOKEN.glassIslandInactive
-                }
-              />
+              {isActive && <View style={styles.glassActiveGlow} />}
+              <tab.Icon size={22} strokeWidth={1.5} color={isActive ? TOKEN.glassIslandActive : TOKEN.glassIslandInactive} />
               {isActive && <View style={styles.glassActiveDot} />}
             </TouchableOpacity>
           );
@@ -798,57 +565,32 @@ function GlassIsland({
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   CITY / SECTOR PICKER BOTTOM SHEET  (lightweight inline)
+   CITY / SECTOR PICKER SHEET
    ───────────────────────────────────────────────────────────────────────── */
-interface PickerSheetProps {
+function PickerSheet({ type, items, selectedId, onSelect, onClose }: {
   type: 'city' | 'sector';
   items: Array<City | Sector>;
   selectedId: string;
   onSelect: (id: string) => void;
   onClose: () => void;
-}
-
-function PickerSheet({
-  type,
-  items,
-  selectedId,
-  onSelect,
-  onClose,
-}: PickerSheetProps) {
+}) {
   const title = type === 'city' ? 'Apna Shehar Chuno' : 'Apna Sector Chuno';
-
   return (
     <TouchableWithoutFeedback onPress={onClose}>
       <View style={styles.sheetOverlay}>
         <TouchableWithoutFeedback>
           <View style={styles.sheetContainer}>
-            {/* Handle */}
             <View style={styles.sheetHandle} />
             <Text style={styles.sheetTitle}>{title}</Text>
             {items.map((item) => (
               <TouchableOpacity
                 key={item.id}
-                style={[
-                  styles.sheetRow,
-                  selectedId === item.id && styles.sheetRowActive,
-                ]}
-                onPress={() => {
-                  onSelect(item.id);
-                  onClose();
-                }}
+                style={[styles.sheetRow, selectedId === item.id && styles.sheetRowActive]}
+                onPress={() => { onSelect(item.id); onClose(); }}
                 activeOpacity={0.7}
               >
-                <Text
-                  style={[
-                    styles.sheetRowText,
-                    selectedId === item.id && styles.sheetRowTextActive,
-                  ]}
-                >
-                  {item.name}
-                </Text>
-                {selectedId === item.id && (
-                  <Check size={16} color={TOKEN.fgBrand} strokeWidth={1.5} />
-                )}
+                <Text style={[styles.sheetRowText, selectedId === item.id && styles.sheetRowTextActive]}>{item.name}</Text>
+                {selectedId === item.id && <Check size={16} color={TOKEN.fgBrand} strokeWidth={1.5} />}
               </TouchableOpacity>
             ))}
           </View>
@@ -867,74 +609,55 @@ export default function HomeScreen() {
   const { user } = useAuth();
 
   /* ── State ── */
-  const [selectedCity, setSelectedCity] = useState<City>(CITIES[0]);
+  const [selectedCity, setSelectedCity]     = useState<City>(CITIES[0]);
   const [selectedSector, setSelectedSector] = useState<Sector>(SECTORS[0]);
-  const [msgs, setMsgs] = useState<ChatMsg[]>(INITIAL_MSGS);
-  const [inputText, setInputText] = useState('');
-  const [isOffline, setIsOffline] = useState(false);
-  const [onlineCount] = useState(234);
-  const [heatScore] = useState(67);
+  const [msgs, setMsgs]                     = useState<ChatMsg[]>(INITIAL_MSGS);
+  const [inputText, setInputText]           = useState('');
+  const [isOffline, setIsOffline]           = useState(false);
+  const [onlineCount]                       = useState(234);
+  const [heatScore]                         = useState(67);
   const [showTrustAnchor, setShowTrustAnchor] = useState(true);
-  const [pickerOpen, setPickerOpen] = useState<'city' | 'sector' | null>(null);
-  const [activeTab, setActiveTab] = useState<
-    'home' | 'discover' | 'wallet' | 'profile'
-  >('home');
-  const [newMsgCount, setNewMsgCount] = useState(0);
-  const [isScrolledUp, setIsScrolledUp] = useState(false);
+  const [pickerOpen, setPickerOpen]         = useState<'city' | 'sector' | null>(null);
+  const [activeTab, setActiveTab]           = useState<'home' | 'discover' | 'wallet' | 'profile'>('home');
+  const [newMsgCount, setNewMsgCount]       = useState(0);
+  const [isScrolledUp, setIsScrolledUp]     = useState(false);
   const [isSendDisabled, setIsSendDisabled] = useState(true);
-  const [notificationCount] = useState(3); // mock · replace with Firestore listener
-  const [isLoading, setIsLoading] = useState(true);      // skeleton until first load
-  const [isRefreshing, setIsRefreshing] = useState(false); // pull-to-refresh
+  const [notificationCount]                 = useState(3);
+
+  /**
+   * FIX 2: isLoading starts FALSE.
+   * INITIAL_MSGS is synchronous mock data — no async fetch needed.
+   * The original `isLoading = true` with a 1200ms timeout was blocking the
+   * FlatList render for no reason, causing a blank white screen for 1.2s.
+   * When you wire up Firestore, set this to `true` and call `setIsLoading(false)`
+   * inside your `onSnapshot` callback's first emission.
+   */
+  const [isLoading, setIsLoading]           = useState(false);
+  const [isRefreshing, setIsRefreshing]     = useState(false);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
   /* ── Refs ── */
-  const flatListRef = useRef<FlatList>(null);
-  const glassTranslateY = useRef(new Animated.Value(0)).current;
-  const lastScrollY = useRef(0);
+  const flatListRef      = useRef<FlatList>(null);
+  const glassTranslateY  = useRef(new Animated.Value(0)).current;
+  const lastScrollY      = useRef(0);
 
-  /* ── Trust anchor auto-hide after 60s ── */
+  /* ── Trust anchor auto-hide ── */
   useEffect(() => {
     if (!showTrustAnchor) return;
     const t = setTimeout(() => setShowTrustAnchor(false), 60000);
     return () => clearTimeout(t);
   }, [showTrustAnchor]);
 
-  /* ── Initial data load — dismiss skeleton after first Firestore fetch ── */
-  /* Replace this timeout with your real Firestore listener's onSuccess callback */
-  useEffect(() => {
-    const t = setTimeout(() => setIsLoading(false), 1200);
-    return () => clearTimeout(t);
-  }, []);
-
-  /* ── Pull-to-refresh handler ── */
-  const handleRefresh = useCallback(async () => {
-    setIsRefreshing(true);
-    // Replace with real Firestore re-fetch:
-    //   await fetchLatestMessages(selectedSector.id);
-    await new Promise<void>((r) => setTimeout(r, 1000));
-    setIsRefreshing(false);
-  }, []);
-
   /* ── Glass Island: hide on keyboard open ── */
   useEffect(() => {
     const hide = () => {
       setIsKeyboardVisible(true);
-      Animated.timing(glassTranslateY, {
-        toValue: 120,
-        duration: 250,
-        useNativeDriver: true,
-      }).start();
+      Animated.timing(glassTranslateY, { toValue: 120, duration: 250, useNativeDriver: true }).start();
     };
     const show = () => {
       setIsKeyboardVisible(false);
-      Animated.timing(glassTranslateY, {
-        toValue: 0,
-        duration: 250,
-        useNativeDriver: true,
-      }).start();
+      Animated.timing(glassTranslateY, { toValue: 0, duration: 250, useNativeDriver: true }).start();
     };
-    // keyboardWillShow/Hide = iOS only (smooth)
-    // keyboardDidShow/Hide  = Android + Web fallback
     const subs = [
       Keyboard.addListener('keyboardWillShow', hide),
       Keyboard.addListener('keyboardDidShow',  hide),
@@ -957,32 +680,14 @@ export default function HomeScreen() {
   const sendMessage = useCallback(() => {
     const text = inputText.trim();
     if (!text) return;
-
-    const newMsg: ChatMsg = {
-      id: Date.now().toString(),
-      variant: 'own',
-      text,
-      time: nowStr(),
-      status: 'sending',
-    };
-
+    const newMsg: ChatMsg = { id: Date.now().toString(), variant: 'own', text, time: nowStr(), status: 'sending' };
     setMsgs((prev) => [...prev, newMsg]);
     setInputText('');
     setIsSendDisabled(true);
-
-    // Optimistic status update
     setTimeout(() => {
-      setMsgs((prev) =>
-        prev.map((m) =>
-          m.id === newMsg.id ? { ...m, status: 'sent' as MsgStatus } : m
-        )
-      );
+      setMsgs((prev) => prev.map((m) => m.id === newMsg.id ? { ...m, status: 'sent' as MsgStatus } : m));
     }, 800);
-
-    // Scroll to bottom
-    setTimeout(() => {
-      flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
-    }, 80);
+    setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }), 80);
   }, [inputText, nowStr]);
 
   const handleInputChange = useCallback((text: string) => {
@@ -990,161 +695,150 @@ export default function HomeScreen() {
     setIsSendDisabled(text.trim().length === 0);
   }, []);
 
-  /* ── Scroll handler for Glass Island hide/show ── */
-  const handleScroll = useCallback(
-    (event: any) => {
-      const y = event.nativeEvent.contentOffset.y;
-      const delta = y - lastScrollY.current;
-      lastScrollY.current = y;
+  /* ── Scroll handler ── */
+  const handleScroll = useCallback((event: any) => {
+    const y = event.nativeEvent.contentOffset.y;
+    lastScrollY.current = y;
+    const scrolledUp = y > 100;
+    if (scrolledUp !== isScrolledUp) {
+      setIsScrolledUp(scrolledUp);
+      Animated.spring(glassTranslateY, { toValue: scrolledUp ? 80 : 0, stiffness: 180, damping: 22, useNativeDriver: true }).start();
+    }
+    if (y > 50 && showTrustAnchor) setShowTrustAnchor(false);
+  }, [isScrolledUp, showTrustAnchor]);
 
-      // In inverted FlatList, scrolling "up" (toward older msgs) means y increases
-      const scrolledUp = y > 100;
-      if (scrolledUp !== isScrolledUp) {
-        setIsScrolledUp(scrolledUp);
-        Animated.spring(glassTranslateY, {
-          toValue: scrolledUp ? 80 : 0,
-          stiffness: 180,
-          damping: 20,
-          useNativeDriver: true,
-        }).start();
-      }
-
-      // Hide trust anchor on first scroll
-      if (y > 50 && showTrustAnchor) {
-        setShowTrustAnchor(false);
-      }
-    },
-    [isScrolledUp, showTrustAnchor]
-  );
+  /* ── Pull-to-refresh ── */
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    await new Promise<void>((r) => setTimeout(r, 1000));
+    setIsRefreshing(false);
+  }, []);
 
   /* ── Tab navigation ── */
-  const handleTabPress = useCallback(
-    (tab: 'home' | 'discover' | 'wallet' | 'profile') => {
-      if (tab === 'home') {
-        flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
-        return;
-      }
-      setActiveTab(tab);
-      const routes: Record<string, string> = {
-        discover: '/(tabs)/discover',
-        wallet: '/credits/index',
-        profile: '/(tabs)/profile',
-      };
-      if (routes[tab]) router.push(routes[tab] as never);
-    },
-    [router]
-  );
+  const handleTabPress = useCallback((tab: 'home' | 'discover' | 'wallet' | 'profile') => {
+    if (tab === 'home') { flatListRef.current?.scrollToOffset({ offset: 0, animated: true }); return; }
+    setActiveTab(tab);
+    const routes: Record<string, string> = { discover: '/(tabs)/discover', wallet: '/credits/index', profile: '/(tabs)/profile' };
+    if (routes[tab]) router.push(routes[tab] as never);
+  }, [router]);
 
-  /* ── Glass Island bottom position ── */
-  // Glass Island sits flush below input area
-  // Input area H = 64px + bottom inset
-  // Glass Island is positioned 16px above safe-area-bottom
-  const glassBottom = insets.bottom + 16;
+  /* ── Bottom spacing maths ──
+   *
+   * Glass Island:
+   *   Height = 56px | Bottom = insets.bottom + 16px
+   *   → Visual top of glass island = insets.bottom + 16 + 56 = insets.bottom + 72
+   *
+   * Input area paddingBottom (when keyboard hidden):
+   *   Needs to push content above glass island top + 4px gap
+   *   = insets.bottom + 72 + 4 = insets.bottom + 76
+   *
+   * Input area paddingBottom (when keyboard visible):
+   *   Glass island is off-screen → only safe area needed
+   *   = insets.bottom + 8
+   */
+  const inputPaddingBottom = isKeyboardVisible
+    ? insets.bottom + 8
+    : insets.bottom + 76;
 
-  // Chat list bottom padding: input area + glass island + gap
-  // When keyboard is open: Glass Island is hidden → no need for its 72px space
-  const chatPaddingBottom = isKeyboardVisible
-    ? 64 + 12
-    : 64 + insets.bottom + 56 + 16 + 8;
+  /**
+   * FIX 4: KAV behavior.
+   *
+   * Android — `undefined` (no behavior). The Android system handles window
+   * resizing for the keyboard natively (WindowSoftInputMode). Using "height"
+   * caused the KAV to shrink by the full keyboard height while the inputArea
+   * still carried its large paddingBottom, collapsing the FlatList to ~0px.
+   *
+   * iOS — `"padding"` adds bottom padding to the KAV equal to the keyboard
+   * height, pushing the whole chat + input up. keyboardVerticalOffset = total
+   * height of non-KAV content above the KAV (insets.top + header 100px + strip 32px).
+   */
+  const kavBehavior = Platform.OS === 'ios' ? 'padding' : undefined;
+  const kavOffset   = insets.top + 132; // 56 (row1) + 44 (row2) + 32 (online strip)
 
-  /* ── Inverted data ── */
+  /* ── Inverted data (newest first) ── */
   const invertedMsgs = useMemo(() => [...msgs].reverse(), [msgs]);
 
-  /* ── Render item (memoized) ── */
-  const renderItem = useCallback(
-    ({ item }: { item: ChatMsg }) => <MessageItem item={item} />,
-    []
-  );
-
-  const keyExtractor = useCallback((item: ChatMsg) => item.id, []);
-
-  const getItemLayout = useCallback(
-    (_: any, index: number) => ({
-      length: 80,
-      offset: 80 * index,
-      index,
-    }),
-    []
-  );
-
-  /* ── Input area bottom padding ── */
-  // When keyboard is open: Glass Island is off-screen → only need safe-area + small gap
-  // When keyboard is closed: need space for Glass Island (56px) + 16px gap above it
-  const inputPaddingBottom = isKeyboardVisible
-    ? insets.bottom + 12
-    : insets.bottom + 56 + 16 + 4;
+  const renderItem    = useCallback(({ item }: { item: ChatMsg }) => <MessageItem item={item} />, []);
+  const keyExtractor  = useCallback((item: ChatMsg) => item.id, []);
 
   return (
     <View style={styles.screen}>
       <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
 
-      {/* ── HEADER — Two-Row (Part 3 § 1) ── */}
+      {/* HEADER */}
       <HomeHeader
-        city={selectedCity}
-        sector={selectedSector}
-        onCityPress={() => setPickerOpen('city')}
-        onSectorPress={() => setPickerOpen('sector')}
+        city={selectedCity} sector={selectedSector}
+        onCityPress={() => setPickerOpen('city')} onSectorPress={() => setPickerOpen('sector')}
         onNotificationsPress={() => router.push('/notifications/index' as never)}
         onProfilePress={() => router.push('/(tabs)/profile' as never)}
-        paddingTop={insets.top}
-        notificationCount={notificationCount}
+        paddingTop={insets.top} notificationCount={notificationCount}
       />
 
-      {/* ── OFFLINE BANNER ── */}
+      {/* OFFLINE BANNER */}
       <OfflineBanner visible={isOffline} />
 
-      {/* ── ONLINE COUNT STRIP ── */}
-      <OnlineCountStrip
-        count={onlineCount}
-        heatScore={heatScore}
-        showTrustAnchor={showTrustAnchor}
-      />
+      {/* ONLINE COUNT STRIP */}
+      <OnlineCountStrip count={onlineCount} heatScore={heatScore} showTrustAnchor={showTrustAnchor} />
 
-      {/* ── KEYBOARD AVOIDING WRAPPER (only wraps chat + input) ── */}
+      {/* ── KEYBOARD AVOIDING WRAPPER ── */}
       <KeyboardAvoidingView
         style={styles.chatInputWrapper}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={0}
+        behavior={kavBehavior}
+        keyboardVerticalOffset={kavBehavior ? kavOffset : undefined}
       >
-        {/* ── CHAT BODY ── */}
+        {/* CHAT BODY */}
         {isLoading ? (
-          /* Loading state: 8 premium skeleton bubbles while Firestore fetches */
           <View style={styles.chatList} testID="home-chat-skeleton">
             <SkeletonBubble />
           </View>
         ) : (
-        <FlatList
-          ref={flatListRef}
-          data={invertedMsgs}
-          renderItem={renderItem}
-          keyExtractor={keyExtractor}
-          inverted
-          style={styles.chatList}
-          contentContainerStyle={[
-            styles.chatContent,
-            { paddingTop: chatPaddingBottom },
-          ]}
-          showsVerticalScrollIndicator={false}
-          initialNumToRender={12}
-          maxToRenderPerBatch={8}
-          windowSize={10}
-          removeClippedSubviews={Platform.OS === 'android'}
-          onEndReachedThreshold={0.6}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="interactive"
-          onScroll={handleScroll}
-          scrollEventThrottle={16}
-          maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
-          refreshControl={
-            <PullIndicator
-              refreshing={isRefreshing}
-              onRefresh={handleRefresh}
-            />
-          }
-        />
+          <FlatList
+            ref={flatListRef}
+            data={invertedMsgs}
+            renderItem={renderItem}
+            keyExtractor={keyExtractor}
+            inverted
+            style={styles.chatList}
+            /**
+             * FIX 1: The ROOT CAUSE of the blank chat.
+             *
+             * contentContainerStyle previously had `paddingTop: chatPaddingBottom`
+             * (~178px). For an inverted FlatList, `paddingTop` in the content container
+             * maps to the VISUAL BOTTOM — the area the user sees first on render.
+             * The 178px of empty space appeared at the bottom, pushing all messages
+             * above the visible area. Users saw only a cream-white void.
+             *
+             * Fix: use paddingTop: 8 (tiny gap between newest message and list edge)
+             * and paddingBottom: 8 (tiny gap at visual top for oldest messages).
+             * The input area is a sibling element — it handles its own spacing.
+             */
+            contentContainerStyle={styles.chatContent}
+            showsVerticalScrollIndicator={false}
+            initialNumToRender={12}
+            maxToRenderPerBatch={8}
+            windowSize={10}
+            /**
+             * FIX 3: getItemLayout REMOVED.
+             * It returned a hardcoded `length: 80` for all items. Message bubbles
+             * range from ~44px (short system msg) to ~200px (mayor card with reactions).
+             * The mismatched lengths caused FlatList to miscalculate scroll offsets,
+             * rendering items at wrong positions and skipping off-screen items.
+             * Without getItemLayout, FlatList measures items accurately.
+             */
+            removeClippedSubviews={Platform.OS === 'android'}
+            onEndReachedThreshold={0.6}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
+            onScroll={handleScroll}
+            scrollEventThrottle={16}
+            maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+            refreshControl={
+              <PullIndicator refreshing={isRefreshing} onRefresh={handleRefresh} />
+            }
+          />
         )}
 
-        {/* ── SCROLL FAB — "New messages" pill (ScrollFAB replaces NewMsgChip) ── */}
+        {/* SCROLL FAB */}
         <ScrollFAB
           visible={isScrolledUp && newMsgCount > 0}
           label={newMsgCount > 0 ? `${newMsgCount} nayi messages` : 'New messages'}
@@ -1154,21 +848,10 @@ export default function HomeScreen() {
           }}
         />
 
-        {/* ── STICKY INPUT AREA ── */}
-        {/* Rule 04: static position · flush above Glass Island · z-935 */}
-        <View
-          style={[
-            styles.inputArea,
-            { paddingBottom: inputPaddingBottom },
-          ]}
-          testID="home-input-area"
-        >
-          {/* Input field */}
+        {/* STICKY INPUT AREA — Rule 04: flush above Glass Island */}
+        <View style={[styles.inputArea, { paddingBottom: inputPaddingBottom }]} testID="home-input-area">
           <TextInput
-            style={[
-              styles.inputField,
-              !isSendDisabled && styles.inputFieldActive,
-            ]}
+            style={[styles.inputField, !isSendDisabled && styles.inputFieldActive]}
             value={inputText}
             onChangeText={handleInputChange}
             placeholder={`${selectedSector.name} mein message likho...`}
@@ -1181,69 +864,38 @@ export default function HomeScreen() {
             autoCorrect
             accessible
             accessibilityLabel={`Type a message in ${selectedSector.name}`}
-            accessibilityRole="none"
             testID="home-input-field"
           />
 
-          {/* Send Button */}
           <TouchableOpacity
-            style={[
-              styles.sendBtn,
-              isSendDisabled && styles.sendBtnDisabled,
-            ]}
+            style={[styles.sendBtn, isSendDisabled && styles.sendBtnDisabled]}
             onPress={sendMessage}
             disabled={isSendDisabled}
-            hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
+            hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
             activeOpacity={0.8}
             accessibilityRole="button"
-            accessibilityLabel={
-              isSendDisabled
-                ? 'Send button. Type a message first.'
-                : 'Send message'
-            }
+            accessibilityLabel={isSendDisabled ? 'Send button. Type a message first.' : 'Send message'}
             accessibilityState={{ disabled: isSendDisabled }}
             testID="home-send-button"
           >
-            <SendIcon
-              size={18}
-              strokeWidth={1.5}
-              color={isSendDisabled ? TOKEN.fgSecondary : TOKEN.fgOnBrand}
-            />
+            <SendIcon size={18} strokeWidth={1.5} color={isSendDisabled ? TOKEN.fgTertiary : TOKEN.fgOnBrand} />
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
 
-      {/* ── GLASS ISLAND NAV (LAW 13) ── */}
-      {/* Rule 04: z-950 · flush below input · not overlapping */}
-      <GlassIsland
-        activeTab={activeTab}
-        onTabPress={handleTabPress}
-        translateY={glassTranslateY}
-        bottomInset={insets.bottom}
-      />
+      {/* GLASS ISLAND NAV (LAW 13) */}
+      <GlassIsland activeTab={activeTab} onTabPress={handleTabPress} translateY={glassTranslateY} bottomInset={insets.bottom} />
 
-      {/* ── CITY / SECTOR PICKER SHEET ── */}
+      {/* CITY / SECTOR PICKER SHEETS */}
       {pickerOpen === 'city' && (
-        <PickerSheet
-          type="city"
-          items={CITIES}
-          selectedId={selectedCity.id}
-          onSelect={(id) => {
-            const found = CITIES.find((c) => c.id === id);
-            if (found) setSelectedCity(found);
-          }}
+        <PickerSheet type="city" items={CITIES} selectedId={selectedCity.id}
+          onSelect={(id) => { const f = CITIES.find((c) => c.id === id); if (f) setSelectedCity(f); }}
           onClose={() => setPickerOpen(null)}
         />
       )}
       {pickerOpen === 'sector' && (
-        <PickerSheet
-          type="sector"
-          items={SECTORS}
-          selectedId={selectedSector.id}
-          onSelect={(id) => {
-            const found = SECTORS.find((s) => s.id === id);
-            if (found) setSelectedSector(found);
-          }}
+        <PickerSheet type="sector" items={SECTORS} selectedId={selectedSector.id}
+          onSelect={(id) => { const f = SECTORS.find((s) => s.id === id); if (f) setSelectedSector(f); }}
           onClose={() => setPickerOpen(null)}
         />
       )}
@@ -1252,22 +904,28 @@ export default function HomeScreen() {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   STYLES — v2.0 Premium Color System · Two-Row Header
+   STYLES — v2.1 Premium Color System · Two-Row Header
    ───────────────────────────────────────────────────────────────────────── */
 const styles = StyleSheet.create({
+
   /* ── Root ── */
   screen: {
     flex: 1,
-    backgroundColor: TOKEN.bgApp,
+    backgroundColor: TOKEN.bgApp,         // cream[50] #FFF9EC warm ivory (was pure white)
   },
 
-  /* ── Header (Two-Row · § 1 correction) ── */
+  /* ── Header ── */
   header: {
     backgroundColor: TOKEN.bgSurface,
     zIndex: 900,
+    // Shadow instead of border for premium feel
+    shadowColor: palette.ink[950],
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
 
-  /* Row 1 — Brand Row (56px H · CROWD wordmark left · Notifications + Avatar right) */
   headerRow1: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1276,490 +934,224 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
 
-  /* CROWD Wordmark — LAW 15 · gold[800] · 24px H · tight tracking · left edge */
-  /* § 5.A: pure typography · NO ornamentation · NO gradient · NO animation */
   crownWordmark: {
     fontSize: 22,
     fontWeight: '800',
-    color: TOKEN.fgBrandSubtle,  // gold[800] — 6.4:1 contrast on white ✅ AA
+    color: TOKEN.fgBrandSubtle,            // gold[800] #8B6F18 — 6.4:1 on white ✅ AA
     letterSpacing: -0.5,
     lineHeight: 26,
   },
 
-  /* Right actions container */
   headerRightActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 4,
   },
   headerIconBtn: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 44, height: 44,
+    alignItems: 'center', justifyContent: 'center',
     position: 'relative',
   },
   notifBadge: {
     position: 'absolute',
-    top: 6,
-    right: 4,
-    minWidth: 16,
-    height: 16,
+    top: 6, right: 4,
+    minWidth: 16, height: 16,
     borderRadius: 8,
-    backgroundColor: TOKEN.fgError,  // crimson[600]
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: TOKEN.bgSurface,
+    backgroundColor: TOKEN.fgError,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, borderColor: TOKEN.bgSurface,
     paddingHorizontal: 2,
   },
-  notifBadgeText: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  headerAvatarBtn: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  notifBadgeText: { fontSize: 9, fontWeight: '800', color: '#FFFFFF' },
+  headerAvatarBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   headerAvatar: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 34, height: 34, borderRadius: 17,
     backgroundColor: TOKEN.bgCard,
-    borderWidth: 2,
-    borderColor: TOKEN.fgBrand,  // gold[600]
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderWidth: 2, borderColor: TOKEN.fgBrand,
+    alignItems: 'center', justifyContent: 'center',
+    // Premium shadow on avatar
+    shadowColor: TOKEN.fgBrand,
+    shadowOpacity: 0.25, shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
   },
-  headerAvatarText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: TOKEN.fgSecondary,
-  },
+  headerAvatarText: { fontSize: 14, fontWeight: '700', color: TOKEN.fgSecondary },
 
-  /* Row 2 — Location Row (44px H · City Pill + Sector Pill) */
   headerRow2: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    height: 44,
-    paddingHorizontal: 16,
-    gap: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: TOKEN.borderHair,  // cream[400]
+    flexDirection: 'row', alignItems: 'center',
+    height: 44, paddingHorizontal: 16, gap: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: TOKEN.borderHair,
   },
 
-  /* City pill */
   cityPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    height: 36,
-    paddingHorizontal: 12,
-    borderRadius: 18,
-    backgroundColor: TOKEN.bgCard,         // cream[200] — warm ivory
-    borderWidth: 1,
-    borderColor: TOKEN.borderPill,          // cream[400]
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    height: 36, paddingHorizontal: 12, borderRadius: 18,
+    backgroundColor: TOKEN.bgCard,
+    // Shadow instead of flat border for premium feel
+    shadowColor: palette.ink[950],
+    shadowOpacity: 0.06, shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 }, elevation: 1,
     maxWidth: 140,
   },
-  pillIcon: {
-    fontSize: 12,
-  },
-  pillText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: TOKEN.fgPrimary,               // ink[950]
-    flex: 1,
-  },
+  pillIcon: { fontSize: 12 },
+  pillText: { fontSize: 13, fontWeight: '600', color: TOKEN.fgPrimary, flex: 1 },
 
-  /* Sector pill — amber[600] border signals active hyper-local context */
   sectorPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    height: 36,
-    paddingHorizontal: 12,
-    borderRadius: 18,
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    height: 36, paddingHorizontal: 12, borderRadius: 18,
     backgroundColor: TOKEN.bgCard,
-    borderWidth: 1,
-    borderColor: TOKEN.borderSector,       // amber[600] — stronger border vs city pill
+    borderWidth: 1.5, borderColor: TOKEN.borderSector,  // amber accent border = active context
+    shadowColor: TOKEN.borderSector,
+    shadowOpacity: 0.15, shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 }, elevation: 1,
     maxWidth: 160,
   },
 
   /* ── Offline Banner ── */
   offlineBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    height: 32,
-    backgroundColor: TOKEN.offlineBg,     // ink[950]
-    paddingHorizontal: 16,
-    zIndex: 935,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    height: 32, backgroundColor: TOKEN.offlineBg,
+    paddingHorizontal: 16, zIndex: 935,
   },
   offlineIcon: { fontSize: 13 },
-  offlineText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#FFFFFF',
-    flex: 1,
-  },
+  offlineText: { fontSize: 13, fontWeight: '500', color: '#FFFFFF', flex: 1 },
 
   /* ── Online Count Strip ── */
   onlineStrip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    height: 32,
-    backgroundColor: TOKEN.bgSurface,
-    borderBottomWidth: 1,
-    borderBottomColor: TOKEN.borderHair,
-    paddingHorizontal: 16,
-    zIndex: 900,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    height: 32, backgroundColor: TOKEN.bgSurface,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: TOKEN.borderHair,
+    paddingHorizontal: 16, zIndex: 900,
   },
-  onlineLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
+  onlineLeft:  { flexDirection: 'row', alignItems: 'center', gap: 6 },
   onlineDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: TOKEN.fgWarning,     // amber[600]
-    borderWidth: 2,
-    borderColor: TOKEN.bgSurface,
+    width: 6, height: 6, borderRadius: 3,
+    backgroundColor: TOKEN.fgWarning,
   },
-  onlineText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: TOKEN.fgPrimary,
-  },
-  onlineRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
+  onlineText: { fontSize: 12, fontWeight: '600', color: TOKEN.fgPrimary },
+  onlineRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   trustChip: {
-    height: 24,
-    paddingHorizontal: 10,
-    borderRadius: 12,
-    backgroundColor: TOKEN.bgCard,        // cream[200]
-    alignItems: 'center',
-    justifyContent: 'center',
+    height: 24, paddingHorizontal: 10, borderRadius: 12,
+    backgroundColor: TOKEN.bgCard, alignItems: 'center', justifyContent: 'center',
   },
-  trustChipText: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: TOKEN.fgSecondary,             // ink[600]
-  },
+  trustChipText: { fontSize: 11, fontWeight: '500', color: TOKEN.fgSecondary },
   heatPill: {
-    height: 22,
-    paddingHorizontal: 8,
-    borderRadius: 11,
-    backgroundColor: TOKEN.fgWarning,     // amber[600]
-    alignItems: 'center',
-    justifyContent: 'center',
+    height: 22, paddingHorizontal: 8, borderRadius: 11,
+    backgroundColor: TOKEN.fgWarning, alignItems: 'center', justifyContent: 'center',
   },
-  heatPillText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
+  heatPillText: { fontSize: 12, fontWeight: '700', color: '#FFFFFF' },
 
-  /* ── Chat ── */
-  chatInputWrapper: {
-    flex: 1,
-  },
+  /* ── Chat Container ── */
+  chatInputWrapper: { flex: 1 },
+
   chatList: {
     flex: 1,
-    backgroundColor: TOKEN.bgSurface,
+    backgroundColor: TOKEN.bgApp,          // warm ivory matches screen bg
   },
+
+  /**
+   * FIX 1 (styles): chatContent no longer takes dynamic paddingTop.
+   *
+   * Old: { paddingHorizontal: 16, paddingBottom: 12, gap: 8 }
+   *       + inline { paddingTop: ~178px } ← THIS was creating the blank zone
+   *
+   * New: static 8px padding top and bottom. Input area is a sibling element
+   *      in the KAV — it handles its own physical space in the layout.
+   *      The FlatList content just needs a small breathing gap.
+   */
   chatContent: {
     paddingHorizontal: 16,
-    paddingBottom: 12,
-    gap: 8,
+    paddingTop: 8,       // gap between newest message and FlatList bottom edge
+    paddingBottom: 16,   // gap at the visual top (oldest message area)
   },
 
-  /* ── OWN BUBBLE — gold[600] fill · Rule 04 compliant ── */
-  ownWrap: {
-    alignSelf: 'flex-end',
-    alignItems: 'flex-end',
-    maxWidth: '75%',
-    marginVertical: 4,
-  },
+  /* ── OWN BUBBLE ── */
+  ownWrap: { alignSelf: 'flex-end', alignItems: 'flex-end', maxWidth: '75%', marginVertical: 3 },
   ownBubble: {
     backgroundColor: TOKEN.fgBrand,       // gold[600] champagne
-    borderRadius: 16,
-    borderBottomRightRadius: 4,           // tail
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    borderRadius: 16, borderBottomRightRadius: 4,
+    paddingHorizontal: 14, paddingVertical: 10,
     minHeight: 36,
     shadowColor: TOKEN.fgBrand,
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 2,
+    shadowOpacity: 0.25, shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 }, elevation: 3,
   },
-  ownText: {
-    fontSize: 15,
-    fontWeight: '400',
-    color: '#FFFFFF',
-    lineHeight: 22,
-  },
-  ownMeta: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 4,
-  },
-  ownTime: {
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.70)',
-  },
-  tickText: {
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.70)',
-  },
-  tickRead: {
-    letterSpacing: -2,
-    color: 'rgba(255,255,255,0.90)',
-  },
+  ownText: { fontSize: 15, fontWeight: '400', color: '#FFFFFF', lineHeight: 22 },
+  ownMeta: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 4, marginTop: 4 },
+  ownTime: { fontSize: 11, color: 'rgba(255,255,255,0.70)' },
+  tickText: { fontSize: 11, color: 'rgba(255,255,255,0.70)' },
+  tickRead: { letterSpacing: -2, color: 'rgba(255,255,255,0.90)' },
 
-  /* ── OTHER / AI BUBBLE — cream[200] fill ── */
-  otherWrap: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    alignSelf: 'flex-start',
-    maxWidth: '85%',
-    gap: 8,
-    marginVertical: 4,
-  },
+  /* ── OTHER / AI BUBBLE ── */
+  otherWrap: { flexDirection: 'row', alignItems: 'flex-end', alignSelf: 'flex-start', maxWidth: '85%', gap: 8, marginVertical: 3 },
   avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 36, height: 36, borderRadius: 18,
     backgroundColor: TOKEN.bgCard,
-    borderWidth: 1,
-    borderColor: TOKEN.borderHair,
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderWidth: 1, borderColor: TOKEN.borderHair,
+    alignItems: 'center', justifyContent: 'center',
   },
-  avatarAI: {
-    borderStyle: 'dashed',
-    borderColor: TOKEN.fgSecondary,       // ink[600]
-  },
-  avatarText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: TOKEN.fgSecondary,
-  },
-  otherContent: {
-    flex: 1,
-    gap: 3,
-  },
-  otherNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 4,
-    paddingHorizontal: 2,
-  },
-  otherName: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: TOKEN.fgSecondary,             // ink[600] espresso
-  },
-  colonyTag: {
-    backgroundColor: TOKEN.bgCard,
-    borderRadius: 4,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-  },
-  colonyTagText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: TOKEN.fgSecondary,
-  },
-  verifiedBadge: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: '#4F8FFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  verifiedText: {
-    fontSize: 7,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  founderBadge: {
-    backgroundColor: '#FBF4E2',           // gold[100]
-    borderWidth: 1,
-    borderColor: TOKEN.borderHair,
-    borderRadius: 4,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-  },
-  founderText: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: TOKEN.fgBrandSubtle,           // gold[800]
-    letterSpacing: 0.3,
-  },
-  mayorInlineBadge: {
-    backgroundColor: '#F9EFCE',           // gold[100]
-    borderWidth: 1,
-    borderColor: TOKEN.borderHair,
-    borderRadius: 4,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-  },
-  mayorInlineText: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: TOKEN.fgBrandSubtle,           // gold[800]
-  },
-  aiBadge: {
-    backgroundColor: TOKEN.bgCard,
-    borderRadius: 4,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-  },
-  aiBadgeText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: TOKEN.fgSecondary,
-    fontStyle: 'italic',
-  },
+  avatarAI: { borderStyle: 'dashed', borderColor: TOKEN.fgSecondary },
+  avatarText: { fontSize: 15, fontWeight: '700', color: TOKEN.fgSecondary },
+  otherContent: { flex: 1, gap: 3 },
+  otherNameRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4, paddingHorizontal: 2 },
+  otherName: { fontSize: 13, fontWeight: '700', color: TOKEN.fgSecondary },
+  colonyTag: { backgroundColor: TOKEN.bgCard, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
+  colonyTagText: { fontSize: 10, fontWeight: '600', color: TOKEN.fgSecondary },
+  verifiedBadge: { width: 14, height: 14, borderRadius: 7, backgroundColor: '#4F8FFF', alignItems: 'center', justifyContent: 'center' },
+  verifiedText: { fontSize: 7, fontWeight: '800', color: '#FFFFFF' },
+  founderBadge: { backgroundColor: palette.gold[100], borderWidth: 1, borderColor: TOKEN.borderHair, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
+  founderText: { fontSize: 9, fontWeight: '800', color: TOKEN.fgBrandSubtle, letterSpacing: 0.3 },
+  mayorInlineBadge: { backgroundColor: palette.gold[100], borderWidth: 1, borderColor: TOKEN.borderHair, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
+  mayorInlineText: { fontSize: 9, fontWeight: '800', color: TOKEN.fgBrandSubtle },
+  aiBadge: { backgroundColor: TOKEN.bgCard, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
+  aiBadgeText: { fontSize: 10, fontWeight: '600', color: TOKEN.fgSecondary, fontStyle: 'italic' },
   otherBubble: {
-    backgroundColor: TOKEN.bgCard,       // cream[200] warm ivory
-    borderRadius: 16,
-    borderBottomLeftRadius: 4,            // tail toward avatar
-    borderWidth: 1,
-    borderColor: TOKEN.borderHair,        // cream[400]
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    backgroundColor: TOKEN.bgCard,        // cream[200] warm ivory
+    borderRadius: 16, borderBottomLeftRadius: 4,
+    paddingHorizontal: 14, paddingVertical: 10,
     minHeight: 36,
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 1,
+    // Shadow instead of flat border for luxury feel
+    shadowColor: palette.ink[950],
+    shadowOpacity: 0.06, shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 }, elevation: 1,
   },
-  otherBubbleAI: {
-    borderStyle: 'dashed',
-  },
-  otherText: {
-    fontSize: 15,
-    fontWeight: '400',
-    color: TOKEN.fgPrimary,               // ink[950] warm
-    lineHeight: 22,
-  },
-  otherTime: {
-    fontSize: 11,
-    color: TOKEN.fgSecondary,             // ink[600]
-    marginTop: 4,
-  },
+  otherBubbleAI: { borderStyle: 'dashed', borderWidth: 1, borderColor: TOKEN.borderHair },
+  otherText: { fontSize: 15, fontWeight: '400', color: TOKEN.fgPrimary, lineHeight: 22 },
+  otherTime: { fontSize: 11, color: TOKEN.fgSecondary, marginTop: 4 },
 
   /* ── Reactions ── */
-  reactRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 5,
-    marginTop: 5,
-    paddingHorizontal: 2,
-  },
+  reactRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 5, paddingHorizontal: 2 },
   reactPill: {
     backgroundColor: TOKEN.bgSurface,
-    borderWidth: 1,
-    borderColor: TOKEN.borderHair,
-    borderRadius: 12,
-    paddingVertical: 3,
-    paddingHorizontal: 8,
+    shadowColor: palette.ink[950], shadowOpacity: 0.05, shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 }, elevation: 1,
+    borderRadius: 12, paddingVertical: 3, paddingHorizontal: 8,
   },
-  reactText: {
-    fontSize: 12,
-    color: TOKEN.fgSecondary,
-  },
+  reactText: { fontSize: 12, color: TOKEN.fgSecondary },
 
-  /* ── Mayor Announcement — cream[200] + gold[600] 2px border ── */
-  mayorWrap: {
-    alignSelf: 'center',
-    width: '92%',
-    marginVertical: 8,
-    position: 'relative',
-  },
-  mayorCrown: {
-    fontSize: 20,
-    textAlign: 'center',
-    position: 'absolute',
-    top: -10,
-    left: 0,
-    right: 0,
-    zIndex: 1,
-  },
+  /* ── Mayor Announcement ── */
+  mayorWrap: { alignSelf: 'center', width: '92%', marginVertical: 8, position: 'relative' },
+  mayorCrown: { fontSize: 20, textAlign: 'center', position: 'absolute', top: -10, left: 0, right: 0, zIndex: 1 },
   mayorCard: {
     backgroundColor: TOKEN.bgCard,
-    borderWidth: 2,
-    borderColor: TOKEN.borderCardEmphasis, // gold[600]
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 8,
+    borderWidth: 2, borderColor: TOKEN.borderCardEmphasis,
+    borderRadius: 12, padding: 16, marginTop: 8,
+    shadowColor: TOKEN.fgBrand, shadowOpacity: 0.12, shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 }, elevation: 3,
   },
-  mayorCardHeader: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: TOKEN.fgBrand,                  // gold[600]
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  mayorCardText: {
-    fontSize: 15,
-    fontWeight: '400',
-    color: TOKEN.fgPrimary,
-    lineHeight: 22,
-  },
-  mayorCardTime: {
-    fontSize: 11,
-    color: TOKEN.fgSecondary,
-    textAlign: 'center',
-    marginTop: 8,
-  },
+  mayorCardHeader: { fontSize: 12, fontWeight: '700', color: TOKEN.fgBrand, textAlign: 'center', marginBottom: 8 },
+  mayorCardText: { fontSize: 15, fontWeight: '400', color: TOKEN.fgPrimary, lineHeight: 22 },
+  mayorCardTime: { fontSize: 11, color: TOKEN.fgSecondary, textAlign: 'center', marginTop: 8 },
 
   /* ── System Message ── */
-  systemWrap: {
-    alignSelf: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  systemText: {
-    fontSize: 12,
-    fontWeight: '400',
-    color: TOKEN.fgSecondary,              // ink[600]
-    textAlign: 'center',
-  },
+  systemWrap: { alignSelf: 'center', paddingHorizontal: 16, paddingVertical: 6 },
+  systemText: { fontSize: 12, fontWeight: '400', color: TOKEN.fgSecondary, textAlign: 'center' },
 
   /* ── Date Separator ── */
-  dateSepWrap: {
-    alignItems: 'center',
-    marginVertical: 12,
-  },
-  dateSepChip: {
-    height: 24,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    backgroundColor: TOKEN.bgCard,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dateSepText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: TOKEN.fgSecondary,
-  },
+  dateSepWrap: { alignItems: 'center', marginVertical: 10 },
+  dateSepChip: { height: 24, paddingHorizontal: 12, borderRadius: 12, backgroundColor: TOKEN.bgCard, alignItems: 'center', justifyContent: 'center' },
+  dateSepText: { fontSize: 11, fontWeight: '600', color: TOKEN.fgSecondary },
 
   /* ── Input Area — Rule 04: static · z-935 · flush above Glass Island ── */
   inputArea: {
@@ -1767,135 +1159,94 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     backgroundColor: TOKEN.bgSurface,
-    borderTopWidth: 1,
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: TOKEN.borderHair,
     paddingHorizontal: 16,
     paddingTop: 12,
     zIndex: 935,
+    // Premium: shadow instead of border on top
+    shadowColor: palette.ink[950],
+    shadowOpacity: 0.06, shadowRadius: 12,
+    shadowOffset: { width: 0, height: -2 }, elevation: 4,
   },
   inputField: {
     flex: 1,
-    minHeight: 40,
-    maxHeight: 120,
-    backgroundColor: TOKEN.bgCard,        // cream[200]
+    minHeight: 40, maxHeight: 120,
+    backgroundColor: TOKEN.bgCard,         // cream[200]
     borderRadius: 20,
-    borderWidth: 1,
-    borderColor: TOKEN.borderInputIdle,   // cream[400]
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    fontSize: 15,
-    fontWeight: '400',
-    color: TOKEN.fgPrimary,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: TOKEN.borderInputIdle,
+    paddingHorizontal: 16, paddingVertical: 10,
+    fontSize: 15, fontWeight: '400', color: TOKEN.fgPrimary,
   },
   inputFieldActive: {
     borderWidth: 2,
-    borderColor: TOKEN.borderInputFocus,  // gold[600]
+    borderColor: TOKEN.borderInputFocus,   // gold[600]
+    shadowColor: TOKEN.fgBrand,
+    shadowOpacity: 0.15, shadowRadius: 6,
+    shadowOffset: { width: 0, height: 0 }, elevation: 2,
   },
   sendBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: TOKEN.fgBrand,       // gold[600]
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: TOKEN.fgBrand,
+    alignItems: 'center', justifyContent: 'center',
     shadowColor: TOKEN.fgBrand,
-    shadowOpacity: 0.30,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 4,
+    shadowOpacity: 0.35, shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 }, elevation: 5,
   },
   sendBtnDisabled: {
     backgroundColor: TOKEN.bgCard,
-    shadowOpacity: 0,
-    elevation: 0,
+    shadowOpacity: 0, elevation: 0,
   },
 
-  /* ── Glass Island — LAW 13 · warm-tinted navy · z-950 ── */
+  /* ── Glass Island — LAW 13 · z-950 ── */
   glassIslandWrapper: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    zIndex: 950,
+    position: 'absolute', left: 0, right: 0,
+    alignItems: 'center', zIndex: 950,
   },
   glassIsland: {
     flexDirection: 'row',
-    width: 280,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: TOKEN.glassIslandBg,  // rgba(20,16,12,0.85)
+    width: 280, height: 56, borderRadius: 28,
+    backgroundColor: TOKEN.glassIslandBg,  // rgba(20,16,12,0.85) warm navy
     alignItems: 'center',
+    // Gold rim hairline at top — per spec
+    borderWidth: 0.5,
+    borderColor: 'rgba(226,198,107,0.40)',
     shadowColor: TOKEN.glassIslandShadow,
-    shadowOpacity: 0.40,
-    shadowRadius: 32,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 16,
+    shadowOpacity: 0.40, shadowRadius: 32,
+    shadowOffset: { width: 0, height: 8 }, elevation: 16,
     overflow: 'hidden',
   },
-  glassTab: {
-    flex: 1,
-    height: 56,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
+  glassTab: { flex: 1, height: 56, alignItems: 'center', justifyContent: 'center', gap: 4 },
+  glassActiveGlow: {
+    position: 'absolute',
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: 'rgba(201,162,39,0.18)',  // gold[600] @ 18%
   },
-  glassActiveDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: TOKEN.glassIslandActive,  // gold[600]
-  },
+  glassActiveDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: TOKEN.glassIslandActive },
 
   /* ── Picker Sheet ── */
   sheetOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: TOKEN.scrim,          // rgba(28,24,20,0.55) warm
+    backgroundColor: TOKEN.scrim,
     justifyContent: 'flex-end',
     zIndex: 999,
   },
   sheetContainer: {
     backgroundColor: TOKEN.bgSurface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 40,
-    gap: 4,
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    paddingHorizontal: 20, paddingTop: 12, paddingBottom: 40, gap: 4,
+    shadowColor: palette.ink[950], shadowOpacity: 0.20, shadowRadius: 24,
+    shadowOffset: { width: 0, height: -4 }, elevation: 12,
   },
-  sheetHandle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: TOKEN.borderHair,
-    alignSelf: 'center',
-    marginBottom: 12,
-  },
-  sheetTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: TOKEN.fgPrimary,
-    marginBottom: 8,
-    paddingHorizontal: 4,
-  },
+  sheetHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: TOKEN.borderHair, alignSelf: 'center', marginBottom: 12 },
+  sheetTitle: { fontSize: 16, fontWeight: '700', color: TOKEN.fgPrimary, marginBottom: 8, paddingHorizontal: 4 },
   sheetRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    paddingHorizontal: 4,
-    borderBottomWidth: 1,
-    borderBottomColor: TOKEN.borderHair,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 14, paddingHorizontal: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: TOKEN.borderHair,
   },
-  sheetRowActive: {
-    borderBottomColor: 'transparent',
-  },
-  sheetRowText: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: TOKEN.fgPrimary,
-  },
-  sheetRowTextActive: {
-    fontWeight: '700',
-    color: TOKEN.fgBrand,                  // gold[600]
-  },
+  sheetRowActive: { borderBottomColor: 'transparent' },
+  sheetRowText: { fontSize: 15, fontWeight: '500', color: TOKEN.fgPrimary },
+  sheetRowTextActive: { fontWeight: '700', color: TOKEN.fgBrand },
 });
