@@ -24,8 +24,8 @@
  *     sound is unloaded on unmount via the returned cleanup function.
  *   • Loading / error states — spinner icon while buffering, alert-circle on
  *     load failure.
- *   • isMe theming — white tints inside outgoing accent bubbles; standard
- *     orbit tokens inside incoming surface bubbles.
+ *   • isMe theming — white tints inside outgoing accent bubbles; CROWN
+ *     semantic tokens (colors.fg.* / colors.bg.*) inside incoming bubbles.
  *
  * ── Props ────────────────────────────────────────────────────────────────────
  *
@@ -53,9 +53,16 @@
  *   from sendVoiceMessage() in lib/firestore-messages.ts), and the recorded
  *   duration in seconds is stored in the `duration` field.  Pass both through
  *   from the MessageDoc without renaming.
+ *
+ * ── Design System compliance ─────────────────────────────────────────────────
+ *   All colour tokens use colors.* / semanticError from @/constants/colors.
+ *   No orbit.* references — fully migrated to CROWN token system (v2.0).
+ *   Component is wrapped in React.memo — safe to render inside FlatList
+ *   with 100+ MessageBubble rows without redundant re-renders.
  */
 
 import React, {
+  memo,
   useCallback,
   useEffect,
   useRef,
@@ -69,10 +76,10 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Feather }  from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { Audio, type AVPlaybackStatus } from "expo-av";
 
-import { orbit } from "@/constants/colors";
+import { colors, semanticError, radii } from "@/constants/colors";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -101,7 +108,7 @@ export interface VoicePlayerProps {
   /**
    * When true the component renders with outgoing-bubble colours:
    * white icon, white-translucent bars, white-translucent timer.
-   * When false (default) it uses incoming-bubble colours.
+   * When false (default) it uses incoming-bubble colours from the CROWN token system.
    */
   isMe?: boolean;
 }
@@ -116,7 +123,7 @@ function fmtDuration(secs: number): string {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function VoicePlayer({ url, duration, isMe = false }: VoicePlayerProps) {
+function VoicePlayerComponent({ url, duration, isMe = false }: VoicePlayerProps) {
   // ── State ───────────────────────────────────────────────────────────────────
   const [loadState,   setLoadState]   = useState<LoadState>("loading");
   const [isPlaying,   setIsPlaying]   = useState(false);
@@ -134,19 +141,26 @@ export default function VoicePlayer({ url, duration, isMe = false }: VoicePlayer
   const elapsedSecs    = Math.round(positionMs / 1000);
   const progressRatio  = durationMs > 0 ? positionMs / durationMs : 0;
 
-  // ── Animated progress value (0 → 1) ────────────────────────────────────────
-  // We use a plain state-driven approach (not Animated.Value) so the waveform
-  // bar colours update synchronously with the AVPlaybackStatusUpdate — this
-  // avoids the 1-frame flicker that a separate Animated.timing loop produces.
+  // ── Colour tokens ─────────────────────────────────────────────────────────────
+  //
+  // isMe = true  → outgoing bubble (gold/accent bg) — white alpha tints
+  // isMe = false → incoming bubble (cream bg)       — CROWN semantic tokens
+  //
+  // Mapping (orbit → CROWN):
+  //   orbit.textPrimary  → colors.fg.primary   (ink[950] = #1A1208)
+  //   orbit.textSecond   → colors.fg.secondary  (ink[600] = #6B5B47)
+  //   orbit.textTertiary → colors.fg.tertiary   (ink[500] = #8A7960)
+  //   orbit.surface3     → colors.bg.cardHover  (cream[100] = #FBF4E2)
+  //   orbit.accent       → colors.fg.brand      (gold[600] = #C9A227)
+  //   orbit.danger       → semanticError.fg     (crimson[600] = #C4294F)
 
-  // ── Colour tokens ───────────────────────────────────────────────────────────
-  const iconColour    = isMe ? "rgba(255,255,255,0.92)" : orbit.textPrimary;
-  const barInactive   = isMe ? "rgba(255,255,255,0.30)" : orbit.textTertiary;
-  const barActive     = isMe ? "rgba(255,255,255,0.88)" : orbit.accent;
-  const timerColour   = isMe ? "rgba(255,255,255,0.65)" : orbit.textTertiary;
-  const chipBg        = isMe ? "rgba(255,255,255,0.18)" : orbit.surface3;
-  const chipText      = isMe ? "rgba(255,255,255,0.85)" : orbit.textSecond;
-  const playBg        = isMe ? "rgba(255,255,255,0.18)" : orbit.surface3;
+  const iconColour  = isMe ? "rgba(255,255,255,0.92)" : colors.fg.primary;
+  const barInactive = isMe ? "rgba(255,255,255,0.30)" : colors.fg.tertiary;
+  const barActive   = isMe ? "rgba(255,255,255,0.88)" : colors.fg.brand;
+  const timerColour = isMe ? "rgba(255,255,255,0.65)" : colors.fg.tertiary;
+  const chipBg      = isMe ? "rgba(255,255,255,0.18)" : colors.bg.cardHover;
+  const chipText    = isMe ? "rgba(255,255,255,0.85)" : colors.fg.secondary;
+  const playBg      = isMe ? "rgba(255,255,255,0.18)" : colors.bg.cardHover;
 
   // ── Spin animation for the loading state ───────────────────────────────────
   const spinAnim = useRef(new Animated.Value(0)).current;
@@ -323,7 +337,8 @@ export default function VoicePlayer({ url, duration, isMe = false }: VoicePlayer
           </Animated.View>
         )}
         {loadState === "error" && (
-          <Feather name="alert-circle" size={13} color={orbit.danger} />
+          // semanticError.fg = crimson[600] = #C4294F — CROWN token (replaces orbit.danger)
+          <Feather name="alert-circle" size={13} color={semanticError.fg} />
         )}
         {loadState === "ready" && (
           <Feather
@@ -371,7 +386,7 @@ export default function VoicePlayer({ url, duration, isMe = false }: VoicePlayer
             style={[styles.speedChip, { backgroundColor: chipBg }]}
             onPress={handleSpeedCycle}
             activeOpacity={0.78}
-            hitSlop={6}
+            hitSlop={{ top: 14, bottom: 14, left: 10, right: 10 }}
             accessibilityRole="button"
             accessibilityLabel={`Playback speed ${currentSpeed}x. Tap to change.`}
           >
@@ -389,21 +404,21 @@ export default function VoicePlayer({ url, duration, isMe = false }: VoicePlayer
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: "row",
-    alignItems:    "center",
-    gap:           9,
-    minWidth:      200,
+    flexDirection:   "row",
+    alignItems:      "center",
+    gap:             9,
+    minWidth:        200,
     paddingVertical: 2,
   },
 
   // ── Play button ─────────────────────────────────────────────────────────────
   playBtn: {
-    width:           30,
-    height:          30,
-    borderRadius:    15,
-    alignItems:      "center",
-    justifyContent:  "center",
-    flexShrink:      0,
+    width:          30,
+    height:         30,
+    borderRadius:   radii.full,
+    alignItems:     "center",
+    justifyContent: "center",
+    flexShrink:     0,
   },
   // nudge play icon slightly right for optical centring
   playIconOffset: {
@@ -412,25 +427,25 @@ const styles = StyleSheet.create({
 
   // ── Waveform ────────────────────────────────────────────────────────────────
   waveform: {
-    flex:           1,
-    flexDirection:  "row",
-    alignItems:     "center",
-    gap:            2,
-    height:         22,
-    overflow:       "hidden",
+    flex:          1,
+    flexDirection: "row",
+    alignItems:    "center",
+    gap:           2,
+    height:        22,
+    overflow:      "hidden",
   },
   waveBar: {
-    flex:        1,
+    flex:         1,
     borderRadius: 2,
-    minWidth:    2,
+    minWidth:     2,
   },
 
   // ── Right column ────────────────────────────────────────────────────────────
   rightCol: {
-    alignItems:     "flex-end",
-    gap:            4,
-    flexShrink:     0,
-    minWidth:       44,
+    alignItems: "flex-end",
+    gap:        4,
+    flexShrink: 0,
+    minWidth:   44,
   },
 
   // ── Timer ───────────────────────────────────────────────────────────────────
@@ -455,3 +470,13 @@ const styles = StyleSheet.create({
     lineHeight: 13,
   },
 });
+
+// ─── Export ───────────────────────────────────────────────────────────────────
+//
+// React.memo wraps the component so that MessageBubble re-renders
+// (e.g. read-receipt ticks, timestamp updates) don't cascade into this
+// molecule — which owns Audio.Sound instances and interval-driven state.
+// Props are primitives (string, number, boolean) so the default shallow
+// comparison is sufficient; no custom comparator needed.
+
+export default memo(VoicePlayerComponent);
