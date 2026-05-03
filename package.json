@@ -58,7 +58,9 @@
     "zod": "^3.23.8",
     "zod-validation-error": "^3.4.0",
     "@react-native-community/netinfo": "11.4.1",
-    "expo-clipboard": "~7.1.4"
+    "expo-clipboard": "~7.1.4",
+    "@expo-google-fonts/cormorant-garamond": "^0.4.0",
+    "@expo-google-fonts/dm-sans": "^0.4.0"
   },
   "devDependencies": {
     "@expo/cli": "54.0.23",
