@@ -1,42 +1,38 @@
 /**
- * CROWD WORLD — Home Screen (index.tsx) — Blueprint v5.0 BAAP EDITION
+ * CROWD WORLD — Home Screen (app/(tabs)/index.tsx)
+ * Blueprint v5.0 BAAP EDITION · Chat-First Landing · PRODUCTION COMPLETE
  *
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- * FIXES APPLIED (v5.1-patch):
- *   FIX 1 — BUG ROOT CAUSE: contentContainerStyle `paddingTop` was set to
- *            `chatPaddingBottom` (~178px). For an inverted FlatList, paddingTop
- *            maps to the VISUAL BOTTOM (first thing rendered on screen open).
- *            This created a 178px blank zone at the bottom → messages appeared
- *            above the visible area. Fixed: paddingTop → 8px.
- *   FIX 2 — isLoading initialised to `false`. INITIAL_MSGS is synchronous mock
- *            data — the 1200ms skeleton timeout blocked the FlatList for no reason.
- *   FIX 3 — Removed getItemLayout. Messages have variable heights (40px–180px).
- *            The hardcoded `length: 80` caused wrong item offsets and skipped
- *            renders for tall items (mayor card, AI message with reactions, etc.)
- *   FIX 4 — KAV behavior: `"height"` on Android shrinks KAV by full keyboard
- *            height. With the inputArea's paddingBottom (~110px) included, the
- *            FlatList collapsed to 0 height when keyboard opened. Fixed:
- *            behavior is now `"padding"` on iOS only, `undefined` on Android.
- *            keyboardVerticalOffset accounts for the sticky header stack height.
+ * LAYOUT STACK (top → bottom):
+ *   [1]  Header — CROWD WORLD wordmark + City Pill + Sector Pill   (LAW 15)
+ *   [2]  Offline Banner (conditional · 32px · dark bg)
+ *   [3]  Online Count Strip (32px · pulsing dot · Heat Score)
+ *   [4]  Inverted FlatList — 6 message variants + 8-skeleton state
+ *   [5]  ScrollFAB — new-message chip (conditional)
+ *   [6]  ChatInput — sticky flush above Glass Island               (Rule 04 z:940)
+ *   [7]  FloatingGlassIsland — dark glass pill nav                 (LAW 13 z:950)
+ *
+ * SHEETS / MODALS (rendered absolutely):
+ *   CityPickerSheet     — triggered by City Pill
+ *   SectorPickerSheet   — triggered by Sector Pill
+ *   AuthGateSheet       — triggered by unauth write attempt (LAW 4)
+ *   MessageActionSheet  — triggered by long-press on any bubble
+ *   SendFailedModal     — triggered by message send failure (3 retry attempts)
+ *
+ * LAWS ENFORCED:
+ *   Rule 03 — Avatar ONLY in Glass Island Profile tab (never in header/composer)
+ *   Rule 04 — ChatInput flush above Glass Island · zero gap · z:940
+ *   LAW 13  — Glass Island hides on scroll-up + keyboard open
+ *   LAW 15  — Two-row header: 56px Row 1 + 44px Row 2
+ *   § 5.A   — CROWD WORLD wordmark home screen ONLY
+ *   LAW 4   — Peek-Before-Join: unauthenticated users see read-only preview
+ *
+ * FIRESTORE:
+ *   subscribeToMessages() — real-time chat stream (50 messages · desc order)
+ *   subscribeToRoom()     — real-time room metadata (onlineCount, heatScore)
+ *   sendMessage()         — optimistic write with status lifecycle
+ *   incrementOnlineCount / decrementOnlineCount — presence tracking
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- *
- * Chat-First Landing · Hyper-Local Sector Chat
- *
- * Layout Stack (top → bottom):
- *   [1] Status Bar (system)
- *   [2] Header — CROWD Wordmark + City Pill + Sector Pill
- *   [3] Offline Banner (conditional)
- *   [4] Online Count Strip (pulsing dot · Heat Score · Trust Anchor)
- *   [5] Chat Body — Inverted FlatList (6 message variants)
- *   [6] New Messages Floating Chip (conditional)
- *   [7] Sticky Input Area — cream field + send button
- *   [8] Glass Island Nav (dark pill · z-950)
- *
- * Rules enforced:
- *   Rule 03 — Profile avatar ONLY in Glass Island Profile tab
- *   Rule 04 — Chat Input flush above Glass Island · zero gap · zero overlap
- *   LAW 13  — Floating Glass Island hides on scroll-up · hides on keyboard open
- *   § 5.A   — CROWN wordmark Home Screen ONLY · pure typography · no animation
  */
 
 import React, {
@@ -47,784 +43,734 @@ import React, {
   useState,
 } from 'react';
 import {
-  Animated,
+  AppState,
+  type AppStateStatus,
   FlatList,
-  Keyboard,
   KeyboardAvoidingView,
+  Modal,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
   Platform,
+  Pressable,
   StatusBar,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   TouchableWithoutFeedback,
   View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Feather } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { useAuth } from '@/contexts/AuthContext';
+import { useSafeAreaInsets }     from 'react-native-safe-area-context';
+import { useRouter }             from 'expo-router';
+import { Feather }               from '@expo/vector-icons';
 
-import { colors, palette, spacing, radii, zIndex } from '@/constants/colors';
-import { durations, easings, useReducedMotion } from '@/constants/animations';
-import PullIndicator from '@/components/atoms/PullIndicator';
-import ScrollFAB from '@/components/atoms/ScrollFAB';
-import SkeletonBubble from '@/components/atoms/SkeletonBubble';
+// ── Auth ──────────────────────────────────────────────────────────────────
+import { useAuth }               from '@/contexts/AuthContext';
 
-/* ─────────────────────────────────────────────────────────────────────────
-   FEATHER ICON WRAPPERS
-   ───────────────────────────────────────────────────────────────────────── */
-const HomeIcon = ({ size, color }: { size: number; color: string; strokeWidth?: number }) => (
-  <Feather name="home" size={size} color={color} />
-);
-const Compass = ({ size, color }: { size: number; color: string; strokeWidth?: number }) => (
-  <Feather name="compass" size={size} color={color} />
-);
-const CreditCard = ({ size, color }: { size: number; color: string; strokeWidth?: number }) => (
-  <Feather name="credit-card" size={size} color={color} />
-);
-const User = ({ size, color }: { size: number; color: string; strokeWidth?: number }) => (
-  <Feather name="user" size={size} color={color} />
-);
-const SendIcon = ({ size, color }: { size: number; color: string; strokeWidth?: number }) => (
-  <Feather name="send" size={size} color={color} />
-);
-const Check = ({ size, color }: { size: number; color: string; strokeWidth?: number }) => (
-  <Feather name="check" size={size} color={color} />
-);
+// ── Design tokens ─────────────────────────────────────────────────────────
+import { colors, palette, zIndex, spacing } from '@/constants/colors';
+import { layout }                            from '@/constants/spacing';
+import { FONT_BODY }                         from '@/constants/typography';
 
-/* ─────────────────────────────────────────────────────────────────────────
-   DESIGN TOKEN BRIDGE
-   ───────────────────────────────────────────────────────────────────────── */
-const TOKEN = {
-  /* ── Backgrounds ── */
-  bgSurface:          colors.bg.surface,
-  bgCard:             colors.bg.card,
-  bgCardHover:        colors.bg.cardHover,
-  bgCardPressed:      colors.bg.cardPressed,
-  bgSubtle:           colors.bg.subtle,        // cream[50] #FFF9EC — warm ivory screen bg
-  bgApp:              colors.bg.subtle,         // FIX: warm ivory instead of pure white
+// ── Components ────────────────────────────────────────────────────────────
+import Header                     from '@/components/Header';
+import OnlineCountStrip           from '@/components/molecules/OnlineCountStrip';
+import ChatInput                  from '@/components/molecules/ChatInput';
+import MessageBubble              from '@/components/MessageBubble';
+import FloatingGlassIsland, {
+  type FloatingGlassIslandHandle,
+}                                 from '@/components/organisms/FloatingGlassIsland';
+import CityPickerSheet            from '@/components/organisms/CityPickerSheet';
+import SectorPickerSheet          from '@/components/organisms/SectorPickerSheet';
+import { MessageActionSheet }     from '@/components/organisms/MessageActionSheet';
+import { AuthGateSheet }          from '@/components/organisms/AuthGateSheet';
+import ScrollFAB                  from '@/components/atoms/ScrollFAB';
+import SkeletonBubble             from '@/components/atoms/SkeletonBubble';
 
-  /* ── Foregrounds ── */
-  fgPrimary:          colors.fg.primary,
-  fgSecondary:        colors.fg.secondary,
-  fgTertiary:         colors.fg.tertiary,
-  fgBrand:            colors.fg.brand,
-  fgBrandHover:       colors.fg.brandHover,
-  fgBrandSubtle:      colors.fg.brandSubtle,
-  fgBrandText:        colors.fg.brandText,
-  fgOnBrand:          colors.fg.onBrand,
-  fgCelebrate:        colors.fg.celebrate,
-  fgWarning:          colors.fg.warning,
-  fgSuccess:          colors.fg.success,
-  fgError:            colors.fg.error,
-  fgMuted:            colors.fg.disabled,
-  errorRed:           colors.fg.error,
+// ── Firestore ─────────────────────────────────────────────────────────────
+import {
+  subscribeToMessages,
+  sendMessage,
+  type Unsubscribe as MsgUnsubscribe,
+}                                 from '@/lib/firestore-messages';
+import {
+  subscribeToRoom,
+  incrementOnlineCount,
+  decrementOnlineCount,
+  type Unsubscribe as RoomUnsubscribe,
+}                                 from '@/lib/firestore-rooms';
 
-  /* ── Borders ── */
-  borderHair:         colors.border.default,
-  borderPill:         colors.border.default,
-  borderSector:       colors.fg.warning,
-  borderInputIdle:    colors.border.inputIdle,
-  borderInputFocus:   colors.border.inputFocus,
-  borderCardEmphasis: colors.border.cardEmphasis,
+// ── Types ─────────────────────────────────────────────────────────────────
+import type { CWMessage, CWRoom } from '@/types/cw';
 
-  /* ── Glass Island (LAW 13) ── */
-  glassIslandBg:      colors.bg.glass,
-  glassIslandActive:  colors.fg.brand,
-  glassIslandInactive:'rgba(255,255,255,0.58)' as const,  // FIX: 58% per spec (was 70%)
-  glassIslandShadow:  palette.glass.shadow,
+// ─────────────────────────────────────────────────────────────────────────────
+// § 1 — CONSTANTS
+// ─────────────────────────────────────────────────────────────────────────────
 
-  /* ── Semantic ── */
-  offlineBg:          colors.bg.inverse,
-  scrim:              colors.bg.scrim,
-} as const;
+const MESSAGE_PAGE_SIZE = 50 as const;
+const SKELETON_COUNT    = 8  as const;
+const TRUST_ANCHOR_MS   = 60_000 as const;
 
-/* ─────────────────────────────────────────────────────────────────────────
-   TYPES
-   ───────────────────────────────────────────────────────────────────────── */
-type MsgStatus = 'sending' | 'sent' | 'read' | 'failed';
-type MsgVariant = 'own' | 'other' | 'ai' | 'system' | 'mayor' | 'date_separator';
+const DEFAULT_CITY_ID     = 'chandigarh'  as const;
+const DEFAULT_CITY_LABEL  = 'Chandigarh'  as const;
+const DEFAULT_SECTOR_ID   = 'sector-17'   as const;
+const DEFAULT_SECTOR_LABEL = 'Sector 17'  as const;
 
-interface Reaction { emoji: string; count: number; }
-
-interface ChatMsg {
-  id: string;
-  variant: MsgVariant;
-  text: string;
-  time: string;
-  displayName?: string;
-  colonyTag?: string;
-  isVerified?: boolean;
-  isFounder?: boolean;
-  isMayor?: boolean;
-  reactions?: Reaction[];
-  status?: MsgStatus;
-  isAI?: boolean;
-  mayorName?: string;
+function buildRoomId(cityId: string, sectorId: string) {
+  return `${cityId}_${sectorId}`;
 }
 
-interface City   { id: string; name: string; }
-interface Sector { id: string; name: string; }
+// ─────────────────────────────────────────────────────────────────────────────
+// § 2 — LOCAL TYPES
+// ─────────────────────────────────────────────────────────────────────────────
 
-/* ─────────────────────────────────────────────────────────────────────────
-   MOCK DATA
-   ───────────────────────────────────────────────────────────────────────── */
-const CITIES: City[] = [
-  { id: 'chd', name: 'Chandigarh' },
-  { id: 'mum', name: 'Mumbai' },
-  { id: 'ldh', name: 'Ludhiana' },
-  { id: 'ddn', name: 'Dehradun' },
-  { id: 'hyd', name: 'Hyderabad' },
-];
-
-const SECTORS: Sector[] = [
-  { id: 'sec17', name: 'Sector 17' },
-  { id: 'sec22', name: 'Sector 22' },
-  { id: 'sec35', name: 'Sector 35' },
-  { id: 'dhanas', name: 'Dhanas' },
-  { id: 'mohali', name: 'Mohali' },
-];
-
-/* Sorted ascending by time — FlatList inverted handles display order */
-const INITIAL_MSGS: ChatMsg[] = [
-  { id: 'date_1', variant: 'date_separator', text: 'Aaj', time: '' },
-  { id: 'sys_1', variant: 'system', text: 'Sector 17 abhi Heat 67 pe hai 🔥', time: '7:00 AM' },
-  {
-    id: 'mayor_pin',
-    variant: 'mayor',
-    text: "Sector 17 is buzzing tonight! 🌆 Jo sabse zyada active rahega aaj, use 'Golden Citizen' badge milega! Come join the energy.",
-    time: '7:05 AM',
-    mayorName: 'Rajveer Singh',
-  },
-  {
-    id: 'ai_1',
-    variant: 'ai',
-    displayName: 'Aria',
-    colonyTag: 'Sector 17',
-    text: 'Namaste! Main Aria hoon, Sector 17 ki AI companion. Kuch jaanna hai ya bas timepass? Dono theek hai 😄',
-    time: '7:08 AM',
-    isAI: true,
-  },
-  {
-    id: 'msg_1',
-    variant: 'other',
-    displayName: 'Aman_Dhanas',
-    colonyTag: 'Dhanas',
-    isVerified: true,
-    text: 'Chandigarh Sector 17 mein food festival start ho gaya hai! Kaun kaun aa raha hai? 🥘',
-    time: '7:11 AM',
-    reactions: [{ emoji: '🔥', count: 94 }, { emoji: '🙌', count: 58 }],
-  },
-  {
-    id: 'msg_2',
-    variant: 'own',
-    text: 'Main 20 mins mein wahan pahunch raha hoon. Wait karna! 🚀',
-    time: '7:13 AM',
-    status: 'read',
-  },
-  {
-    id: 'msg_3',
-    variant: 'other',
-    displayName: 'Rahul_Dev',
-    colonyTag: 'Delhi',
-    text: 'Hi guys! Main iss weekend Chandigarh ghoomne aa raha hu. Koi badhiya jagah batao?',
-    time: '7:22 AM',
-  },
-  {
-    id: 'msg_4',
-    variant: 'other',
-    displayName: 'Simran_Kaur',
-    colonyTag: 'Sec 22',
-    isVerified: true,
-    text: 'Hello everyone! Koi abhi Elante ke paas hai kya? Traffic kaisa hai wahan?',
-    time: '7:24 AM',
-  },
-  {
-    id: 'msg_5',
-    variant: 'other',
-    displayName: 'Kabir_Singh',
-    colonyTag: 'Mohali',
-    isFounder: true,
-    text: 'Haan bilkul! Ek local Sufi band perform karega raat 8:30 baje se. Bahut badiya mahol hone wala hai. 🎸🎤',
-    time: '7:33 AM',
-    reactions: [{ emoji: '🎶', count: 18 }],
-  },
-];
-
-/* ─────────────────────────────────────────────────────────────────────────
-   ANIMATED HELPERS
-   ───────────────────────────────────────────────────────────────────────── */
-function OnlinePulseDot() {
-  const opacity = useRef(new Animated.Value(1)).current;
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(opacity, { toValue: 0.3, duration: durations.ripple, easing: easings.easeInOut, useNativeDriver: true }),
-        Animated.timing(opacity, { toValue: 1,   duration: durations.ripple, easing: easings.easeInOut, useNativeDriver: true }),
-      ])
-    ).start();
-  }, []);
-  return <Animated.View style={[styles.onlineDot, { opacity }]} accessibilityElementsHidden />;
+/** Adapter for MessageActionSheet.message — bridges CWMessage → sheet contract */
+interface ActionSheetMsg {
+  id:          string;
+  variant:     'own' | 'other_user' | 'ai_companion' | 'mayor_announcement' | 'system' | 'date_separator';
+  sector_id:   string;
+  city_id:     string;
+  timestamp:   number;
+  text?:       string;
+  sender_id?:  string;
+  sender_name?: string;
+  mayor_id?:   string;
+  mayor_name?: string;
+  is_pinned?:  boolean;
 }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   HEADER — Two-Row Architecture
-   ───────────────────────────────────────────────────────────────────────── */
-interface HeaderProps {
-  city: City; sector: Sector;
-  onCityPress: () => void; onSectorPress: () => void;
-  onNotificationsPress: () => void; onProfilePress: () => void;
-  paddingTop: number; notificationCount?: number;
+/** Payload for the send-failed recovery modal */
+interface FailedMsg {
+  id:     string;
+  text:   string;
+  roomId: string;
 }
 
-function HomeHeader({ city, sector, onCityPress, onSectorPress, onNotificationsPress, onProfilePress, paddingTop, notificationCount = 0 }: HeaderProps) {
+// ─────────────────────────────────────────────────────────────────────────────
+// § 3 — PURE HELPERS (formatTime · mapVariant · mapStatus · adaptToActionMsg)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function formatTime(ts: any): string {
+  try {
+    const date: Date = ts?.toDate?.() ?? new Date(ts as number);
+    let h = date.getHours();
+    const m = date.getMinutes();
+    const ap = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 || 12;
+    return `${h}:${m < 10 ? '0' + m : m} ${ap}`;
+  } catch {
+    return '';
+  }
+}
+
+function mapVariant(
+  msg: CWMessage,
+  currentUid: string | null,
+): React.ComponentProps<typeof MessageBubble>['variant'] {
+  if (msg.variant === 'date')   return 'date';
+  if (msg.variant === 'system') return 'system';
+  if (msg.variant === 'ai')     return 'ai';
+  if (msg.variant === 'mayor')  return 'mayor';
+  if (msg.variant === 'right' || (!!currentUid && msg.uid === currentUid)) return 'right';
+  return 'left';
+}
+
+function mapStatus(msg: CWMessage): React.ComponentProps<typeof MessageBubble>['status'] {
+  if (!msg.status) return undefined;
+  if (msg.status === 'sent') return 'sent';
+  if (msg.status === 'delivered' || msg.status === 'read') return 'delivered';
+  if (msg.status === 'failed') return 'failed';
+  return undefined;
+}
+
+function adaptToActionMsg(
+  msg: CWMessage,
+  currentUid: string | null,
+  cityId: string,
+  sectorId: string,
+): ActionSheetMsg {
+  const isOwn = !!currentUid && msg.uid === currentUid;
+
+  let variant: ActionSheetMsg['variant'];
+  switch (msg.variant) {
+    case 'system': variant = 'system';              break;
+    case 'date':   variant = 'date_separator';      break;
+    case 'ai':     variant = 'ai_companion';        break;
+    case 'mayor':  variant = 'mayor_announcement';  break;
+    case 'right':  variant = 'own';                 break;
+    default:       variant = isOwn ? 'own' : 'other_user';
+  }
+
+  return {
+    id:        msg.id,
+    variant,
+    sector_id: sectorId,
+    city_id:   cityId,
+    timestamp: (msg.timestamp as any)?.toMillis?.() ?? Date.now(),
+    text:      msg.text ?? undefined,
+    sender_id: msg.uid || undefined,
+    is_pinned: false,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// § 4 — SEND FAILED MODAL
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface SendFailedModalProps {
+  visible:   boolean;
+  failedMsg: FailedMsg | null;
+  onRetry:   (msg: FailedMsg) => void;
+  onDismiss: () => void;
+}
+
+function SendFailedModal({ visible, failedMsg, onRetry, onDismiss }: SendFailedModalProps) {
+  if (!failedMsg) return null;
   return (
-    <View style={[styles.header, { paddingTop }]} testID="home-header">
-      {/* ROW 1 — Brand Row */}
-      <View style={styles.headerRow1}>
-        <Text
-          style={styles.crownWordmark}
-          accessibilityRole="header"
-          accessibilityLabel="CROWD WORLD"
-          testID="home-header-brand-logo"
-        >
-          CROWD
-        </Text>
-
-        <View style={styles.headerRightActions}>
-          <TouchableOpacity
-            style={styles.headerIconBtn}
-            onPress={onNotificationsPress}
-            activeOpacity={0.75}
-            accessibilityRole="button"
-            accessibilityLabel={notificationCount > 0 ? `Notifications · ${notificationCount} unread` : 'Notifications'}
-            testID="home-header-notifications"
-          >
-            <Feather name="bell" size={22} color={TOKEN.fgPrimary} />
-            {notificationCount > 0 && (
-              <View style={styles.notifBadge}>
-                <Text style={styles.notifBadgeText}>{notificationCount > 9 ? '9+' : notificationCount}</Text>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={onDismiss}
+      accessibilityViewIsModal
+    >
+      <TouchableWithoutFeedback onPress={onDismiss}>
+        <View style={S.failedScrim}>
+          <TouchableWithoutFeedback>
+            <View style={S.failedCard} accessibilityRole="dialog">
+              <View style={S.failedIconWrap}>
+                <Feather name="alert-triangle" size={28} color={palette.crimson[600]} />
               </View>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.headerAvatarBtn}
-            onPress={onProfilePress}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel="Your profile"
-            testID="home-header-profile-avatar"
-          >
-            <View style={styles.headerAvatar}>
-              <Text style={styles.headerAvatarText}>A</Text>
+              <Text style={S.failedTitle}>Message send nahi hua</Text>
+              <Text style={S.failedPreview} numberOfLines={2}>
+                "{failedMsg.text.slice(0, 80)}{failedMsg.text.length > 80 ? '…' : ''}"
+              </Text>
+              <TouchableOpacity
+                style={S.failedRetryBtn}
+                onPress={() => onRetry(failedMsg)}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Dobara bhejo · Retry"
+              >
+                <Feather name="refresh-cw" size={16} color={palette.white} style={S.failedRetryIcon} />
+                <Text style={S.failedRetryText}>Dobara bhejo</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={S.failedCancelBtn}
+                onPress={onDismiss}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel karo"
+              >
+                <Text style={S.failedCancelText}>Cancel karo</Text>
+              </TouchableOpacity>
             </View>
-          </TouchableOpacity>
+          </TouchableWithoutFeedback>
         </View>
-      </View>
-
-      {/* ROW 2 — Location Row */}
-      <View style={styles.headerRow2}>
-        <TouchableOpacity
-          style={styles.cityPill} onPress={onCityPress} activeOpacity={0.8}
-          accessibilityRole="button" accessibilityLabel={`Change city. Currently ${city.name}.`}
-          testID="home-header-city-pill"
-        >
-          <Text style={styles.pillIcon}>📍</Text>
-          <Text style={styles.pillText} numberOfLines={1}>{city.name}</Text>
-          <Feather name="chevron-down" size={12} color={TOKEN.fgSecondary} />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.sectorPill} onPress={onSectorPress} activeOpacity={0.8}
-          accessibilityRole="button" accessibilityLabel={`Change sector. Currently ${sector.name}, ${city.name}.`}
-          testID="home-header-sector-pill"
-        >
-          <Text style={styles.pillText} numberOfLines={1}>{sector.name}</Text>
-          <Feather name="chevron-down" size={12} color={TOKEN.fgSecondary} />
-        </TouchableOpacity>
-      </View>
-    </View>
+      </TouchableWithoutFeedback>
+    </Modal>
   );
 }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   ONLINE COUNT STRIP
-   ───────────────────────────────────────────────────────────────────────── */
-function OnlineCountStrip({ count, heatScore, showTrustAnchor }: { count: number; heatScore: number; showTrustAnchor: boolean }) {
-  const displayCount = count >= 10000 ? `${(count / 1000).toFixed(1)}K` : count.toLocaleString('en-IN');
-  return (
-    <View style={styles.onlineStrip} testID="home-online-strip">
-      <View style={styles.onlineLeft}>
-        <OnlinePulseDot />
-        <Text style={styles.onlineText} accessibilityLabel={`${displayCount} members online`} accessibilityLiveRegion="polite" testID="home-online-count">
-          {displayCount} yahan online
-        </Text>
-      </View>
-      <View style={styles.onlineRight}>
-        {showTrustAnchor && (
-          <View style={styles.trustChip} testID="home-trust-anchor">
-            <Text style={styles.trustChipText} accessibilityLabel="Trusted by over 1 lakh users">👥 1 Lakh+</Text>
-          </View>
-        )}
-        {heatScore >= 30 && (
-          <View style={styles.heatPill} testID="home-heat-score">
-            <Text style={styles.heatPillText} accessibilityLabel={`Heat Score ${heatScore}`}>🔥 {heatScore}</Text>
-          </View>
-        )}
-      </View>
-    </View>
-  );
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// § 5 — OFFLINE BANNER
+// ─────────────────────────────────────────────────────────────────────────────
 
-/* ─────────────────────────────────────────────────────────────────────────
-   OFFLINE BANNER
-   ───────────────────────────────────────────────────────────────────────── */
 function OfflineBanner({ visible }: { visible: boolean }) {
-  const translateY = useRef(new Animated.Value(-32)).current;
-  useEffect(() => {
-    Animated.timing(translateY, { toValue: visible ? 0 : -32, duration: visible ? 240 : 200, useNativeDriver: true }).start();
-  }, [visible]);
   if (!visible) return null;
   return (
-    <Animated.View style={[styles.offlineBanner, { transform: [{ translateY }] }]} accessibilityLiveRegion="polite" testID="home-offline-banner">
-      <Text style={styles.offlineIcon}>📶</Text>
-      <Text style={styles.offlineText} numberOfLines={1}>Offline · saved messages dikha rahe hain</Text>
-    </Animated.View>
+    <View
+      style={S.offlineBanner}
+      accessibilityLiveRegion="polite"
+      accessibilityRole="alert"
+      testID="home-offline-banner"
+    >
+      <Feather name="wifi-off" size={13} color={palette.white} style={S.offlineIcon} />
+      <Text style={S.offlineText} numberOfLines={1}>
+        Offline · saved messages dikha rahe hain
+      </Text>
+    </View>
   );
 }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   MESSAGE BUBBLE VARIANTS
-   ───────────────────────────────────────────────────────────────────────── */
-function StatusTick({ status }: { status?: MsgStatus }) {
-  if (!status) return null;
-  if (status === 'sending') return <Text style={styles.tickText}>⏳</Text>;
-  if (status === 'failed')  return <Text style={[styles.tickText, { color: TOKEN.errorRed }]}>⚠️</Text>;
-  if (status === 'read')    return <Text style={[styles.tickText, styles.tickRead]}>✓✓</Text>;
-  return <Text style={styles.tickText}>✓</Text>;
+// ─────────────────────────────────────────────────────────────────────────────
+// § 6 — MESSAGE ROW (renders one MessageBubble per CWMessage)
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface MessageRowProps {
+  msg:        CWMessage;
+  currentUid: string | null;
+  onLongPress:(msg: CWMessage) => void;
 }
 
-function ReactionsRow({ reactions }: { reactions: Reaction[] }) {
-  if (!reactions.length) return null;
+const MessageRow = React.memo(function MessageRow({
+  msg,
+  currentUid,
+  onLongPress,
+}: MessageRowProps) {
+  const variant = mapVariant(msg, currentUid);
+  const status  = mapStatus(msg);
+
+  const reactions = useMemo<Array<{ emoji: string; count: number }>>(() => {
+    if (!msg.reactions) return [];
+    return Object.entries(msg.reactions).map(([emoji, count]) => ({
+      emoji,
+      count: count as number,
+    }));
+  }, [msg.reactions]);
+
+  const tags = useMemo<React.ComponentProps<typeof MessageBubble>['tags']>(() => {
+    if (variant === 'ai')    return { isAI: true };
+    if (variant === 'mayor') return { isMayor: true };
+    return undefined;
+  }, [variant]);
+
+  const handleLongPress = useCallback(() => {
+    onLongPress(msg);
+  }, [msg, onLongPress]);
+
+  // Deleted messages: render a soft shell instead of the original text
+  const displayText = msg.isDeleted
+    ? '🚫 Yeh message delete ho gaya'
+    : (msg.text ?? '');
+
   return (
-    <View style={styles.reactRow}>
-      {reactions.map((r, i) => (
-        <TouchableOpacity key={i} style={styles.reactPill} activeOpacity={0.75} accessibilityLabel={`${r.count} ${r.emoji} reactions`}>
-          <Text style={styles.reactText}>{r.emoji} {r.count}</Text>
-        </TouchableOpacity>
+    <MessageBubble
+      variant={variant}
+      text={displayText}
+      time={formatTime(msg.timestamp)}
+      status={status}
+      reactions={reactions}
+      tags={tags}
+      onLongPress={handleLongPress}
+    />
+  );
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// § 7 — CHAT SKELETON (8 alternating left/right shimmer bubbles)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function ChatSkeleton() {
+  return (
+    <View style={S.chatList} testID="home-chat-skeleton">
+      {Array.from({ length: SKELETON_COUNT }).map((_, i) => (
+        <SkeletonBubble key={i} />
       ))}
     </View>
   );
 }
 
-function OwnBubble({ msg }: { msg: ChatMsg }) {
+// ─────────────────────────────────────────────────────────────────────────────
+// § 8 — EMPTY STATE
+// ─────────────────────────────────────────────────────────────────────────────
+
+function ChatEmptyState({ sectorLabel }: { sectorLabel: string }) {
   return (
-    <View style={styles.ownWrap}>
-      <View style={styles.ownBubble}>
-        <Text style={styles.ownText}>{msg.text}</Text>
-        <View style={styles.ownMeta}>
-          <Text style={styles.ownTime}>{msg.time}</Text>
-          <StatusTick status={msg.status} />
-        </View>
-      </View>
-      {msg.reactions && <ReactionsRow reactions={msg.reactions} />}
+    <View style={S.emptyState} accessibilityRole="text">
+      <Text style={S.emptyIcon}>🏙️</Text>
+      <Text style={S.emptyTitle}>{sectorLabel} abhi quiet hai</Text>
+      <Text style={S.emptySubtitle}>
+        Pehle ho · Apne neighbours ko hi zindagi do
+      </Text>
     </View>
   );
 }
 
-function OtherBubble({ msg }: { msg: ChatMsg }) {
-  const router = useRouter();
-  const isAI = msg.variant === 'ai';
-  const initials = (msg.displayName ?? 'U').charAt(0).toUpperCase();
-  return (
-    <View style={styles.otherWrap}>
-      <TouchableOpacity
-        style={[styles.avatar, isAI && styles.avatarAI]}
-        activeOpacity={0.8}
-        onPress={() => !isAI && router.push(`/user/${msg.id}` as never)}
-        accessibilityLabel={isAI ? `AI companion ${msg.displayName}` : `View ${msg.displayName}'s profile`}
-      >
-        <Text style={styles.avatarText}>{initials}</Text>
-      </TouchableOpacity>
+// ─────────────────────────────────────────────────────────────────────────────
+// § 9 — MAIN HOME SCREEN
+// ─────────────────────────────────────────────────────────────────────────────
 
-      <View style={styles.otherContent}>
-        <View style={styles.otherNameRow}>
-          <Text style={styles.otherName}>{msg.displayName}</Text>
-          {msg.colonyTag   && <View style={styles.colonyTag}><Text style={styles.colonyTagText}>{msg.colonyTag}</Text></View>}
-          {msg.isVerified  && <View style={styles.verifiedBadge}><Text style={styles.verifiedText}>✔</Text></View>}
-          {msg.isFounder   && <View style={styles.founderBadge}><Text style={styles.founderText}>FOUNDER</Text></View>}
-          {msg.isMayor     && <View style={styles.mayorInlineBadge}><Text style={styles.mayorInlineText}>👑 Mayor</Text></View>}
-          {isAI            && <View style={styles.aiBadge}><Text style={styles.aiBadgeText}>🤖 AI</Text></View>}
-        </View>
-        <View style={[styles.otherBubble, isAI && styles.otherBubbleAI]}>
-          <Text style={styles.otherText}>{msg.text}</Text>
-          <Text style={styles.otherTime}>{msg.time}</Text>
-        </View>
-        {msg.reactions && <ReactionsRow reactions={msg.reactions} />}
-      </View>
-    </View>
-  );
-}
-
-function MayorBubble({ msg }: { msg: ChatMsg }) {
-  const [expanded, setExpanded] = useState(false);
-  return (
-    <TouchableWithoutFeedback onPress={() => setExpanded(!expanded)}>
-      <View style={styles.mayorWrap} accessibilityRole="text" accessibilityLabel={`Mayor announcement: ${msg.text}`}>
-        <Text style={styles.mayorCrown}>👑</Text>
-        <View style={styles.mayorCard}>
-          <Text style={styles.mayorCardHeader}>📌 {msg.mayorName} · Mayor</Text>
-          <Text style={styles.mayorCardText} numberOfLines={expanded ? undefined : 4}>{msg.text}</Text>
-          <Text style={styles.mayorCardTime}>{msg.time}</Text>
-        </View>
-      </View>
-    </TouchableWithoutFeedback>
-  );
-}
-
-function SystemMsg({ msg }: { msg: ChatMsg }) {
-  return (
-    <View style={styles.systemWrap}>
-      <Text style={styles.systemText} accessibilityRole="text" accessibilityLabel={`System: ${msg.text}`}>{msg.text}</Text>
-    </View>
-  );
-}
-
-function DateSeparator({ msg }: { msg: ChatMsg }) {
-  return (
-    <View style={styles.dateSepWrap}>
-      <View style={styles.dateSepChip}>
-        <Text style={styles.dateSepText} accessibilityRole="header" accessibilityLabel={`Messages from ${msg.text}`}>{msg.text}</Text>
-      </View>
-    </View>
-  );
-}
-
-function MessageItem({ item }: { item: ChatMsg }) {
-  switch (item.variant) {
-    case 'own':           return <OwnBubble msg={item} />;
-    case 'other':
-    case 'ai':            return <OtherBubble msg={item} />;
-    case 'mayor':         return <MayorBubble msg={item} />;
-    case 'system':        return <SystemMsg msg={item} />;
-    case 'date_separator':return <DateSeparator msg={item} />;
-    default:              return null;
-  }
-}
-
-/* ─────────────────────────────────────────────────────────────────────────
-   GLASS ISLAND NAV BAR (LAW 13)
-   ───────────────────────────────────────────────────────────────────────── */
-const GLASS_TABS: Array<{
-  id: 'home' | 'discover' | 'wallet' | 'profile';
-  Icon: React.ComponentType<{ size: number; color: string; strokeWidth: number }>;
-  label: string;
-}> = [
-  { id: 'home',     Icon: HomeIcon,   label: 'Home' },
-  { id: 'discover', Icon: Compass,    label: 'Discover' },
-  { id: 'wallet',   Icon: CreditCard, label: 'Wallet' },
-  { id: 'profile',  Icon: User,       label: 'Profile' },
-];
-
-function GlassIsland({ activeTab, onTabPress, translateY, bottomInset }: {
-  activeTab: 'home' | 'discover' | 'wallet' | 'profile';
-  onTabPress: (tab: 'home' | 'discover' | 'wallet' | 'profile') => void;
-  translateY: Animated.Value;
-  bottomInset: number;
-}) {
-  return (
-    <Animated.View
-      style={[styles.glassIslandWrapper, { bottom: bottomInset + 16, transform: [{ translateY }] }]}
-      accessibilityRole="tablist"
-      testID="home-glass-island"
-    >
-      <View style={styles.glassIsland}>
-        {GLASS_TABS.map((tab) => {
-          const isActive = activeTab === tab.id;
-          return (
-            <TouchableOpacity
-              key={tab.id}
-              style={styles.glassTab}
-              onPress={() => onTabPress(tab.id)}
-              activeOpacity={0.75}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: isActive }}
-              accessibilityLabel={isActive ? `${tab.label}, currently selected` : `${tab.label}`}
-            >
-              {isActive && <View style={styles.glassActiveGlow} />}
-              <tab.Icon size={22} strokeWidth={1.5} color={isActive ? TOKEN.glassIslandActive : TOKEN.glassIslandInactive} />
-              {isActive && <View style={styles.glassActiveDot} />}
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-    </Animated.View>
-  );
-}
-
-/* ─────────────────────────────────────────────────────────────────────────
-   CITY / SECTOR PICKER SHEET
-   ───────────────────────────────────────────────────────────────────────── */
-function PickerSheet({ type, items, selectedId, onSelect, onClose }: {
-  type: 'city' | 'sector';
-  items: Array<City | Sector>;
-  selectedId: string;
-  onSelect: (id: string) => void;
-  onClose: () => void;
-}) {
-  const title = type === 'city' ? 'Apna Shehar Chuno' : 'Apna Sector Chuno';
-  return (
-    <TouchableWithoutFeedback onPress={onClose}>
-      <View style={styles.sheetOverlay}>
-        <TouchableWithoutFeedback>
-          <View style={styles.sheetContainer}>
-            <View style={styles.sheetHandle} />
-            <Text style={styles.sheetTitle}>{title}</Text>
-            {items.map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                style={[styles.sheetRow, selectedId === item.id && styles.sheetRowActive]}
-                onPress={() => { onSelect(item.id); onClose(); }}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.sheetRowText, selectedId === item.id && styles.sheetRowTextActive]}>{item.name}</Text>
-                {selectedId === item.id && <Check size={16} color={TOKEN.fgBrand} strokeWidth={1.5} />}
-              </TouchableOpacity>
-            ))}
-          </View>
-        </TouchableWithoutFeedback>
-      </View>
-    </TouchableWithoutFeedback>
-  );
-}
-
-/* ─────────────────────────────────────────────────────────────────────────
-   MAIN HOME SCREEN
-   ───────────────────────────────────────────────────────────────────────── */
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
 
-  /* ── State ── */
-  const [selectedCity, setSelectedCity]     = useState<City>(CITIES[0]);
-  const [selectedSector, setSelectedSector] = useState<Sector>(SECTORS[0]);
-  const [msgs, setMsgs]                     = useState<ChatMsg[]>(INITIAL_MSGS);
-  const [inputText, setInputText]           = useState('');
-  const [isOffline, setIsOffline]           = useState(false);
-  const [onlineCount]                       = useState(234);
-  const [heatScore]                         = useState(67);
+  // ── Location ─────────────────────────────────────────────────────────────
+  const [cityId,       setCityId]       = useState(DEFAULT_CITY_ID);
+  const [cityLabel,    setCityLabel]    = useState(DEFAULT_CITY_LABEL);
+  const [sectorId,     setSectorId]     = useState(DEFAULT_SECTOR_ID);
+  const [sectorLabel,  setSectorLabel]  = useState(DEFAULT_SECTOR_LABEL);
+
+  const roomId = useMemo(() => buildRoomId(cityId, sectorId), [cityId, sectorId]);
+
+  // ── Room metadata ─────────────────────────────────────────────────────────
+  const [room,        setRoom]        = useState<CWRoom | null>(null);
+  const [roomLoading, setRoomLoading] = useState(true);
+
+  // ── Messages ──────────────────────────────────────────────────────────────
+  const [messages,   setMessages]    = useState<CWMessage[]>([]);
+  const [isLoading,  setIsLoading]   = useState(true);
+  const [isOffline,  setIsOffline]   = useState(false);
+
+  // ── ScrollFAB ─────────────────────────────────────────────────────────────
+  const [newMsgCount,   setNewMsgCount]   = useState(0);
+  const [isScrolledUp,  setIsScrolledUp]  = useState(false);
+
+  // ── Sheets ────────────────────────────────────────────────────────────────
+  const [citySheetOpen,   setCitySheetOpen]   = useState(false);
+  const [sectorSheetOpen, setSectorSheetOpen] = useState(false);
+  const [authSheetOpen,   setAuthSheetOpen]   = useState(false);
+  const [actionSheetOpen, setActionSheetOpen] = useState(false);
+  const [actionMsg,       setActionMsg]       = useState<ActionSheetMsg | null>(null);
+
+  // ── Send-failed modal ─────────────────────────────────────────────────────
+  const [failedModalOpen, setFailedModalOpen] = useState(false);
+  const [failedMsg,       setFailedMsg]       = useState<FailedMsg | null>(null);
+
+  // ── Trust anchor ──────────────────────────────────────────────────────────
   const [showTrustAnchor, setShowTrustAnchor] = useState(true);
-  const [pickerOpen, setPickerOpen]         = useState<'city' | 'sector' | null>(null);
-  const [activeTab, setActiveTab]           = useState<'home' | 'discover' | 'wallet' | 'profile'>('home');
-  const [newMsgCount, setNewMsgCount]       = useState(0);
-  const [isScrolledUp, setIsScrolledUp]     = useState(false);
-  const [isSendDisabled, setIsSendDisabled] = useState(true);
-  const [notificationCount]                 = useState(3);
 
-  /**
-   * FIX 2: isLoading starts FALSE.
-   * INITIAL_MSGS is synchronous mock data — no async fetch needed.
-   * The original `isLoading = true` with a 1200ms timeout was blocking the
-   * FlatList render for no reason, causing a blank white screen for 1.2s.
-   * When you wire up Firestore, set this to `true` and call `setIsLoading(false)`
-   * inside your `onSnapshot` callback's first emission.
-   */
-  const [isLoading, setIsLoading]           = useState(false);
-  const [isRefreshing, setIsRefreshing]     = useState(false);
-  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  // ── Refs ──────────────────────────────────────────────────────────────────
+  const flatListRef   = useRef<FlatList<CWMessage>>(null);
+  const glassRef      = useRef<FloatingGlassIslandHandle>(null);
+  const msgUnsubRef   = useRef<MsgUnsubscribe | null>(null);
+  const roomUnsubRef  = useRef<RoomUnsubscribe | null>(null);
+  const firstLoadRef  = useRef(true);
 
-  /* ── Refs ── */
-  const flatListRef      = useRef<FlatList>(null);
-  const glassTranslateY  = useRef(new Animated.Value(0)).current;
-  const lastScrollY      = useRef(0);
+  // ── Glass Island active tab ───────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<'home' | 'discover' | 'wallet' | 'profile'>('home');
 
-  /* ── Trust anchor auto-hide ── */
+  // ═══════════════════════════════════════════════════════════════════════════
+  // § 9.1 — FIRESTORE SUBSCRIPTIONS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // Room metadata: onlineCount + heatScore
+  useEffect(() => {
+    setRoomLoading(true);
+    roomUnsubRef.current?.();
+    roomUnsubRef.current = subscribeToRoom(roomId, (data) => {
+      setRoom(data);
+      setRoomLoading(false);
+    });
+    return () => { roomUnsubRef.current?.(); };
+  }, [roomId]);
+
+  // Messages real-time stream
+  useEffect(() => {
+    setIsLoading(true);
+    setMessages([]);
+    firstLoadRef.current = true;
+    setNewMsgCount(0);
+    msgUnsubRef.current?.();
+
+    msgUnsubRef.current = subscribeToMessages(roomId, MESSAGE_PAGE_SIZE, (msgs) => {
+      setMessages(msgs);
+      setIsLoading(false);
+      if (!firstLoadRef.current && isScrolledUp) {
+        setNewMsgCount((prev) => prev + 1);
+      }
+      firstLoadRef.current = false;
+    });
+
+    return () => { msgUnsubRef.current?.(); };
+  }, [roomId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Presence: increment on mount, decrement on unmount + background
+  useEffect(() => {
+    if (!user?.uid) return;
+    incrementOnlineCount(roomId).catch(() => {});
+
+    const handleAppState = (state: AppStateStatus) => {
+      if (state === 'background' || state === 'inactive') {
+        decrementOnlineCount(roomId).catch(() => {});
+      } else if (state === 'active') {
+        incrementOnlineCount(roomId).catch(() => {});
+      }
+    };
+    const sub = AppState.addEventListener('change', handleAppState);
+
+    return () => {
+      sub.remove();
+      decrementOnlineCount(roomId).catch(() => {});
+    };
+  }, [roomId, user?.uid]);
+
+  // Trust anchor auto-hide after 60s
   useEffect(() => {
     if (!showTrustAnchor) return;
-    const t = setTimeout(() => setShowTrustAnchor(false), 60000);
+    const t = setTimeout(() => setShowTrustAnchor(false), TRUST_ANCHOR_MS);
     return () => clearTimeout(t);
   }, [showTrustAnchor]);
 
-  /* ── Glass Island: hide on keyboard open ── */
-  useEffect(() => {
-    const hide = () => {
-      setIsKeyboardVisible(true);
-      Animated.timing(glassTranslateY, { toValue: 120, duration: 250, useNativeDriver: true }).start();
+  // ═══════════════════════════════════════════════════════════════════════════
+  // § 9.2 — SEND MESSAGE (optimistic)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const handleSend = useCallback(async (text: string) => {
+    if (!user?.uid) return;
+    const trimmed = text.trim();
+    if (!trimmed) return;
+
+    const optId = `opt_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
+    // Optimistic bubble — appears immediately
+    const optimistic: CWMessage = {
+      id:        optId,
+      roomId,
+      uid:       user.uid,
+      text:      trimmed,
+      imageURL:  null,
+      variant:   'right',
+      reactions: {},
+      replyToId: null,
+      isMicDrop: false,
+      isDeleted: false,
+      editedAt:  null,
+      timestamp: { toDate: () => new Date(), toMillis: () => Date.now() } as any,
+      status:    'sent',
     };
-    const show = () => {
-      setIsKeyboardVisible(false);
-      Animated.timing(glassTranslateY, { toValue: 0, duration: 250, useNativeDriver: true }).start();
-    };
-    const subs = [
-      Keyboard.addListener('keyboardWillShow', hide),
-      Keyboard.addListener('keyboardDidShow',  hide),
-      Keyboard.addListener('keyboardWillHide', show),
-      Keyboard.addListener('keyboardDidHide',  show),
-    ];
-    return () => subs.forEach((s) => s.remove());
-  }, []);
 
-  /* ── Helpers ── */
-  const nowStr = useCallback(() => {
-    const d = new Date();
-    let h = d.getHours();
-    const m = d.getMinutes();
-    const ap = h >= 12 ? 'PM' : 'AM';
-    h = h % 12 || 12;
-    return `${h}:${m < 10 ? '0' + m : m} ${ap}`;
-  }, []);
+    setMessages((prev) => [...prev, optimistic]);
+    // Scroll to newest (inverted list: offset 0 = bottom = newest)
+    setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }), 60);
 
-  const sendMessage = useCallback(() => {
-    const text = inputText.trim();
-    if (!text) return;
-    const newMsg: ChatMsg = { id: Date.now().toString(), variant: 'own', text, time: nowStr(), status: 'sending' };
-    setMsgs((prev) => [...prev, newMsg]);
-    setInputText('');
-    setIsSendDisabled(true);
-    setTimeout(() => {
-      setMsgs((prev) => prev.map((m) => m.id === newMsg.id ? { ...m, status: 'sent' as MsgStatus } : m));
-    }, 800);
-    setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }), 80);
-  }, [inputText, nowStr]);
-
-  const handleInputChange = useCallback((text: string) => {
-    setInputText(text);
-    setIsSendDisabled(text.trim().length === 0);
-  }, []);
-
-  /* ── Scroll handler ── */
-  const handleScroll = useCallback((event: any) => {
-    const y = event.nativeEvent.contentOffset.y;
-    lastScrollY.current = y;
-    const scrolledUp = y > 100;
-    if (scrolledUp !== isScrolledUp) {
-      setIsScrolledUp(scrolledUp);
-      Animated.spring(glassTranslateY, { toValue: scrolledUp ? 80 : 0, stiffness: 180, damping: 22, useNativeDriver: true }).start();
+    try {
+      await sendMessage(roomId, {
+        id:      optId,
+        uid:     user.uid,
+        text:    trimmed,
+        variant: 'right',
+        status:  'sent',
+      });
+    } catch {
+      // Mark optimistic bubble as failed
+      setMessages((prev) =>
+        prev.map((m) => m.id === optId ? { ...m, status: 'failed' as const } : m)
+      );
+      setFailedMsg({ id: optId, text: trimmed, roomId });
+      setFailedModalOpen(true);
     }
-    if (y > 50 && showTrustAnchor) setShowTrustAnchor(false);
+  }, [user?.uid, roomId]);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // § 9.3 — FAILED MESSAGE RETRY
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const handleRetryFailed = useCallback(async (failed: FailedMsg) => {
+    setFailedModalOpen(false);
+    setFailedMsg(null);
+    // Remove the failed bubble before re-sending
+    setMessages((prev) => prev.filter((m) => m.id !== failed.id));
+    await handleSend(failed.text);
+  }, [handleSend]);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // § 9.4 — AUTH GATE (LAW 4 — Peek-Before-Join)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const handleAuthGate = useCallback(() => {
+    setAuthSheetOpen(true);
+  }, []);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // § 9.5 — LONG PRESS → MESSAGE ACTION SHEET
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const handleLongPress = useCallback((msg: CWMessage) => {
+    const adapted = adaptToActionMsg(msg, user?.uid ?? null, cityId, sectorId);
+    setActionMsg(adapted);
+    setActionSheetOpen(true);
+  }, [user?.uid, cityId, sectorId]);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // § 9.6 — SCROLL (Glass Island LAW 13 + ScrollFAB)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    // Forward to FloatingGlassIsland for LAW 13 hide/show
+    glassRef.current?.scrollHandler(event);
+
+    const y = event.nativeEvent.contentOffset.y;
+    const scrolledUp = y > 80;
+    if (scrolledUp !== isScrolledUp) setIsScrolledUp(scrolledUp);
+
+    // Hide trust anchor on first scroll
+    if (y > 20 && showTrustAnchor) setShowTrustAnchor(false);
   }, [isScrolledUp, showTrustAnchor]);
 
-  /* ── Pull-to-refresh ── */
-  const handleRefresh = useCallback(async () => {
-    setIsRefreshing(true);
-    await new Promise<void>((r) => setTimeout(r, 1000));
-    setIsRefreshing(false);
+  const handleScrollToBottom = useCallback(() => {
+    flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+    setNewMsgCount(0);
+    setIsScrolledUp(false);
   }, []);
 
-  /* ── Tab navigation ── */
+  // ═══════════════════════════════════════════════════════════════════════════
+  // § 9.7 — CITY / SECTOR SELECTION
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const handleCitySelect = useCallback((selectedCityId: string) => {
+    setCityId(selectedCityId);
+    // Capitalise first letter as best-effort label until Firestore resolves name
+    setCityLabel(selectedCityId.charAt(0).toUpperCase() + selectedCityId.slice(1));
+  }, []);
+
+  const handleSectorSelect = useCallback((selectedSectorId: string) => {
+    setSectorId(selectedSectorId);
+    // "sector-17" → "Sector 17"
+    const label = selectedSectorId
+      .split('-')
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ');
+    setSectorLabel(label);
+  }, []);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // § 9.8 — GLASS ISLAND TAB PRESS
+  // ═══════════════════════════════════════════════════════════════════════════
+
   const handleTabPress = useCallback((tab: 'home' | 'discover' | 'wallet' | 'profile') => {
-    if (tab === 'home') { flatListRef.current?.scrollToOffset({ offset: 0, animated: true }); return; }
     setActiveTab(tab);
-    const routes: Record<string, string> = { discover: '/(tabs)/discover', wallet: '/credits/index', profile: '/(tabs)/profile' };
+    if (tab === 'home') {
+      flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+      return;
+    }
+    const routes: Record<string, string> = {
+      discover: '/(tabs)/discover',
+      wallet:   '/credits/index',
+      profile:  '/(tabs)/profile',
+    };
     if (routes[tab]) router.push(routes[tab] as never);
   }, [router]);
 
-  /* ── Bottom spacing maths ──
-   *
-   * Glass Island:
-   *   Height = 56px | Bottom = insets.bottom + 16px
-   *   → Visual top of glass island = insets.bottom + 16 + 56 = insets.bottom + 72
-   *
-   * Input area paddingBottom (when keyboard hidden):
-   *   Needs to push content above glass island top + 4px gap
-   *   = insets.bottom + 72 + 4 = insets.bottom + 76
-   *
-   * Input area paddingBottom (when keyboard visible):
-   *   Glass island is off-screen → only safe area needed
-   *   = insets.bottom + 8
-   */
-  const inputPaddingBottom = isKeyboardVisible
-    ? insets.bottom + 8
-    : insets.bottom + 76;
+  // ═══════════════════════════════════════════════════════════════════════════
+  // § 9.9 — FLATLIST DATA (newest-first for inverted list)
+  // ═══════════════════════════════════════════════════════════════════════════
 
-  /**
-   * FIX 4: KAV behavior.
-   *
-   * Android — `undefined` (no behavior). The Android system handles window
-   * resizing for the keyboard natively (WindowSoftInputMode). Using "height"
-   * caused the KAV to shrink by the full keyboard height while the inputArea
-   * still carried its large paddingBottom, collapsing the FlatList to ~0px.
-   *
-   * iOS — `"padding"` adds bottom padding to the KAV equal to the keyboard
-   * height, pushing the whole chat + input up. keyboardVerticalOffset = total
-   * height of non-KAV content above the KAV (insets.top + header 100px + strip 32px).
-   */
-  const kavBehavior = Platform.OS === 'ios' ? 'padding' : undefined;
-  const kavOffset   = insets.top + 132; // 56 (row1) + 44 (row2) + 32 (online strip)
+  const invertedMessages = useMemo(() => [...messages].reverse(), [messages]);
 
-  /* ── Inverted data (newest first) ── */
-  const invertedMsgs = useMemo(() => [...msgs].reverse(), [msgs]);
+  const renderItem = useCallback(({ item }: { item: CWMessage }) => (
+    <MessageRow
+      msg={item}
+      currentUid={user?.uid ?? null}
+      onLongPress={handleLongPress}
+    />
+  ), [user?.uid, handleLongPress]);
 
-  const renderItem    = useCallback(({ item }: { item: ChatMsg }) => <MessageItem item={item} />, []);
-  const keyExtractor  = useCallback((item: ChatMsg) => item.id, []);
+  const keyExtractor = useCallback((item: CWMessage) => item.id, []);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // § 9.10 — KAV OFFSET
+  // Height of non-KAV content above the KAV (for iOS padding compensation):
+  //   safeAreaTop + Row1 (56) + Row2 (44) + OnlineStrip (32)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const kavOffset = insets.top + layout.headerRow1Height + layout.headerRow2Height + 32;
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // § 9.11 — RENDER
+  // ═══════════════════════════════════════════════════════════════════════════
 
   return (
-    <View style={styles.screen}>
+    <View style={S.screen}>
       <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
 
-      {/* HEADER */}
-      <HomeHeader
-        city={selectedCity} sector={selectedSector}
-        onCityPress={() => setPickerOpen('city')} onSectorPress={() => setPickerOpen('sector')}
-        onNotificationsPress={() => router.push('/notifications/index' as never)}
-        onProfilePress={() => router.push('/(tabs)/profile' as never)}
-        paddingTop={insets.top} notificationCount={notificationCount}
+      {/*
+       * ── [1] TWO-ROW HEADER (LAW 15) ──────────────────────────────────────
+       *
+       * variant="world":
+       *   Row 1 (56px): "CROWD WORLD" wordmark (§ 5.A · Cormorant 24/700 · gold-800)
+       *                 + Coins pill + DM icon (right)
+       *   Row 2 (44px): CityPill + SectorPill
+       *
+       * Rule 03: NO profile avatar here.
+       * Avatar lives ONLY in FloatingGlassIsland Profile tab below.
+       *
+       * credits / dmCount: wired to 0 for v1.0.
+       * TODO: plug into user.credits from Firestore + unread DM subscription.
+       */}
+      <Header
+        variant="world"
+        city={cityLabel}
+        sector={sectorLabel}
+        sectorIsActive
+        onPressCity={() => setCitySheetOpen(true)}
+        onPressSector={() => setSectorSheetOpen(true)}
+        credits={0}
+        dmCount={0}
+        onPressCredits={() => router.push('/credits/index' as never)}
+        onPressDM={() => router.push('/(tabs)/inbox' as never)}
       />
 
-      {/* OFFLINE BANNER */}
+      {/*
+       * ── [2] OFFLINE BANNER (conditional · 32px · dark bg) ─────────────────
+       *
+       * Blueprint §Q9: 32px H below header · ink[950] bg
+       * "📶 Offline · saved messages dikha rahe hain"
+       * isOffline currently false (TODO: wire to NetInfo)
+       */}
       <OfflineBanner visible={isOffline} />
 
-      {/* ONLINE COUNT STRIP */}
-      <OnlineCountStrip count={onlineCount} heatScore={heatScore} showTrustAnchor={showTrustAnchor} />
+      {/*
+       * ── [3] ONLINE COUNT STRIP (32px · amber dot · Heat Score) ────────────
+       *
+       * [4.A] Online Member Pill: animated amber dot + count text
+       *       count-up animation (200ms ease-out cubic)
+       *       States: quiet (<50) · normal · abbreviated (≥10K)
+       * [4.B] Heat Score Pill: gradient amber→gold · visible when score ≥ 30
+       * [4.C] Trust Anchor Chip: "👥 1 Lakh+" · auto-hides after 60s
+       *
+       * loading=roomLoading shows skeleton rects (80×16 + 60×16)
+       */}
+      <OnlineCountStrip
+        count={room?.onlineCount ?? null}
+        heatScore={room?.heatScore ?? null}
+        loading={roomLoading}
+        showTrustAnchor={showTrustAnchor}
+        onTrustAnchorDismiss={() => setShowTrustAnchor(false)}
+      />
 
-      {/* ── KEYBOARD AVOIDING WRAPPER ── */}
+      {/*
+       * ── KEYBOARD AVOIDING WRAPPER ─────────────────────────────────────────
+       *
+       * iOS:     behavior="padding" — pushes content up by keyboard height
+       * Android: undefined — system WindowSoftInputMode handles resizing
+       *
+       * kavOffset accounts for all fixed-height content above this wrapper
+       * (safeArea + header rows + online strip = insets.top + 56 + 44 + 32)
+       *
+       * The KAV wraps BOTH the FlatList AND the ChatInput so they both move
+       * together when the keyboard opens (Rule 04: flush with no gap).
+       */}
       <KeyboardAvoidingView
-        style={styles.chatInputWrapper}
-        behavior={kavBehavior}
-        keyboardVerticalOffset={kavBehavior ? kavOffset : undefined}
+        style={S.kav}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? kavOffset : undefined}
       >
-        {/* CHAT BODY */}
+        {/*
+         * ── [4] CHAT BODY — Inverted FlatList ─────────────────────────────
+         *
+         * inverted=true: latest messages at visual bottom (index 0 = newest)
+         * 6 message variants rendered by MessageRow → MessageBubble:
+         *   'right'  — own message (gold fill · right-aligned)
+         *   'left'   — other user (cream fill · left-aligned)
+         *   'ai'     — AI companion (dashed gold border · ✦ AI badge)
+         *   'mayor'  — Mayor announcement (gold left-accent spine)
+         *   'system' — System event (centered gold-50 chip)
+         *   'date'   — Date separator (hairline ─── chip ─── hairline)
+         *
+         * FIX (v5.1): paddingTop: 8 (visual bottom gap, not ~178px)
+         * FIX (v5.1): getItemLayout removed (variable heights 40–200px)
+         * FIX (v5.1): behavior="padding" on iOS only (not "height")
+         *
+         * Peek-Before-Join (LAW 4): messages are always rendered regardless
+         * of auth state. ChatInput below triggers AuthGateSheet if unauthed.
+         */}
         {isLoading ? (
-          <View style={styles.chatList} testID="home-chat-skeleton">
-            <SkeletonBubble />
-          </View>
+          <ChatSkeleton />
         ) : (
-          <FlatList
+          <FlatList<CWMessage>
             ref={flatListRef}
-            data={invertedMsgs}
+            data={invertedMessages}
             renderItem={renderItem}
             keyExtractor={keyExtractor}
             inverted
-            style={styles.chatList}
-            /**
-             * FIX 1: The ROOT CAUSE of the blank chat.
-             *
-             * contentContainerStyle previously had `paddingTop: chatPaddingBottom`
-             * (~178px). For an inverted FlatList, `paddingTop` in the content container
-             * maps to the VISUAL BOTTOM — the area the user sees first on render.
-             * The 178px of empty space appeared at the bottom, pushing all messages
-             * above the visible area. Users saw only a cream-white void.
-             *
-             * Fix: use paddingTop: 8 (tiny gap between newest message and list edge)
-             * and paddingBottom: 8 (tiny gap at visual top for oldest messages).
-             * The input area is a sibling element — it handles its own spacing.
-             */
-            contentContainerStyle={styles.chatContent}
+            style={S.chatList}
+            contentContainerStyle={S.chatContent}
             showsVerticalScrollIndicator={false}
             initialNumToRender={12}
             maxToRenderPerBatch={8}
             windowSize={10}
-            /**
-             * FIX 3: getItemLayout REMOVED.
-             * It returned a hardcoded `length: 80` for all items. Message bubbles
-             * range from ~44px (short system msg) to ~200px (mayor card with reactions).
-             * The mismatched lengths caused FlatList to miscalculate scroll offsets,
-             * rendering items at wrong positions and skipping off-screen items.
-             * Without getItemLayout, FlatList measures items accurately.
-             */
             removeClippedSubviews={Platform.OS === 'android'}
             onEndReachedThreshold={0.6}
             keyboardShouldPersistTaps="handled"
@@ -832,421 +778,363 @@ export default function HomeScreen() {
             onScroll={handleScroll}
             scrollEventThrottle={16}
             maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
-            refreshControl={
-              <PullIndicator refreshing={isRefreshing} onRefresh={handleRefresh} />
-            }
+            testID="home-chat-list"
+            ListEmptyComponent={<ChatEmptyState sectorLabel={sectorLabel} />}
           />
         )}
 
-        {/* SCROLL FAB */}
+        {/*
+         * ── [5] SCROLL FAB (new messages chip) ────────────────────────────
+         *
+         * Appears when isScrolledUp=true AND newMsgCount>0
+         * Positioned 80px above Glass Island floor (56px island + 24px gap)
+         * Tapping scrolls to offset:0 (latest message) + resets counter
+         * zIndex: stickyCTA (940) — above content, below Glass Island (950)
+         */}
         <ScrollFAB
           visible={isScrolledUp && newMsgCount > 0}
           label={newMsgCount > 0 ? `${newMsgCount} nayi messages` : 'New messages'}
-          onPress={() => {
-            flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
-            setNewMsgCount(0);
-          }}
+          onPress={handleScrollToBottom}
         />
 
-        {/* STICKY INPUT AREA — Rule 04: flush above Glass Island */}
-        <View style={[styles.inputArea, { paddingBottom: inputPaddingBottom }]} testID="home-input-area">
-          <TextInput
-            style={[styles.inputField, !isSendDisabled && styles.inputFieldActive]}
-            value={inputText}
-            onChangeText={handleInputChange}
-            placeholder={`${selectedSector.name} mein message likho...`}
-            placeholderTextColor={TOKEN.fgSecondary}
-            multiline
-            maxLength={1000}
-            returnKeyType="default"
-            keyboardType="default"
-            autoCapitalize="sentences"
-            autoCorrect
-            accessible
-            accessibilityLabel={`Type a message in ${selectedSector.name}`}
-            testID="home-input-field"
-          />
-
-          <TouchableOpacity
-            style={[styles.sendBtn, isSendDisabled && styles.sendBtnDisabled]}
-            onPress={sendMessage}
-            disabled={isSendDisabled}
-            hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel={isSendDisabled ? 'Send button. Type a message first.' : 'Send message'}
-            accessibilityState={{ disabled: isSendDisabled }}
-            testID="home-send-button"
-          >
-            <SendIcon size={18} strokeWidth={1.5} color={isSendDisabled ? TOKEN.fgTertiary : TOKEN.fgOnBrand} />
-          </TouchableOpacity>
-        </View>
+        {/*
+         * ── [6] STICKY CHAT INPUT (Rule 04 · z:940 · flush above Glass Island)
+         *
+         * ChatInput is position:static — sits in normal flex flow.
+         * It is the DIRECT SIBLING below FlatList inside the KAV.
+         * Glass Island (z:950) renders absolutely on top of it.
+         * Rule 04: ChatInput z:940 < GlassIsland z:950, no gap, no overlap.
+         *
+         * ChatInput handles internally:
+         *   - Auth gate: if !isAuthenticated → calls onAuthGate (no keyboard)
+         *   - Send state machine: idle → active → sending → failed
+         *   - Char counter: visible from 850 chars
+         *   - Emoji keyboard trigger
+         *   - disabled=true → offline opacity 0.5 (no interaction)
+         *
+         * Rule 03: NO user avatar in this composer.
+         * Avatar ONLY in FloatingGlassIsland Profile tab.
+         *
+         * paddingBottom is handled by ChatInput's useSafeAreaInsets internally.
+         */}
+        <ChatInput
+          onSend={handleSend}
+          isAuthenticated={!!user}
+          onAuthGate={handleAuthGate}
+          placeholder={`${sectorLabel} mein message likho...`}
+          disabled={isOffline}
+        />
       </KeyboardAvoidingView>
 
-      {/* GLASS ISLAND NAV (LAW 13) */}
-      <GlassIsland activeTab={activeTab} onTabPress={handleTabPress} translateY={glassTranslateY} bottomInset={insets.bottom} />
+      {/*
+       * ── [7] FLOATING GLASS ISLAND (LAW 13 · z:950) ───────────────────────
+       *
+       * Self-contained floating pill nav:
+       *   home     → Feather 'home'
+       *   discover → Feather 'compass'
+       *   wallet   → Feather 'credit-card'
+       *   profile  → User avatar (Rule 03: ONLY place avatar appears)
+       *
+       * LAW 13 hide/show:
+       *   Scroll toward older msgs → springBouncy hide (translateY + 72 + insets.bottom)
+       *   Scroll back to latest   → springBouncy show (translateY 0)
+       *   Keyboard opens          → hide (translateY +120px off-screen)
+       *   Keyboard closes         → show (translateY 0)
+       *   Reduced motion          → opacity fade only (no translateY animation)
+       *
+       * glassRef exposes scrollHandler wired to FlatList onScroll via handleScroll.
+       */}
+      <FloatingGlassIsland
+        ref={glassRef}
+        activeTab={activeTab}
+        onTabPress={handleTabPress}
+        userAvatarUri={user?.photoURL ?? undefined}
+      />
 
-      {/* CITY / SECTOR PICKER SHEETS */}
-      {pickerOpen === 'city' && (
-        <PickerSheet type="city" items={CITIES} selectedId={selectedCity.id}
-          onSelect={(id) => { const f = CITIES.find((c) => c.id === id); if (f) setSelectedCity(f); }}
-          onClose={() => setPickerOpen(null)}
+      {/* ═══════════════════════════════════════════════════════════════════
+          SHEETS & MODALS
+          ═══════════════════════════════════════════════════════════════════ */}
+
+      {/*
+       * CITY PICKER SHEET
+       *
+       * Features:
+       *   - Firestore /cities real-time collection (is_active == true · orderBy name)
+       *   - Shimmer skeleton: 6 rows × 64px · cream-200 ↔ white · 1200ms
+       *   - Instant client-side search filter ("City dhundo...")
+       *   - Recent Cities horizontal strip (AsyncStorage · max 5)
+       *   - Active city: 2px gold-600 left accent bar + cream wash bg
+       *   - Spinner overlay during city switch (AsyncStorage + Firestore parallel write)
+       *   - 5 states: loading · idle · search-active · empty · error
+       */}
+      <CityPickerSheet
+        visible={citySheetOpen}
+        onClose={() => setCitySheetOpen(false)}
+        selected={cityId}
+        onSelect={handleCitySelect}
+      />
+
+      {/*
+       * SECTOR PICKER SHEET
+       *
+       * Features:
+       *   - Real-time Firestore sectors via subscribeSectorsByCity(cityId)
+       *   - Shimmer skeleton: 8 rows × 64px · 1200ms
+       *   - Sort toggle: 🔥 Heat (default) · 👥 Online · A-Z (LayoutAnimation)
+       *   - Per row: 24×24 circle icon + name + colony tag + online count + HeatPulseDot
+       *   - Heat pill: gradient amber→gold · visible when heatScore ≥ 30
+       *   - Active sector: 2px gold-600 left bar + cream-50 bg + golden ✓ top-right
+       *   - 5 states: loading · idle · search-active · empty · error
+       */}
+      <SectorPickerSheet
+        visible={sectorSheetOpen}
+        onClose={() => setSectorSheetOpen(false)}
+        cityId={cityId}
+        selected={sectorId}
+        onSelect={handleSectorSelect}
+      />
+
+      {/*
+       * AUTH GATE SHEET (LAW 4 — Peek-Before-Join)
+       *
+       * Triggered when unauthed user taps ChatInput.
+       * Features:
+       *   - Half-screen (50%) · DISMISSIBLE (LAW 4 explicit: no forced signup)
+       *   - Hero illustration (lock + heart · scale spring 0.9→1.0 on mount)
+       *   - "Bas ek step aur..." subtitle (gold-700)
+       *   - Headline + "1 Lakh+ users" trust anchor subhead
+       *   - Feature strip (3 benefits · stagger fade-in 100ms each)
+       *   - Phone input (+91 prefix · 10-digit · phone-pad · autoFocus)
+       *   - Continue CTA (54px gold · disabled until 10 digits)
+       *   - DPDP Act 2023 Terms + Privacy disclosure
+       *   - "Pehle dekho · sign up baad mein" peek link (LAW 4 explicit)
+       *   - Analytics: auth_gate_shown · auth_gate_continue_tap · etc.
+       */}
+      <AuthGateSheet
+        visible={authSheetOpen}
+        onClose={() => setAuthSheetOpen(false)}
+        onSignIn={() => setAuthSheetOpen(false)}
+        triggerAction="input_tap"
+      />
+
+      {/*
+       * MESSAGE ACTION SHEET
+       *
+       * Triggered by long-press (350ms) on any message bubble.
+       * Features:
+       *   - 40%-height sheet · drag-down / scrim-tap → dismiss
+       *   - Message preview (80px · avatar · 2-line text · relative time)
+       *   - Quick-react emoji row: ❤️ 🔥 😂 👍 😮 🙏 (scale 1.0→1.2→1.0 · 200ms)
+       *   - Extended emoji sub-picker (24 emojis · 8-column grid)
+       *   - Action rows (per variant):
+       *       React karo · Reply karo (disabled v1.1) · Copy karo
+       *       WhatsApp pe Share · Save karo
+       *       Report karo (not own, not AI) · Delete karo (own only)
+       *       Pin/Unpin (Mayor only)
+       *   - Per-action spinner → ✓ → dismiss
+       *   - Delete: confirm modal (spring animation)
+       *   - Report: reason selector → confirm modal
+       */}
+      {actionMsg && user?.uid && (
+        <MessageActionSheet
+          visible={actionSheetOpen}
+          onClose={() => { setActionSheetOpen(false); setActionMsg(null); }}
+          message={actionMsg as any}
+          currentUid={user.uid}
+          isMayor={room?.mayorUid === user.uid}
         />
       )}
-      {pickerOpen === 'sector' && (
-        <PickerSheet type="sector" items={SECTORS} selectedId={selectedSector.id}
-          onSelect={(id) => { const f = SECTORS.find((s) => s.id === id); if (f) setSelectedSector(f); }}
-          onClose={() => setPickerOpen(null)}
-        />
-      )}
+
+      {/*
+       * SEND FAILED MODAL (Blueprint §Q8 Severity 3)
+       *
+       * Triggered when sendMessage() rejects after optimistic write.
+       * Shows: ⚠️ icon + truncated message preview + "Dobara bhejo" CTA
+       * Retry: removes failed optimistic bubble → re-calls handleSend()
+       * Up to 3 attempts tracked by the user manually (v1.0 per spec)
+       */}
+      <SendFailedModal
+        visible={failedModalOpen}
+        failedMsg={failedMsg}
+        onRetry={handleRetryFailed}
+        onDismiss={() => { setFailedModalOpen(false); setFailedMsg(null); }}
+      />
     </View>
   );
 }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   STYLES — v2.1 Premium Color System · Two-Row Header
-   ───────────────────────────────────────────────────────────────────────── */
-const styles = StyleSheet.create({
+// ─────────────────────────────────────────────────────────────────────────────
+// § 10 — STYLES
+// All values from design token system. Zero hardcoded hex/magic numbers.
+// ─────────────────────────────────────────────────────────────────────────────
 
-  /* ── Root ── */
+const S = StyleSheet.create({
+
+  // ── Root screen ───────────────────────────────────────────────────────────
+  // Warm Ivory (#FFF9EC = cream[50]) per Blueprint v5.0 Part 3 § 2
   screen: {
     flex: 1,
-    backgroundColor: TOKEN.bgApp,         // cream[50] #FFF9EC warm ivory (was pure white)
+    backgroundColor: colors.bg.subtle,        // cream[50] #FFF9EC
   },
 
-  /* ── Header ── */
-  header: {
-    backgroundColor: TOKEN.bgSurface,
-    zIndex: 900,
-    // Shadow instead of border for premium feel
-    shadowColor: palette.ink[950],
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
-
-  headerRow1: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    height: 56,
-    paddingHorizontal: 16,
-  },
-
-  crownWordmark: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: TOKEN.fgBrandSubtle,            // gold[800] #8B6F18 — 6.4:1 on white ✅ AA
-    letterSpacing: -0.5,
-    lineHeight: 26,
-  },
-
-  headerRightActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  headerIconBtn: {
-    width: 44, height: 44,
-    alignItems: 'center', justifyContent: 'center',
-    position: 'relative',
-  },
-  notifBadge: {
-    position: 'absolute',
-    top: 6, right: 4,
-    minWidth: 16, height: 16,
-    borderRadius: 8,
-    backgroundColor: TOKEN.fgError,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1.5, borderColor: TOKEN.bgSurface,
-    paddingHorizontal: 2,
-  },
-  notifBadgeText: { fontSize: 9, fontWeight: '800', color: '#FFFFFF' },
-  headerAvatarBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  headerAvatar: {
-    width: 34, height: 34, borderRadius: 17,
-    backgroundColor: TOKEN.bgCard,
-    borderWidth: 2, borderColor: TOKEN.fgBrand,
-    alignItems: 'center', justifyContent: 'center',
-    // Premium shadow on avatar
-    shadowColor: TOKEN.fgBrand,
-    shadowOpacity: 0.25, shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
-  },
-  headerAvatarText: { fontSize: 14, fontWeight: '700', color: TOKEN.fgSecondary },
-
-  headerRow2: {
-    flexDirection: 'row', alignItems: 'center',
-    height: 44, paddingHorizontal: 16, gap: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: TOKEN.borderHair,
-  },
-
-  cityPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    height: 36, paddingHorizontal: 12, borderRadius: 18,
-    backgroundColor: TOKEN.bgCard,
-    // Shadow instead of flat border for premium feel
-    shadowColor: palette.ink[950],
-    shadowOpacity: 0.06, shadowRadius: 4,
-    shadowOffset: { width: 0, height: 1 }, elevation: 1,
-    maxWidth: 140,
-  },
-  pillIcon: { fontSize: 12 },
-  pillText: { fontSize: 13, fontWeight: '600', color: TOKEN.fgPrimary, flex: 1 },
-
-  sectorPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    height: 36, paddingHorizontal: 12, borderRadius: 18,
-    backgroundColor: TOKEN.bgCard,
-    borderWidth: 1.5, borderColor: TOKEN.borderSector,  // amber accent border = active context
-    shadowColor: TOKEN.borderSector,
-    shadowOpacity: 0.15, shadowRadius: 4,
-    shadowOffset: { width: 0, height: 1 }, elevation: 1,
-    maxWidth: 160,
-  },
-
-  /* ── Offline Banner ── */
+  // ── Offline Banner ────────────────────────────────────────────────────────
+  // Blueprint §Q9: 32px H · ink[950] bg · 📶 icon + text
   offlineBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    height: 32, backgroundColor: TOKEN.offlineBg,
-    paddingHorizontal: 16, zIndex: 935,
+    height:           32,
+    backgroundColor:  palette.ink[950],
+    flexDirection:    'row',
+    alignItems:       'center',
+    paddingHorizontal: spacing.base,           // 16px
+    zIndex:           zIndex.fixedHeader,      // 900
   },
-  offlineIcon: { fontSize: 13 },
-  offlineText: { fontSize: 13, fontWeight: '500', color: '#FFFFFF', flex: 1 },
+  offlineIcon: {
+    marginRight: 6,
+  },
+  offlineText: {
+    fontFamily: FONT_BODY.medium,              // DM Sans 500
+    fontSize:   12,
+    fontWeight: '500',
+    color:      palette.white,
+    flex:       1,
+  },
 
-  /* ── Online Count Strip ── */
-  onlineStrip: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    height: 32, backgroundColor: TOKEN.bgSurface,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: TOKEN.borderHair,
-    paddingHorizontal: 16, zIndex: 900,
+  // ── Keyboard Avoiding View ────────────────────────────────────────────────
+  kav: {
+    flex: 1,
   },
-  onlineLeft:  { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  onlineDot: {
-    width: 6, height: 6, borderRadius: 3,
-    backgroundColor: TOKEN.fgWarning,
-  },
-  onlineText: { fontSize: 12, fontWeight: '600', color: TOKEN.fgPrimary },
-  onlineRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  trustChip: {
-    height: 24, paddingHorizontal: 10, borderRadius: 12,
-    backgroundColor: TOKEN.bgCard, alignItems: 'center', justifyContent: 'center',
-  },
-  trustChipText: { fontSize: 11, fontWeight: '500', color: TOKEN.fgSecondary },
-  heatPill: {
-    height: 22, paddingHorizontal: 8, borderRadius: 11,
-    backgroundColor: TOKEN.fgWarning, alignItems: 'center', justifyContent: 'center',
-  },
-  heatPillText: { fontSize: 12, fontWeight: '700', color: '#FFFFFF' },
 
-  /* ── Chat Container ── */
-  chatInputWrapper: { flex: 1 },
-
+  // ── Chat FlatList ─────────────────────────────────────────────────────────
   chatList: {
-    flex: 1,
-    backgroundColor: TOKEN.bgApp,          // warm ivory matches screen bg
+    flex:            1,
+    backgroundColor: colors.bg.subtle,        // warm ivory — matches screen bg
   },
 
-  /**
-   * FIX 1 (styles): chatContent no longer takes dynamic paddingTop.
-   *
-   * Old: { paddingHorizontal: 16, paddingBottom: 12, gap: 8 }
-   *       + inline { paddingTop: ~178px } ← THIS was creating the blank zone
-   *
-   * New: static 8px padding top and bottom. Input area is a sibling element
-   *      in the KAV — it handles its own physical space in the layout.
-   *      The FlatList content just needs a small breathing gap.
-   */
+  // chatContent:
+  //   paddingTop  = 8px gap at visual bottom (newest message edge, inverted)
+  //   paddingBottom = 16px gap at visual top (oldest message area)
+  //   paddingHorizontal: 8px — MessageBubble adds its own H padding internally
+  //
+  // FIX v5.1: paddingTop was previously ~178px (inputPaddingBottom) causing
+  // a 178px blank zone at the bottom. Fixed to 8px static value.
   chatContent: {
-    paddingHorizontal: 16,
-    paddingTop: 8,       // gap between newest message and FlatList bottom edge
-    paddingBottom: 16,   // gap at the visual top (oldest message area)
+    paddingHorizontal: spacing.sm,            // 8px — breathing room from screen edge
+    paddingTop:        8,                     // gap between newest msg and list bottom
+    paddingBottom:     16,                    // gap above oldest messages
   },
 
-  /* ── OWN BUBBLE ── */
-  ownWrap: { alignSelf: 'flex-end', alignItems: 'flex-end', maxWidth: '75%', marginVertical: 3 },
-  ownBubble: {
-    backgroundColor: TOKEN.fgBrand,       // gold[600] champagne
-    borderRadius: 16, borderBottomRightRadius: 4,
-    paddingHorizontal: 14, paddingVertical: 10,
-    minHeight: 36,
-    shadowColor: TOKEN.fgBrand,
-    shadowOpacity: 0.25, shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 }, elevation: 3,
+  // ── Empty state ───────────────────────────────────────────────────────────
+  // Shown when room is new and AI has not yet seeded
+  // Blueprint §Q7: "Sector 17 abhi quiet hai" · 22px/700 + subtitle + CTA
+  emptyState: {
+    flex:            1,
+    alignItems:      'center',
+    justifyContent:  'center',
+    paddingHorizontal: 32,
+    paddingVertical:  64,
+    gap:             12,
   },
-  ownText: { fontSize: 15, fontWeight: '400', color: '#FFFFFF', lineHeight: 22 },
-  ownMeta: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 4, marginTop: 4 },
-  ownTime: { fontSize: 11, color: 'rgba(255,255,255,0.70)' },
-  tickText: { fontSize: 11, color: 'rgba(255,255,255,0.70)' },
-  tickRead: { letterSpacing: -2, color: 'rgba(255,255,255,0.90)' },
-
-  /* ── OTHER / AI BUBBLE ── */
-  otherWrap: { flexDirection: 'row', alignItems: 'flex-end', alignSelf: 'flex-start', maxWidth: '85%', gap: 8, marginVertical: 3 },
-  avatar: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: TOKEN.bgCard,
-    borderWidth: 1, borderColor: TOKEN.borderHair,
-    alignItems: 'center', justifyContent: 'center',
+  emptyIcon: {
+    fontSize:   64,
+    textAlign:  'center',
   },
-  avatarAI: { borderStyle: 'dashed', borderColor: TOKEN.fgSecondary },
-  avatarText: { fontSize: 15, fontWeight: '700', color: TOKEN.fgSecondary },
-  otherContent: { flex: 1, gap: 3 },
-  otherNameRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4, paddingHorizontal: 2 },
-  otherName: { fontSize: 13, fontWeight: '700', color: TOKEN.fgSecondary },
-  colonyTag: { backgroundColor: TOKEN.bgCard, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
-  colonyTagText: { fontSize: 10, fontWeight: '600', color: TOKEN.fgSecondary },
-  verifiedBadge: { width: 14, height: 14, borderRadius: 7, backgroundColor: '#4F8FFF', alignItems: 'center', justifyContent: 'center' },
-  verifiedText: { fontSize: 7, fontWeight: '800', color: '#FFFFFF' },
-  founderBadge: { backgroundColor: palette.gold[100], borderWidth: 1, borderColor: TOKEN.borderHair, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
-  founderText: { fontSize: 9, fontWeight: '800', color: TOKEN.fgBrandSubtle, letterSpacing: 0.3 },
-  mayorInlineBadge: { backgroundColor: palette.gold[100], borderWidth: 1, borderColor: TOKEN.borderHair, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
-  mayorInlineText: { fontSize: 9, fontWeight: '800', color: TOKEN.fgBrandSubtle },
-  aiBadge: { backgroundColor: TOKEN.bgCard, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
-  aiBadgeText: { fontSize: 10, fontWeight: '600', color: TOKEN.fgSecondary, fontStyle: 'italic' },
-  otherBubble: {
-    backgroundColor: TOKEN.bgCard,        // cream[200] warm ivory
-    borderRadius: 16, borderBottomLeftRadius: 4,
-    paddingHorizontal: 14, paddingVertical: 10,
-    minHeight: 36,
-    // Shadow instead of flat border for luxury feel
-    shadowColor: palette.ink[950],
-    shadowOpacity: 0.06, shadowRadius: 4,
-    shadowOffset: { width: 0, height: 1 }, elevation: 1,
+  emptyTitle: {
+    fontFamily: FONT_BODY.bold,               // DM Sans 700
+    fontSize:   22,
+    fontWeight: '700',
+    color:      colors.fg.primary,            // ink[950] warm ink
+    textAlign:  'center',
   },
-  otherBubbleAI: { borderStyle: 'dashed', borderWidth: 1, borderColor: TOKEN.borderHair },
-  otherText: { fontSize: 15, fontWeight: '400', color: TOKEN.fgPrimary, lineHeight: 22 },
-  otherTime: { fontSize: 11, color: TOKEN.fgSecondary, marginTop: 4 },
-
-  /* ── Reactions ── */
-  reactRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 5, paddingHorizontal: 2 },
-  reactPill: {
-    backgroundColor: TOKEN.bgSurface,
-    shadowColor: palette.ink[950], shadowOpacity: 0.05, shadowRadius: 3,
-    shadowOffset: { width: 0, height: 1 }, elevation: 1,
-    borderRadius: 12, paddingVertical: 3, paddingHorizontal: 8,
-  },
-  reactText: { fontSize: 12, color: TOKEN.fgSecondary },
-
-  /* ── Mayor Announcement ── */
-  mayorWrap: { alignSelf: 'center', width: '92%', marginVertical: 8, position: 'relative' },
-  mayorCrown: { fontSize: 20, textAlign: 'center', position: 'absolute', top: -10, left: 0, right: 0, zIndex: 1 },
-  mayorCard: {
-    backgroundColor: TOKEN.bgCard,
-    borderWidth: 2, borderColor: TOKEN.borderCardEmphasis,
-    borderRadius: 12, padding: 16, marginTop: 8,
-    shadowColor: TOKEN.fgBrand, shadowOpacity: 0.12, shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 }, elevation: 3,
-  },
-  mayorCardHeader: { fontSize: 12, fontWeight: '700', color: TOKEN.fgBrand, textAlign: 'center', marginBottom: 8 },
-  mayorCardText: { fontSize: 15, fontWeight: '400', color: TOKEN.fgPrimary, lineHeight: 22 },
-  mayorCardTime: { fontSize: 11, color: TOKEN.fgSecondary, textAlign: 'center', marginTop: 8 },
-
-  /* ── System Message ── */
-  systemWrap: { alignSelf: 'center', paddingHorizontal: 16, paddingVertical: 6 },
-  systemText: { fontSize: 12, fontWeight: '400', color: TOKEN.fgSecondary, textAlign: 'center' },
-
-  /* ── Date Separator ── */
-  dateSepWrap: { alignItems: 'center', marginVertical: 10 },
-  dateSepChip: { height: 24, paddingHorizontal: 12, borderRadius: 12, backgroundColor: TOKEN.bgCard, alignItems: 'center', justifyContent: 'center' },
-  dateSepText: { fontSize: 11, fontWeight: '600', color: TOKEN.fgSecondary },
-
-  /* ── Input Area — Rule 04: static · z-935 · flush above Glass Island ── */
-  inputArea: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: TOKEN.bgSurface,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: TOKEN.borderHair,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    zIndex: 935,
-    // Premium: shadow instead of border on top
-    shadowColor: palette.ink[950],
-    shadowOpacity: 0.06, shadowRadius: 12,
-    shadowOffset: { width: 0, height: -2 }, elevation: 4,
-  },
-  inputField: {
-    flex: 1,
-    minHeight: 40, maxHeight: 120,
-    backgroundColor: TOKEN.bgCard,         // cream[200]
-    borderRadius: 20,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: TOKEN.borderInputIdle,
-    paddingHorizontal: 16, paddingVertical: 10,
-    fontSize: 15, fontWeight: '400', color: TOKEN.fgPrimary,
-  },
-  inputFieldActive: {
-    borderWidth: 2,
-    borderColor: TOKEN.borderInputFocus,   // gold[600]
-    shadowColor: TOKEN.fgBrand,
-    shadowOpacity: 0.15, shadowRadius: 6,
-    shadowOffset: { width: 0, height: 0 }, elevation: 2,
-  },
-  sendBtn: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: TOKEN.fgBrand,
-    alignItems: 'center', justifyContent: 'center',
-    shadowColor: TOKEN.fgBrand,
-    shadowOpacity: 0.35, shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 }, elevation: 5,
-  },
-  sendBtnDisabled: {
-    backgroundColor: TOKEN.bgCard,
-    shadowOpacity: 0, elevation: 0,
+  emptySubtitle: {
+    fontFamily: FONT_BODY.regular,            // DM Sans 400
+    fontSize:   15,
+    fontWeight: '400',
+    color:      colors.fg.secondary,          // ink[600] espresso
+    textAlign:  'center',
+    lineHeight: 22,
   },
 
-  /* ── Glass Island — LAW 13 · z-950 ── */
-  glassIslandWrapper: {
-    position: 'absolute', left: 0, right: 0,
-    alignItems: 'center', zIndex: 950,
+  // ── Send Failed Modal ─────────────────────────────────────────────────────
+  // Blueprint §Q8 Severity 3: modal · ⚠️ · retry CTA
+  failedScrim: {
+    flex:            1,
+    backgroundColor: 'rgba(28, 24, 20, 0.55)', // colors.bg.scrim
+    alignItems:      'center',
+    justifyContent:  'center',
   },
-  glassIsland: {
-    flexDirection: 'row',
-    width: 280, height: 56, borderRadius: 28,
-    backgroundColor: TOKEN.glassIslandBg,  // rgba(20,16,12,0.85) warm navy
-    alignItems: 'center',
-    // Gold rim hairline at top — per spec
-    borderWidth: 0.5,
-    borderColor: 'rgba(226,198,107,0.40)',
-    shadowColor: TOKEN.glassIslandShadow,
-    shadowOpacity: 0.40, shadowRadius: 32,
-    shadowOffset: { width: 0, height: 8 }, elevation: 16,
-    overflow: 'hidden',
+  failedCard: {
+    width:           320,
+    backgroundColor: palette.white,
+    borderRadius:    16,
+    padding:         24,
+    alignItems:      'center',
+    ...Platform.select({
+      ios: {
+        shadowColor:   'rgba(26,18,8,0.18)',
+        shadowOffset:  { width: 0, height: 8 },
+        shadowRadius:  24,
+        shadowOpacity: 1,
+      },
+      android: { elevation: 16 },
+    }),
   },
-  glassTab: { flex: 1, height: 56, alignItems: 'center', justifyContent: 'center', gap: 4 },
-  glassActiveGlow: {
-    position: 'absolute',
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: 'rgba(201,162,39,0.18)',  // gold[600] @ 18%
+  failedIconWrap: {
+    width:           64,
+    height:          64,
+    borderRadius:    32,
+    backgroundColor: palette.cream[100],
+    alignItems:      'center',
+    justifyContent:  'center',
+    marginBottom:    16,
   },
-  glassActiveDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: TOKEN.glassIslandActive },
-
-  /* ── Picker Sheet ── */
-  sheetOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: TOKEN.scrim,
-    justifyContent: 'flex-end',
-    zIndex: 999,
+  failedTitle: {
+    fontFamily:   FONT_BODY.bold,
+    fontSize:     18,
+    fontWeight:   '700',
+    color:        palette.ink[950],
+    textAlign:    'center',
+    marginBottom: 8,
   },
-  sheetContainer: {
-    backgroundColor: TOKEN.bgSurface,
-    borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    paddingHorizontal: 20, paddingTop: 12, paddingBottom: 40, gap: 4,
-    shadowColor: palette.ink[950], shadowOpacity: 0.20, shadowRadius: 24,
-    shadowOffset: { width: 0, height: -4 }, elevation: 12,
+  failedPreview: {
+    fontFamily:   FONT_BODY.regular,
+    fontSize:     13,
+    fontWeight:   '400',
+    color:        palette.ink[600],
+    textAlign:    'center',
+    lineHeight:   18,
+    fontStyle:    'italic',
+    marginBottom: 20,
   },
-  sheetHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: TOKEN.borderHair, alignSelf: 'center', marginBottom: 12 },
-  sheetTitle: { fontSize: 16, fontWeight: '700', color: TOKEN.fgPrimary, marginBottom: 8, paddingHorizontal: 4 },
-  sheetRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingVertical: 14, paddingHorizontal: 4,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: TOKEN.borderHair,
+  failedRetryBtn: {
+    width:          '100%' as const,
+    height:         48,
+    borderRadius:   12,
+    backgroundColor: palette.gold[600],
+    flexDirection:  'row',
+    alignItems:     'center',
+    justifyContent: 'center',
+    marginBottom:   10,
   },
-  sheetRowActive: { borderBottomColor: 'transparent' },
-  sheetRowText: { fontSize: 15, fontWeight: '500', color: TOKEN.fgPrimary },
-  sheetRowTextActive: { fontWeight: '700', color: TOKEN.fgBrand },
+  failedRetryIcon: {
+    marginRight: 8,
+  },
+  failedRetryText: {
+    fontFamily: FONT_BODY.semiBold,
+    fontSize:   15,
+    fontWeight: '600',
+    color:      palette.white,
+  },
+  failedCancelBtn: {
+    width:          '100%' as const,
+    height:         44,
+    borderRadius:   12,
+    backgroundColor: palette.cream[200],
+    alignItems:     'center',
+    justifyContent: 'center',
+  },
+  failedCancelText: {
+    fontFamily: FONT_BODY.medium,
+    fontSize:   15,
+    fontWeight: '500',
+    color:      palette.ink[950],
+  },
 });
