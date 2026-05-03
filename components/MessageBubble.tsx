@@ -1,248 +1,384 @@
 /**
- * MessageBubble.tsx
- * ──────────────────────────────────────────────────────────────────────────
- * CROWD WORLD — Chat ka dil. Char variants mein aata hai:
- *   left    → doosre users ke messages (halka cream bubble, left-tail)
- *   right   → apna message (gold gradient, right-tail)
- *   mayor   → mayor ka special pinned-feel bubble (gold frame + left-border)
- *   ai      → AI companion message (dashed gold border + mandatory AI badge)
+ * components/MessageBubble.tsx
+ * ─────────────────────────────────────────────────────────────────────────────
+ * CROWD WORLD — Chat ka dil.
  *
- * Sub-components:
- *   <Tag />          → colony, verified, credits, local, visitor, ai, moon, mayor chips
- *   <ReactionPill /> → emoji + count pill
+ * VARIANTS  (Blueprint §Q1 — 6 types, single inverted FlatList):
+ *   left    → other user message  (cream bubble · left-tail)
+ *   right   → own message         (gold fill · right-tail · status ticks)
+ *   mayor   → Mayor announcement  (gold frame + left-accent border · crown label)
+ *   ai      → AI companion        (dashed gold border · mandatory AI badge)
+ *   date    → Date separator chip (centered · translucent cream chip · NEW §[5.F])
+ *   system  → System event        (centered · gold-50 bg · no tail · NEW §14346)
  *
- * Tokens: orbitGold from constants/colors.ts
- * ──────────────────────────────────────────────────────────────────────────
+ * AVATAR DELEGATION (Rule 03 — strict):
+ *   This component NEVER renders a user avatar. Avatar rendering is fully
+ *   delegated to the parent FlatList item wrapper (e.g. ChatMessageRow).
+ *   The parent places a <Avatar size="msg" /> to the left of this bubble for
+ *   left / mayor / ai variants. MessageBubble is unaware of avatar existence.
+ *   Rationale: Rule 03 mandates avatar lives ONLY in Glass Island Profile tab
+ *   at the app-nav level; bubble-adjacent avatars are layout concerns of the
+ *   row wrapper, not the bubble molecule itself.
+ *
+ * PROPS ADDED (this update):
+ *   status      → 'sent' | 'delivered' | 'failed'  — tick icons for 'right' variant
+ *   highlighted → boolean  — 2px gold border for saved / bookmarked messages
+ *   onLongPress → (event) => void  — extended to ALL variants (opens MessageActionSheet)
+ *
+ * TAGS:
+ *   Uses <Tag /> atom from components/atoms/Tag.tsx — zero inline tag styles.
+ *   MessageTagsRow sub-component renders each key as a distinct Tag atom.
+ *
+ * LAWS:
+ *   Rule 03  — No avatar in composer (never render avatar here).
+ *   §Q1      — date separator accessibilityRole: "header".
+ *   §[5.F]   — date chip: H 24px · cream[200] bg · r-12 · 8px H pad.
+ *   §14346   — system: gold[50] bg · 1px gold[300] · 12px 600 ink[700].
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * STATUS : update  · LAYER : molecule  · PRIORITY : P0
+ * DEPS   : components/atoms/Tag.tsx · constants/colors.ts · constants/spacing.ts
+ * ─────────────────────────────────────────────────────────────────────────────
  */
 
-import React, { useCallback, useRef } from "react";
+import React, { memo, useCallback } from 'react';
 import {
   GestureResponderEvent,
   Pressable,
   StyleSheet,
   Text,
   View,
-  ViewStyle,
-  TextStyle,
-} from "react-native";
-import { orbitGold } from "@/constants/colors";
+  type ViewStyle,
+  type TextStyle,
+} from 'react-native';
 
-// ─── Design token shortcuts ──────────────────────────────────────────────────
-// HTML ke :root CSS variables ko yahaan map kiya hai
+import { Tag }                             from '@/components/atoms/Tag';
+import { colors, palette, radii, spacing } from '@/constants/colors';
+
+// ─── Design token aliases (zero hardcoded hex in JSX / styles below) ─────────
+
 const T = {
-  // Backgrounds
-  goldPale:       "#FFF9EC",          // --gold-pale
-  goldPaleWarm:   "#FFFCF0",          // world-screen warm tone
-  goldPaleDark:   "#FFF3CD",          // world-screen gradient end
-  bubbleLeft:     "#FFFEFB",          // world-screen left bubble bg
-  white:          "#FFFFFF",
+  // Bubble backgrounds
+  bubbleLeft:        palette.cream[200],           // #F7ECD0 — left / other-user fill
+  bubbleRight:       palette.gold[600],            // #C9A227 — own message Champagne Gold
+  bubbleAI:         palette.cream[50],             // #FFF9EC — AI warm ivory
+  bubbleMayor:      palette.cream[50],             // #FFF9EC — Mayor warm fill
+  bubbleSystem:     palette.gold[50],              // #FCF7E5 — system event (§14346)
+  bubbleDateChip:   palette.cream[200],            // #F7ECD0 — date chip fill (§[5.F])
 
   // Borders
-  cardBorder:     "#F1E5C8",          // world-screen left bubble border
-  goldBorder:     "#E2C660",          // --gold-border
-
-  // Gold accent
-  gold:           "#C9A227",          // --gold
-  goldDeep:       "#9A7A18",          // --gold-deep
-  goldLight:      "#E8CC6A",          // --gold-light
+  borderLeft:        palette.cream[400],           // #E5CC95 — left bubble hairline
+  borderAI:         'rgba(201,162,39,0.45)' as const, // gold-600 @ 45% — AI dashed ring
+  borderMayor:      palette.gold[300],             // #ECD58F — mayor outline
+  borderMayorAccent: palette.gold[600],            // #C9A227 — 3px left accent spine
+  borderSystem:     palette.gold[300],             // #ECD58F — system card ring
+  borderHighlight:  palette.gold[600],             // #C9A227 — saved-message ring
 
   // Text
-  textBody:       "#1A1208",          // --text-body
-  textMid:        "#6B5330",          // --text-mid
-  textSoft:       "#A0875A",          // --text-soft
+  textBody:          palette.ink[950],             // #1A1208 — primary chat text
+  textBodyWhite:     palette.white,                // #FFFFFF — own bubble text
+  textMayor:        palette.ink[700],              // #524539 — mayor slightly heavier
+  textTime:         palette.ink[500],              // #8A7960 — timestamp left / mayor
+  textTimeRight:    'rgba(255,253,243,0.90)' as const, // ghosted white on gold
+  textSystem:       palette.ink[700],              // #524539 — system text (§14346)
+  // §[5.F]: date chip label — colors.fg.tertiary (ink[500]) for muted "translucent chip" feel
+  textDate:         colors.fg.tertiary,            // ink[500] #8A7960 — softer than ink[600]
+  textSenderName:   palette.ink[500],              // #8A7960 — username above bubble
 
-  // Shadows (React Native mein shadow props alag hote hain, iOS-only elevation Android pe)
-  shadowGold:     "rgba(201,162,39,0.25)",
+  // Status tick colours (on gold/right bubble)
+  statusSent:       'rgba(255,253,243,0.60)' as const,  // dim — single tick
+  statusDelivered:  'rgba(255,253,243,0.92)' as const,  // bright — double tick
+  statusFailed:     palette.crimson[600],          // #C4294F — failed warning
+
+  // Shadows
+  shadowGold:        palette.gold[600],
 } as const;
 
-// ─── Prop Types ──────────────────────────────────────────────────────────────
+// ─── Public types ─────────────────────────────────────────────────────────────
 
-/** Reaction ek emoji+count pair hai, optional active state bhi */
+export type BubbleVariant =
+  | 'left'
+  | 'right'
+  | 'mayor'
+  | 'ai'
+  | 'date'
+  | 'system';
+
+export type MessageStatus =
+  | 'sent'
+  | 'delivered'
+  | 'failed';
+
 export interface Reaction {
-  emoji: string;
-  count: number;
-  active?: boolean;  // user ne already react kiya hai kya
+  emoji:   string;
+  count:   number;
+  active?: boolean;
 }
 
-/** Tags object — har key optional hai */
+/**
+ * Loose tag bag — each key maps to exactly one Tag atom variant.
+ * All optional; pass only what applies to this message's sender.
+ */
 export interface MessageTags {
-  colony?:   string;   // colony name, truncated to 80px
-  verified?: boolean;  // gold checkmark
-  credits?:  string;   // e.g. "₹420"
-  isLocal?:  boolean;  // LOCAL pill
-  isVisitor?: boolean; // VISITOR pill
-  isAI?:     boolean;  // AI pill
-  isMoon?:   boolean;  // 🌙 emoji
-  isMayor?:  boolean;  // MAYOR badge (gradient)
+  colony?:    string;   // colony / sector label
+  verified?:  boolean;  // phone-OTP verified
+  credits?:   string;   // wallet balance chip e.g. "₹420"
+  isLocal?:   boolean;  // browsing own home sector
+  isVisitor?: boolean;  // browsing outside home sector
+  isAI?:      boolean;  // AI companion message
+  isMoon?:    boolean;  // away / DND status
+  isMayor?:   boolean;  // elected sector mayor
+  isFounder?: boolean;  // founding cohort
+  founderNo?: string;   // serial number e.g. "#001"
 }
-
-export type BubbleVariant = "left" | "right" | "mayor" | "ai";
 
 export interface MessageBubbleProps {
-  variant:     BubbleVariant;
-  username:    string;
-  tags?:       MessageTags;
-  text:        string;
-  time:        string;
-  reactions?:  Reaction[];
-  onReact?:    (emoji: string) => void;
-  onGift?:     () => void;
-  onReport?:   () => void;
-  onLongPress?: (event: GestureResponderEvent) => void;  // reaction picker callback
-  style?:      ViewStyle;
+  variant:       BubbleVariant;
+  /**
+   * Message body text.
+   * For variant='date'   → the date label ("Today" | "Yesterday" | "12 May").
+   * For variant='system' → the event text ("Rahul joined the sector").
+   */
+  text:          string;
+  /**
+   * Formatted timestamp string, e.g. "10:42 AM".
+   * Not rendered for variant='date' or 'system'.
+   */
+  time?:         string;
+  /**
+   * Sender display name — rendered above the bubble for left / mayor / ai.
+   * Omitted for right / date / system.
+   */
+  username?:     string;
+  /** Tag atoms to render in the sender meta row */
+  tags?:         MessageTags;
+  reactions?:    Reaction[];
+  /**
+   * Delivery status — only rendered for variant='right'.
+   * sent      → ✓  (single dimmed tick)
+   * delivered → ✓✓ (double bright tick)
+   * failed    → ⚠  (crimson warning — tap to retry via onLongPress)
+   */
+  status?:       MessageStatus;
+  /**
+   * When true renders a 2px gold ring around the bubble.
+   * Used to mark bookmarked / saved messages in the MessageActionSheet flow.
+   */
+  highlighted?:  boolean;
+  onReact?:      (emoji: string) => void;
+  onGift?:       () => void;
+  /** Opens MessageActionSheet — available on ALL variants */
+  onLongPress?:  (event: GestureResponderEvent) => void;
+  style?:        ViewStyle;
 }
 
-// ─── Tag Sub-component ───────────────────────────────────────────────────────
-// HTML .meta row ke andar aane wale saare chips yahaan hain
+// ─── MessageTagsRow — renders tag atoms, no inline styles ────────────────────
 
-interface TagProps {
+interface TagsRowProps {
   tags: MessageTags;
-  variant: BubbleVariant;
 }
 
-const Tag: React.FC<TagProps> = ({ tags, variant }) => {
-  // Right bubble mein tags ka color thoda alag hota hai (white tint)
-  const isRight = variant === "right";
+const MessageTagsRow: React.FC<TagsRowProps> = memo(({ tags }) => (
+  <View style={styles.tagsRow}>
+    {tags.colony    ? <Tag variant="colony"  label={tags.colony}             size="sm" /> : null}
+    {tags.verified  ? <Tag variant="verified"                                size="sm" /> : null}
+    {tags.credits   ? <Tag variant="credits" label={tags.credits}            size="sm" /> : null}
+    {tags.isLocal   ? <Tag variant="local"                                   size="sm" /> : null}
+    {tags.isVisitor ? <Tag variant="visitor"                                 size="sm" /> : null}
+    {tags.isAI      ? <Tag variant="ai"                                      size="sm" /> : null}
+    {tags.isMoon    ? <Tag variant="moon"                                    size="sm" /> : null}
+    {tags.isMayor   ? <Tag variant="mayor"                                   size="sm" /> : null}
+    {tags.isFounder ? <Tag variant="founder" label={tags.founderNo ?? '001'} size="sm" /> : null}
+  </View>
+));
 
-  return (
-    <View style={styles.metaRow}>
-      {/* Colony name — truncate karo agar zyada lamba ho */}
-      {tags.colony ? (
-        <Text
-          style={[styles.tagColony, isRight && styles.tagColonyRight]}
-          numberOfLines={1}
-          ellipsizeMode="tail"
-        >
-          {tags.colony}
-        </Text>
-      ) : null}
+MessageTagsRow.displayName = 'MessageTagsRow';
 
-      {/* Gold verified checkmark — circle badge */}
-      {tags.verified ? (
-        <View style={styles.tagVerified}>
-          <Text style={styles.tagVerifiedText}>✓</Text>
-        </View>
-      ) : null}
-
-      {/* Credits chip — e.g. ₹420 */}
-      {tags.credits ? (
-        <View style={styles.tagCredits}>
-          <Text style={styles.tagCreditsText}>{tags.credits}</Text>
-        </View>
-      ) : null}
-
-      {/* LOCAL pill — iss shahar ka banda */}
-      {tags.isLocal ? (
-        <View style={styles.tagPill}>
-          <Text style={styles.tagPillText}>LOCAL</Text>
-        </View>
-      ) : null}
-
-      {/* VISITOR pill — bahar se aaya */}
-      {tags.isVisitor ? (
-        <View style={styles.tagPill}>
-          <Text style={styles.tagPillText}>VISITOR</Text>
-        </View>
-      ) : null}
-
-      {/* AI pill — bot hai bhai */}
-      {tags.isAI ? (
-        <View style={styles.tagPill}>
-          <Text style={styles.tagPillText}>AI</Text>
-        </View>
-      ) : null}
-
-      {/* Moon emoji — raat ka bandaa / special status */}
-      {tags.isMoon ? (
-        <Text style={styles.tagMoon}>🌙</Text>
-      ) : null}
-
-      {/* Mayor badge — gradient gold, zyada premium */}
-      {tags.isMayor ? (
-        <View style={styles.tagMayorBadge}>
-          <Text style={styles.tagMayorBadgeText}>⚡ MAYOR</Text>
-        </View>
-      ) : null}
-    </View>
-  );
-};
-
-// ─── Reaction Pill Sub-component ─────────────────────────────────────────────
-// .rp class ka React Native version
+// ─── ReactionPill ─────────────────────────────────────────────────────────────
 
 interface ReactionPillProps {
-  reaction:  Reaction;
-  onPress:   () => void;
-  isRight:   boolean;
+  reaction: Reaction;
+  onPress:  () => void;
+  isRight:  boolean;
 }
 
-const ReactionPill: React.FC<ReactionPillProps> = ({ reaction, onPress, isRight }) => {
-  return (
+const ReactionPill: React.FC<ReactionPillProps> = memo(
+  ({ reaction, onPress, isRight }) => (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [
         styles.reactionPill,
         reaction.active && styles.reactionPillActive,
-        pressed && styles.reactionPillPressed,
-        // Right bubble ke neeche reactions ka bg thoda warm
-        isRight && styles.reactionPillRight,
+        isRight         && styles.reactionPillRight,
+        pressed         && styles.reactionPillPressed,
       ]}
       accessibilityRole="button"
       accessibilityLabel={`React with ${reaction.emoji}, count ${reaction.count}`}
+      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
     >
       <Text style={styles.reactionText}>
         {reaction.emoji} {reaction.count}
       </Text>
     </Pressable>
-  );
+  ),
+);
+
+ReactionPill.displayName = 'ReactionPill';
+
+// ─── Status icon map ──────────────────────────────────────────────────────────
+
+const STATUS_ICON: Record<MessageStatus, { glyph: string; a11y: string }> = {
+  sent:      { glyph: '✓',  a11y: 'Sent'                              },
+  delivered: { glyph: '✓✓', a11y: 'Delivered'                         },
+  failed:    { glyph: '⚠',  a11y: 'Failed to send. Long press to retry.' },
 };
 
-// ─── Main MessageBubble Component ────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// DATE SEPARATOR  (Blueprint §[5.F])
+// ─────────────────────────────────────────────────────────────────────────────
+//   Layout : full-width row — hairline ─── chip ─── hairline
+//   Chip   : H 24px · cream[200] bg · r-12 · 8px H pad
+//   Text   : 11px 600 ink[600]
+//   Margin : 24px top · 16px bottom
+//   a11y   : accessibilityRole "header"
+// ═══════════════════════════════════════════════════════════════════════════════
 
-export const MessageBubble: React.FC<MessageBubbleProps> = ({
+interface DateSeparatorBubbleProps {
+  label:        string;
+  onLongPress?: (e: GestureResponderEvent) => void;
+}
+
+const DateSeparatorBubble: React.FC<DateSeparatorBubbleProps> = memo(
+  ({ label, onLongPress }) => (
+    <Pressable
+      style={styles.dateSepWrapper}
+      onLongPress={onLongPress}
+      delayLongPress={350}
+      android_ripple={null}
+      accessibilityRole="header"
+      accessibilityLabel={`Messages from ${label}`}
+    >
+      <View style={styles.dateSepLine} />
+      <View style={styles.dateSepChip}>
+        <Text style={styles.dateSepText} allowFontScaling={false}>
+          {label}
+        </Text>
+      </View>
+      <View style={styles.dateSepLine} />
+    </Pressable>
+  ),
+);
+
+DateSeparatorBubble.displayName = 'DateSeparatorBubble';
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SYSTEM MESSAGE BUBBLE  (Blueprint §Q1-d + §14346)
+// ─────────────────────────────────────────────────────────────────────────────
+//   "Centered system bubble · gold-50 bg · 1px gold-300 · 12px 600 ink-700"
+//   No tail · full-pill · centered · no avatar · no sender name
+// ═══════════════════════════════════════════════════════════════════════════════
+
+interface SystemBubbleProps {
+  text:         string;
+  onLongPress?: (e: GestureResponderEvent) => void;
+}
+
+const SystemBubble: React.FC<SystemBubbleProps> = memo(
+  ({ text, onLongPress }) => (
+    <Pressable
+      style={styles.systemWrapper}
+      onLongPress={onLongPress}
+      delayLongPress={350}
+      android_ripple={null}
+      accessibilityRole="text"
+      accessibilityLabel={`System: ${text}`}
+    >
+      <View style={styles.systemChip}>
+        <Text style={styles.systemText} allowFontScaling={false}>
+          {text}
+        </Text>
+      </View>
+    </Pressable>
+  ),
+);
+
+SystemBubble.displayName = 'SystemBubble';
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MAIN MessageBubble
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function MessageBubbleComponent({
   variant,
-  username,
-  tags,
   text,
   time,
+  username,
+  tags,
   reactions = [],
+  status,
+  highlighted = false,
   onReact,
   onGift,
-  onReport,
   onLongPress,
   style,
-}) => {
-  const isRight  = variant === "right";
-  const isMayor  = variant === "mayor";
-  const isAI     = variant === "ai";
-  const isLeft   = variant === "left";
+}: MessageBubbleProps) {
 
-  // Long press handler — reaction picker trigger karta hai (parent handle karo)
+  // ── Structural variants exit early ─────────────────────────────────────────
+
+  if (variant === 'date') {
+    return <DateSeparatorBubble label={text} onLongPress={onLongPress} />;
+  }
+
+  if (variant === 'system') {
+    return <SystemBubble text={text} onLongPress={onLongPress} />;
+  }
+
+  // ── left / right / mayor / ai ──────────────────────────────────────────────
+
+  const isRight = variant === 'right';
+  const isMayor = variant === 'mayor';
+  const isAI    = variant === 'ai';
+
   const handleLongPress = useCallback(
-    (e: GestureResponderEvent) => {
-      onLongPress?.(e);
-    },
-    [onLongPress]
+    (e: GestureResponderEvent) => { onLongPress?.(e); },
+    [onLongPress],
   );
 
-  // Bubble ki style variant ke hisaab se decide hoti hai
+  // Composited bubble styles
   const bubbleStyle = [
     styles.bubble,
-    isLeft  && styles.bubbleLeft,
-    isRight && styles.bubbleRight,
-    isMayor && styles.bubbleMayor,
-    isAI    && styles.bubbleAI,
+    variant === 'left'  && styles.bubbleLeft,
+    isRight             && styles.bubbleRight,
+    isMayor             && styles.bubbleMayor,
+    isAI                && styles.bubbleAI,
+    highlighted         && styles.bubbleHighlighted,
   ];
 
-  // Time + ticks ka color variant ke hisaab se
-  const msgInfoStyle: TextStyle = [
-    styles.msgInfo,
-    isRight ? styles.msgInfoRight : styles.msgInfoLeft,
-    isMayor && styles.msgInfoMayor,
-  ] as unknown as TextStyle;
+  // Timestamp style per variant
+  const timeStyle: TextStyle =
+    isRight ? styles.timeRight : isMayor ? styles.timeMayor : styles.timeLeft;
+
+  // Status tick / failed icon (right-variant only)
+  const renderStatusIcon = () => {
+    if (!isRight || !status) return null;
+    const { glyph, a11y } = STATUS_ICON[status];
+    const iconStyle =
+      status === 'failed'    ? styles.statusFailed
+      : status === 'sent'    ? styles.statusSent
+      :                        styles.statusDelivered;
+    return (
+      <Text
+        style={[styles.statusIcon, iconStyle]}
+        allowFontScaling={false}
+        accessibilityLabel={a11y}
+        accessibilityRole="image"
+      >
+        {' '}{glyph}
+      </Text>
+    );
+  };
 
   return (
-    // .mw wrapper — alignment decide karta hai left/right
     <View
       style={[
         styles.wrapper,
@@ -250,78 +386,78 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         style,
       ]}
     >
-      {/* Meta row — username + tags. Mayor/AI ke liye bhi show hota hai */}
+      {/* ── Sender meta row (left / mayor / ai) ─────────────────────────── */}
       {!isRight && (
         <View style={styles.metaContainer}>
-          {/* Username */}
-          <Text style={styles.username} numberOfLines={1}>
-            {username}
-          </Text>
-
-          {/* Tags row — colony, verified, credits, local, etc. */}
-          {tags && (
-            <Tag tags={tags} variant={variant} />
-          )}
+          {username ? (
+            <Text style={styles.senderName} numberOfLines={1}>
+              {username}
+            </Text>
+          ) : null}
+          {tags ? <MessageTagsRow tags={tags} /> : null}
         </View>
       )}
 
-      {/* ─── Bubble — long-press = reaction picker open ─── */}
+      {/* ── Bubble body ──────────────────────────────────────────────────── */}
       <Pressable
         onLongPress={handleLongPress}
-        delayLongPress={350}          // 350ms hold se reaction picker
-        android_ripple={null}         // ripple nahi chahiye chat mein
+        delayLongPress={350}
+        android_ripple={null}
         style={({ pressed }) => [
           ...bubbleStyle,
           pressed && styles.bubblePressed,
         ]}
         accessibilityRole="text"
-        accessibilityLabel={`Message from ${username}: ${text}`}
-        accessibilityHint="Long press to react"
+        accessibilityLabel={
+          username ? `Message from ${username}: ${text}` : text
+        }
+        accessibilityHint="Long press to open actions"
       >
-        {/* AI variant mein mandatory AI badge pehle aata hai (W-002 fix) */}
+        {/* AI mandatory badge — §[5.C] · W-002 fix */}
         {isAI && (
           <View style={styles.aiBadgeRow}>
             <View style={styles.aiBadge}>
-              <Text style={styles.aiBadgeText}>✦ AI</Text>
+              <Text style={styles.aiBadgeText} allowFontScaling={false}>
+                ✦ AI
+              </Text>
             </View>
           </View>
         )}
 
-        {/* Mayor variant mein ek subtle label */}
+        {/* Mayor label strip */}
         {isMayor && (
           <View style={styles.mayorLabelRow}>
-            <Text style={styles.mayorLabel}>⚡ Mayor ka message</Text>
+            <Text style={styles.mayorLabel} allowFontScaling={false}>
+              👑 Mayor ka message
+            </Text>
           </View>
         )}
 
         {/* Message text */}
-        <Text style={[
-          styles.msgText,
-          isRight && styles.msgTextRight,
-          isMayor && styles.msgTextMayor,
-        ]}>
+        <Text
+          style={[
+            styles.msgText,
+            isRight && styles.msgTextRight,
+            isMayor && styles.msgTextMayor,
+          ]}
+        >
           {text}
         </Text>
 
-        {/* Time + read ticks — bubble ke andar neeche */}
-        <View style={styles.msgInfoRow}>
-          <Text style={msgInfoStyle}>
-            {time}
-            {/* Apna message toh double tick dikhao */}
-            {isRight && (
-              <Text style={styles.ticks}>  ✓✓</Text>
-            )}
-          </Text>
-        </View>
+        {/* Timestamp + status icon */}
+        {time ? (
+          <View style={styles.timeRow}>
+            <Text style={timeStyle} allowFontScaling={false}>
+              {time}
+            </Text>
+            {renderStatusIcon()}
+          </View>
+        ) : null}
       </Pressable>
 
-      {/* ─── Reactions row — bubble ke neeche ─── */}
-      {(reactions.length > 0 || onGift) && (
-        <View style={[
-          styles.reactsRow,
-          isRight && styles.reactsRowRight,
-        ]}>
-          {/* Emoji reaction pills */}
+      {/* ── Reactions + Gift row ─────────────────────────────────────────── */}
+      {(reactions.length > 0 || (!isRight && onGift)) && (
+        <View style={[styles.reactsRow, isRight && styles.reactsRowRight]}>
           {reactions.map((r, idx) => (
             <ReactionPill
               key={`${r.emoji}-${idx}`}
@@ -331,16 +467,16 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             />
           ))}
 
-          {/* Gift button — doosre ke messages pe dikhe */}
           {!isRight && onGift && (
             <Pressable
               onPress={onGift}
               style={({ pressed }) => [
                 styles.giftBtn,
-                pressed && { opacity: 0.8 },
+                pressed && styles.giftBtnPressed,
               ]}
               accessibilityRole="button"
               accessibilityLabel="Send gift"
+              hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
             >
               <Text style={styles.giftBtnText}>🎁 Gift</Text>
             </Pressable>
@@ -348,385 +484,385 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         </View>
       )}
 
-      {/* Right bubble ke liye meta row neeche + report option */}
-      {isRight && (
-        <View style={styles.rightMeta}>
-          {/* Tags right pe bhi show ho sakti hain agar ho */}
-          {tags && (
-            <Tag tags={tags} variant={variant} />
-          )}
+      {/* ── Right-bubble tag row ─────────────────────────────────────────── */}
+      {isRight && tags && (
+        <View style={styles.rightTagsRow}>
+          <MessageTagsRow tags={tags} />
         </View>
       )}
     </View>
   );
-};
+}
+
+// ─── React.memo export ───────────────────────────────────────────────────────
+
+export const MessageBubble = memo(MessageBubbleComponent);
+MessageBubble.displayName = 'MessageBubble';
+
+export default MessageBubble;
 
 // ─── StyleSheet ───────────────────────────────────────────────────────────────
-// HTML world-screen specific overrides ko RN mein translate kiya hai
 
 const styles = StyleSheet.create({
 
-  // ── .mw wrapper ─────────────────────────────────────────────────────────────
+  // ── Wrapper alignment ──────────────────────────────────────────────────────
   wrapper: {
-    flexDirection:  "column",
-    marginVertical: 5,
-    paddingHorizontal: 12,
-    maxWidth:       "100%",
+    flexDirection:     'column',
+    marginVertical:    spacing.xs,       // 4px — tight consecutive message gap
+    paddingHorizontal: spacing.sm,       // 8px — screen-edge breathing room
+    maxWidth:          '100%',
   },
   wrapperLeft: {
-    alignItems:  "flex-start",   // .mw.l → left align
-    alignSelf:   "flex-start",
+    alignItems: 'flex-start',
+    alignSelf:  'flex-start',
   },
   wrapperRight: {
-    alignItems:  "flex-end",     // .mw.r → right align
-    alignSelf:   "flex-end",
+    alignItems: 'flex-end',
+    alignSelf:  'flex-end',
   },
 
-  // ── Meta row (username + tags) ───────────────────────────────────────────────
-  // .meta class ka RN version
+  // ── Sender meta container ──────────────────────────────────────────────────
   metaContainer: {
-    flexDirection:  "row",
-    alignItems:     "center",
-    flexWrap:       "wrap",
-    gap:            4,
-    marginBottom:   4,
+    flexDirection:     'row',
+    alignItems:        'center',
+    flexWrap:          'wrap',
+    gap:               spacing.xs,       // 4px
+    marginBottom:      4,
     paddingHorizontal: 4,
-    maxWidth:       "88%",       // .mw.l > * max-width:88%
+    maxWidth:          '88%',
   },
-  username: {
-    fontSize:   11,
-    color:      T.textSoft,      // --text-soft
-    fontWeight: "600",
-  },
-
-  // ── Tags row ─────────────────────────────────────────────────────────────────
-  metaRow: {
-    flexDirection: "row",
-    alignItems:    "center",
-    flexWrap:      "wrap",
-    gap:           4,
+  senderName: {
+    fontSize:      11,
+    fontWeight:    '600',
+    color:         T.textSenderName,
+    letterSpacing: 0.1,
   },
 
-  // .tag-colony
-  tagColony: {
-    color:      T.textMid,       // --text-mid
-    fontWeight: "700",
-    fontSize:   11,
-    maxWidth:   80,              // max-width:80px, overflow hidden
-  },
-  tagColonyRight: {
-    color: "rgba(255,255,255,0.85)",
+  // ── Tag atoms row ──────────────────────────────────────────────────────────
+  tagsRow: {
+    flexDirection: 'row',
+    alignItems:    'center',
+    flexWrap:      'wrap',
+    gap:           spacing.xs,           // 4px
   },
 
-  // .tag-verified
-  tagVerified: {
-    width:           14,
-    height:          14,
-    borderRadius:    7,          // 50%
-    backgroundColor: T.gold,    // --gold
-    alignItems:      "center",
-    justifyContent:  "center",
-  },
-  tagVerifiedText: {
-    color:    "#FFF",
-    fontSize: 8,
-    fontWeight: "800",
-  },
-
-  // .tag-credits
-  tagCredits: {
-    backgroundColor: T.goldPale,   // --gold-pale
-    borderWidth:     1,
-    borderColor:     T.goldBorder,  // --gold-border
-    borderRadius:    6,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-  },
-  tagCreditsText: {
-    color:      T.goldDeep,      // --gold-deep
-    fontSize:   10,
-    fontWeight: "700",
-  },
-
-  // .tag-local / .tag-visitor / .tag-ai — same style, alag text
-  tagPill: {
-    backgroundColor: T.goldPale,
-    borderWidth:     1,
-    borderColor:     T.goldBorder,
-    borderRadius:    5,
-    paddingHorizontal: 6,
-    paddingVertical:   2,
-  },
-  tagPillText: {
-    color:          T.goldDeep,
-    fontSize:       9,
-    fontWeight:     "800",
-    textTransform:  "uppercase",
-    letterSpacing:  0.4,
-  },
-
-  // .tag-moon
-  tagMoon: {
-    fontSize: 10,
-  },
-
-  // .tag-mayor-badge — gradient feel (RN mein gradient nahi, toh closest solid)
-  tagMayorBadge: {
-    backgroundColor: T.goldPaleWarm,  // closest to linear-gradient(gold-pale → #FFF3CD)
-    borderWidth:     1,
-    borderColor:     T.goldBorder,
-    borderRadius:    5,
-    paddingHorizontal: 6,
-    paddingVertical:   2,
-  },
-  tagMayorBadgeText: {
-    color:          T.goldDeep,
-    fontSize:       8,
-    fontWeight:     "800",
-    textTransform:  "uppercase",
-    letterSpacing:  0.5,
-  },
-
-  // ── Bubble base ──────────────────────────────────────────────────────────────
-  // .bubble ke common styles
+  // ── Bubble base ────────────────────────────────────────────────────────────
   bubble: {
-    padding:      "10px 14px" as unknown as number,  // RN mein string nahi chalta
-    paddingHorizontal: 14,
+    paddingHorizontal: spacing.md,       // 12px
     paddingVertical:   10,
-    fontSize:     14,
-    maxWidth:     "88%",
+    maxWidth:          '88%',
   },
-
-  // .bubble.l — left bubble (doosre ka message)
-  bubbleLeft: {
-    backgroundColor: T.bubbleLeft,     // #FFFEFB
-    borderWidth:     1,
-    borderColor:     T.cardBorder,     // #F1E5C8
-    borderRadius:    6,                // r-xs top-left
-    borderTopLeftRadius:   6,          // .bubble.l → r-xs r-xl r-xl r-xl
-    borderTopRightRadius:  18,
-    borderBottomRightRadius: 18,
-    borderBottomLeftRadius:  18,
-    // iOS shadow
-    shadowColor:     T.gold,
-    shadowOffset:    { width: 0, height: 4 },
-    shadowOpacity:   0.07,
-    shadowRadius:    7,
-    elevation:       2,                // Android
-  },
-
-  // .bubble.r — apna message (gold gradient)
-  // RN mein LinearGradient chahiye gradient ke liye, yahan approximation
-  bubbleRight: {
-    backgroundColor: T.gold,          // fallback, real app mein LinearGradient use karo
-    borderRadius:    18,
-    borderTopLeftRadius:     18,       // .bubble.r → r-xl r-xl r-xs r-xl
-    borderTopRightRadius:    18,
-    borderBottomRightRadius: 6,        // r-xs
-    borderBottomLeftRadius:  18,
-    // Gold glow shadow
-    shadowColor:     T.gold,
-    shadowOffset:    { width: 0, height: 6 },
-    shadowOpacity:   0.32,
-    shadowRadius:    10,
-    elevation:       5,
-  },
-
-  // .bubble.mayor-bubble — mayor ka special framing
-  bubbleMayor: {
-    backgroundColor: T.goldPaleWarm,   // linear-gradient(#FFFCF0, #FFF3CD) approx
-    borderWidth:     1.5,
-    borderColor:     T.goldBorder,
-    borderLeftWidth: 3,                // left-border:3px gold — mayor ki pehchaan
-    borderLeftColor: T.gold,
-    borderRadius:    18,
-    borderTopLeftRadius:     6,        // r-xs top-left
-    borderTopRightRadius:    18,
-    borderBottomRightRadius: 18,
-    borderBottomLeftRadius:  18,
-    shadowColor:     T.gold,
-    shadowOffset:    { width: 0, height: 4 },
-    shadowOpacity:   0.16,
-    shadowRadius:    9,
-    elevation:       3,
-  },
-
-  // .ai-companion-msg — dashed border, mandatory AI badge
-  // RN mein native dashed border limited support hai — workaround: borderStyle 'dashed'
-  bubbleAI: {
-    backgroundColor: T.goldPaleWarm,
-    borderWidth:     1,
-    borderColor:     "rgba(201,162,39,0.5)",
-    borderStyle:     "dashed",         // AI ki pehchaan — dashed border
-    borderRadius:    18,
-    borderTopLeftRadius:     6,
-    borderTopRightRadius:    18,
-    borderBottomRightRadius: 18,
-    borderBottomLeftRadius:  18,
-    shadowColor:     T.gold,
-    shadowOffset:    { width: 0, height: 2 },
-    shadowOpacity:   0.06,
-    shadowRadius:    5,
-    elevation:       1,
-  },
-
-  // Press state — scale down thoda
   bubblePressed: {
     transform: [{ scale: 0.985 }],
+    opacity:   0.95,
   },
 
-  // ── AI Badge (W-002 mandatory fix) ──────────────────────────────────────────
-  // .ai-companion-msg::before ka RN version — har AI message pe dikhe
+  // left — cream fill + hairline border + subtle gold shadow
+  // Radius Protocol §8: chat bubbles = radii.lg (16px); tail corner = radii.xs (4px)
+  bubbleLeft: {
+    backgroundColor:        T.bubbleLeft,
+    borderWidth:             1,
+    borderColor:             T.borderLeft,
+    borderRadius:            radii.lg,    // 16 — §8 chat bubble protocol
+    borderTopLeftRadius:     radii.xs,    // 4  — tail corner (top-left for left-aligned)
+    borderTopRightRadius:    radii.lg,    // 16
+    borderBottomRightRadius: radii.lg,    // 16
+    borderBottomLeftRadius:  radii.lg,    // 16
+    shadowColor:             T.shadowGold,
+    shadowOffset:            { width: 0, height: 3 },
+    shadowOpacity:           0.07,
+    shadowRadius:            7,
+    elevation:               2,
+  },
+
+  // right — Champagne Gold solid + gold glow
+  // Radius Protocol §8: chat bubbles = radii.lg (16px); tail corner = radii.xs (4px)
+  bubbleRight: {
+    backgroundColor:        T.bubbleRight,
+    borderRadius:            radii.lg,    // 16 — §8 chat bubble protocol
+    borderTopLeftRadius:     radii.lg,    // 16
+    borderTopRightRadius:    radii.lg,    // 16
+    borderBottomRightRadius: radii.xs,    // 4  — tail corner (bottom-right for right-aligned)
+    borderBottomLeftRadius:  radii.lg,    // 16
+    shadowColor:             T.shadowGold,
+    shadowOffset:            { width: 0, height: 5 },
+    shadowOpacity:           0.28,
+    shadowRadius:            10,
+    elevation:               5,
+  },
+
+  // mayor — warm ivory + 3px gold left-accent spine
+  // Radius Protocol §8: chat bubbles = radii.lg (16px); tail corner = radii.xs (4px)
+  bubbleMayor: {
+    backgroundColor:        T.bubbleMayor,
+    borderWidth:             1.5,
+    borderColor:             T.borderMayor,
+    borderLeftWidth:         3,
+    borderLeftColor:         T.borderMayorAccent,
+    borderRadius:            radii.lg,    // 16 — §8 chat bubble protocol
+    borderTopLeftRadius:     radii.xs,    // 4  — tail corner (top-left, left-aligned variant)
+    borderTopRightRadius:    radii.lg,    // 16
+    borderBottomRightRadius: radii.lg,    // 16
+    borderBottomLeftRadius:  radii.lg,    // 16
+    shadowColor:             T.shadowGold,
+    shadowOffset:            { width: 0, height: 4 },
+    shadowOpacity:           0.13,
+    shadowRadius:            9,
+    elevation:               3,
+  },
+
+  // ai — warm ivory + dashed gold ring
+  // Radius Protocol §8: chat bubbles = radii.lg (16px); tail corner = radii.xs (4px)
+  bubbleAI: {
+    backgroundColor:        T.bubbleAI,
+    borderWidth:             1,
+    borderColor:             T.borderAI,
+    borderStyle:             'dashed',
+    borderRadius:            radii.lg,    // 16 — §8 chat bubble protocol
+    borderTopLeftRadius:     radii.xs,    // 4  — tail corner (top-left, left-aligned variant)
+    borderTopRightRadius:    radii.lg,    // 16
+    borderBottomRightRadius: radii.lg,    // 16
+    borderBottomLeftRadius:  radii.lg,    // 16
+    shadowColor:             T.shadowGold,
+    shadowOffset:            { width: 0, height: 2 },
+    shadowOpacity:           0.06,
+    shadowRadius:            5,
+    elevation:               1,
+  },
+
+  // highlighted — 2px gold ring (saved / bookmarked)
+  bubbleHighlighted: {
+    borderWidth: 2,
+    borderColor: T.borderHighlight,
+  },
+
+  // ── AI mandatory badge (W-002 fix) ─────────────────────────────────────────
   aiBadgeRow: {
-    flexDirection: "row",
-    marginBottom:  6,
+    flexDirection: 'row',
+    marginBottom:  spacing.xs,           // 4px
   },
   aiBadge: {
-    backgroundColor: T.gold,           // gradient approximation
-    borderRadius:    6,
+    backgroundColor:  palette.gold[600],
+    borderRadius:     radii.sm,          // 6
     paddingHorizontal: 7,
     paddingVertical:   2,
-    // Subtle shadow
-    shadowColor:     T.goldDeep,
-    shadowOffset:    { width: 0, height: 1 },
-    shadowOpacity:   0.3,
-    shadowRadius:    1.5,
-    elevation:       2,
+    shadowColor:      palette.gold[900],
+    shadowOffset:     { width: 0, height: 1 },
+    shadowOpacity:    0.28,
+    shadowRadius:     1.5,
+    elevation:        2,
   },
   aiBadgeText: {
-    color:          "#FFFCF0",
-    fontSize:       8.5,
-    fontWeight:     "800",
-    textTransform:  "uppercase",
-    letterSpacing:  0.6,
+    color:         palette.cream[50],
+    fontSize:      8.5,
+    fontWeight:    '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
   },
 
-  // ── Mayor label ──────────────────────────────────────────────────────────────
+  // ── Mayor label ────────────────────────────────────────────────────────────
   mayorLabelRow: {
-    flexDirection: "row",
+    flexDirection: 'row',
     marginBottom:  5,
   },
   mayorLabel: {
-    fontSize:   9,
-    fontWeight: "700",
-    color:      T.goldDeep,
-    textTransform: "uppercase",
+    fontSize:      9,
+    fontWeight:    '700',
+    color:         palette.gold[900],
+    textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
 
-  // ── Message text ─────────────────────────────────────────────────────────────
+  // ── Message text ───────────────────────────────────────────────────────────
   msgText: {
-    fontSize:   14,
-    lineHeight: 21,              // 14 * 1.5
+    fontSize:   15,
+    lineHeight: 22,
     color:      T.textBody,
-    fontWeight: "400",
+    fontWeight: '400',
   },
   msgTextRight: {
-    color: "#FFFFFF",            // Right bubble pe white text
+    color: T.textBodyWhite,
   },
   msgTextMayor: {
-    fontWeight: "500",
-    color:      T.textBody,
+    fontWeight: '500',
+    color:      T.textMayor,
   },
 
-  // ── .msg-info (time + ticks) ─────────────────────────────────────────────────
-  msgInfoRow: {
-    flexDirection:  "row",
-    justifyContent: "flex-end",
+  // ── Timestamp row ──────────────────────────────────────────────────────────
+  timeRow: {
+    flexDirection:  'row',
+    justifyContent: 'flex-end',
+    alignItems:     'center',
     marginTop:      5,
   },
-  msgInfo: {
+  timeLeft: {
     fontSize:   10,
-    fontWeight: "600",
+    fontWeight: '500',
+    color:      T.textTime,
   },
-  msgInfoLeft: {
-    color:   T.textSoft,        // --text-soft
-    opacity: 1,
+  timeRight: {
+    fontSize:   10,
+    fontWeight: '500',
+    color:      T.textTimeRight,
   },
-  msgInfoRight: {
-    color:   "rgba(255,253,243,0.92)",
-    opacity: 1,
-  },
-  msgInfoMayor: {
-    color:   T.goldDeep,
-    opacity: 0.85,
-  },
-
-  // .ticks — double tick
-  ticks: {
-    fontWeight:    "700",
-    letterSpacing: -2,
+  timeMayor: {
+    fontSize:   10,
+    fontWeight: '500',
+    color:      T.textTime,
+    opacity:    0.80,
   },
 
-  // ── Reactions row (.reacts) ──────────────────────────────────────────────────
+  // ── Status icons ───────────────────────────────────────────────────────────
+  statusIcon: {
+    fontSize:      11,
+    fontWeight:    '700',
+    letterSpacing: -1.5,
+  },
+  statusSent: {
+    color: T.statusSent,
+  },
+  statusDelivered: {
+    color: T.statusDelivered,
+  },
+  statusFailed: {
+    color:         T.statusFailed,
+    fontSize:      12,
+    letterSpacing: 0,
+  },
+
+  // ── Reactions row ──────────────────────────────────────────────────────────
   reactsRow: {
-    flexDirection: "row",
-    flexWrap:      "wrap",
-    gap:           6,
-    marginTop:     8,
-    paddingHorizontal: 6,
-    alignItems:    "center",
-    alignSelf:     "flex-start",  // Left side by default
+    flexDirection: 'row',
+    flexWrap:      'wrap',
+    gap:           spacing.xs,           // 4px
+    marginTop:     spacing.sm,           // 8px
+    paddingHorizontal: 4,
+    alignItems:    'center',
+    alignSelf:     'flex-start',
   },
   reactsRowRight: {
-    alignSelf:      "flex-end",
-    justifyContent: "flex-end",
+    alignSelf:      'flex-end',
+    justifyContent: 'flex-end',
   },
 
-  // .rp — reaction pill
   reactionPill: {
-    backgroundColor: T.bubbleLeft,    // #FFFEFB
-    borderWidth:     1,
-    borderColor:     T.cardBorder,    // #F1E5C8
-    borderRadius:    14,
+    backgroundColor:  palette.cream[50],
+    borderWidth:      1,
+    borderColor:      palette.cream[400],
+    borderRadius:     radii.pill,        // 9999 — true capsule at any scale
     paddingHorizontal: 10,
     paddingVertical:   4,
-    shadowColor:     T.goldDeep,
-    shadowOffset:    { width: 0, height: 1 },
-    shadowOpacity:   0.06,
-    shadowRadius:    1.5,
-    elevation:       1,
+    shadowColor:      palette.gold[900],
+    shadowOffset:     { width: 0, height: 1 },
+    shadowOpacity:    0.06,
+    shadowRadius:     1.5,
+    elevation:        1,
   },
   reactionPillActive: {
-    // Active state — user ne react kiya hai
-    backgroundColor: T.goldPale,
-    borderColor:     T.goldBorder,
-  },
-  reactionPillPressed: {
-    transform: [{ scale: 0.94 }],
+    backgroundColor: palette.gold[50],
+    borderColor:     palette.gold[300],
   },
   reactionPillRight: {
-    // Right bubble ke neeche slightly different
-    backgroundColor: "#FFF8E8",
-    borderColor:     T.goldBorder,
+    backgroundColor: palette.gold[50],
+    borderColor:     palette.gold[300],
+  },
+  reactionPillPressed: {
+    transform: [{ scale: 0.93 }],
   },
   reactionText: {
     fontSize:   11,
-    fontWeight: "700",
-    color:      T.textMid,
+    fontWeight: '700',
+    color:      palette.ink[600],
   },
 
-  // .gift-quick-btn
+  // ── Gift button ────────────────────────────────────────────────────────────
   giftBtn: {
-    backgroundColor: T.goldPale,     // gold-pale to #FFF3CD gradient approx
-    borderWidth:     1,
-    borderColor:     T.goldBorder,
-    borderRadius:    12,
+    backgroundColor:  palette.gold[50],
+    borderWidth:      1,
+    borderColor:      palette.gold[300],
+    borderRadius:     radii.md,          // 12
     paddingHorizontal: 9,
     paddingVertical:   4,
   },
+  giftBtnPressed: {
+    opacity: 0.78,
+  },
   giftBtnText: {
     fontSize:   11,
-    fontWeight: "700",
-    color:      T.goldDeep,
+    fontWeight: '700',
+    color:      palette.gold[700],
   },
 
-  // Right bubble ke liye meta (tags) row — neeche right side mein
-  rightMeta: {
-    marginTop:    4,
-    alignSelf:    "flex-end",
+  // ── Right-bubble tags below ────────────────────────────────────────────────
+  rightTagsRow: {
+    marginTop:         4,
+    alignSelf:         'flex-end',
     paddingHorizontal: 4,
   },
-});
 
-export default MessageBubble;
+  // ════════════════════════════════════════════════════════════════════════════
+  // DATE SEPARATOR  Blueprint §[5.F]
+  //   Row: hairline ─── chip ─── hairline
+  //   Chip: H 24px · cream[200] bg · r-12 · 8px H padding
+  //   Text: 11px 600 ink[600]
+  //   Margin: 24px top · 16px bottom
+  // ════════════════════════════════════════════════════════════════════════════
+
+  dateSepWrapper: {
+    flexDirection:     'row',
+    alignItems:        'center',
+    marginTop:         spacing.xxl,      // 24px — inter-day gap
+    marginBottom:      spacing.lg,       // 16px
+    paddingHorizontal: spacing.md,       // 12px
+  },
+  dateSepLine: {
+    flex:            1,
+    height:          StyleSheet.hairlineWidth,
+    backgroundColor: palette.cream[400], // #E5CC95 — warm hairline
+  },
+  dateSepChip: {
+    height:            24,
+    backgroundColor:   T.bubbleDateChip, // cream[200]
+    borderRadius:      12,
+    paddingHorizontal: spacing.sm,       // 8px H padding (§[5.F])
+    marginHorizontal:  spacing.sm,       // 8px gap from lines
+    justifyContent:    'center',
+    alignItems:        'center',
+  },
+  dateSepText: {
+    fontSize:      11,
+    fontWeight:    '600',
+    color:         T.textDate,           // ink[600]
+    letterSpacing: 0.2,
+  },
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // SYSTEM MESSAGE  Blueprint §Q1-d + §14346
+  //   "gold-50 bg · 1px gold-300 · 12px 600 ink-700"
+  //   Centered · full-pill · no tail · no sender name
+  // ════════════════════════════════════════════════════════════════════════════
+
+  systemWrapper: {
+    alignItems:        'center',
+    justifyContent:    'center',
+    marginVertical:    spacing.sm,       // 8px top + bottom
+    paddingHorizontal: spacing.xl,       // 20px — keep pill from edges
+  },
+  systemChip: {
+    backgroundColor:   T.bubbleSystem,  // gold[50] #FCF7E5
+    borderWidth:       1,
+    borderColor:       T.borderSystem,  // gold[300] #ECD58F
+    borderRadius:      radii.pill,      // full pill — unmistakably "system"
+    paddingHorizontal: spacing.md,      // 12px
+    paddingVertical:   6,
+    maxWidth:          '80%',
+    alignItems:        'center',
+  },
+  systemText: {
+    fontSize:      12,
+    fontWeight:    '600',
+    color:         T.textSystem,        // ink[700] #524539
+    textAlign:     'center',
+    letterSpacing: 0.1,
+  },
+});
