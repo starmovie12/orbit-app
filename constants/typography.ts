@@ -42,31 +42,20 @@
 import { TextStyle as RNTextStyle } from "react-native";
 import { useFonts as useExpoFonts } from "expo-font";
 
-// ── Font asset references ─────────────────────────────────────────────────────
-// Fonts are loaded from local assets via expo-font (no @expo-google-fonts packages needed).
-// Place TTF files in assets/fonts/ — exact filenames below.
-// Download from: https://fonts.google.com/specimen/Cormorant+Garamond
-//                https://fonts.google.com/specimen/DM+Sans
-//
-// Alternatively run:
-//   npx expo install @expo-google-fonts/cormorant-garamond @expo-google-fonts/dm-sans
-// and revert these lines to named imports from those packages.
+// ── Cormorant Garamond imports ───────────────────────────────────────────────
+import {
+  CormorantGaramond_600SemiBold,
+  CormorantGaramond_700Bold,
+} from '@expo-google-fonts/cormorant-garamond';
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const CormorantGaramond_600SemiBold = require('../assets/fonts/CormorantGaramond-SemiBold.ttf') as number;
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const CormorantGaramond_700Bold = require('../assets/fonts/CormorantGaramond-Bold.ttf') as number;
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const DMSans_400Regular = require('../assets/fonts/DMSans-Regular.ttf') as number;
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const DMSans_500Medium = require('../assets/fonts/DMSans-Medium.ttf') as number;
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const DMSans_600SemiBold = require('../assets/fonts/DMSans-SemiBold.ttf') as number;
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const DMSans_700Bold = require('../assets/fonts/DMSans-Bold.ttf') as number;
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const DMSans_800ExtraBold = require('../assets/fonts/DMSans-ExtraBold.ttf') as number;
+// ── DM Sans imports ──────────────────────────────────────────────────────────
+import {
+  DMSans_400Regular,
+  DMSans_500Medium,
+  DMSans_600SemiBold,
+  DMSans_700Bold,
+  DMSans_800ExtraBold,
+} from '@expo-google-fonts/dm-sans';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // § 1 — FONT FAMILY CONSTANTS
