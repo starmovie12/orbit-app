@@ -1,48 +1,71 @@
 /**
- * CROWD WORLD — Header Component
+ * components/Header.tsx
  *
- * HTML source: crowd_world_redesigned.html
- *   .header          → container: white bg, bottom border + subtle gold shadow
- *   .header-top      → row: space-between, padding: 0 18px 8px
- *   .logo-icon       → 44×44, gradient #7B5A0A→gold→#F0D060→gold, radius 14
- *   .app-title       → Cormorant 24px/700, letter-spacing 0.5px
- *   .top-city-tag    → DM Sans 13px/600, color text-soft
- *   .screen-name-txt → Cormorant 24px/700, letter-spacing 0.3px (tab variant)
- *   .screen-sub-txt  → DM Sans 11px/600, color text-soft, letter-spacing 0.3px
- *   .coins           → gold-pale bg, gold-border border, gold-deep text, 6px 13px
- *   .dm-btn          → gold icon, 26×26
- *   .dm-badge        → gold-deep bg, white border, absolute top:-4 right:-6, 18px
+ * CROWD WORLD — Sticky App Header · LAW 15 Two-Row Architecture
+ * Blueprint v5.0 BAAP EDITION · Part 3 §1 · LAW 15 COMPLIANT
  *
- * ── Variants ────────────────────────────────────────────────────────────────
- *   'world' → Logo icon (gradient) + "CROWD WORLD" + city tag subtitle
- *   'tab'   → Dynamic screen name (Cormorant) + optional subtitle (DM Sans)
- *   Both variants → Credits pill + DM button (right side hamesha same)
+ * ── VISUAL ARCHITECTURE ──────────────────────────────────────────────────────
  *
- * ── Usage ───────────────────────────────────────────────────────────────────
- *   // World screen:
+ *  variant='world'  (Home Screen only · § 5.A)
+ *  ┌──────────────────────────────────── Row 1 · 56px (headerRow1Height) ────┐
+ *  │  CROWD WORLD  [Cormorant 24/700 tight]          [🪙 542]   [💬✦3]      │
+ *  └────────────────────────────────────────────────────────────────────────┘
+ *  ┌──────────────────────────────────── Row 2 · 44px (headerRow2Height) ────┐
+ *  │  [📍 Chandigarh ⌄]  [Sector 17 ⌄]                                     │
+ *  └────────────────────────────────────────────────────────────────────────┘
+ *  ──── hairline border-bottom (colors.border.default) ────────────────────────
+ *
+ *  variant='tab'  (Discover · Wallet · Profile)
+ *  ┌──────────────────────────────────── Row 1 · 56px ──────────────────────┐
+ *  │  Discover  [optional subtitle]                  [🪙 542]   [💬✦3]     │
+ *  └────────────────────────────────────────────────────────────────────────┘
+ *  ──── hairline border-bottom ─────────────────────────────────────────────────
+ *
+ * ── HEIGHT ACCOUNTING (scroll insets at call-site) ───────────────────────────
+ *   SafeAreaView edges={['top']} absorbs device status bar.
+ *   world variant total: layout.headerHeight     = 100px  (56 + 44)
+ *   tab   variant total: layout.headerRow1Height =  56px
+ *   ➜ Use layout.headerHeight for world screens' FlatList contentInset.top
+ *   ➜ Use layout.headerRow1Height for tab screens' scroll content inset
+ *
+ * ── LAWS HONOURED ────────────────────────────────────────────────────────────
+ *   LAW 15 : Two-row header — 56px Row 1 + 44px Row 2 — NON-NEGOTIABLE
+ *   Rule 03: No avatar in header (avatar lives ONLY in Glass Island Profile tab)
+ *   Token  : All colors, spacing, radii from CROWN design system — no hardcoded values
+ *
+ * ── DEPS (declared in task spec) ─────────────────────────────────────────────
+ *   components/atoms/Coins.tsx
+ *   components/molecules/CityPill.tsx
+ *   components/molecules/SectorPill.tsx
+ *
+ * ── USAGE ────────────────────────────────────────────────────────────────────
+ *
+ *   // Home screen (world variant — two-row):
  *   <Header
  *     variant="world"
- *     title="CROWD WORLD"
- *     subtitle="Chandigarh"
+ *     city="Chandigarh"
+ *     sector="Sector 17"
+ *     onPressCity={() => router.push('/city-picker')}
+ *     onPressSector={() => router.push('/sector-picker')}
  *     credits={542}
- *     dmCount={5}
- *     onPressCredits={() => router.push('/credits')}
+ *     dmCount={3}
+ *     onPressCredits={() => router.push('/wallet')}
  *     onPressDM={() => router.push('/inbox')}
  *   />
  *
- *   // Koi bhi tab screen:
+ *   // Tab screen (single row):
  *   <Header
  *     variant="tab"
  *     title="Discover"
  *     subtitle="Cards & Challenges"
  *     credits={542}
- *     dmCount={5}
- *     onPressCredits={() => router.push('/credits')}
+ *     dmCount={3}
+ *     onPressCredits={() => router.push('/wallet')}
  *     onPressDM={() => router.push('/inbox')}
  *   />
  */
 
-import React, { useRef } from "react";
+import React, { memo, useCallback, useRef } from 'react';
 import {
   Animated,
   Platform,
@@ -50,226 +73,144 @@ import {
   StyleSheet,
   Text,
   View,
-} from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Feather } from "@expo/vector-icons";
-import Svg, { Circle, Line, Path } from "react-native-svg";
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Feather } from '@expo/vector-icons';
 
-// Design tokens — constants/ se import
-import { orbitGold }               from "@/constants/colors";
-import { FONT_HEADING, FONT_BODY } from "@/constants/typography";
-import { spacing, radius, shadows } from "@/constants/spacing";
+import { colors, radii, zIndex, palette } from '@/constants/colors';
+import { layout, spacing }                from '@/constants/spacing';
+import {
+  FONT_HEADING,
+  FONT_BODY,
+  LETTER_SPACING,
+}                                         from '@/constants/typography';
+import {
+  Duration,
+  easeOut,
+  springConfigs,
+  useReducedMotion,
+}                                         from '@/constants/animations';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PROPS
-// ─────────────────────────────────────────────────────────────────────────────
+import Coins      from '@/components/atoms/Coins';
+import CityPill   from '@/components/molecules/CityPill';
+import SectorPill from '@/components/molecules/SectorPill';
 
-export interface HeaderProps {
-  /** Layout variant:
-   *  'world' → logo icon + CROWD WORLD brand title + city subtitle
-   *  'tab'   → dynamic screen name + optional screen subtitle */
-  variant: "world" | "tab";
+// ─── Types ────────────────────────────────────────────────────────────────────
+//
+// Discriminated union — TypeScript enforces the correct prop set per variant.
+// 'world' variant requires city/sector picker props; 'tab' requires a screen title.
+// No `never`-tagged cross-contamination can reach the render paths.
 
-  /** Main text:
-   *  world → "CROWD WORLD" (ya app ka naam)
-   *  tab   → screen ka display name, e.g. "Discover", "Bazaar" */
-  title: string;
-
-  /** Secondary text below the title:
-   *  world → city name ya tag, e.g. "Chandigarh"
-   *  tab   → screen ka tagline, e.g. "Cards & Challenges" */
-  subtitle?: string;
-
-  /** User ke current credits/coins — gold pill mein dikhta hai */
+interface SharedProps {
+  /** User's current CROWN credit balance — displayed in the gold pill */
   credits: number;
-
-  /** Unread DM count — badge mein dikhta hai (0 = badge hidden) */
+  /** Unread DM count — shown as badge on the chat icon (0 = badge hidden) */
   dmCount: number;
-
-  /** Credits pill tap handler */
+  /** Tapping the Coins pill navigates to /wallet */
   onPressCredits?: () => void;
-
-  /** DM button tap handler */
+  /** Tapping the DM icon navigates to /inbox */
   onPressDM?: () => void;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SUB-COMPONENT: Logo Icon
-// HTML .logo-icon — 44×44 gold multi-stop gradient + crowd SVG + shimmer overlay
-// ─────────────────────────────────────────────────────────────────────────────
-
-function LogoIcon() {
-  return (
-    <LinearGradient
-      // HTML: linear-gradient(135deg, #7B5A0A, var(--gold), #F0D060, var(--gold))
-      colors={["#7B5A0A", orbitGold.accent, "#F0D060", orbitGold.accent]}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.logoIconGradient}
-    >
-      {/* HTML SVG: crowd/people icon — 3 circles (heads) + path (bodies) */}
-      {/* Exactly matching HTML viewBox="0 0 24 24" paths */}
-      <Svg
-        width={20}
-        height={20}
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="#FFFFFF"
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        {/* Ground line + crowd silhouettes */}
-        <Path d="M2 20h20M5 20l2-8 5 4 5-4 2 8" />
-        {/* 3 heads */}
-        <Circle cx={5}  cy={9} r={2} />
-        <Circle cx={12} cy={6} r={2} />
-        <Circle cx={19} cy={9} r={2} />
-      </Svg>
-
-      {/* Shimmer overlay — HTML .logo-icon::after
-          linear-gradient(135deg, rgba(255,255,255,.2) → transparent)
-          React Native mein ::after nahi hota, extra View se simulate */}
-      <LinearGradient
-        colors={["rgba(255,255,255,0.20)", "transparent"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={StyleSheet.absoluteFillObject}
-      />
-    </LinearGradient>
-  );
+interface WorldVariantProps extends SharedProps {
+  /** Two-row layout (LAW 15): wordmark in Row 1 + city/sector pills in Row 2 */
+  variant: 'world';
+  /** Display name of the active city, e.g. "Chandigarh" — passed to CityPill */
+  city: string;
+  /** Display name of the active sector, e.g. "Sector 17" — passed to SectorPill */
+  sector: string;
+  /** Opens the city-picker bottom sheet (§16) */
+  onPressCity: () => void;
+  /** Opens the sector-picker bottom sheet (§17) */
+  onPressSector: () => void;
+  /**
+   * Pass `true` when this sector is the currently active/selected one
+   * (shows the 2px gold border active state on SectorPill).
+   * @default false
+   */
+  sectorIsActive?: boolean;
+  title?: never;
+  subtitle?: never;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SUB-COMPONENT: Credits Pill
-// HTML .coins — gold-pale bg, gold-border border, ⚡ icon + number
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface CreditsPillProps {
-  count:   number;
-  onPress?: () => void;
+interface TabVariantProps extends SharedProps {
+  /** Single-row layout: screen title in the position where Row 1 sits */
+  variant: 'tab';
+  /** Primary screen name, e.g. "Discover", "Wallet", "Profile" */
+  title: string;
+  /** Optional secondary line below the title, e.g. "Cards & Challenges" */
+  subtitle?: string;
+  city?: never;
+  sector?: never;
+  onPressCity?: never;
+  onPressSector?: never;
+  sectorIsActive?: never;
 }
 
-function CreditsPill({ count, onPress }: CreditsPillProps) {
-  // Scale animation — HTML .coins:active { transform: scale(.96) }
-  const scaleAnim = useRef(new Animated.Value(1)).current;
+/** Full typed HeaderProps — discriminated by `variant` */
+export type HeaderProps = WorldVariantProps | TabVariantProps;
 
-  function pressIn() {
-    Animated.timing(scaleAnim, {
-      toValue: 0.96, duration: 80, useNativeDriver: true,
-    }).start();
-  }
-  function pressOut() {
-    Animated.spring(scaleAnim, {
-      toValue: 1, useNativeDriver: true, speed: 20, bounciness: 4,
-    }).start();
-  }
-
-  // Credits number ko readable format mein dikhao
-  // e.g. 1200 → "1.2k", 542 → "542"
-  const formatted =
-    count >= 1000
-      ? `${(count / 1000).toFixed(count % 1000 === 0 ? 0 : 1)}k`
-      : String(count);
-
-  return (
-    <Pressable
-      onPress={onPress}
-      onPressIn={pressIn}
-      onPressOut={pressOut}
-      accessibilityLabel={`${formatted} credits`}
-      accessibilityRole="button"
-    >
-      <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-        {/* HTML .coins:
-            background: linear-gradient(135deg, gold-pale, gold-pale) ← solid fill
-            border: 1px solid gold-border
-            box-shadow: 0 2px 8px rgba(201,162,39,.15) */}
-        <LinearGradient
-          // HTML mein dono stops same hain (gold-pale → gold-pale)
-          // Slight variation add kiya for depth — more premium feel
-          colors={[orbitGold.accentSoftSolid, "#FFF6E3"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.coinsPill}
-        >
-          {/* Gold coin icon — HTML mein circle+⚡ SVG tha, yahan Feather 'zap' */}
-          <View style={styles.coinsIconWrap}>
-            <Feather name="zap" size={12} color={orbitGold.accent} />
-          </View>
-
-          {/* Credits count — HTML: font-size:13px/700, color:gold-deep */}
-          <Text style={styles.coinsText} numberOfLines={1}>
-            {formatted}
-          </Text>
-        </LinearGradient>
-      </Animated.View>
-    </Pressable>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SUB-COMPONENT: DM Button
-// HTML .dm-btn + .dm-badge
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── Sub-component: DM Button ─────────────────────────────────────────────────
+//
+// Gold chat-bubble icon + optional badge.
+// Press animation: scale 1.0 → 0.92 (Duration.micro) + spring release.
+// Reduced motion: opacity dip instead of scale (blueprint §A.1.6).
 
 interface DMButtonProps {
-  count:   number;    // 0 = badge nahi dikhega
+  count:    number;
   onPress?: () => void;
 }
 
-function DMButton({ count, onPress }: DMButtonProps) {
-  // Press feedback
-  const opacityAnim = useRef(new Animated.Value(1)).current;
+const DMButton = memo<DMButtonProps>(({ count, onPress }) => {
+  const reducedMotion = useReducedMotion();
+  const scaleAnim     = useRef(new Animated.Value(1)).current;
 
-  function pressIn() {
-    Animated.timing(opacityAnim, {
-      toValue: 0.6, duration: 80, useNativeDriver: true,
+  const handlePressIn = useCallback(() => {
+    if (reducedMotion) return;
+    Animated.timing(scaleAnim, {
+      toValue:         0.92,
+      duration:        Duration.micro,   // 80ms — §5.N buttonPress
+      easing:          easeOut,
+      useNativeDriver: true,
     }).start();
-  }
-  function pressOut() {
-    Animated.timing(opacityAnim, {
-      toValue: 1, duration: 150, useNativeDriver: true,
+  }, [reducedMotion, scaleAnim]);
+
+  const handlePressOut = useCallback(() => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      ...springConfigs.springStiff,      // tension:200 · friction:18
     }).start();
-  }
+  }, [scaleAnim]);
 
   const showBadge = count > 0;
-  const badgeText = count > 99 ? "99+" : String(count);
+  const badgeText = count > 99 ? '99+' : String(count);
 
   return (
     <Pressable
       onPress={onPress}
-      onPressIn={pressIn}
-      onPressOut={pressOut}
-      accessibilityLabel={
-        showBadge ? `${count} unread messages` : "Direct Messages"
-      }
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      hitSlop={TOUCH_SLOP}
       accessibilityRole="button"
-      style={styles.dmPressable}
+      accessibilityLabel={showBadge ? `${count} unread messages` : 'Direct Messages'}
+      style={({ pressed }) =>
+        reducedMotion && pressed ? styles.dmPressedOpacity : undefined
+      }
     >
-      <Animated.View style={[styles.dmInner, { opacity: opacityAnim }]}>
-        {/* HTML .dm-btn: color:var(--gold), stroke-width:2, 26×26 SVG */}
-        <Svg
-          width={26}
-          height={26}
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke={orbitGold.accent}
-          strokeWidth={2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          {/* Chat bubble path — exact HTML SVG */}
-          <Path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-        </Svg>
+      <Animated.View
+        style={[
+          styles.dmInner,
+          { transform: [{ scale: scaleAnim }] },
+        ]}
+      >
+        {/* Message-circle icon — gold brand color */}
+        <Feather
+          name="message-circle"
+          size={22}
+          color={colors.fg.brand}          // gold[600] #C9A227
+        />
 
-        {/* Badge — HTML .dm-badge:
-            position absolute, top:-4 right:-6
-            background: gold-deep, color:#FFF
-            height:18, min-width:18, border-radius:9
-            border:2px solid #FFF, padding:0 4px
-            font-size:10px/800 */}
+        {/* Badge — visible only when dmCount > 0 */}
         {showBadge && (
           <View style={styles.dmBadge}>
             <Text style={styles.dmBadgeText} numberOfLines={1}>
@@ -280,318 +221,302 @@ function DMButton({ count, onPress }: DMButtonProps) {
       </Animated.View>
     </Pressable>
   );
+});
+
+DMButton.displayName = 'Header.DMButton';
+
+// ─── Sub-component: Right Actions ─────────────────────────────────────────────
+// Shared between both variants — Coins pill + DM button — always in Row 1 right.
+
+interface RightActionsProps {
+  credits:          number;
+  dmCount:          number;
+  onPressCredits?:  () => void;
+  onPressDM?:       () => void;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// MAIN COMPONENT: Header
-// ─────────────────────────────────────────────────────────────────────────────
-
-export default function Header({
-  variant,
-  title,
-  subtitle,
+const RightActions = memo<RightActionsProps>(({
   credits,
   dmCount,
   onPressCredits,
   onPressDM,
-}: HeaderProps) {
-  const insets = useSafeAreaInsets();
+}) => (
+  <View style={styles.rightActions}>
+    <Coins
+      amount={credits}
+      size="sm"         // compact pill — glass island / header context
+      animated          // pulses on credit change for delight feedback
+      onPress={onPressCredits}
+    />
+    <DMButton
+      count={dmCount}
+      onPress={onPressDM}
+    />
+  </View>
+));
 
-  // Safe area top handle — status bar ke neeche se start ho
-  // HTML header mein padding:13px 0 0 tha; usse safe area top add karo
-  const paddingTop = insets.top + 13;
+RightActions.displayName = 'Header.RightActions';
+
+// ─── Main component: Header ───────────────────────────────────────────────────
+
+function HeaderComponent(props: HeaderProps) {
+  const { credits, dmCount, onPressCredits, onPressDM } = props;
 
   return (
-    <View
-      style={[
-        styles.header,
-        { paddingTop },
-      ]}
+    <SafeAreaView
+      edges={['top']}        // absorbs device status bar height only
+      style={styles.safeArea}
     >
-      {/* ── Header Top Row ───────────────────────────────────────────────── */}
-      {/* HTML .header-top: flex, space-between, align:center, padding:0 18px 8px */}
-      <View style={styles.headerTop}>
+      {/* ── ROW 1 — Brand row (both variants) ────────────────────────────── */}
+      {/*
+       * World : CROWD WORLD wordmark (left) + Coins + DM (right)
+       * Tab   : Screen title stack   (left) + Coins + DM (right)
+       * Height: layout.headerRow1Height = 56px (LAW 15 §1)
+       */}
+      <View style={styles.row1}>
 
-        {/* ── LEFT: variant ke hisaab se alag content ────────────────────── */}
-        {variant === "world" ? (
-          // WORLD VARIANT: Logo icon + "CROWD WORLD" + city tag
-          // HTML: .logo-row { display:flex; align-items:center; gap:10px }
-          <View style={styles.logoRow}>
-            {/* Gold gradient logo — .logo-icon */}
-            <LogoIcon />
+        {/* LEFT: wordmark (world) or screen title (tab) */}
+        {props.variant === 'world' ? (
 
-            {/* Title + subtitle stack */}
-            <View style={styles.titleStack}>
-              {/* HTML .app-title:
-                  Cormorant Garamond 24px/700, color:#0D0800, letter-spacing:0.5px */}
-              <Text style={styles.appTitle} numberOfLines={1}>
-                {title}
-              </Text>
+          /* WORLD — CROWD WORLD wordmark · Cormorant 24/700 · tight tracking */
+          <Text
+            style={styles.wordmark}
+            numberOfLines={1}
+            accessibilityRole="header"
+            accessibilityLabel="CROWD WORLD"
+          >
+            CROWD WORLD
+          </Text>
 
-              {/* HTML .top-city-tag:
-                  DM Sans 13px/600, color:#A0875A (text-soft) */}
-              {subtitle ? (
-                <Text style={styles.cityTag} numberOfLines={1}>
-                  {subtitle}
-                </Text>
-              ) : null}
-            </View>
-          </View>
         ) : (
-          // TAB VARIANT: Dynamic screen name + subtitle
-          // HTML: .screen-name-txt + .screen-sub-txt
-          <View style={styles.tabTitleStack}>
-            {/* HTML .screen-name-txt:
-                Cormorant Garamond 24px/700, color:#0D0800, letter-spacing:0.3px */}
-            <Text style={styles.screenNameTxt} numberOfLines={1}>
-              {title}
-            </Text>
 
-            {/* HTML .screen-sub-txt:
-                DM Sans 11px/600, color:#A0875A, margin-top:1, letter-spacing:0.3px */}
-            {subtitle ? (
-              <Text style={styles.screenSubTxt} numberOfLines={1}>
-                {subtitle}
+          /* TAB — dynamic screen title + optional subtitle */
+          <View style={styles.tabTitleStack}>
+            <Text style={styles.screenName} numberOfLines={1} accessibilityRole="header">
+              {props.title}
+            </Text>
+            {props.subtitle ? (
+              <Text style={styles.screenSub} numberOfLines={1}>
+                {props.subtitle}
               </Text>
             ) : null}
           </View>
+
         )}
 
-        {/* ── RIGHT: Credits pill + DM button (hamesha same, dono variants mein) ── */}
-        {/* HTML .header-actions: flex, align:center, gap:16px */}
-        <View style={styles.headerActions}>
-          <CreditsPill count={credits} onPress={onPressCredits} />
-          <DMButton    count={dmCount} onPress={onPressDM}      />
-        </View>
+        {/* RIGHT: Coins + DM — identical in both variants */}
+        <RightActions
+          credits={credits}
+          dmCount={dmCount}
+          onPressCredits={onPressCredits}
+          onPressDM={onPressDM}
+        />
       </View>
-    </View>
+
+      {/* ── ROW 2 — Location row (world variant only) ─────────────────────── */}
+      {/*
+       * Shows CityPill (left) + SectorPill (right).
+       * Tab variant skips Row 2 entirely — the container renders nothing here.
+       * Height: layout.headerRow2Height = 44px (LAW 15 §1)
+       */}
+      {props.variant === 'world' && (
+        <View style={styles.row2}>
+          <CityPill
+            city={props.city}
+            onPress={props.onPressCity}
+          />
+          <SectorPill
+            sector={props.sector}
+            isActive={props.sectorIsActive ?? false}
+            onPress={props.onPressSector}
+          />
+        </View>
+      )}
+    </SafeAreaView>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// STYLES
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── Memo + export ────────────────────────────────────────────────────────────
+//
+// React.memo — Header re-renders only when its props change.
+// In practice this means:
+//   • City / sector label changes (city picker selection)
+//   • Credit balance updates (Firestore real-time listener)
+//   • DM badge count changes (FCM notification push)
+//   • dmCount / onPress* identity changes — handlers should be useCallback'd
+//     at the call-site to avoid spurious re-renders on every parent update.
+
+export default memo(HeaderComponent);
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+/** Touch slop for DM button — meets 44px Rule 5.Q minimum */
+const TOUCH_SLOP = { top: 11, bottom: 11, left: 8, right: 8 } as const;
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+//
+// Token mapping:
+//   colors.bg.surface          = white             — header background
+//   colors.border.default      = cream[400]        — bottom hairline
+//   colors.fg.brandSubtle      = gold[800] #8B6F18 — wordmark (AA 6.4:1)
+//   colors.fg.primary          = ink[950]           — tab screen title
+//   colors.fg.tertiary         = ink[500]           — tab subtitle
+//   colors.fg.brand            = gold[600]          — DM icon, Coins border
+//   colors.fg.brandHover       = gold[700]          — DM badge background
+//   zIndex.fixedHeader         = 900               — sticky above scroll content
+//   layout.headerRow1Height    = 56                — Row 1 (LAW 15)
+//   layout.headerRow2Height    = 44                — Row 2 (LAW 15, world only)
+//   spacing.screenH            = 18                — screen horizontal inset
+//   spacing.sm                 =  8                — gap between pills (Row 2)
+//   spacing.lg                 = 16                — gap between Coins + DM
 
 const styles = StyleSheet.create({
-  // ── Container — HTML .header ─────────────────────────────────────────────
-  header: {
-    backgroundColor:   orbitGold.bg,           // #FFFFFF
-    zIndex:            10,
 
-    // HTML: border-bottom: 1px solid var(--card-border)
-    borderBottomWidth: 1,
-    borderBottomColor: orbitGold.borderSubtle, // --card-border: #EDE3CC
+  // SafeAreaView wrapper — owns the background, bottom border, shadow, z-index.
+  // Clips to content so safe area padding is handled by the OS edge insets.
+  safeArea: {
+    backgroundColor:   colors.bg.surface,          // white — clean warm canvas
+    zIndex:            zIndex.fixedHeader,          // 900 — sticky above FlatList
+    borderBottomWidth: StyleSheet.hairlineWidth,    // 0.5px retina-sharp divider
+    borderBottomColor: colors.border.default,       // cream[400] #E5CC95
 
-    // HTML box-shadow simulate:
-    //   0 1px 0 var(--card-border)          → borderBottom above cover this
-    //   0 4px 24px rgba(201,162,39,.07)     → subtle gold drop shadow
-    shadowColor:       orbitGold.accent,       // #C9A227
-    shadowOffset:      { width: 0, height: 4 },
-    shadowOpacity:     0.07,
-    shadowRadius:      24,
-    elevation:         3,                       // Android
+    // Subtle gold-tinted shadow (tier1) — signals elevation without noise
+    ...colors.shadow.tier1,
   },
 
-  // ── Top row — HTML .header-top ──────────────────────────────────────────
-  headerTop: {
-    flexDirection:     "row",
-    justifyContent:    "space-between",
-    alignItems:        "center",
-    // HTML: padding: 0 18px 8px
-    paddingHorizontal: spacing.screenH,         // 18px
-    paddingBottom:     spacing.sm,              // 8px
+  // ── Row 1 ────────────────────────────────────────────────────────────────
+  // Fixed 56px (LAW 15 headerRow1Height). Space-between aligns wordmark/title
+  // left and the Coins+DM actions right.
+  row1: {
+    height:            layout.headerRow1Height,     // 56px — LAW 15 §1
+    flexDirection:     'row',
+    alignItems:        'center',
+    justifyContent:    'space-between',
+    paddingHorizontal: spacing.screenH,             // 18px — screen horizontal inset
   },
 
-  // ── WORLD VARIANT — Logo row ─────────────────────────────────────────────
-  // HTML .logo-row: display:flex, align-items:center, gap:10px
-  logoRow: {
-    flexDirection:     "row",
-    alignItems:        "center",
-    gap:               10,                      // HTML: gap:10px
-    flex:              1,
-    marginRight:       spacing.sm,
+  // ── Row 2 ────────────────────────────────────────────────────────────────
+  // Fixed 44px (LAW 15 headerRow2Height). Pills sit left, row is flex-start.
+  // The hairline border below safeArea acts as the visual bottom edge of Row 2.
+  row2: {
+    height:            layout.headerRow2Height,     // 44px — LAW 15 §1
+    flexDirection:     'row',
+    alignItems:        'center',
+    paddingHorizontal: spacing.screenH,             // 18px — aligned with Row 1
+    gap:               spacing.sm,                  //  8px — gap between CityPill + SectorPill
   },
 
-  // HTML .logo-icon: 44×44, radius 14, gold shadow
-  logoIconGradient: {
-    width:             44,
-    height:            44,
-    borderRadius:      14,                      // --r-md + 2: logo ke liye 14px
-    alignItems:        "center",
-    justifyContent:    "center",
-    overflow:          "hidden",
-
-    // HTML box-shadow: 0 4px 16px rgba(201,162,39,.4), inset 0 1px 0 rgba(255,255,255,.3)
-    // Inset part shimmer overlay se handle hota hai (LinearGradient overlay)
-    // Outer shadow:
-    shadowColor:       orbitGold.accent,
-    shadowOffset:      { width: 0, height: 4 },
-    shadowOpacity:     0.40,
-    shadowRadius:      16,
-    elevation:         8,
-    flexShrink:        0,
-  },
-
-  // World variant mein title + city tag ka stack
-  titleStack: {
-    flex:              1,
-    justifyContent:    "center",
-  },
-
-  // HTML .app-title:
-  // font-family:'Cormorant Garamond',serif; font-size:24px; font-weight:700
-  // color:var(--text); letter-spacing:0.5px
-  appTitle: {
-    fontFamily:        FONT_HEADING.bold,       // CormorantGaramond_700Bold
+  // ── World variant: CROWD WORLD wordmark ──────────────────────────────────
+  // Cormorant Garamond 24/700 · tight tracking (-0.2) · brandSubtle gold[800]
+  // Blueprint: "Premium minimalist wordmark · pure typography · weight 700 · tight tracking"
+  // colors.fg.brandSubtle = gold[800] = #8B6F18 → WCAG AA 6.4:1 on white ✅
+  wordmark: {
+    fontFamily:        FONT_HEADING.bold,            // CormorantGaramond_700Bold
     fontSize:          24,
-    fontWeight:        "700",
-    color:             orbitGold.textPrimary,   // --text: #0D0800
-    letterSpacing:     0.5,                     // HTML: 0.5px exact
+    fontWeight:        '700',
     lineHeight:        28,
+    letterSpacing:     LETTER_SPACING.tight,         // -0.2 — "tight tracking" per spec
+    color:             colors.fg.brandSubtle,        // gold[800] — brand text AA-safe
+    flex:              1,                            // pushes actions to the right
+    marginRight:       spacing.sm,                   // 8px breathing room before actions
   },
 
-  // HTML .top-city-tag:
-  // font-family:'DM Sans',sans-serif; font-size:13px; font-weight:600
-  // color:var(--text-soft)
-  cityTag: {
-    fontFamily:        FONT_BODY.semiBold,      // DMSans_600SemiBold
-    fontSize:          13,
-    fontWeight:        "600",
-    color:             orbitGold.textTertiary,  // --text-soft: #A0875A
-    lineHeight:        17,
-    marginTop:         1,
-  },
-
-  // ── TAB VARIANT — Dynamic screen title ───────────────────────────────────
+  // ── Tab variant: screen title stack ──────────────────────────────────────
   tabTitleStack: {
-    flex:              1,
-    justifyContent:    "center",
-    marginRight:       spacing.sm,
+    flex:           1,
+    justifyContent: 'center',
+    marginRight:    spacing.sm,                      // 8px breathing room
   },
 
-  // HTML .screen-name-txt:
-  // font-family:'Cormorant Garamond',serif; font-size:24px; font-weight:700
-  // color:var(--text); letter-spacing:0.3px
-  screenNameTxt: {
-    fontFamily:        FONT_HEADING.bold,       // CormorantGaramond_700Bold
-    fontSize:          24,
-    fontWeight:        "700",
-    color:             orbitGold.textPrimary,   // --text: #0D0800
-    letterSpacing:     0.3,                     // HTML: 0.3px (world se thoda kam)
-    lineHeight:        28,
+  // Primary screen name — Cormorant 24/700 like worldmark but slightly wider tracking
+  // Uses ink[950] (primary text) for tab screens — less brand-forward than home.
+  screenName: {
+    fontFamily:    FONT_HEADING.bold,                // CormorantGaramond_700Bold
+    fontSize:      24,
+    fontWeight:    '700',
+    lineHeight:    28,
+    letterSpacing: LETTER_SPACING.wide,              // 0.3 — screen names breathe slightly
+    color:         colors.fg.primary,               // ink[950] — primary text
   },
 
-  // HTML .screen-sub-txt:
-  // font-size:11px; font-weight:600; color:var(--text-soft)
-  // margin-top:1px; letter-spacing:.3px
-  screenSubTxt: {
-    fontFamily:        FONT_BODY.semiBold,      // DMSans_600SemiBold
-    fontSize:          11,
-    fontWeight:        "600",
-    color:             orbitGold.textTertiary,  // --text-soft: #A0875A
-    letterSpacing:     0.3,
-    marginTop:         1,
-    lineHeight:        15,
+  // Optional secondary line — DM Sans 11/600 · ink[500] tertiary
+  // e.g. "Cards & Challenges" under "Discover"
+  screenSub: {
+    fontFamily:    FONT_BODY.semiBold,               // DMSans_600SemiBold
+    fontSize:      11,
+    fontWeight:    '600',
+    lineHeight:    15,
+    letterSpacing: LETTER_SPACING.wide,              // 0.3 — matches .screen-sub-txt HTML
+    color:         colors.fg.tertiary,              // ink[500] — de-emphasized
+    marginTop:     2,
   },
 
-  // ── Right side actions — HTML .header-actions ────────────────────────────
-  // display:flex; align-items:center; gap:16px
-  headerActions: {
-    flexDirection:     "row",
-    alignItems:        "center",
-    gap:               16,                      // HTML: gap:16px
-    flexShrink:        0,
+  // ── Right actions (Coins + DM) ────────────────────────────────────────────
+  // Shared across both variants. Fixed flex-end, no shrink.
+  rightActions: {
+    flexDirection: 'row',
+    alignItems:    'center',
+    gap:           spacing.lg,                       // 16px — matches original 16px gap
+    flexShrink:    0,
   },
 
-  // ── Credits Pill — HTML .coins ───────────────────────────────────────────
-  // background: gold-pale gradient, border: gold-border
-  // border-radius:20px, padding:6px 13px
-  // font-size:13px/700, color:gold-deep
-  // min-width:70, max-width:110
-  coinsPill: {
-    flexDirection:     "row",
-    alignItems:        "center",
-    gap:               5,                       // HTML: gap:5px
-    borderRadius:      20,                      // HTML: border-radius:20px
-    paddingHorizontal: 13,                      // HTML: padding: 6px 13px
-    paddingVertical:   6,
-    borderWidth:       1,
-    borderColor:       orbitGold.goldBorder,    // --gold-border: #E2C660
-    minWidth:          70,                      // HTML: min-width:70px
-    maxWidth:          110,                     // HTML: max-width:110px
-
-    // HTML box-shadow: 0 2px 8px rgba(201,162,39,.15)
-    shadowColor:       orbitGold.accent,
-    shadowOffset:      { width: 0, height: 2 },
-    shadowOpacity:     0.15,
-    shadowRadius:      8,
-    elevation:         2,
-  },
-
-  coinsIconWrap: {
-    width:             14,
-    height:            14,
-    alignItems:        "center",
-    justifyContent:    "center",
-  },
-
-  // HTML .coins span: font-size:13px/700, color:var(--gold-deep)
-  coinsText: {
-    fontFamily:        FONT_BODY.bold,          // DMSans_700Bold
-    fontSize:          13,
-    fontWeight:        "700",
-    color:             orbitGold.accentHover,   // --gold-deep: #9A7A18
-    flexShrink:        1,
-  },
-
-  // ── DM Button — HTML .dm-btn ──────────────────────────────────────────────
-  dmPressable: {
-    flexShrink:        0,
-  },
-
+  // ── DM Button ─────────────────────────────────────────────────────────────
+  // 22×22 Feather message-circle icon + absolute badge.
+  // Wrapper is slightly larger for thumb comfort — hitSlop covers the rest.
   dmInner: {
-    position:          "relative",
-    width:             34,                      // Touch target thoda bada rakha
-    height:            34,
-    alignItems:        "center",
-    justifyContent:    "center",
+    width:          32,                              // touch target — hitSlop extends to 44px
+    height:         32,
+    alignItems:     'center',
+    justifyContent: 'center',
+    position:       'relative',
   },
 
-  // ── DM Badge — HTML .dm-badge ────────────────────────────────────────────
-  // position:absolute; top:-4px; right:-6px
-  // background:gold-deep; color:#FFF
-  // height:18px; min-width:18px; border-radius:9px
-  // border:2px solid #FFF; padding:0 4px
-  // font-size:10px/800
-  dmBadge: {
-    position:          "absolute",
-    top:               -4,                      // HTML: top:-4px
-    right:             -6,                      // HTML: right:-6px
-    minWidth:          18,                      // HTML: min-width:18px
-    height:            18,                      // HTML: height:18px
-    borderRadius:      9,                       // HTML: border-radius:9px
-    backgroundColor:   orbitGold.accentHover,  // --gold-deep: #9A7A18
-    borderWidth:       2,
-    borderColor:       "#FFFFFF",               // HTML: border:2px solid #FFF
-    paddingHorizontal: 4,                       // HTML: padding:0 4px
-    alignItems:        "center",
-    justifyContent:    "center",
+  // Reduced-motion: opacity dip (blueprint §A.1.6)
+  dmPressedOpacity: {
+    opacity: 0.60,
+  },
 
-    // Badge ko shadow se thoda lift do
+  // Badge pill — absolute top-right of dmInner
+  // Background: colors.fg.brandHover = gold[700] #A88A24 (deeper than icon for contrast)
+  // Border: 2px white separator — visually separates badge from icon
+  dmBadge: {
+    position:          'absolute',
+    top:               -4,
+    right:             -6,
+    minWidth:          18,
+    height:            18,
+    borderRadius:      radii.full,                  // 9999 — perfect pill at any width
+    backgroundColor:   colors.fg.brandHover,        // gold[700] — warm prestige badge
+    borderWidth:       2,
+    borderColor:       colors.bg.surface,           // white separator ring
+    paddingHorizontal: 3,
+    alignItems:        'center',
+    justifyContent:    'center',
+
+    // Elevates badge above icon — both iOS and Android
     ...Platform.select({
-      ios:     { shadowColor: "#000", shadowOffset: { width:0, height:1 }, shadowOpacity:0.15, shadowRadius:2 },
-      android: { elevation: 2 },
+      ios: {
+        shadowColor:   palette.ink[950],
+        shadowOffset:  { width: 0, height: 1 },
+        shadowOpacity: 0.12,
+        shadowRadius:  2,
+      },
+      android: {
+        elevation: 2,
+      },
     }),
   },
 
-  // HTML .dm-badge: font-size:10px/800, color:#FFF
+  // Badge count text — DMSans 800 · white · compact
+  // includeFontPadding: false → removes Android's extra vertical glyph space
   dmBadgeText: {
-    fontFamily:        FONT_BODY.extraBold,    // DMSans_800ExtraBold
-    fontSize:          10,
-    fontWeight:        "800",
-    color:             "#FFFFFF",
-    lineHeight:        14,
-    textAlign:         "center",
-    includeFontPadding: false,                  // Android pe vertical centering fix
+    fontFamily:          FONT_BODY.extraBold,        // DMSans_800ExtraBold
+    fontSize:            10,
+    fontWeight:          '800',
+    color:               palette.white,
+    lineHeight:          13,
+    textAlign:           'center',
+    includeFontPadding:  false,                      // Android centering fix
+    textAlignVertical:   'center',                   // Android vertical centering
   },
 });
