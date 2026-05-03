@@ -75,6 +75,7 @@ import {
   AccessibilityInfo,
   ActivityIndicator,
   Animated,
+  Dimensions,
   FlatList,
   Keyboard,
   Platform,
@@ -91,7 +92,7 @@ import AsyncStorage          from '@react-native-async-storage/async-storage';
 import firestore             from '@react-native-firebase/firestore';
 import auth                  from '@react-native-firebase/auth';
 
-import BottomSheet                    from '@/components/BottomSheet';
+import { BottomSheet }               from '@/components/BottomSheet';
 import { getCities }                  from '@/lib/firestore-rooms';
 import { colors, palette }            from '@/constants/colors';
 import { FONT_BODY, FONT_HEADING }    from '@/constants/typography';
@@ -146,6 +147,39 @@ const L = {
   shimmerDuration: 1200,  // Shimmer cycle · blueprint "standard 1200ms"
   pressDuration:   80,    // Press feedback timing (ms)
   pressScale:      0.97,  // Row press-down scale
+} as const;
+
+// ─── Screen height (for sheet maxHeight) ──────────────────────────────────────
+const SCREEN_H = Dimensions.get('window').height;
+
+// ─── Design token alias ───────────────────────────────────────────────────────
+//
+// T merges layout constants (L.*) with semantic color tokens so style rules
+// reference a single namespace.  All colors are pulled from the v2.0 token
+// system — zero hardcoded hex values below.
+//
+// Color mapping:
+//   T.ink950      = palette.ink[950]    #1A1208  primary text
+//   T.ink600      = palette.ink[600]    #6B5B47  secondary text
+//   T.cream200    = palette.cream[200]  #F7ECD0  input bg / chip bg
+//   T.cream400    = palette.cream[400]  #E5CC95  borders / handle / dividers
+//   T.gold600     = palette.gold[600]   #C9A227  active accent / CTA
+//   T.amber600    = palette.amber[600]  #D4651A  location pin icon
+//   T.crimson600  = palette.crimson[600] #C4294F  error states
+//   T.sheetBg     = colors.bg.surface   #FFFFFF  sheet background
+//
+const T = {
+  // ── Spread all layout constants from L ───────────────────────────────────
+  ...L,
+  // ── Color tokens ─────────────────────────────────────────────────────────
+  ink950:    palette.ink[950],
+  ink600:    palette.ink[600],
+  cream200:  palette.cream[200],
+  cream400:  palette.cream[400],
+  gold600:   palette.gold[600],
+  amber600:  palette.amber[600],
+  crimson600: palette.crimson[600],
+  sheetBg:   colors.bg.surface,
 } as const;
 
 // ─── AsyncStorage keys ────────────────────────────────────────────────────────
@@ -616,18 +650,8 @@ function CityPickerSheetBase({
     <BottomSheet
       visible={visible}
       onClose={onClose}
-      snapPoint="50%"
-      testID="city-picker-sheet"
+      maxHeight={SCREEN_H * 0.5}
     >
-      {/* ── Drag Handle ─────────────────────────────────────────────────── */}
-      <View
-        style={styles.handleContainer}
-        accessibilityElementsHidden
-        importantForAccessibility="no-hide-descendants"
-      >
-        <View style={styles.handle} />
-      </View>
-
       {/* ── Title ────────────────────────────────────────────────────────── */}
       <Text
         style={styles.title}
@@ -804,27 +828,16 @@ CityPickerSheetBase.displayName = 'CityPickerSheet';
 
 const styles = StyleSheet.create({
 
-  // ── Drag handle ──────────────────────────────────────────────────────────
-  handleContainer: {
-    alignItems:  'center',
-    paddingTop:  T.handleTop,             // 12px from sheet top · blueprint exact
-    paddingBottom: 4,
-  },
-  handle: {
-    width:        T.handleW,              // 40px · blueprint exact
-    height:       T.handleH,             // 4px · blueprint exact
-    borderRadius: 2,
-    backgroundColor: T.cream400,         // cream-400 · blueprint exact
-  },
-
   // ── Title ─────────────────────────────────────────────────────────────────
   // "City chuno · 18px/700/ink-950 · centered · 24px below handle"
+  // BottomSheet provides the drag handle; marginTop accounts for its height
   title: {
+    fontFamily:    FONT_BODY.bold,        // DM Sans 700 · blueprint sheetTitle
     fontSize:      T.titleSize,           // 18
     fontWeight:    '700',
     color:         T.ink950,
     textAlign:     'center',
-    marginTop:     16,                    // 24px below handle (4px in handleContainer + 16px here = 20px, close enough; handle has padding 12+4=16, so 16+16=32 total — matches "24px below handle")
+    marginTop:     16,
     marginBottom:  16,
     paddingHorizontal: 24,
   },
@@ -851,6 +864,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex:        1,
     height:      T.searchH,
+    fontFamily:  FONT_BODY.regular,     // DM Sans 400 · input field
     fontSize:    14,
     fontWeight:  '400',
     color:       T.ink950,
@@ -876,6 +890,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   recentLabel: {
+    fontFamily:        FONT_BODY.semiBold,   // DM Sans 600 · section header
     fontSize:          11,
     fontWeight:        '600',
     color:             T.ink600,
@@ -902,16 +917,18 @@ const styles = StyleSheet.create({
     alignItems:       'center',
   },
   recentChipSelected: {
-    backgroundColor: '#FEF3D0',           // light gold tint for selected
+    backgroundColor: RECENT_CHIP_SEL,        // token: rgba(201,162,39,0.10)
     borderWidth:     1.5,
     borderColor:     T.gold600,
   },
   recentChipText: {
+    fontFamily: FONT_BODY.medium,            // DM Sans 500
     fontSize:   13,
     fontWeight: '500',
     color:      T.ink950,
   },
   recentChipTextSelected: {
+    fontFamily: FONT_BODY.semiBold,          // DM Sans 600 · active state
     color:      T.gold600,
     fontWeight: '600',
   },
@@ -950,7 +967,7 @@ const styles = StyleSheet.create({
     overflow:        'hidden',
   },
   cityRowActive: {
-    backgroundColor: '#FBF3E0',           // Warm cream tint · blueprint: "cream bg"
+    backgroundColor: ACTIVE_ROW_BG,          // token: rgba(201,162,39,0.06)
   },
   activeAccentBar: {
     position:       'absolute',
@@ -974,6 +991,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   cityName: {
+    fontFamily:  FONT_BODY.semiBold,          // DM Sans 600 · blueprint sheetRowPrimary
     fontSize:    T.nameSize,              // 15 · blueprint exact
     fontWeight:  '600',
     color:       T.ink950,
@@ -983,6 +1001,7 @@ const styles = StyleSheet.create({
     color:  T.gold600,
   },
   cityState: {
+    fontFamily: FONT_BODY.medium,            // DM Sans 500 · blueprint sheetRowSecondary
     fontSize:   T.countSize,             // 13 · blueprint exact
     fontWeight: '400',
     color:      T.ink600,
@@ -1008,7 +1027,7 @@ const styles = StyleSheet.create({
     gap:             4,
   },
   onlineChipActive: {
-    backgroundColor: 'rgba(201,162,39,0.12)',
+    backgroundColor: ACTIVE_CHIP_BG,         // token: rgba(201,162,39,0.12)
   },
   onlineDot: {
     width:           5,
@@ -1022,6 +1041,7 @@ const styles = StyleSheet.create({
     opacity:         1,
   },
   onlineText: {
+    fontFamily: FONT_BODY.medium,            // DM Sans 500
     fontSize:   11,
     fontWeight: '500',
     color:      T.ink600,
@@ -1077,6 +1097,7 @@ const styles = StyleSheet.create({
     gap:            10,
   },
   emptyTitle: {
+    fontFamily: FONT_BODY.semiBold,          // DM Sans 600
     fontSize:   17,
     fontWeight: '600',
     color:      T.ink950,
@@ -1084,6 +1105,7 @@ const styles = StyleSheet.create({
     marginTop:  6,
   },
   emptySubtitle: {
+    fontFamily: FONT_BODY.regular,           // DM Sans 400
     fontSize:   14,
     fontWeight: '400',
     color:      T.ink600,
@@ -1100,6 +1122,7 @@ const styles = StyleSheet.create({
     borderColor:      T.cream400,
   },
   emptyButtonText: {
+    fontFamily: FONT_BODY.medium,            // DM Sans 500
     fontSize:   14,
     fontWeight: '500',
     color:      T.gold600,
@@ -1115,6 +1138,7 @@ const styles = StyleSheet.create({
     gap:            10,
   },
   errorTitle: {
+    fontFamily: FONT_BODY.semiBold,          // DM Sans 600
     fontSize:   17,
     fontWeight: '600',
     color:      T.crimson600,
@@ -1122,6 +1146,7 @@ const styles = StyleSheet.create({
     marginTop:  6,
   },
   errorSubtitle: {
+    fontFamily: FONT_BODY.regular,           // DM Sans 400
     fontSize:   14,
     fontWeight: '400',
     color:      T.ink600,
@@ -1138,6 +1163,7 @@ const styles = StyleSheet.create({
     backgroundColor:  T.gold600,
   },
   retryButtonText: {
+    fontFamily: FONT_BODY.semiBold,          // DM Sans 600
     fontSize:   14,
     fontWeight: '600',
     color:      T.sheetBg,
@@ -1147,7 +1173,7 @@ const styles = StyleSheet.create({
   // Blueprint: "24×24 #D4A017 spinner over bottom sheet content"
   spinnerOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255, 255, 255, 0.75)',
+    backgroundColor: SPINNER_OVERLAY,        // token: rgba(255,255,255,0.75)
     alignItems:      'center',
     justifyContent:  'center',
   },
