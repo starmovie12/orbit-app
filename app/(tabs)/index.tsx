@@ -47,21 +47,19 @@ import {
   type AppStateStatus,
   FlatList,
   KeyboardAvoidingView,
-  Modal,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   Platform,
-  Pressable,
   StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   View,
 } from 'react-native';
 import { useSafeAreaInsets }     from 'react-native-safe-area-context';
 import { useRouter }             from 'expo-router';
 import { Feather }               from '@expo/vector-icons';
+import NetInfo, { type NetInfoState } from '@react-native-community/netinfo';
 
 // ── Auth ──────────────────────────────────────────────────────────────────
 import { useAuth }               from '@/contexts/AuthContext';
@@ -84,6 +82,7 @@ import SectorPickerSheet          from '@/components/organisms/SectorPickerSheet
 import { MessageActionSheet }     from '@/components/organisms/MessageActionSheet';
 import { AuthGateSheet }          from '@/components/organisms/AuthGateSheet';
 import ScrollFAB                  from '@/components/atoms/ScrollFAB';
+import { SendFailedModal }         from '@/components/organisms/SendFailedModal';
 import SkeletonBubble             from '@/components/atoms/SkeletonBubble';
 
 // ── Firestore ─────────────────────────────────────────────────────────────
@@ -138,7 +137,7 @@ interface ActionSheetMsg {
   is_pinned?:  boolean;
 }
 
-/** Payload for the send-failed recovery modal */
+/** Payload for the send-failed recovery modal (bridges to SendFailedModal props) */
 interface FailedMsg {
   id:     string;
   text:   string;
@@ -212,65 +211,8 @@ function adaptToActionMsg(
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// § 4 — SEND FAILED MODAL
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface SendFailedModalProps {
-  visible:   boolean;
-  failedMsg: FailedMsg | null;
-  onRetry:   (msg: FailedMsg) => void;
-  onDismiss: () => void;
-}
-
-function SendFailedModal({ visible, failedMsg, onRetry, onDismiss }: SendFailedModalProps) {
-  if (!failedMsg) return null;
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      statusBarTranslucent
-      onRequestClose={onDismiss}
-      accessibilityViewIsModal
-    >
-      <TouchableWithoutFeedback onPress={onDismiss}>
-        <View style={S.failedScrim}>
-          <TouchableWithoutFeedback>
-            <View style={S.failedCard} accessibilityRole="dialog">
-              <View style={S.failedIconWrap}>
-                <Feather name="alert-triangle" size={28} color={palette.crimson[600]} />
-              </View>
-              <Text style={S.failedTitle}>Message send nahi hua</Text>
-              <Text style={S.failedPreview} numberOfLines={2}>
-                "{failedMsg.text.slice(0, 80)}{failedMsg.text.length > 80 ? '…' : ''}"
-              </Text>
-              <TouchableOpacity
-                style={S.failedRetryBtn}
-                onPress={() => onRetry(failedMsg)}
-                activeOpacity={0.85}
-                accessibilityRole="button"
-                accessibilityLabel="Dobara bhejo · Retry"
-              >
-                <Feather name="refresh-cw" size={16} color={palette.white} style={S.failedRetryIcon} />
-                <Text style={S.failedRetryText}>Dobara bhejo</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={S.failedCancelBtn}
-                onPress={onDismiss}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel="Cancel karo"
-              >
-                <Text style={S.failedCancelText}>Cancel karo</Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableWithoutFeedback>
-        </View>
-      </TouchableWithoutFeedback>
-    </Modal>
-  );
-}
+// § 4 — SEND FAILED MODAL: imported from '@/components/organisms/SendFailedModal'
+// See: components/organisms/SendFailedModal.tsx (Blueprint § 19)
 
 // ─────────────────────────────────────────────────────────────────────────────
 // § 5 — OFFLINE BANNER
@@ -401,7 +343,7 @@ export default function HomeScreen() {
   // ── Messages ──────────────────────────────────────────────────────────────
   const [messages,   setMessages]    = useState<CWMessage[]>([]);
   const [isLoading,  setIsLoading]   = useState(true);
-  const [isOffline,  setIsOffline]   = useState(false);
+  const [isOffline,  setIsOffline]   = useState(false); // wired to NetInfo below
 
   // ── ScrollFAB ─────────────────────────────────────────────────────────────
   const [newMsgCount,   setNewMsgCount]   = useState(0);
@@ -430,6 +372,11 @@ export default function HomeScreen() {
 
   // ── Glass Island active tab ───────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<'home' | 'discover' | 'wallet' | 'profile'>('home');
+
+  // ── User credits + DM count (wired to Firestore) ─────────────────────────
+  // Blueprint §5 Header: credits pill + DM badge — real-time Firestore values
+  const [userCredits, setUserCredits] = useState(0);
+  const [unreadDmCount, setUnreadDmCount] = useState(0);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // § 9.1 — FIRESTORE SUBSCRIPTIONS
@@ -493,6 +440,72 @@ export default function HomeScreen() {
     return () => clearTimeout(t);
   }, [showTrustAnchor]);
 
+  // ── NetInfo: wire isOffline to actual network state ────────────────────────
+  // Blueprint §Q9: Banner shown when device loses connectivity
+  useEffect(() => {
+    // Fetch initial state immediately
+    NetInfo.fetch().then((state: NetInfoState) => {
+      setIsOffline(!(state.isConnected ?? true));
+    }).catch(() => {});
+
+    // Subscribe to changes
+    const unsubNetInfo = NetInfo.addEventListener((state: NetInfoState) => {
+      setIsOffline(!(state.isConnected ?? true));
+    });
+
+    return () => unsubNetInfo();
+  }, []);
+
+  // ── Firestore: subscribe to user credits + unread DM count ─────────────────
+  // Blueprint Header credits pill + DM badge — real-time values
+  useEffect(() => {
+    if (!user?.uid) {
+      setUserCredits(0);
+      setUnreadDmCount(0);
+      return;
+    }
+
+    // Lazy import to avoid circular dep — subscribe to /users/{uid}
+    import('@/lib/firestore-users').then(({ subscribeToUserProfile }) => {
+      const unsubUser = subscribeToUserProfile(user.uid, (profile) => {
+        setUserCredits(profile?.credits ?? 0);
+      });
+      return () => unsubUser();
+    }).catch(() => {});
+
+    import('@/lib/firestore-messages').then(({ subscribeToUnreadDmCount }) => {
+      const unsubDm = subscribeToUnreadDmCount(user.uid, (count) => {
+        setUnreadDmCount(count);
+      });
+      return () => unsubDm();
+    }).catch(() => {});
+  }, [user?.uid]);
+
+  // ── Firestore: subscribe to user credits + unread DM count ─────────────────
+  // Blueprint Header credits pill + DM badge — real-time values
+  useEffect(() => {
+    if (!user?.uid) {
+      setUserCredits(0);
+      setUnreadDmCount(0);
+      return;
+    }
+
+    // Lazy import to avoid circular dep — subscribe to /users/{uid}
+    import('@/lib/firestore-users').then(({ subscribeToUserProfile }) => {
+      const unsubUser = subscribeToUserProfile(user.uid, (profile) => {
+        setUserCredits(profile?.credits ?? 0);
+      });
+      return () => unsubUser();
+    }).catch(() => {});
+
+    import('@/lib/firestore-messages').then(({ subscribeToUnreadDmCount }) => {
+      const unsubDm = subscribeToUnreadDmCount(user.uid, (count) => {
+        setUnreadDmCount(count);
+      });
+      return () => unsubDm();
+    }).catch(() => {});
+  }, [user?.uid]);
+
   // ═══════════════════════════════════════════════════════════════════════════
   // § 9.2 — SEND MESSAGE (optimistic)
   // ═══════════════════════════════════════════════════════════════════════════
@@ -547,13 +560,15 @@ export default function HomeScreen() {
   // § 9.3 — FAILED MESSAGE RETRY
   // ═══════════════════════════════════════════════════════════════════════════
 
-  const handleRetryFailed = useCallback(async (failed: FailedMsg) => {
+  const handleRetryFailed = useCallback(async () => {
+    if (!failedMsg) return;
+    const failed = failedMsg;
     setFailedModalOpen(false);
     setFailedMsg(null);
-    // Remove the failed bubble before re-sending
+    // Remove the failed optimistic bubble before re-sending
     setMessages((prev) => prev.filter((m) => m.id !== failed.id));
     await handleSend(failed.text);
-  }, [handleSend]);
+  }, [failedMsg, handleSend]);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // § 9.4 — AUTH GATE (LAW 4 — Peek-Before-Join)
@@ -676,8 +691,8 @@ export default function HomeScreen() {
        * Rule 03: NO profile avatar here.
        * Avatar lives ONLY in FloatingGlassIsland Profile tab below.
        *
-       * credits / dmCount: wired to 0 for v1.0.
-       * TODO: plug into user.credits from Firestore + unread DM subscription.
+       * credits / dmCount: wired to userCredits (Firestore /users/{uid}) +
+       * unreadDmCount (subscribeToUnreadDmCount). Both real-time via useEffect above.
        */}
       <Header
         variant="world"
@@ -686,8 +701,8 @@ export default function HomeScreen() {
         sectorIsActive
         onPressCity={() => setCitySheetOpen(true)}
         onPressSector={() => setSectorSheetOpen(true)}
-        credits={0}
-        dmCount={0}
+        credits={userCredits}
+        dmCount={unreadDmCount}
         onPressCredits={() => router.push('/credits/index' as never)}
         onPressDM={() => router.push('/(tabs)/inbox' as never)}
       />
@@ -697,7 +712,7 @@ export default function HomeScreen() {
        *
        * Blueprint §Q9: 32px H below header · ink[950] bg
        * "📶 Offline · saved messages dikha rahe hain"
-       * isOffline currently false (TODO: wire to NetInfo)
+       * isOffline wired to @react-native-community/netinfo (subscribed in useEffect above)
        */}
       <OfflineBanner visible={isOffline} />
 
@@ -953,12 +968,27 @@ export default function HomeScreen() {
        * Retry: removes failed optimistic bubble → re-calls handleSend()
        * Up to 3 attempts tracked by the user manually (v1.0 per spec)
        */}
-      <SendFailedModal
-        visible={failedModalOpen}
-        failedMsg={failedMsg}
-        onRetry={handleRetryFailed}
-        onDismiss={() => { setFailedModalOpen(false); setFailedMsg(null); }}
-      />
+      {/* SendFailedModal: imported from components/organisms/SendFailedModal.tsx (Blueprint §19) */}
+      {failedMsg !== null && (
+        <SendFailedModal
+          visible={failedModalOpen}
+          failedMessage={failedMsg.text}
+          onClose={() => { setFailedModalOpen(false); setFailedMsg(null); }}
+          onRetry={handleRetryFailed}
+          onSaveDraft={() => {
+            // TODO v1.1: save to AsyncStorage draft queue
+            setFailedModalOpen(false);
+            setFailedMsg(null);
+          }}
+          onDiscard={() => {
+            if (failedMsg) {
+              setMessages((prev) => prev.filter((m) => m.id !== failedMsg.id));
+            }
+            setFailedModalOpen(false);
+            setFailedMsg(null);
+          }}
+        />
+      )}
     </View>
   );
 }
@@ -1053,88 +1083,4 @@ const S = StyleSheet.create({
     lineHeight: 22,
   },
 
-  // ── Send Failed Modal ─────────────────────────────────────────────────────
-  // Blueprint §Q8 Severity 3: modal · ⚠️ · retry CTA
-  failedScrim: {
-    flex:            1,
-    backgroundColor: 'rgba(28, 24, 20, 0.55)', // colors.bg.scrim
-    alignItems:      'center',
-    justifyContent:  'center',
-  },
-  failedCard: {
-    width:           320,
-    backgroundColor: palette.white,
-    borderRadius:    16,
-    padding:         24,
-    alignItems:      'center',
-    ...Platform.select({
-      ios: {
-        shadowColor:   'rgba(26,18,8,0.18)',
-        shadowOffset:  { width: 0, height: 8 },
-        shadowRadius:  24,
-        shadowOpacity: 1,
-      },
-      android: { elevation: 16 },
-    }),
-  },
-  failedIconWrap: {
-    width:           64,
-    height:          64,
-    borderRadius:    32,
-    backgroundColor: palette.cream[100],
-    alignItems:      'center',
-    justifyContent:  'center',
-    marginBottom:    16,
-  },
-  failedTitle: {
-    fontFamily:   FONT_BODY.bold,
-    fontSize:     18,
-    fontWeight:   '700',
-    color:        palette.ink[950],
-    textAlign:    'center',
-    marginBottom: 8,
-  },
-  failedPreview: {
-    fontFamily:   FONT_BODY.regular,
-    fontSize:     13,
-    fontWeight:   '400',
-    color:        palette.ink[600],
-    textAlign:    'center',
-    lineHeight:   18,
-    fontStyle:    'italic',
-    marginBottom: 20,
-  },
-  failedRetryBtn: {
-    width:          '100%' as const,
-    height:         48,
-    borderRadius:   12,
-    backgroundColor: palette.gold[600],
-    flexDirection:  'row',
-    alignItems:     'center',
-    justifyContent: 'center',
-    marginBottom:   10,
-  },
-  failedRetryIcon: {
-    marginRight: 8,
-  },
-  failedRetryText: {
-    fontFamily: FONT_BODY.semiBold,
-    fontSize:   15,
-    fontWeight: '600',
-    color:      palette.white,
-  },
-  failedCancelBtn: {
-    width:          '100%' as const,
-    height:         44,
-    borderRadius:   12,
-    backgroundColor: palette.cream[200],
-    alignItems:     'center',
-    justifyContent: 'center',
-  },
-  failedCancelText: {
-    fontFamily: FONT_BODY.medium,
-    fontSize:   15,
-    fontWeight: '500',
-    color:      palette.ink[950],
-  },
 });
