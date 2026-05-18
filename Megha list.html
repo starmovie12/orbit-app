@@ -1,0 +1,2874 @@
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CROWN · Part 2 · Onboarding, Identity, Privacy & Open World — Prompt Library</title>
+<meta name="description" content="CROWN Part 2 — Production-grade prompt library. Each card = one file. Copy a prompt, paste with your zip, AI builds the file." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@500;600;700;800&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+
+<style>
+/* ===========================================================
+   CROWN PART 2 — PROMPT LIBRARY
+   Aesthetic: Editorial Tech Codex
+   =========================================================== */
+
+:root {
+  /* Surfaces — Deep Navy spectrum */
+  --bg-0: #0A0E15;            /* page bg */
+  --bg-1: #0F141D;            /* sidebar bg */
+  --bg-2: #131A26;            /* card bg */
+  --bg-3: #1A2230;            /* card hover */
+  --bg-4: #222C3D;            /* expanded prompt bg */
+  --bg-code: #0A0E15;         /* code block bg */
+
+  /* Brand */
+  --gold:        #D4A017;
+  --gold-light:  #F5C842;
+  --gold-dim:    #B8881A;
+  --cream:       #F5E6C8;
+  --cream-dim:   #E8D5A0;
+
+  /* Status */
+  --status-new:      #34D399;
+  --status-refactor: #FBBF24;
+  --status-delete:   #F87171;
+  --status-upgrade:  #818CF8;
+
+  /* Text */
+  --text-strong: #F8F4EA;
+  --text-body:   #C9C3B5;
+  --text-muted:  #7B7A75;
+  --text-dim:    #4E4D49;
+
+  /* Borders */
+  --border-faint:    rgba(212, 160, 23, 0.08);
+  --border-default:  rgba(212, 160, 23, 0.16);
+  --border-strong:   rgba(212, 160, 23, 0.40);
+  --border-hairline: rgba(245, 230, 200, 0.06);
+
+  /* Shadows */
+  --shadow-card:  0 1px 0 rgba(212, 160, 23, 0.04) inset, 0 16px 40px -16px rgba(0,0,0,0.5);
+  --shadow-card-hover: 0 1px 0 rgba(212, 160, 23, 0.12) inset, 0 24px 64px -16px rgba(0,0,0,0.7);
+
+  /* Fonts */
+  --font-display: "Syne", -apple-system, sans-serif;
+  --font-editorial: "Cormorant Garamond", "Georgia", serif;
+  --font-body: "Inter", -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", Consolas, monospace;
+  --font-numeric: "Space Mono", "SF Mono", monospace;
+
+  /* Motion */
+  --ease-glass: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out:   cubic-bezier(0.2, 0, 0, 1);
+
+  /* Layout */
+  --sidebar-w: 280px;
+  --content-max: 920px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; scroll-padding-top: 80px; }
+
+body {
+  background: var(--bg-0);
+  background-image:
+    radial-gradient(at 12% 8%, rgba(212, 160, 23, 0.08) 0px, transparent 50%),
+    radial-gradient(at 88% 92%, rgba(212, 160, 23, 0.05) 0px, transparent 50%);
+  background-attachment: fixed;
+  color: var(--text-body);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+::selection { background: rgba(212, 160, 23, 0.3); color: var(--text-strong); }
+
+/* ===== TOP BAR ===== */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 72px;
+  padding: 0 32px;
+  background: rgba(10, 14, 21, 0.85);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.brand {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.brand-mark {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 22px;
+  letter-spacing: -0.5px;
+  color: var(--gold);
+  text-shadow: 0 0 24px rgba(212, 160, 23, 0.3);
+}
+
+.brand-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--border-default);
+}
+
+.brand-meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.search-wrap {
+  position: relative;
+  width: 280px;
+}
+
+.search {
+  width: 100%;
+  height: 36px;
+  background: var(--bg-2);
+  border: 1px solid var(--border-faint);
+  border-radius: 8px;
+  padding: 0 12px 0 36px;
+  color: var(--text-strong);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  outline: none;
+  transition: all 180ms var(--ease-out);
+}
+
+.search:focus {
+  border-color: var(--border-strong);
+  box-shadow: 0 0 0 3px rgba(212, 160, 23, 0.08);
+}
+
+.search::placeholder { color: var(--text-dim); }
+
+.search-icon {
+  position: absolute;
+  top: 50%;
+  left: 12px;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  font-size: 14px;
+  pointer-events: none;
+}
+
+.stats-mini {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.stats-mini span strong {
+  color: var(--gold);
+  font-weight: 600;
+}
+
+/* ===== LAYOUT ===== */
+.shell {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) 1fr;
+  gap: 0;
+  min-height: calc(100vh - 72px);
+}
+
+/* ===== SIDEBAR ===== */
+.sidebar {
+  position: sticky;
+  top: 72px;
+  height: calc(100vh - 72px);
+  background: var(--bg-1);
+  border-right: 1px solid var(--border-hairline);
+  overflow-y: auto;
+  padding: 32px 24px;
+}
+
+.sidebar::-webkit-scrollbar { width: 4px; }
+.sidebar::-webkit-scrollbar-thumb { background: var(--border-faint); }
+
+.sidebar-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 16px;
+  padding-left: 12px;
+}
+
+.phase-nav {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 36px;
+}
+
+.phase-nav a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  color: var(--text-body);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 180ms var(--ease-out);
+  border-left: 2px solid transparent;
+}
+
+.phase-nav a:hover {
+  background: var(--bg-2);
+  color: var(--text-strong);
+}
+
+.phase-nav a.active {
+  background: rgba(212, 160, 23, 0.08);
+  color: var(--gold);
+  border-left-color: var(--gold);
+}
+
+.phase-num {
+  font-family: var(--font-numeric);
+  font-weight: 700;
+  font-size: 11px;
+  color: var(--gold);
+  opacity: 0.6;
+  min-width: 28px;
+}
+
+.phase-nav a.active .phase-num { opacity: 1; }
+
+.phase-name {
+  flex: 1;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: -0.01em;
+}
+
+.phase-count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  background: var(--bg-2);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.sidebar-info {
+  padding: 16px;
+  background: var(--bg-2);
+  border: 1px solid var(--border-faint);
+  border-radius: 10px;
+  margin-top: 24px;
+}
+
+.sidebar-info-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--cream);
+  letter-spacing: 0.02em;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+.sidebar-info-body {
+  font-family: var(--font-editorial);
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* ===== MAIN ===== */
+.main {
+  padding: 56px 64px 120px;
+  max-width: calc(var(--content-max) + 128px);
+  width: 100%;
+}
+
+/* HERO */
+.hero {
+  margin-bottom: 64px;
+  padding-bottom: 32px;
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.hero-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gold-light);
+  background: rgba(212, 160, 23, 0.08);
+  border: 1px solid var(--border-default);
+  border-radius: 999px;
+  padding: 6px 14px;
+  margin-bottom: 24px;
+}
+
+.hero-tag::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  background: var(--gold);
+  border-radius: 50%;
+  box-shadow: 0 0 8px var(--gold);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.hero h1 {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(36px, 5vw, 56px);
+  line-height: 1.05;
+  letter-spacing: -0.025em;
+  color: var(--text-strong);
+  margin-bottom: 16px;
+}
+
+.hero h1 .accent {
+  color: var(--gold);
+  font-style: italic;
+  font-family: var(--font-editorial);
+  font-weight: 500;
+}
+
+.hero-lede {
+  font-family: var(--font-editorial);
+  font-size: 21px;
+  line-height: 1.5;
+  color: var(--cream-dim);
+  font-style: italic;
+  max-width: 720px;
+  font-weight: 400;
+}
+
+.hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 32px;
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border-hairline);
+}
+
+.hero-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hero-meta-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.hero-meta-value {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text-strong);
+}
+
+/* HOW TO USE BANNER */
+.howto {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 64px;
+}
+
+.howto-step {
+  background: var(--bg-2);
+  border: 1px solid var(--border-faint);
+  border-radius: 12px;
+  padding: 20px;
+  position: relative;
+}
+
+.howto-num {
+  font-family: var(--font-numeric);
+  font-weight: 700;
+  font-size: 11px;
+  color: var(--gold);
+  margin-bottom: 12px;
+  letter-spacing: 0.06em;
+}
+
+.howto-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text-strong);
+  margin-bottom: 6px;
+}
+
+.howto-text {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+/* PHASE SECTION */
+.phase-section {
+  margin-bottom: 96px;
+  scroll-margin-top: 96px;
+}
+
+.phase-header {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  margin-bottom: 8px;
+  padding-bottom: 16px;
+}
+
+.phase-header-num {
+  font-family: var(--font-numeric);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--gold);
+  letter-spacing: 0.08em;
+}
+
+.phase-header-title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 32px;
+  color: var(--text-strong);
+  letter-spacing: -0.02em;
+  flex: 1;
+}
+
+.phase-header-count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--bg-2);
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+.phase-blurb {
+  font-family: var(--font-editorial);
+  font-size: 17px;
+  font-style: italic;
+  color: var(--cream-dim);
+  margin-bottom: 32px;
+  max-width: 640px;
+  line-height: 1.55;
+  padding-left: 4px;
+  border-left: 2px solid var(--border-default);
+  padding-left: 16px;
+}
+
+/* CARD */
+.card {
+  background: var(--bg-2);
+  border: 1px solid var(--border-faint);
+  border-radius: 14px;
+  margin-bottom: 16px;
+  overflow: hidden;
+  transition: border-color 200ms var(--ease-out), background 200ms var(--ease-out);
+}
+
+.card:hover {
+  background: var(--bg-3);
+  border-color: var(--border-default);
+}
+
+.card.open {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-card-hover);
+}
+
+.card-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 24px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.card-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.card-status.new { background: rgba(52, 211, 153, 0.12); color: var(--status-new); }
+.card-status.refactor { background: rgba(251, 191, 36, 0.12); color: var(--status-refactor); }
+.card-status.upgrade { background: rgba(129, 140, 248, 0.12); color: var(--status-upgrade); }
+.card-status.delete { background: rgba(248, 113, 113, 0.12); color: var(--status-delete); }
+
+.card-status::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.card-path {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--gold-light);
+  font-weight: 500;
+  margin-bottom: 4px;
+  word-break: break-all;
+}
+
+.card-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--text-strong);
+  letter-spacing: -0.01em;
+  margin-bottom: 4px;
+}
+
+.card-purpose {
+  font-family: var(--font-editorial);
+  font-style: italic;
+  font-size: 14px;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.card-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--bg-3);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  color: var(--gold);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 180ms var(--ease-out);
+}
+
+.card-toggle:hover { background: rgba(212, 160, 23, 0.12); }
+.card.open .card-toggle { background: var(--gold); color: var(--bg-0); border-color: var(--gold); }
+
+.card-toggle-icon { transition: transform 200ms var(--ease-out); font-size: 12px; }
+.card.open .card-toggle-icon { transform: rotate(180deg); }
+
+/* CARD BODY (collapsed) */
+.card-body {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 360ms var(--ease-out);
+}
+
+.card.open .card-body { max-height: 6000px; }
+
+.card-body-inner {
+  padding: 0 24px 24px;
+  border-top: 1px solid var(--border-hairline);
+}
+
+.card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border-hairline);
+  margin-bottom: 20px;
+}
+
+.card-meta-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-body);
+  background: var(--bg-0);
+  border: 1px solid var(--border-faint);
+  padding: 5px 10px;
+  border-radius: 6px;
+}
+
+.card-meta-chip strong { color: var(--gold-light); font-weight: 600; }
+
+/* PROMPT BLOCK */
+.prompt-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.prompt-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--gold);
+  color: var(--bg-0);
+  border: none;
+  padding: 9px 18px;
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 180ms var(--ease-out);
+}
+
+.copy-btn:hover {
+  background: var(--gold-light);
+  transform: translateY(-1px);
+}
+
+.copy-btn.copied {
+  background: var(--status-new);
+  color: var(--bg-0);
+}
+
+.copy-btn svg { width: 14px; height: 14px; }
+
+.prompt-block {
+  background: var(--bg-code);
+  border: 1px solid var(--border-faint);
+  border-radius: 10px;
+  padding: 24px 28px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--text-body);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  max-height: 560px;
+  overflow-y: auto;
+  position: relative;
+}
+
+.prompt-block::-webkit-scrollbar { width: 8px; }
+.prompt-block::-webkit-scrollbar-track { background: var(--bg-code); }
+.prompt-block::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: 4px; }
+
+/* TOAST */
+.toast {
+  position: fixed;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%) translateY(120px);
+  background: var(--gold);
+  color: var(--bg-0);
+  padding: 14px 28px;
+  border-radius: 10px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  box-shadow: 0 16px 48px rgba(212, 160, 23, 0.4);
+  z-index: 200;
+  transition: transform 300ms var(--ease-glass);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.toast.show { transform: translateX(-50%) translateY(0); }
+
+/* FOOTER */
+.footer {
+  margin-top: 96px;
+  padding-top: 48px;
+  padding-bottom: 32px;
+  border-top: 1px solid var(--border-hairline);
+  text-align: center;
+}
+
+.footer-mark {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 24px;
+  color: var(--gold);
+  letter-spacing: -0.5px;
+  margin-bottom: 12px;
+}
+
+.footer-lede {
+  font-family: var(--font-editorial);
+  font-style: italic;
+  font-size: 16px;
+  color: var(--cream-dim);
+  max-width: 540px;
+  margin: 0 auto 20px;
+  line-height: 1.5;
+}
+
+.footer-meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+/* RESPONSIVE */
+@media (max-width: 900px) {
+  .shell { grid-template-columns: 1fr; }
+  .sidebar { position: relative; top: 0; height: auto; }
+  .main { padding: 32px 20px 80px; }
+  .howto { grid-template-columns: 1fr; }
+  .search-wrap { width: 180px; }
+  .stats-mini { display: none; }
+  .topbar { padding: 0 20px; }
+}
+
+/* SCROLLBARS */
+::-webkit-scrollbar { width: 10px; }
+::-webkit-scrollbar-track { background: var(--bg-0); }
+::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: 5px; }
+::-webkit-scrollbar-thumb:hover { background: var(--gold-dim); }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark">CROWN</span>
+    <span class="brand-divider"></span>
+    <span class="brand-meta">PRD · Part 2 · Prompt Library</span>
+  </div>
+  <div class="topbar-actions">
+    <div class="search-wrap">
+      <span class="search-icon">⌕</span>
+      <input id="searchInput" class="search" type="text" placeholder="Search files, paths, purposes…" />
+    </div>
+    <div class="stats-mini">
+      <span><strong id="fileCount">36</strong> files</span>
+      <span><strong>4</strong> phases</span>
+    </div>
+  </div>
+</header>
+
+<div class="shell">
+
+  <aside class="sidebar">
+    <div class="sidebar-label">Phases</div>
+    <ul class="phase-nav" id="phaseNav">
+      <li><a href="#phase-1" class="active"><span class="phase-num">2.1</span><span class="phase-name">Onboarding Flow</span><span class="phase-count">9</span></a></li>
+      <li><a href="#phase-2"><span class="phase-num">2.2</span><span class="phase-name">Auth Cascade</span><span class="phase-count">8</span></a></li>
+      <li><a href="#phase-3"><span class="phase-num">2.3</span><span class="phase-name">Consent · Age Gate · Welcome Quest</span><span class="phase-count">10</span></a></li>
+      <li><a href="#phase-4"><span class="phase-num">2.4</span><span class="phase-name">Identity · Privacy · Open World</span><span class="phase-count">9</span></a></li>
+    </ul>
+
+    <div class="sidebar-info">
+      <div class="sidebar-info-title">Status Legend</div>
+      <div style="display:flex; flex-direction:column; gap:8px; font-family:var(--font-mono); font-size:11px; color:var(--text-body); font-style:normal;">
+        <div><span class="card-status new">new</span>&nbsp;&nbsp;Create from scratch</div>
+        <div><span class="card-status refactor">refactor</span>&nbsp;&nbsp;Significant rewrite</div>
+        <div><span class="card-status upgrade">upgrade</span>&nbsp;&nbsp;Patch existing file</div>
+      </div>
+    </div>
+
+    <div class="sidebar-info">
+      <div class="sidebar-info-title">Single-File Prompt</div>
+      <div class="sidebar-info-body">
+        Each card is one file. Copy its prompt, paste into Claude / GPT / Gemini with the zip, and the AI builds exactly that file — no full PRD needed.
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+
+    <section class="hero">
+      <div class="hero-tag">CROWN · v1.0 Final · Part 2 of 6</div>
+      <h1>Onboarding, Identity,<br /><span class="accent">Privacy & Open World</span></h1>
+      <p class="hero-lede">Forty-and-some files that turn a new install into a verified, geographically-anchored CROWN citizen — in ninety seconds, with consent, with dignity, and with the right to roam any city on Earth.</p>
+      <div class="hero-meta">
+        <div class="hero-meta-item">
+          <span class="hero-meta-label">Codebase</span>
+          <span class="hero-meta-value">orbit-app-main → CROWN</span>
+        </div>
+        <div class="hero-meta-item">
+          <span class="hero-meta-label">Stack</span>
+          <span class="hero-meta-value">Expo SDK 54 · React 19 · TS strict · Firebase</span>
+        </div>
+        <div class="hero-meta-item">
+          <span class="hero-meta-label">PSS Stage</span>
+          <span class="hero-meta-value">Stage 2 (Chandigarh)</span>
+        </div>
+        <div class="hero-meta-item">
+          <span class="hero-meta-label">Compliance Floor</span>
+          <span class="hero-meta-value">DPDP 2023 · GDPR · IT Rules 2021</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="howto">
+      <div class="howto-step">
+        <div class="howto-num">01</div>
+        <div class="howto-title">Pick a file</div>
+        <div class="howto-text">Open the card for the file you want to build. Each card is one prompt for one file.</div>
+      </div>
+      <div class="howto-step">
+        <div class="howto-num">02</div>
+        <div class="howto-title">Copy the prompt</div>
+        <div class="howto-text">Tap <em>Copy Prompt</em>. The full self-contained instruction goes to your clipboard.</div>
+      </div>
+      <div class="howto-step">
+        <div class="howto-num">03</div>
+        <div class="howto-title">Paste + zip → AI builds it</div>
+        <div class="howto-text">Paste into any AI with your <code style="color:var(--gold-light)">orbit-app-main.zip</code>. AI returns one finished file, ready for your repo.</div>
+      </div>
+    </section>
+
+    <!-- =============================================
+         PHASE 2.1 — ONBOARDING FLOW (9 cards)
+         ============================================= -->
+    <section id="phase-1" class="phase-section">
+      <div class="phase-header">
+        <span class="phase-header-num">PHASE 2.1</span>
+        <h2 class="phase-header-title">Onboarding Flow</h2>
+        <span class="phase-header-count">9 files</span>
+      </div>
+      <p class="phase-blurb">Ninety seconds, six steps, zero credits given. Language → 3-Tick Consent → Multi-Rail Login → Geography → Handle → Welcome Quest. Every screen tells the user what's happening and why.</p>
+
+      <!-- CARD 1 -->
+      <article class="card" data-search="onboarding layout stack progress bar router">
+        <div class="card-head">
+          <span class="card-status new">new</span>
+          <div class="card-info">
+            <div class="card-path">/app/onboarding/_layout.tsx</div>
+            <div class="card-title">Onboarding Stack Layout + 6-Dot Progress Indicator</div>
+            <div class="card-purpose">Container for the 6-step onboarding flow with a thin progress bar and back-button policy.</div>
+          </div>
+          <button class="card-toggle"><span>Open Prompt</span><span class="card-toggle-icon">▾</span></button>
+        </div>
+        <div class="card-body">
+          <div class="card-body-inner">
+            <div class="card-meta">
+              <span class="card-meta-chip">Type: <strong>Expo Router Layout</strong></span>
+              <span class="card-meta-chip">Tier: <strong>Container</strong></span>
+              <span class="card-meta-chip">Deps: <strong>expo-router, @/tokens, AuthContext</strong></span>
+            </div>
+            <div class="prompt-actions">
+              <span class="prompt-label">Self-contained prompt — copy + paste with zip</span>
+              <button class="copy-btn" onclick="copyPrompt(this)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <span class="copy-btn-text">Copy Prompt</span>
+              </button>
+            </div>
+<pre class="prompt-block">You are an OMEGA-V5 senior React-Native engineer building ONE file for CROWN.
+
+PROJECT CONTEXT (read once, keep in mind for every file)
+═══════════════════════════════════════════════════════════
+CROWN is a live, public, city-based chat app (lineage: ORBIT → CROWD WORLD → CROWN). Every message in a city scope reaches every active user in that scope instantly (the "1-Lakh Reach Promise"). On top sits a 5-hour status competition where users climb 4 tiers: BARON (sector), Mayor (VICEROY) (city), SOVEREIGN (country), IMPERATOR (world). PSS Stage 2, Day-1 launch geography is Chandigarh, India; architecture is global.
+
+The existing codebase you're attached as `orbit-app-main.zip` still uses the OLD brand "ORBIT" or "CROWD WORLD". You are migrating to CROWN. Never use "ORBIT" or "CROWD WORLD" in new code.
+
+STACK
+─────
+• Expo SDK 54, React 19, React Native 0.81, Expo Router v6, TypeScript strict
+• Firebase Auth + Firestore (native SDK on iOS/Android, web SDK on web — already configured in `/lib/firebase.ts` and `/lib/firebase.web.ts` via Metro platform extensions)
+• Existing AuthContext lives at `/contexts/AuthContext.tsx`
+• Existing tokens at `/tokens.css` and `/constants/colors.ts`, `/constants/typography.ts`, `/constants/spacing.ts`
+• Existing components in `/components/atoms`, `/components/molecules`, `/components/organisms`
+
+CROWN ANTI-DRIFT LOCKS RELEVANT TO THIS FILE
+─────────────────────────────────────────────
+1. NO real currency symbol anywhere in-app (₹/$/€/£/¥). Only on Cashout screen.
+2. NO Founder-funded Credits ever. Don't grant welcome credits anywhere.
+3. AI-labeled. Any AI text shows "🤖 AI" badge.
+4. Touch targets ≥ 44×44pt (iOS) / 48×48dp (Android).
+5. Use design tokens from `/constants/colors.ts` — never hardcode hex.
+
+FILE YOU ARE BUILDING
+═══════════════════════════════════════════════════════════
+PATH: `/app/onboarding/_layout.tsx`
+TYPE: Expo Router Stack layout (a layout route, not a screen)
+STATUS: NEW file (does not exist in the zip)
+
+PURPOSE
+The 6-step onboarding flow needs a shared chrome: a thin top progress bar showing which step the user is on (1/6 → 6/6), a flexible back button policy, and a consistent dark navy background. This layout wraps the 6 child screens defined as siblings inside `/app/onboarding/`.
+
+BUSINESS LOGIC
+1. Render an Expo Router `<Stack>` with these screens (defined as child files): `index` (Language), `consent`, `login`, `otp`, `age`, `geography`, `handle`, `welcome-quest`. Note: `otp` is inserted between `login` and `age` only when the auth rail chosen on the previous screen requires explicit OTP entry (WhatsApp / Firebase SMS); Truecaller skips OTP.
+2. Show a 6-dot progress indicator at the top of every screen. Active dot = solid gold, completed = dim gold, future = empty outline. The indicator counts 6 logical steps, NOT the 7-screen file count (OTP is sub-step inside Login).
+3. Back-button policy: enabled on every screen EXCEPT (a) the very first `index` screen (Language), and (b) the `welcome-quest` screen (committed user from this point on).
+4. The layout reads onboarding progress from a Zustand store at `/lib/stores/onboardingStore.ts` (you may assume it exists with shape `{ currentStep: 1..6, setStep: (n) => void, resetOnboarding: () => void }` — if it doesn't, declare in a `// PREREQUISITE:` comment at top of file).
+5. If user kills the app mid-flow, on next launch the layout reads their last completed step from Firestore at `/users/{uid}/onboarding/state` and resumes there.
+6. Header background is solid `#0D1018` (Deep Navy, dark mode of `var(--bg-surface)`). No blur. No floating glass.
+7. Screen transitions: `slide_from_right` on iOS, `slide_from_right` on Android (consistent with Expo Router default).
+
+DESIGN SPEC
+──────────
+Top progress bar:
+  • Full width minus 32px horizontal padding
+  • Height 4px container + 16px dot row above
+  • Dots: 8px diameter, gap 8px between each
+  • Active dot color:    #D4A017 (gold)
+  • Completed dot:       rgba(212, 160, 23, 0.4)
+  • Future dot:          1px solid rgba(245, 230, 200, 0.16), transparent fill
+  • Transition: 220ms ease-in-out when step advances
+Top status bar: `<StatusBar style="light" />`
+SafeAreaView: top inset honored, bottom inset NOT (screen content handles its own bottom safe area)
+Background: solid #0D1018
+
+ACCEPTANCE CRITERIA
+─────────────────
+[ ] All 7 child screens render via Stack (otp is between login and age).
+[ ] 6-dot indicator visible on every screen EXCEPT welcome-quest (last is celebration).
+[ ] Back button hidden on `index` and `welcome-quest`.
+[ ] On cold launch, if Firestore `/users/{uid}/onboarding/state.lastStep` exists and < 6, app navigates to that step's screen.
+[ ] No hardcoded hex. All colors via imported tokens.
+[ ] TypeScript strict — no `any`, no `as` without zod.
+[ ] Touch targets on back chevron ≥ 44×44.
+
+WHAT TO RETURN
+Return one complete file — `/app/onboarding/_layout.tsx` — production-ready. At top, a JSDoc header explaining the file's role and its 6-dot indicator algorithm. No placeholders. No "..." truncations. Include all imports. If you need a helper, include it in the same file (it's small).</pre>
+          </div>
+        </div>
+      </article>
+
+      <!-- CARD 2 -->
+      <article class="card" data-search="language detection picker hindi english multilingual">
+        <div class="card-head">
+          <span class="card-status new">new</span>
+          <div class="card-info">
+            <div class="card-path">/app/onboarding/index.tsx</div>
+            <div class="card-title">Step 1 — Language Auto-Detect + Manual Selection</div>
+            <div class="card-purpose">First screen on install. Detects device language, lets user override from a localized list. Sets the app's locale for the entire session.</div>
+          </div>
+          <button class="card-toggle"><span>Open Prompt</span><span class="card-toggle-icon">▾</span></button>
+        </div>
+        <div class="card-body">
+          <div class="card-body-inner">
+            <div class="card-meta">
+              <span class="card-meta-chip">Type: <strong>Screen</strong></span>
+              <span class="card-meta-chip">i18n: <strong>30+ languages</strong></span>
+              <span class="card-meta-chip">RTL: <strong>Yes (Arabic/Urdu/Persian)</strong></span>
+            </div>
+            <div class="prompt-actions">
+              <span class="prompt-label">Self-contained prompt — copy + paste with zip</span>
+              <button class="copy-btn" onclick="copyPrompt(this)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <span class="copy-btn-text">Copy Prompt</span>
+              </button>
+            </div>
+<pre class="prompt-block">You are an OMEGA-V5 senior React-Native engineer building ONE file for CROWN.
+
+PROJECT CONTEXT (read once)
+═══════════════════════════════════════════════════════════
+CROWN is a live, public, city-based chat app launching in Chandigarh, India, with architecture for global. Existing codebase (attached zip `orbit-app-main`) uses old brand "ORBIT" / "CROWD WORLD" — migrate to "CROWN". PSS Stage 2 = Pan-India + Indian diaspora supported on Day 1.
+
+STACK
+─────
+• Expo SDK 54, React 19, Expo Router v6, TypeScript strict
+• `expo-localization` for device locale detection (already in package.json — verify, add if missing)
+• Tokens from `/constants/colors.ts`, `/constants/typography.ts`
+• Existing component primitives in `/components/atoms` (Button, Pill)
+
+FILE
+══════════════════════════════════════════════════════════
+PATH: `/app/onboarding/index.tsx`
+TYPE: Expo Router screen (first onboarding step, default route)
+STATUS: NEW (the existing app has a different onboarding entry — IGNORE old language flow)
+
+PURPOSE
+First screen the user sees post-install. CROWN supports 30+ languages day-1 because architecture is global. We auto-detect the device language, show a confirmation in the detected language, and offer a manual override grid.
+
+LAUNCH-DAY LANGUAGE SET (12 launch tier + 18 extended tier)
+Launch tier (always shown first, fully translated UI):
+  en (English), hi (Hindi), hi-Latn (Hinglish, Hindi in Latin script), 
+  pa (Punjabi), pa-Latn (Punjabi-Latin), ur (Urdu), 
+  bn (Bengali), ta (Tamil), te (Telugu), mr (Marathi), gu (Gujarati), kn (Kannada)
+Extended tier (machine-translated UI initially):
+  es, pt-BR, id, tl, vi, ar, fr, sw, ru, ja, ko, zh-Hans, th, tr, fa, am, ha, yo
+
+BUSINESS LOGIC
+1. On mount, read `Localization.locale` from `expo-localization`. Normalize to BCP-47 (e.g. "hi-IN" → match to "hi"; "en-US" → "en").
+2. If normalized locale is in the launch tier set, set as detected language. Otherwise, fall back to "en".
+3. Show large hero: "Choose your language" displayed in the detected language (e.g. for Hinglish: "Apni bhasha chuno"). Use translation map `LOCALE_HEROES` defined at top of file.
+4. Show the detected language as the top option, highlighted with a thin gold border (border-color: var(--gold)) and a checkmark.
+5. Below, a 2-column grid of 12 launch-tier language pills. RTL languages (ar, ur, fa) render with `writingDirection: 'rtl'`.
+6. A "Show more languages" button at bottom expands the extended tier (18 more) below the grid, with a tiny note: "🤖 Machine-translated until launch".
+7. On selection, save to (a) AsyncStorage `crown.selectedLocale` and (b) the global i18n provider; then navigate to `/onboarding/consent`.
+8. The selected locale propagates through the entire app — every subsequent screen renders in this language.
+
+DESIGN SPEC
+──────────
+Layout: SafeAreaView, padding 32px horizontal, 24px top, scrollable.
+Hero "Choose your language": var(--font-display) Syne weight 800, size 32px, line-height 1.1, color var(--fg-text-strong).
+Subtitle (in selected language): var(--font-editorial) Cormorant Garamond italic 18px, color var(--cream-dim), margin 8px top, 32px bottom.
+Detected language card (top, highlighted): full-width, 64px tall, rounded 14px, padding 20px, background var(--bg-card), border 1px solid var(--gold).
+  • Native script of language name (e.g. "ਪੰਜਾਬੀ" for pa)
+  • Below in muted: BCP-47 code + English name (e.g. "pa · Punjabi")
+  • Right: checkmark icon (Feather "check"), 18px, color var(--gold)
+Grid: 2 columns, 12px gap, each cell 56px tall, rounded 10px, padding 16px, background var(--bg-surface), border 1px solid var(--border-subtle).
+  • Cell content: Native script script name (left), English name below in 11px muted
+  • Selected cell: border-color shifts to var(--gold), background var(--bg-card)
+"Show more" toggle: text-only link, var(--font-mono), 12px, color var(--gold), centered, 24px margin.
+Continue button: floating at bottom (sticky), 56px tall, full-width minus 32px padding, gold background, white text, font Inter 600 size 16px. Disabled until a language is tapped.
+
+ACCESSIBILITY
+─────────────
+• Each cell has accessibilityLabel "Select [Native name], [English name]"
+• Detected card has accessibilityHint "Currently detected from your device"
+• RTL cells flip horizontally on selection animation
+• Reduced motion: replace 220ms selection animation with instant state change
+
+ACCEPTANCE CRITERIA
+[ ] Detects device locale on mount; falls back to "en" if not in launch tier.
+[ ] Saves to AsyncStorage and to global i18n provider before nav.
+[ ] All 12 launch-tier languages display native script + English name.
+[ ] "Show more" reveals 18 extended languages with "🤖 Machine-translated" note.
+[ ] RTL rendering works for ar/ur/fa.
+[ ] Continue button disabled until tap.
+[ ] No hardcoded hex. TypeScript strict.
+
+WHAT TO RETURN
+Return one complete file — `/app/onboarding/index.tsx`. Include all language mappings inline (don't refer to external files for the lang list). JSDoc at top. Production-ready. No placeholders.</pre>
+          </div>
+        </div>
+      </article>
+
+      <!-- CARD 3 -->
+      <article class="card" data-search="3-tick consent DPDP GDPR privacy money conduct">
+        <div class="card-head">
+          <span class="card-status new">new</span>
+          <div class="card-info">
+            <div class="card-path">/app/onboarding/consent.tsx</div>
+            <div class="card-title">Step 2 — 3-Tick Consent Screen (Privacy · Money · Conduct)</div>
+            <div class="card-purpose">Three explicit ticks the user must check, each with a "Read in full" expandable. DPDP 2023 + GDPR + IT Rules 2021 compliant.</div>
+          </div>
+          <button class="card-toggle"><span>Open Prompt</span><span class="card-toggle-icon">▾</span></button>
+        </div>
+        <div class="card-body">
+          <div class="card-body-inner">
+            <div class="card-meta">
+              <span class="card-meta-chip">Type: <strong>Screen</strong></span>
+              <span class="card-meta-chip">Compliance: <strong>DPDP / GDPR / IT Rules</strong></span>
+              <span class="card-meta-chip">Writes to: <strong>/users/{uid}/consent</strong></span>
+            </div>
+            <div class="prompt-actions">
+              <span class="prompt-label">Self-contained prompt — copy + paste with zip</span>
+              <button class="copy-btn" onclick="copyPrompt(this)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <span class="copy-btn-text">Copy Prompt</span>
+              </button>
+            </div>
+<pre class="prompt-block">You are an OMEGA-V5 senior React-Native engineer building ONE file for CROWN.
+
+PROJECT CONTEXT
+═══════════════════════════════════════════════════════════
+CROWN onboarding is 6 steps in 90 seconds. Step 2 is the 3-Tick Consent: three mandatory checkboxes the user must explicitly tick before continuing. The reason for 3 (not 1 long ToS) is regulatory: each tick is a separately-recorded consent, each pointed at a different category — Privacy (DPDP 2023 + GDPR), Money (RBI/PMLA + region-equivalent), Conduct (IT Rules 2021 + community rules).
+
+STACK
+─────
+• Expo SDK 54, React 19, Expo Router v6, TS strict
+• Firebase Firestore for consent storage
+• `expo-localization` for current locale (passed via i18n context)
+• Translation maps from `/locales/{locale}/consent.json` (assume they exist; if missing, declare PREREQUISITE)
+
+FILE
+══════════════════════════════════════════════════════════
+PATH: `/app/onboarding/consent.tsx`
+TYPE: Expo Router screen
+STATUS: NEW
+
+PURPOSE
+Render three large, clear consent ticks, each with a "Read in full" expandable that opens a bottom sheet showing the verbose legal text (in the user's selected language). User must tick all three to proceed. Each tick is stored as a separate Firestore record with timestamp, version, and IP address (server-side derived).
+
+THE THREE TICKS (locked content)
+──────────────────────────────
+Tick 1 — PRIVACY
+  Headline: "I understand how CROWN handles my data."
+  Plain-English summary (shown in card body, ≤ 70 words):
+    "CROWN stores your handle, phone number, geography (country/city/sector), age, and the messages you send in public chats. Your DMs are end-to-end encrypted — even CROWN cannot read them. You can download or delete your data anytime from Settings. CROWN is DPDP 2023, GDPR, and CCPA compliant."
+  Full-text (in bottom sheet): the complete privacy policy translated to selected locale.
+
+Tick 2 — MONEY
+  Headline: "I understand that CROWN involves real money."
+  Plain-English summary:
+    "CROWN lets you earn Credits from reactions and cycle wins, and cash them out via UPI / PIX / GCash / Stripe (your local rail). 100 Credits ≈ ₹8 cashout value. You may also buy Credits to bid in cycles. Credits are NOT cryptocurrency. CROWN never grants Credits for free. KYC is required at first cashout."
+  Full-text: complete money policy, AML disclosures, regional rail terms.
+
+Tick 3 — CONDUCT
+  Headline: "I agree to the CROWN Code of Conduct."
+  Plain-English summary:
+    "No hate speech, no incitement, no illegal content, no spam. Your private DMs are your own — no AI reads them. Reports from other users escalate to human review. CROWN follows India's IT Rules 2021 (Grievance Officer, Section 69A workflow) and equivalent regulations in your region."
+  Full-text: full Code of Conduct + grievance officer contact + Section 69A explanation.
+
+BUSINESS LOGIC
+1. On mount, read selected locale from i18n context and load corresponding translations.
+2. Render three large cards stacked vertically. Each card has: headline, summary, "Read in full →" link, and a checkbox at top-right.
+3. Tapping anywhere on the card body toggles the checkbox. Tapping "Read in full" opens a bottom sheet (use `@gorhom/bottom-sheet` — install if missing).
+4. The "Continue" button at the bottom is disabled until ALL THREE checkboxes are ticked. When all three are ticked, the button transitions from disabled (dim gold, 0.3 opacity) to active (full gold) over 200ms.
+5. On Continue tap:
+   a. Write to Firestore: `/users/{uid}/consent/v1` with shape `{ privacy: { granted: true, ts: serverTimestamp(), version: "2026.05" }, money: {...}, conduct: {...}, locale: "hi-Latn", ipAddress: <from Cloud Function>, deviceId: <expo-device id>, appVersion: <from app.json> }`
+   b. If write fails (offline), queue locally via AsyncStorage `crown.pendingConsent` and retry in background; still allow user to proceed (consent already recorded client-side, sync later).
+   c. Navigate to `/onboarding/login`.
+6. CRITICAL: the user MUST be able to scroll the summary text. Some users have long-language renderings that overflow.
+
+DESIGN SPEC
+──────────
+Hero "Three things to agree to" — Syne 800, 28px, color var(--fg-text-strong), margin 24px bottom.
+Subtitle (Cormorant Garamond italic): "Read each one. Tap if you agree." 16px, var(--cream-dim).
+Card style:
+  • Padding 20px, rounded 14px, background var(--bg-card), border 1px var(--border-subtle)
+  • Margin-bottom 16px
+  • On tick: border shifts to var(--gold), background shifts to rgba(212,160,23,0.04)
+Headline: Syne 700, 17px, color var(--fg-text-strong)
+Summary: Inter 400, 14px, color var(--text-body), line-height 1.55
+"Read in full" link: Inter 600, 13px, color var(--gold), tap-area ≥ 44×44pt
+Checkbox: 24×24, rounded 6px, border 1.5px solid var(--border-strong) when unchecked; on checked: filled var(--gold) with white check icon (Feather "check"), 200ms spring transition.
+Continue button: 56px tall, full width, gold bg when enabled, gold-dim 30% opacity when disabled.
+
+ACCESSIBILITY
+─────────────
+• Each card is a single accessible button with accessibilityRole="checkbox", accessibilityState={{ checked: <bool> }}.
+• Continue button accessibilityState={{ disabled: !allChecked }}.
+• Screen reader announces "3 of 3 agreed" or "1 of 3 agreed" when state changes.
+
+ACCEPTANCE CRITERIA
+[ ] Three independent checkboxes, all required to proceed.
+[ ] Bottom sheet shows full text in selected language.
+[ ] Writes 3 separate consent records to Firestore.
+[ ] Offline queueing works (test in airplane mode).
+[ ] Continue button disabled state visible until all 3 ticked.
+[ ] No hardcoded hex. TS strict.
+[ ] All copy is i18n keys, NOT hardcoded strings.
+
+WHAT TO RETURN
+Return one file — `/app/onboarding/consent.tsx`. JSDoc header. All translation keys referenced explicitly. Full bottom-sheet markup. Production-ready.</pre>
+          </div>
+        </div>
+      </article>
+
+      <!-- CARD 4 -->
+      <article class="card" data-search="multi rail login truecaller whatsapp firebase sms cascade">
+        <div class="card-head">
+          <span class="card-status new">new</span>
+          <div class="card-info">
+            <div class="card-path">/app/onboarding/login.tsx</div>
+            <div class="card-title">Step 3 — Multi-Rail Login Picker (Truecaller → WhatsApp → SMS)</div>
+            <div class="card-purpose">Phone-number entry with an intelligent rail cascade. Truecaller first (one tap, 90% success on Indian Android), WhatsApp OTP second, Firebase SMS as final fallback.</div>
+          </div>
+          <button class="card-toggle"><span>Open Prompt</span><span class="card-toggle-icon">▾</span></button>
+        </div>
+        <div class="card-body">
+          <div class="card-body-inner">
+            <div class="card-meta">
+              <span class="card-meta-chip">Type: <strong>Screen</strong></span>
+              <span class="card-meta-chip">Rails: <strong>3 (Truecaller, WhatsApp, SMS)</strong></span>
+              <span class="card-meta-chip">SDK: <strong>react-native-truecaller-sdk</strong></span>
+            </div>
+            <div class="prompt-actions">
+              <span class="prompt-label">Self-contained prompt — copy + paste with zip</span>
+              <button class="copy-btn" onclick="copyPrompt(this)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <span class="copy-btn-text">Copy Prompt</span>
+              </button>
+            </div>
+<pre class="prompt-block">You are an OMEGA-V5 senior React-Native engineer building ONE file for CROWN.
+
+PROJECT CONTEXT
+═══════════════════════════════════════════════════════════
+CROWN onboarding step 3 is login. Indian Day-1 users overwhelmingly have Truecaller installed (~350M Indians); we prefer the one-tap Truecaller flow because it removes the OTP step entirely. If Truecaller unavailable, we fall back to WhatsApp Business OTP (verified via /api/auth/whatsapp-send + /api/auth/whatsapp-verify), and finally Firebase SMS OTP as the universal fallback.
+
+STACK
+─────
+• Expo SDK 54, React 19, Expo Router v6, TS strict
+• `react-native-truecaller-sdk` (Android-only; iOS users skip Truecaller entirely)
+• Existing `/lib/auth/auth-cascade.ts` orchestrator (sibling file — assume function `loginCascade(phone: E164String, preferredRails: Rail[]): Promise<LoginResult>` exists)
+• Firebase Phone Auth from existing `/lib/firebase.ts` (native SDK on iOS/Android)
+• Existing AuthContext from `/contexts/AuthContext.tsx` exposes `setAuthenticatedUser(uid)`
+
+FILE
+══════════════════════════════════════════════════════════
+PATH: `/app/onboarding/login.tsx`
+TYPE: Expo Router screen
+STATUS: NEW (existing onboarding has a different login flow — IGNORE)
+
+PURPOSE
+Show a phone-number entry field with country picker. On submit, run the cascade: try Truecaller (Android) → WhatsApp → Firebase SMS. Each rail attempt is visible to the user as a progress chip. On the first successful rail, route to /onboarding/age (skipping the OTP screen if Truecaller succeeded). On WhatsApp/SMS success, route to /onboarding/otp.
+
+THE CASCADE LOGIC
+─────────────────
+1. User taps Continue → button enters loading state.
+2. Cascade order (configurable per region):
+   • India  → [truecaller (Android only), whatsapp, firebase-sms]
+   • SE Asia → [whatsapp, firebase-sms]                    (Truecaller penetration low)
+   • LatAm  → [whatsapp, firebase-sms]
+   • Africa → [whatsapp, firebase-sms]
+   • Other  → [firebase-sms]
+3. On iOS: skip Truecaller, start at WhatsApp.
+4. Each rail has a 6-second hard timeout. On timeout, advance to next rail with NO error shown (we're cascading, not failing).
+5. Show a small horizontal chip strip below the phone field while cascading:
+   "Trying Truecaller…" → "Trying WhatsApp…" → "Sending SMS…" 
+6. On Truecaller success: immediately set authenticated user in AuthContext, write `/users/{uid}/auth.lastRail = "truecaller"`, navigate directly to `/onboarding/age`.
+7. On WhatsApp send success: store `pendingPhone` and `pendingRail = "whatsapp"` in onboardingStore, navigate to `/onboarding/otp`.
+8. On Firebase SMS send success: store `pendingPhone` and `pendingRail = "firebase-sms"` plus the verification ID, navigate to `/onboarding/otp`.
+9. On all rails failing: show a single, gentle error: "Sign-in services are temporarily unavailable. Try again in a moment." Provide a "Try again" button. NEVER blame the user.
+
+PHONE INPUT
+───────────
+• Country picker: use `react-native-country-picker-modal` (install if missing). Default selection = country derived from device locale (IN for hi/Hinglish, US for en, etc.).
+• Phone number input: numeric keyboard, max length 15 (E.164), client-side validation via `libphonenumber-js`.
+• Show formatted national-style as user types (e.g. "98765 43210" for India). Convert to E.164 ("+919876543210") on submit.
+• Continue button disabled until phone is valid for the selected country.
+
+DESIGN SPEC
+──────────
+Hero: "What's your number?" — Syne 800, 28px.
+Subtitle: "We use it once to sign you in. Never spam, never sold." — Cormorant italic 16px, var(--cream-dim).
+Country code chip + flag (left of input): tap opens picker.
+Phone input: full width minus country chip, 56px tall, font Space Mono 16px tracking 0.04em, color var(--fg-text-strong), placeholder var(--text-dim).
+Underline: 1px solid var(--border-subtle), shifts to var(--gold) on focus.
+Cascade chip strip (appears below input only when cascading): 32px tall, padding 12px horizontal, rounded full pill, background var(--bg-card), font Inter 500 13px.
+  • Active chip: gold left-border 3px, animated dot pulsing 1.5s ease-in-out.
+  • Completed chip: dim gold, strikethrough text.
+Continue button: 56px tall, gold bg, white text Inter 600 16px.
+
+ACCESSIBILITY
+─────────────
+• Phone input accessibilityLabel "Phone number"
+• Country picker accessibilityLabel "Country code, currently India"
+• Cascade strip uses aria-live polite to announce rail progression.
+
+PRIVACY MESSAGING
+─────────────────
+Below the Continue button, tiny print (Inter 11px var(--text-muted)):
+"By continuing you agree to verify ownership of this phone number. Truecaller (if used) shares your name and email with CROWN. We never SMS you marketing."
+
+ACCEPTANCE CRITERIA
+[ ] Cascade order respects region (India → Truecaller first; others skip).
+[ ] iOS users never see Truecaller chip.
+[ ] 6-second timeout per rail; advances silently.
+[ ] On Truecaller success → skips OTP screen.
+[ ] On WhatsApp/SMS success → /onboarding/otp.
+[ ] Country picker integration works.
+[ ] Phone validation via libphonenumber-js.
+[ ] No hardcoded hex. TS strict.
+
+WHAT TO RETURN
+Return one file — `/app/onboarding/login.tsx`. Reference `/lib/auth/auth-cascade.ts` for the orchestrator. JSDoc on the cascade order. Full UI markup. Production-ready. No placeholders.</pre>
+          </div>
+        </div>
+      </article>
+
+      <!-- CARD 5 -->
+      <article class="card" data-search="otp verification 6 digit autofill sms whatsapp">
+        <div class="card-head">
+          <span class="card-status new">new</span>
+          <div class="card-info">
+            <div class="card-path">/app/onboarding/otp.tsx</div>
+            <div class="card-title">Step 3.5 — OTP Verification (6-digit autofill, 60-second resend)</div>
+            <div class="card-purpose">Shown only when the auth cascade lands on WhatsApp or Firebase SMS. Auto-reads OTP on Android via SMS Retriever; manual entry fallback.</div>
+          </div>
+          <button class="card-toggle"><span>Open Prompt</span><span class="card-toggle-icon">▾</span></button>
+        </div>
+        <div class="card-body">
+          <div class="card-body-inner">
+            <div class="card-meta">
+              <span class="card-meta-chip">Type: <strong>Screen</strong></span>
+              <span class="card-meta-chip">Skipped on: <strong>Truecaller path</strong></span>
+              <span class="card-meta-chip">Autofill: <strong>iOS + Android</strong></span>
+            </div>
+            <div class="prompt-actions">
+              <span class="prompt-label">Self-contained prompt — copy + paste with zip</span>
+              <button class="copy-btn" onclick="copyPrompt(this)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <span class="copy-btn-text">Copy Prompt</span>
+              </button>
+            </div>
+<pre class="prompt-block">You are an OMEGA-V5 senior React-Native engineer building ONE file for CROWN.
+
+PROJECT CONTEXT
+═══════════════════════════════════════════════════════════
+This screen is reached only when the auth cascade lands on WhatsApp or Firebase SMS. The cascade pre-set `pendingPhone`, `pendingRail`, and `verificationContext` in the onboarding Zustand store. The user now enters the 6-digit OTP they received.
+
+STACK
+─────
+• Expo SDK 54, React 19, Expo Router v6, TS strict
+• iOS autofill: SMS OTP One-Time Code (built into React Native TextInput with `textContentType="oneTimeCode"`)
+• Android: `react-native-otp-verify` (Google SMS Retriever) — assume installed
+• Firebase Phone Auth from `/lib/firebase.ts` (native SDK) for verification confirmation
+• AuthContext from `/contexts/AuthContext.tsx`
+
+FILE
+══════════════════════════════════════════════════════════
+PATH: `/app/onboarding/otp.tsx`
+TYPE: Expo Router screen
+STATUS: NEW
+
+PURPOSE
+Render a 6-cell OTP entry, auto-read incoming SMS on Android, support paste, expose a 60-second resend cooldown, and verify the code against the rail used (WhatsApp or Firebase SMS).
+
+BUSINESS LOGIC
+1. On mount, read `pendingPhone`, `pendingRail`, and `verificationContext` from the onboarding store. If any is missing, show error "Session expired" and route back to `/onboarding/login`.
+2. Show the phone number with masking ("+91 98••• ••210") and an "Edit number" link to back-navigate.
+3. Six independent 1-digit inputs (or a single hidden input with 6 visual cells — your choice; recommend the second for cleaner autofill behavior).
+4. iOS: TextInput's `textContentType="oneTimeCode"` triggers the system Code keychain → user can tap suggestion bar.
+5. Android: Subscribe to `react-native-otp-verify` on mount; on incoming SMS that matches the format `<#> CROWN code: 123456 <hash>`, auto-paste into the field. Unsubscribe on unmount.
+6. On 6 digits entered, immediately call verify (no submit button):
+   • If pendingRail === "whatsapp" → POST `/api/auth/whatsapp-verify` with phone + code
+   • If pendingRail === "firebase-sms" → use the Firebase native SDK `signInWithCredential(PhoneAuthProvider.credential(verificationId, code))`
+7. On success: AuthContext.setAuthenticatedUser(uid), write `/users/{uid}/auth.lastRail`, navigate to `/onboarding/age`.
+8. On failure (wrong code): clear inputs, shake animation 300ms, show error "Code didn't match. Try again." Keep focus on cell 1.
+9. 60-second resend cooldown: button disabled with countdown "Resend in 0:58". On 0:00, button enables. Tap resend → re-invoke send API (whatsapp-send or sendVerificationCode), reset cooldown.
+10. Max 3 resend attempts per session; after that, show "Too many tries. Try a different rail." with a button to go back to /onboarding/login.
+
+DESIGN SPEC
+──────────
+Hero: "Enter the code" — Syne 800, 28px.
+Subtitle: "We sent a 6-digit code to +91 98••• ••210" — Cormorant italic 16px, var(--cream-dim).
+OTP cells: 6 cells, each 48×56px, rounded 10px, margin between 8px.
+  • Empty cell: background var(--bg-surface), border 1.5px solid var(--border-subtle)
+  • Active cell (cursor inside): border var(--gold), background var(--bg-card)
+  • Filled cell: background var(--bg-card), border var(--gold-dim), digit Space Mono 700 24px var(--fg-text-strong)
+  • Error state (after shake): border var(--fg-danger), background rgba(239,68,68,0.04)
+Shake animation: translateX [-8, 8, -6, 6, -4, 4, 0] over 300ms.
+Resend button: text-only link, var(--font-mono) 13px, var(--gold) when enabled, var(--text-muted) when in cooldown.
+Cooldown text: Space Mono 13px, color var(--text-muted), suffix "remaining" in 11px below.
+
+ACCESSIBILITY
+─────────────
+• Each cell accessibilityLabel "Digit [n] of 6"
+• On verify result, screen-reader announces via aria-live "Code accepted, signing in" or "Code didn't match, please try again"
+• Reduced-motion: replace shake with instant red border for 800ms
+
+PRIVACY / SECURITY
+──────────────────
+• Never log the OTP value (not in Sentry, not in console)
+• Strip OTP from any error breadcrumbs
+
+ACCEPTANCE CRITERIA
+[ ] 6-cell entry with paste support.
+[ ] iOS autofill works (textContentType).
+[ ] Android SMS Retriever auto-fills.
+[ ] Auto-verifies on 6th digit.
+[ ] Shake + clear on wrong code.
+[ ] 60-sec resend cooldown with countdown.
+[ ] Max 3 resend attempts.
+[ ] OTP never logged anywhere.
+[ ] No hardcoded hex.
+
+WHAT TO RETURN
+Return one file — `/app/onboarding/otp.tsx`. Include the shake animation keyframe inline. JSDoc on the verify branch. Production-ready.</pre>
+          </div>
+        </div>
+      </article>
+
+      <!-- CARD 6 -->
+      <article class="card" data-search="age gate dob date birth minor parental consent">
+        <div class="card-head">
+          <span class="card-status new">new</span>
+          <div class="card-info">
+            <div class="card-path">/app/onboarding/age.tsx</div>
+            <div class="card-title">Step 4 — Age Gate (DOB + Minor Restrictions + Parental Consent)</div>
+            <div class="card-purpose">DOB picker that hard-blocks under-13, marks 13-17 as minor with parental consent flow, and unlocks adult features at 18+.</div>
+          </div>
+          <button class="card-toggle"><span>Open Prompt</span><span class="card-toggle-icon">▾</span></button>
+        </div>
+        <div class="card-body">
+          <div class="card-body-inner">
+            <div class="card-meta">
+              <span class="card-meta-chip">Compliance: <strong>DPDP Act 2023 (Rule 0)</strong></span>
+              <span class="card-meta-chip">Hard block: <strong>Under 13</strong></span>
+              <span class="card-meta-chip">Conditional: <strong>13-17 parental consent</strong></span>
+            </div>
+            <div class="prompt-actions">
+              <span class="prompt-label">Self-contained prompt — copy + paste with zip</span>
+              <button class="copy-btn" onclick="copyPrompt(this)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <span class="copy-btn-text">Copy Prompt</span>
+              </button>
+            </div>
+<pre class="prompt-block">You are an OMEGA-V5 senior React-Native engineer building ONE file for CROWN.
+
+PROJECT CONTEXT
+═══════════════════════════════════════════════════════════
+CROWN must comply with DPDP Act 2023 (India), GDPR-K (EU), COPPA-like rules (US, Brazil, etc.). The PRD's "Rule 0" mandates:
+• Under 13: registration BLOCKED entirely.
+• 13–17 (Minor): account created but restricted (no cashout, Sector chat only by default, City+ requires parental consent; behavioral analytics OFF; data retention 30 days; not eligible for Top 30 leaderboard; capped push notification frequency).
+• 18+: full features.
+
+PSS-aware: in Stage 0-2, the gate is "soft" (DOB self-declared); from Stage 3+ it becomes "strict" (additional verification when behavioral signals suggest a minor lied about age). This file implements the soft form; the strict signals are emitted but enforcement is in a downstream Cloud Function.
+
+STACK
+─────
+• Expo SDK 54, React 19, Expo Router v6, TS strict
+• Date picker: `@react-native-community/datetimepicker`
+• Firebase Firestore
+• Existing AuthContext
+
+FILE
+══════════════════════════════════════════════════════════
+PATH: `/app/onboarding/age.tsx`
+TYPE: Expo Router screen
+STATUS: NEW
+
+PURPOSE
+Render a friendly DOB selector, compute age, branch:
+• Age < 13 → friendly block screen with a way to come back later.
+• Age 13-17 → "We need a parent's consent" → flow to enter parent's email/phone → continue but flagged as minor.
+• Age >= 18 → straight to /onboarding/geography.
+
+BUSINESS LOGIC
+1. Hero: "When were you born?" — friendly, not interrogating.
+2. DOB input: three independent dropdowns or a single date picker — pick whichever yields better UX on Android. Recommend: three side-by-side wheel pickers (Day / Month / Year) on iOS, native date picker on Android.
+3. As user adjusts, compute live age in years. Show below input: "You are X years old" in italic. Color: var(--text-muted).
+4. Hide a "Continue" button until all three fields are populated.
+5. On Continue tap, branch by computed age:
+   IF age < 13:
+     • Block screen replaces this view (in-place navigation, not a new route).
+     • Headline: "Come back when you're 13."
+     • Body (Cormorant italic): "CROWN needs you to be at least 13 to keep things safe. We're sorry — see you on your birthday."
+     • Single button "OK" → exits app (`BackHandler.exitApp()` on Android; iOS just shows a Got It).
+     • Emit security signal: `behaviorAnalysis.recordSignal({ type: 'UNDER_13_ATTEMPT' })` — used in downstream age-fraud detection.
+   IF age 13-16:
+     • Replace view with parental consent flow:
+       1. Headline: "We need your parent's OK"
+       2. Inputs: Parent's full name, parent's email OR parent's phone (E.164).
+       3. Explain: "We'll send your parent a one-time consent link. It expires in 24 hours. You can use Sector chat in the meantime but won't see City or Country until your parent approves."
+       4. On submit: write `/users/{uid}/minorConsent = { parentName, parentContact, status: "pending", expiresAt: ts+24h }` and trigger Cloud Function `sendMinorConsentRequest`.
+       5. Save user role as `minor`, age as the computed value, and proceed to `/onboarding/geography` (Sector-only mode).
+   IF age 17:
+     • Same as 13-16 BUT explain: "You'll get full access when you turn 18 in X months. Until then, your parent's OK unlocks City and Country."
+   IF age >= 18:
+     • Save user role as `adult`, age as computed value.
+     • Proceed to `/onboarding/geography` (full access).
+6. Save DOB to `/users/{uid}.dob = { day, month, year, computedAge, declaredAt }` and `/users/{uid}.role`.
+7. DOB-change protection: enforce in Cloud Function — once written, DOB cannot change for 90 days (this is server-side, but a comment in this file should state the rule).
+
+DESIGN SPEC
+──────────
+Hero: "When were you born?" Syne 800 28px.
+Subtitle: "Pick the date your parents wrote on your birth certificate." Cormorant italic 16px, var(--cream-dim).
+Pickers: three wheels side-by-side (Day, Month, Year). Each wheel 96px wide, rounded 10px, padding 12px, background var(--bg-card), border 1px var(--border-subtle).
+Age display: large Syne 800 number 42px color var(--gold), label below in Inter 13px muted "years old".
+Block screen background: gradient from var(--bg-surface) at top to rgba(212,160,23,0.06) at bottom.
+Block screen illustration: SVG of a calendar/sun (you may use a simple geometric SVG inline — no external image asset).
+
+ACCESSIBILITY
+─────────────
+• DOB pickers labeled "Day", "Month", "Year"
+• Block screen content has accessibilityRole="alert" and announces via aria-live
+• Minor flow accessibility: parent inputs labeled "Parent name", "Parent email or phone"
+
+ACCEPTANCE CRITERIA
+[ ] Hard-blocks under 13 with friendly screen.
+[ ] 13-17 flow collects parent contact and queues consent.
+[ ] 18+ proceeds straight to geography.
+[ ] Emits UNDER_13_ATTEMPT signal for fraud detection.
+[ ] DOB written to Firestore with declaredAt timestamp.
+[ ] No hardcoded hex.
+[ ] TS strict.
+
+WHAT TO RETURN
+Return one complete file — `/app/onboarding/age.tsx`. Include the block screen, parental consent screen, and adult continue path in the same file (three view states managed via local state). JSDoc on each branch. Production-ready.</pre>
+          </div>
+        </div>
+      </article>
+
+      <!-- CARD 7 -->
+      <article class="card" data-search="geography country city sector hierarchy picker home location">
+        <div class="card-head">
+          <span class="card-status new">new</span>
+          <div class="card-info">
+            <div class="card-path">/app/onboarding/geography.tsx</div>
+            <div class="card-title">Step 5 — Geography (Country → City → Sector cascade)</div>
+            <div class="card-purpose">Three-level cascading picker that sets the user's HOME geography. Cashout currency and the default chat scope are anchored to this.</div>
+          </div>
+          <button class="card-toggle"><span>Open Prompt</span><span class="card-toggle-icon">▾</span></button>
+        </div>
+        <div class="card-body">
+          <div class="card-body-inner">
+            <div class="card-meta">
+              <span class="card-meta-chip">Type: <strong>Screen</strong></span>
+              <span class="card-meta-chip">Data: <strong>195 countries · 50K+ cities</strong></span>
+              <span class="card-meta-chip">Anchors: <strong>Home + cashout currency</strong></span>
+            </div>
+            <div class="prompt-actions">
+              <span class="prompt-label">Self-contained prompt — copy + paste with zip</span>
+              <button class="copy-btn" onclick="copyPrompt(this)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <span class="copy-btn-text">Copy Prompt</span>
+              </button>
+            </div>
+<pre class="prompt-block">You are an OMEGA-V5 senior React-Native engineer building ONE file for CROWN.
+
+PROJECT CONTEXT
+═══════════════════════════════════════════════════════════
+CROWN is hyper-local. Each user has ONE home geography: a country, a city within that country, and a sector within that city. This is set once at onboarding (changeable later under strict cooldown — 90 days). The Open World rule means the user can visit ANY city's chat, but their cashout currency is locked to their home country (DPDP / Forex constraint).
+
+PSS Stage 2 reality: Day 1 launches Chandigarh, India as the most populated/seeded geography. The country/city/sector data is sourced from Firestore collection `/geography` (already seeded — assume present).
+
+STACK
+─────
+• Expo SDK 54, React 19, Expo Router v6, TS strict
+• Firestore for /geography lookup
+• `expo-location` to suggest current location (with permission, optional)
+• `@gorhom/bottom-sheet` for sector picker
+
+FILE
+══════════════════════════════════════════════════════════
+PATH: `/app/onboarding/geography.tsx`
+TYPE: Expo Router screen
+STATUS: NEW
+
+PURPOSE
+Three cascading selectors — Country → City → Sector — that together set the user's home geography. Default-suggest based on (a) selected language, (b) optional device location.
+
+THE DATA SHAPE (Firestore collection `/geography`)
+──────────────────────────────────────────────────
+/geography/{iso2}                    // country, e.g. /geography/IN
+  - name: "India"
+  - flag: "🇮🇳"
+  - currency: "INR"
+  - cashoutRail: "razorpay-upi"
+  - phoneCountryCode: "91"
+  - cycleStaggerSlot: "alpha"
+  - status: "active" | "soon"
+  
+/geography/{iso2}/cities/{citySlug}  // city, e.g. /geography/IN/cities/chandigarh
+  - name: "Chandigarh"
+  - state: "Punjab"
+  - timezone: "Asia/Kolkata"
+  - population: 1054686
+  - heatScore: 88
+  - status: "active" | "seeded" | "soon"
+
+/geography/{iso2}/cities/{citySlug}/sectors/{sectorSlug}  // e.g. /geography/IN/cities/chandigarh/sectors/sector-22
+  - name: "Sector 22"
+  - aliases: ["sec-22", "sec 22", "22"]
+  - status: "active" | "seeded"
+
+BUSINESS LOGIC
+1. Default the country to the one derived from the phone number's country code (E.164 prefix). If user gave Truecaller consent, that profile also includes country.
+2. Optional: request `expo-location` permission ONCE here. If granted, reverse-geocode to suggest the city/sector. If denied, never re-ask.
+3. Country selector: opens a full-screen search modal with all 195 countries (filtered to status: "active" + "soon"). Show flag, name, current online count, and "Available" or "Coming Soon" badge. Tapping "Coming Soon" country shows a tooltip "Available in your region soon — using this won't unlock chat yet" but allows selection (for diaspora users who want to be ready).
+4. City selector: enabled after country is set. Opens search modal showing cities in that country, sorted by status (active first) then population. Search filter works in both English name and native script. Show city name + state + heat score.
+5. Sector selector: enabled after city is set. Opens bottom sheet (not full screen — sectors are more numerous, less ceremonial). Show sector name + aliases.
+   • If user can't find their sector, allow them to type in "Other" and add it manually. New sector created in pending state, requires moderator approval.
+6. On all three set, Continue button enables. On Continue:
+   • Write to `/users/{uid}.home = { country: "IN", city: "chandigarh", sector: "sector-22", setAt: serverTimestamp() }`
+   • Write to `/users/{uid}.cashoutBinding = { currency: "INR", rail: "razorpay-upi", country: "IN", lockedUntilCountryChange: true }`
+   • Navigate to `/onboarding/handle`.
+
+PRIVACY NOTE
+─────────────
+Below the three selectors, tiny print: "You can visit any city's chat anytime (Open World). This is just your *home* — it sets your cashout currency and your default sector."
+
+DESIGN SPEC
+──────────
+Hero: "Where do you call home?" Syne 800 28px.
+Subtitle: "Pick the country, city, and sector you live in." Cormorant italic 16px.
+Selectors: stacked vertically, each 64px tall, padding 20px, rounded 14px, bg var(--bg-card), border 1px var(--border-subtle).
+  • Disabled (pending parent): opacity 0.5, no touch interaction
+  • Enabled (no selection): label "Country", right chevron icon
+  • Selected: shows the value (e.g. "🇮🇳 India") with a small "Change" link on right
+  • Active border var(--gold) on the currently-being-edited selector
+Open World note: italic Cormorant 13px var(--text-muted), padding 16px horizontal, margin 24px above Continue.
+Continue button: 56px gold.
+
+ACCESSIBILITY
+─────────────
+• Each selector announces its label and value
+• Search modals use aria-live for result counts ("12 cities match 'mum'")
+• Coming Soon badge has accessibilityLabel "Coming soon to this region"
+
+ACCEPTANCE CRITERIA
+[ ] Country default-set from phone country code.
+[ ] City filter searches English + native script.
+[ ] Sector picker supports "Other / Add new" with pending state.
+[ ] Writes home + cashoutBinding atomically.
+[ ] Open World messaging visible.
+[ ] No hardcoded hex.
+
+WHAT TO RETURN
+Return one file — `/app/onboarding/geography.tsx`. Include all three selectors and their modal/sheet components in the same file (or extract to sibling components if file > 400 lines — declare what you extracted in a header comment). JSDoc. Production-ready.</pre>
+          </div>
+        </div>
+      </article>
+
+      <!-- CARD 8 -->
+      <article class="card" data-search="handle username availability check reservation">
+        <div class="card-head">
+          <span class="card-status new">new</span>
+          <div class="card-info">
+            <div class="card-path">/app/onboarding/handle.tsx</div>
+            <div class="card-title">Step 6 — Handle Picker (Real-time availability + 30-day lock)</div>
+            <div class="card-purpose">Live-debounced username availability check with profanity filter and 30-day rename cooldown. The user's permanent identity surface.</div>
+          </div>
+          <button class="card-toggle"><span>Open Prompt</span><span class="card-toggle-icon">▾</span></button>
+        </div>
+        <div class="card-body">
+          <div class="card-body-inner">
+            <div class="card-meta">
+              <span class="card-meta-chip">Type: <strong>Screen</strong></span>
+              <span class="card-meta-chip">Lock: <strong>30 days after set</strong></span>
+              <span class="card-meta-chip">Filter: <strong>Profanity + reserved words</strong></span>
+            </div>
+            <div class="prompt-actions">
+              <span class="prompt-label">Self-contained prompt — copy + paste with zip</span>
+              <button class="copy-btn" onclick="copyPrompt(this)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <span class="copy-btn-text">Copy Prompt</span>
+              </button>
+            </div>
+<pre class="prompt-block">You are an OMEGA-V5 senior React-Native engineer building ONE file for CROWN.
+
+PROJECT CONTEXT
+═══════════════════════════════════════════════════════════
+Handle (username) is the user's permanent identity on CROWN. Once set, it can't change for 30 days (PRD rule — prevents impersonation, supports stable Rank Score continuity). Handles are global (not city-scoped) — `@bittu_22` is the same person in any city. CROWN handles are case-insensitive, ASCII-only, length 3-20 characters, allowed: [a-z0-9_], leading char must be [a-z].
+
+STACK
+─────
+• Expo SDK 54, React 19, Expo Router v6, TS strict
+• Firestore for availability check (collection `/handles` keyed by lowercase handle)
+• `lodash.debounce` (already in deps; verify)
+• AuthContext
+
+FILE
+══════════════════════════════════════════════════════════
+PATH: `/app/onboarding/handle.tsx`
+TYPE: Expo Router screen
+STATUS: NEW
+
+PURPOSE
+Single input field where the user picks their handle. As they type, debounced (350ms) availability check against Firestore. On submit, atomically reserve the handle (transaction prevents two users grabbing the same one). Set 30-day rename cooldown.
+
+BUSINESS LOGIC
+1. Hero: "Pick your handle" — Syne 800 28px.
+2. Subtitle: "This is your name on CROWN. You can change it once every 30 days." — Cormorant italic 16px.
+3. Suggestions row (top): show 3 system-generated suggestions based on their phone, geography, and selected language (e.g. `@bittu_22_chd`, `@bittu_punjab`, `@bittu_2026`). Each suggestion is tap-to-use. Suggestions come from a sibling util `/lib/onboarding/handle-suggestions.ts` (assume function `suggestHandles(user: PartialUser): string[]` exists — if not, declare PREREQUISITE).
+4. Input field with `@` prefix (visual only, not part of stored handle): allow [a-z0-9_], length 3-20, must start with letter, lowercase auto. Show character count below (e.g. "7 / 20").
+5. Live availability check:
+   • Debounce 350ms after last keystroke.
+   • Run client-side validation first (length, charset, leading char, no-reserved-words like "admin", "support", "crown", "mayor", etc. — list inline). If client validation fails, show inline error in red, no Firestore hit.
+   • If client validation passes, call `/handles/{lowercase}` and check existence + reserved status.
+   • While checking: show a small "Checking…" pill with spinner.
+   • If available: green checkmark icon next to input, button "Claim @handle" enabled.
+   • If taken: red X icon + "Taken — try another. Suggestions →" links to suggestions row.
+6. On Claim tap:
+   • Run Firestore transaction:
+     - Read `/handles/{lowercase}` — abort if exists.
+     - Write `/handles/{lowercase}` = `{ uid, claimedAt: serverTimestamp() }`.
+     - Write `/users/{uid}.handle = lowercase`, `/users/{uid}.handleLockUntil = ts + 30 days`.
+   • On transaction success: navigate to `/onboarding/welcome-quest`.
+   • On race-condition failure (someone grabbed it 0.5s before): show "Just got taken! Try another." and clear input.
+7. Profanity filter: check against a small inline list (English + Hindi/Hinglish + Punjabi top offenders) — this is a basic filter, the AI Gatekeeper provides deeper checks server-side. If profane, treat as unavailable client-side, never send to Firestore (avoid storing the attempt).
+
+DESIGN SPEC
+──────────
+Hero/subtitle: per onboarding house style.
+Suggestions row: horizontal scroll of 3 pills, each rounded 999px, padding 8px 14px, background var(--bg-card), border 1px var(--border-subtle), text Inter 500 14px var(--cream).
+Input row: 64px tall, padding 20px, rounded 14px, bg var(--bg-card), border 1.5px solid var(--border-subtle) → var(--gold) on focus.
+  • Prefix "@" in Inter 600 18px var(--gold), 8px right margin.
+  • Input: Space Mono 700 18px, color var(--fg-text-strong).
+  • Right side icon: 24×24 — green check, red X, or spinner.
+Character count below: Inter 11px var(--text-muted).
+Validation message below input: 13px, color var(--fg-danger) for invalid, var(--fg-success) for valid.
+Claim button: 56px gold.
+
+ACCESSIBILITY
+─────────────
+• Input accessibilityLabel "Handle"
+• Right icon accessibilityLabel announces state: "Available", "Taken", "Checking"
+• Suggestions row accessibilityLabel "Tap a suggested handle to use it"
+
+PRIVACY NOTE
+─────────────
+Tiny print near bottom: "Lowercase letters, numbers, and underscores. 3-20 characters. You can change it once every 30 days."
+
+ACCEPTANCE CRITERIA
+[ ] Live debounced (350ms) availability check.
+[ ] Client validation runs before Firestore hit.
+[ ] Transaction atomically reserves handle.
+[ ] Race condition handled with retry prompt.
+[ ] Suggestions are tap-to-fill.
+[ ] 30-day lock written to `handleLockUntil`.
+[ ] Profanity filter blocks before Firestore.
+[ ] No hardcoded hex. TS strict.
+
+WHAT TO RETURN
+Return one file — `/app/onboarding/handle.tsx`. Include the profanity wordlist inline (small). JSDoc on the transaction. Production-ready.</pre>
+          </div>
+        </div>
+      </article>
+
+      <!-- CARD 9 -->
+      <article class="card" data-search="welcome quest 5 tasks badges no credits gamification">
+        <div class="card-head">
+          <span class="card-status new">new</span>
+          <div class="card-info">
+            <div class="card-path">/app/onboarding/welcome-quest.tsx</div>
+            <div class="card-title">Step 6.5 — Welcome Quest Intro (5 Tasks · Badges Only · ZERO Credits)</div>
+            <div class="card-purpose">Final onboarding screen that introduces the Welcome Quest. Five tasks, all reward badges or visibility — NEVER credits (Zero-Credit Founder Rule).</div>
+          </div>
+          <button class="card-toggle"><span>Open Prompt</span><span class="card-toggle-icon">▾</span></button>
+        </div>
+        <div class="card-body">
+          <div class="card-body-inner">
+            <div class="card-meta">
+              <span class="card-meta-chip">Anti-Drift: <strong>Zero-Credit Founder Rule</strong></span>
+              <span class="card-meta-chip">Tasks: <strong>5 (all badges)</strong></span>
+              <span class="card-meta-chip">Persists: <strong>Until completion or 7 days</strong></span>
+            </div>
+            <div class="prompt-actions">
+              <span class="prompt-label">Self-contained prompt — copy + paste with zip</span>
+              <button class="copy-btn" onclick="copyPrompt(this)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <span class="copy-btn-text">Copy Prompt</span>
+              </button>
+            </div>
+<pre class="prompt-block">You are an OMEGA-V5 senior React-Native engineer building ONE file for CROWN.
+
+PROJECT CONTEXT
+═══════════════════════════════════════════════════════════
+End of onboarding. The user has language, consent, login, age, geography, handle. The final screen welcomes them with a celebratory animation and introduces the Welcome Quest — five small tasks designed to anchor them in CROWN's core loops. CRITICAL CONSTRAINT: NO TASK REWARDS CREDITS. The Zero-Credit Founder Rule forbids the platform from ever granting Credits as rewards. All rewards are badges, visibility boosts, or first-discovery moments. (PRD Anti-Drift Lock #2.)
+
+THE 5 TASKS (locked by PRD)
+──────────────────────────
+1. "Send your first message" — reward: 🏘️ Founding Resident badge (if first real user in their sector) OR 🌱 First Message badge.
+2. "React to 3 messages" — reward: 🤝 Connector badge.
+3. "Follow 5 people in your sector" — reward: 🧭 Explorer badge.
+4. "Visit a different city's chat" — reward: 🌍 Wanderer badge.
+5. "Stay for the first Battle Hour freeze" — reward: ⏰ Witness badge.
+
+QUEST EXPIRES: 7 days from account creation. After expiry, badges become un-earnable.
+
+STACK
+─────
+• Expo SDK 54, React 19, Expo Router v6, TS strict
+• `react-native-reanimated` (already in deps) for celebration animation
+• Existing AuthContext
+• Sibling lib `/lib/onboarding/welcome-quest.ts` (assume function `initWelcomeQuest(uid: string): Promise<void>` exists — writes the initial quest state to `/users/{uid}/welcomeQuest`)
+
+FILE
+══════════════════════════════════════════════════════════
+PATH: `/app/onboarding/welcome-quest.tsx`
+TYPE: Expo Router screen (last onboarding step)
+STATUS: NEW
+
+PURPOSE
+A celebratory "you're in" screen with confetti/sparkle animation, the user's handle big and gold, an introduction to the 5-task quest, and a single CTA "Enter the chat" that initializes the quest state and routes to the main app.
+
+BUSINESS LOGIC
+1. On mount:
+   • Trigger celebration animation (1.2s).
+   • Call `initWelcomeQuest(uid)` which writes the initial quest state.
+   • Mark onboarding complete: `/users/{uid}.onboarding = { completed: true, completedAt: serverTimestamp() }`.
+2. Show user's handle big and centered: "@bittu_22".
+3. Below: a stack of 5 task cards, each with:
+   • Status icon (initially: dim circle, on completion: golden check)
+   • Task title
+   • Tiny badge preview emoji
+   • Subtle progress text (e.g. "0 / 3 reacted")
+4. CTA at bottom: "Enter the chat →" — full width, gold, 56px tall.
+5. On CTA tap, navigate to the main app `/(tabs)/index` (the HOME tab — city chat).
+6. The quest tracker becomes a floating quest card in the main app (separate component `<WelcomeQuestCard />` — implemented in another file). This screen just initializes it.
+
+DESIGN SPEC
+──────────
+Background: solid var(--bg-surface), with absolute-positioned celebration particles overlay.
+Celebration animation:
+  • 40 gold particles (small filled circles, sizes 4-12px, color rgba(212,160,23, 0.6-1.0))
+  • Each particle starts at center bottom, animates outward in random direction over 1200ms with ease-out
+  • Opacity fades from 1 to 0 over the same duration
+  • Use Reanimated worklets for performance
+  • Reduced-motion: replace with a single static gold radial gradient burst
+Welcome headline: "Welcome to CROWN" — Syne 800 32px var(--fg-text-strong), opacity 0→1 over 600ms after particles start.
+Handle: "@bittu_22" — Syne 800 40px var(--gold), centered, opacity 0→1 + scale 0.9→1 over 600ms 200ms after headline.
+Task cards stack:
+  • Each card 64px tall, padding 20px, rounded 14px, bg var(--bg-card), border 1px var(--border-subtle).
+  • Margin between 12px.
+  • Status circle 24×24 on left.
+  • Task title Inter 500 15px, badge emoji 20px on right.
+Bottom CTA: gold 56px button "Enter the chat →".
+Tiny note above CTA: "Finish all 5 in 7 days to earn the full Founder Path." in Cormorant italic 13px var(--text-muted).
+
+ACCESSIBILITY
+─────────────
+• Celebration animation has aria-hidden="true" (decorative)
+• Welcome headline accessibilityLabel includes handle: "Welcome to CROWN, at bittu underscore 22"
+• Each task card announces its completion state
+
+ANTI-DRIFT VERIFICATION (mandatory comment in file)
+────────────────────────────────────────────────────
+At the top of the file, in a JSDoc block, include:
+  /**
+   * COMPLIANCE: Zero-Credit Founder Rule (Anti-Drift Lock #2).
+   * No task in this quest rewards Credits. All rewards are
+   * badges, visibility, or first-discovery moments.
+   */
+
+ACCEPTANCE CRITERIA
+[ ] Celebration animation runs once on mount.
+[ ] Calls initWelcomeQuest(uid) on mount.
+[ ] Marks onboarding complete in Firestore.
+[ ] Routes to /(tabs)/index on CTA.
+[ ] Quest task list visible with all 5 tasks.
+[ ] Reduced-motion respected.
+[ ] No task rewards Credits (anywhere in this file).
+[ ] No hardcoded hex.
+
+WHAT TO RETURN
+Return one file — `/app/onboarding/welcome-quest.tsx`. Include the Reanimated particle worklet inline. JSDoc compliance block at top. Production-ready.</pre>
+          </div>
+        </div>
+      </article>
+
+    </section>
+
+    <!-- =============================================
+         PHASE 2.2 — AUTH CASCADE (8 cards)
+         ============================================= -->
+    <section id="phase-2" class="phase-section">
+      <div class="phase-header">
+        <span class="phase-header-num">PHASE 2.2</span>
+        <h2 class="phase-header-title">Auth Cascade & Backend</h2>
+        <span class="phase-header-count">8 files</span>
+      </div>
+      <p class="phase-blurb">The three login rails (Truecaller, WhatsApp, Firebase SMS) plus the orchestrator that picks the right one. Server endpoints for sending and verifying WhatsApp OTPs. An updated AuthContext that knows which rail signed each session.</p>
+
+      <!-- CARD 10 -->
+      <article class="card" data-search="auth cascade orchestrator rails fallback">
+        <div class="card-head">
+          <span class="card-status new">new</span>
+          <div class="card-info">
+            <div class="card-path">/lib/auth/auth-cascade.ts</div>
+            <div class="card-title">Auth Rail Orchestrator (Truecaller → WhatsApp → Firebase SMS)</div>
+            <div class="card-purpose">The brain. Picks rails based on region/platform, attempts each with timeout, returns the first success or all-fail.</div>
+          </div>
+          <button class="card-toggle"><span>Open Prompt</span><span class="card-toggle-icon">▾</span></button>
+        </div>
+        <div class="card-body">
+          <div class="card-body-inner">
+            <div class="card-meta">
+              <span class="card-meta-chip">Type: <strong>lib (pure orchestration)</strong></span>
+              <span class="card-meta-chip">Calls: <strong>truecaller, whatsapp, firebase-sms</strong></span>
+              <span class="card-meta-chip">Timeout: <strong>6s per rail</strong></span>
+            </div>
+            <div class="prompt-actions">
+              <span class="prompt-label">Self-contained prompt — copy + paste with zip</span>
+              <button class="copy-btn" onclick="copyPrompt(this)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <span class="copy-btn-text">Copy Prompt</span>
+              </button>
+            </div>
+<pre class="prompt-block">You are an OMEGA-V5 senior TypeScript engineer building ONE file for CROWN.
+
+PROJECT CONTEXT
+═══════════════════════════════════════════════════════════
+CROWN's onboarding uses a 3-rail auth cascade: Truecaller (Android India one-tap) → WhatsApp Business OTP → Firebase SMS OTP. The cascade orchestrator decides the order, attempts each rail with a hard timeout, and surfaces results upstream to the login screen.
+
+STACK
+─────
+• TypeScript strict
+• React Native / Expo SDK 54 environment
+• Existing sibling modules: `/lib/auth/truecaller.ts`, `/lib/auth/whatsapp-otp.ts`, `/lib/auth/firebase-sms.ts` (each exports a `verify({phone}: {phone: E164}): Promise<RailResult>` function — assume these exist; if missing, declare PREREQUISITE)
+• `expo-application` to check platform
+• `expo-localization` to derive region
+
+FILE
+══════════════════════════════════════════════════════════
+PATH: `/lib/auth/auth-cascade.ts`
+TYPE: Pure TypeScript module (no UI)
+STATUS: NEW
+
+EXPORTS
+───────
+1. `type Rail = 'truecaller' | 'whatsapp' | 'firebase-sms';`
+2. `type RailResult = { rail: Rail; status: 'success' | 'timeout' | 'unavailable' | 'error'; data?: { uid?: string; verificationId?: string; sessionId?: string; phone: E164String; }; error?: { code: string; message: string; }; };`
+3. `type CascadeResult = { winningRail: Rail | null; result: RailResult | null; attempted: Rail[]; totalDurationMs: number; };`
+4. `async function loginCascade(phone: E164String, opts?: CascadeOptions): Promise<CascadeResult>`
+5. `function getCascadeForRegion(countryCode: string, platform: 'ios' | 'android'): Rail[]` — pure, deterministic
+
+CASCADE LOGIC
+─────────────
+getCascadeForRegion mapping:
+  • countryCode === "IN" && platform === "android"  → ['truecaller', 'whatsapp', 'firebase-sms']
+  • countryCode === "IN" && platform === "ios"      → ['whatsapp', 'firebase-sms']
+  • countryCode in ['BD', 'PK', 'LK', 'NP']         → ['whatsapp', 'firebase-sms']
+  • countryCode in ['BR', 'AR', 'MX', 'CO']         → ['whatsapp', 'firebase-sms']
+  • countryCode in ['NG', 'KE', 'GH', 'ZA']         → ['whatsapp', 'firebase-sms']
+  • countryCode in ['ID', 'PH', 'VN', 'TH', 'MY']   → ['whatsapp', 'firebase-sms']
+  • default                                          → ['firebase-sms']
+
+loginCascade algorithm:
+1. Resolve rails for region/platform via getCascadeForRegion.
+2. Honor opts.skipRails to remove blocked rails (e.g. if a previous attempt errored hard).
+3. Honor opts.timeoutMs (default 6000ms per rail).
+4. For each rail in order:
+   a. Race the rail's `verify(phone)` against a 6s timeout.
+   b. If success: return CascadeResult { winningRail, result, attempted, totalDurationMs }.
+   c. If timeout or unavailable: continue to next rail.
+   d. If error (e.g. invalid phone format — non-recoverable): break and return null winner.
+5. After all rails attempted, return { winningRail: null, result: lastResult, attempted, totalDurationMs }.
+6. Emit telemetry event at end: `analytics.track('auth_cascade_complete', { region, platform, attempted, winner, durationMs })`. (Use the existing analytics helper at `/lib/analytics.ts`; if missing, declare PREREQUISITE.)
+
+TYPESCRIPT TYPES (define inline at top of file)
+───────────────────────────────────────────────
+```typescript
+export type E164String = string; // e.g. "+919876543210"
+export type Rail = 'truecaller' | 'whatsapp' | 'firebase-sms';
+
+export interface CascadeOptions {
+  skipRails?: Rail[];
+  timeoutMs?: number;          // default 6000
+  preferredRails?: Rail[];     // override region default
+}
+
+export interface RailResult {
+  rail: Rail;
+  status: 'success' | 'timeout' | 'unavailable' | 'error';
+  data?: {
+    uid?: string;
+    verificationId?: string;
+    sessionId?: string;
+    phone: E164String;
+  };
+  error?: { code: string; message: string; };
+  durationMs: number;
+}
+
+export interface CascadeResult {
+  winningRail: Rail | null;
+  result: RailResult | null;
+  attempted: Rail[];
+  totalDurationMs: number;
+}
+```
+
+TIMEOUT IMPLEMENTATION
+──────────────────────
+Use Promise.race with a setTimeout-based timeout promise. On timeout, ensure the rail's internal cleanup runs (call rail.cancel() if exported; if not, just abandon the promise — the rail must handle its own cleanup).
+
+ERROR HANDLING
+──────────────
+• Catch every thrown error per rail; never let the cascade itself throw unless the phone is malformed (E.164 validation at entry — throw `InvalidPhoneError` then).
+• Log each rail's status (info, never error) so a flaky rail doesn't pollute Sentry.
+
+SECURITY
+────────
+• Never log the OTP value.
+• Never log the verification ID body (only its existence).
+• If a rail returns `data.uid`, that uid is already trusted (came from a verified rail).
+
+ACCEPTANCE CRITERIA
+[ ] getCascadeForRegion deterministic (unit-testable).
+[ ] 6s timeout per rail.
+[ ] Returns winningRail on first success, null only after all attempted.
+[ ] Emits analytics event on completion.
+[ ] Phone format validation throws on malformed E.164.
+[ ] TypeScript strict, no `any`.
+
+WHAT TO RETURN
+Return one file — `/lib/auth/auth-cascade.ts`. JSDoc on every exported function. Include all type definitions inline. Production-ready.</pre>
+          </div>
+        </div>
+      </article>
+
+      <!-- CARD 11 -->
+      <article class="card" data-search="truecaller sdk integration android one-tap">
+        <div class="card-head">
+          <span class="card-status new">new</span>
+          <div class="card-info">
+            <div class="card-path">/lib/auth/truecaller.ts</div>
+            <div class="card-title">Truecaller SDK Wrapper (Android Only)</div>
+            <div class="card-purpose">Bridges react-native-truecaller-sdk to a clean verify(phone) → RailResult interface. iOS short-circuits to unavailable.</div>
+          </div>
+          <button class="card-toggle"><span>Open Prompt</span><span class="card-toggle-icon">▾</span></button>
+        </div>
+        <div class="card-body">
+          <div class="card-body-inner">
+            <div class="card-meta">
+              <span class="card-meta-chip">Platform: <strong>Android only</strong></span>
+              <span class="card-meta-chip">SDK: <strong>react-native-truecaller-sdk</strong></span>
+              <span class="card-meta-chip">Mode: <strong>One-tap (no OTP)</strong></span>
+            </div>
+            <div class="prompt-actions">
+              <span class="prompt-label">Self-contained prompt — copy + paste with zip</span>
+              <button class="copy-btn" onclick="copyPrompt(this)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <span class="copy-btn-text">Copy Prompt</span>
+              </button>
+            </div>
+<pre class="prompt-block">You are an OMEGA-V5 senior TypeScript engineer building ONE file for CROWN.
+
+PROJECT CONTEXT
+═══════════════════════════════════════════════════════════
+Truecaller is the highest-conversion login rail in India (~350M installs). The SDK shows a bottom-sheet with the user's Truecaller-verified name + number; one tap signs them in to CROWN. No OTP. Truecaller's server posts a signed JWT proof of identity to our backend. Our backend verifies the JWT signature, exchanges it for a Firebase custom token, and the client signs in.
+
+STACK
+─────
+• TypeScript strict
+• `react-native-truecaller-sdk` (Android-only; iOS does not have this SDK — short-circuit)
+• Firebase Auth (native SDK) for the custom-token exchange
+• Sibling endpoint `/app/api/auth/truecaller-verify+api.ts` (assume exists — receives the Truecaller JWT, verifies signature against Truecaller's public key, returns Firebase custom token)
+• Expo's `Platform` from react-native
+
+FILE
+══════════════════════════════════════════════════════════
+PATH: `/lib/auth/truecaller.ts`
+TYPE: Pure TypeScript module
+STATUS: NEW
+
+EXPORTS
+───────
+1. `async function verify({ phone }: { phone: E164String }): Promise<RailResult>` — the interface contract required by the cascade.
+2. `function isTruecallerAvailable(): Promise<boolean>` — returns true if Android + Truecaller installed + signed-in to Truecaller.
+3. `function cancel(): void` — if the rail is mid-flight (e.g. cascade timeout), close the bottom sheet.
+
+ALGORITHM
+─────────
+1. On iOS: immediately return `{ rail: 'truecaller', status: 'unavailable', durationMs: 0 }`.
+2. On Android:
+   a. Call `isTruecallerAvailable()` — if false (not installed / not signed in), return unavailable.
+   b. Trigger the Truecaller bottom sheet via the SDK.
+   c. SDK returns one of:
+      • Success: user tapped "Continue with Truecaller". SDK provides `{ payload, signature, signatureAlgorithm }` — a signed JWT-like envelope proving identity.
+      • User dismissed: return `{ rail: 'truecaller', status: 'unavailable' }` (treat as fallthrough, NOT error).
+      • Truecaller error: return `{ rail: 'truecaller', status: 'error', error: {...} }`.
+   d. On success, POST the payload to `/api/auth/truecaller-verify`. Backend verifies signature, returns `{ customToken: string, profile: { phone, name, email? } }`.
+   e. CRITICAL: verify backend-returned `profile.phone` matches the `phone` arg passed in. If mismatch, return error (could be a session-mismatch attack).
+   f. Sign into Firebase with the custom token: `await signInWithCustomToken(auth, customToken)`.
+   g. Return `{ rail: 'truecaller', status: 'success', data: { uid: auth.currentUser.uid, phone } }`.
+
+ERROR HANDLING
+──────────────
+• If the SDK isn't installed/linked at build time, the import will fail. Wrap the import in a try-catch or use dynamic require. If unavailable, treat as iOS path.
+• Never throw from verify() — always return a RailResult. The cascade depends on this contract.
+
+SECURITY
+────────
+• Verify phone match (see step e above).
+• Never log the JWT payload.
+• On Sentry breadcrumb, mask the phone number.
+
+CONFIG
+──────
+Truecaller App Key + Secret are needed for SDK init. Read from `process.env.EXPO_PUBLIC_TRUECALLER_APP_KEY` and the corresponding non-public secret server-side (the backend uses the secret to verify JWT signatures).
+
+ACCEPTANCE CRITERIA
+[ ] iOS returns unavailable instantly.
+[ ] Android: bottom sheet opens, success path returns RailResult with uid.
+[ ] Phone-match verification before signing in.
+[ ] Never throws.
+[ ] cancel() closes any open SDK UI.
+
+WHAT TO RETURN
+Return one file — `/lib/auth/truecaller.ts`. Production-ready. JSDoc on each export. Include a fallback `verify` stub for when the SDK isn't linked (e.g. running in Expo Go without dev client). Production-ready.</pre>
+          </div>
+        </div>
+      </article>
+
+      <!-- CARD 12 -->
+      <article class="card" data-search="whatsapp otp business api send verify">
+        <div class="card-head">
+          <span class="card-status new">new</span>
+          <div class="card-info">
+            <div class="card-path">/lib/auth/whatsapp-otp.ts</div>
+            <div class="card-title">WhatsApp Business OTP Client</div>
+            <div class="card-purpose">Client wrapper that calls /api/auth/whatsapp-send to deliver a 6-digit code via WhatsApp Business API, then verifies via /api/auth/whatsapp-verify.</div>
+          </div>
+          <button class="card-toggle"><span>Open Prompt</span><span class="card-toggle-icon">▾</span></button>
+        </div>
+        <div class="card-body">
+          <div class="card-body-inner">
+            <div class="card-meta">
+              <span class="card-meta-chip">Type: <strong>lib (client)</strong></span>
+              <span class="card-meta-chip">Calls: <strong>/api/auth/whatsapp-*</strong></span>
+            </div>
+            <div class="prompt-actions">
+              <span class="prompt-label">Self-contained prompt — copy + paste with zip</span>
+              <button class="copy-btn" onclick="copyPrompt(this)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <span class="copy-btn-text">Copy Prompt</span>
+              </button>
+            </div>
+<pre class="prompt-block">You are an OMEGA-V5 senior TypeScript engineer building ONE file for CROWN.
+
+PROJECT CONTEXT
+═══════════════════════════════════════════════════════════
+WhatsApp OTP is CROWN's second auth rail. Users prefer WhatsApp because (a) it's already on their phone, (b) no SMS cost passed to them, (c) the OTP message has CROWN's verified business badge so they trust it. CROWN's backend uses Meta's WhatsApp Business Cloud API. This file is the client wrapper.
+
+STACK
+─────
+• TypeScript strict
+• Standard `fetch` (no axios needed)
+• Existing auth helpers from `/lib/auth.ts` (if missing, declare PREREQUISITE)
+• AsyncStorage for storing pendingVerification context (sessionId)
+• Firebase Auth (custom token sign-in) from `/lib/firebase.ts`
+
+FILE
+══════════════════════════════════════════════════════════
+PATH: `/lib/auth/whatsapp-otp.ts`
+TYPE: Pure TypeScript module
+STATUS: NEW
+
+EXPORTS
+───────
+1. `async function verify({ phone }: { phone: E164String }): Promise<RailResult>` — the cascade-required interface. This is what gets called by the cascade orchestrator. It triggers SEND (returns pending) — actual verification happens in step 2 after user enters OTP.
+2. `async function confirmCode({ sessionId, code }: { sessionId: string; code: string }): Promise<{ uid: string }>` — called by `/app/onboarding/otp.tsx` after user types the OTP.
+3. `function cancel(): void` — abort pending requests (rarely used).
+
+verify() ALGORITHM
+──────────────────
+1. POST to `/api/auth/whatsapp-send` with `{ phone, locale }`.
+2. Backend creates a session, generates 6-digit code, calls Meta's WhatsApp Business API to send a template message ("Your CROWN code is 123456. Don't share."). Returns `{ sessionId, expiresAt }`.
+3. If backend returns 200 with sessionId: 
+   • Save sessionId + phone to AsyncStorage `crown.whatsappVerification`.
+   • Return `{ rail: 'whatsapp', status: 'success', data: { sessionId, phone }, durationMs }`.
+   • IMPORTANT: status: 'success' here means *send succeeded*, NOT that the user has been authenticated. The cascade understands this: it routes to /onboarding/otp where the user enters the OTP and confirmCode() is called.
+4. If backend returns 4xx (e.g. phone not WhatsApp-registered): return `{ rail: 'whatsapp', status: 'unavailable' }` so cascade falls to SMS.
+5. If 5xx or timeout: return `{ rail: 'whatsapp', status: 'error', error: {...} }`.
+
+confirmCode() ALGORITHM
+───────────────────────
+1. POST to `/api/auth/whatsapp-verify` with `{ sessionId, code }`.
+2. Backend validates code (server-side TTL check, max 3 attempts, etc.), on success returns `{ customToken, profile }`.
+3. Sign in to Firebase: `await signInWithCustomToken(auth, customToken)`.
+4. Return `{ uid: auth.currentUser.uid }`.
+5. On wrong code, backend returns 401 with `{ code: 'INVALID_OTP', attemptsRemaining: 2 }` — propagate this to the caller via throwing `InvalidOtpError`.
+6. On expired session (4xx with EXPIRED): throw `OtpExpiredError`.
+
+ERROR TYPES (define inline)
+───────────────────────────
+```typescript
+export class InvalidOtpError extends Error {
+  constructor(public attemptsRemaining: number) {
+    super(`Invalid OTP — ${attemptsRemaining} attempts remaining`);
+    this.name = 'InvalidOtpError';
+  }
+}
+export class OtpExpiredError extends Error {
+  constructor() {
+    super('OTP session expired');
+    this.name = 'OtpExpiredError';
+  }
+}
+```
+
+SECURITY
+────────
+• Never log the code itself anywhere (not in fetch URL, not in body, not in Sentry breadcrumbs).
+• AsyncStorage holds the sessionId only — never the code.
+• On confirmCode success, immediately clear the AsyncStorage entry.
+
+ACCEPTANCE CRITERIA
+[ ] verify() returns success status on send-success, NOT on auth-success.
+[ ] confirmCode() throws typed errors on wrong/expired OTP.
+[ ] sessionId persisted to AsyncStorage between screens.
+[ ] Code never logged.
+[ ] Never throws from verify() — always returns RailResult.
+
+WHAT TO RETURN
+Return one file — `/lib/auth/whatsapp-otp.ts`. JSDoc on all exports. Production-ready.</pre>
+          </div>
+        </div>
+      </article>
+
+      <!-- CARD 13 -->
+      <article class="card" data-search="firebase sms otp phone auth fallback verification">
+        <div class="card-head">
+          <span class="card-status refactor">refactor</span>
+          <div class="card-info">
+            <div class="card-path">/lib/auth/firebase-sms.ts</div>
+            <div class="card-title">Firebase SMS Fallback (Final Rail)</div>
+            <div class="card-purpose">Universal fallback using Firebase Phone Auth's native SDK. Returns a verificationId for OTP confirmation. Re-uses existing Firebase Auth setup.</div>
+          </div>
+          <button class="card-toggle"><span>Open Prompt</span><span class="card-toggle-icon">▾</span></button>
+        </div>
+        <div class="card-body">
+          <div class="card-body-inner">
+            <div class="card-meta">
+              <span class="card-meta-chip">Existing: <strong>partial in /lib/firebase.ts</strong></span>
+              <span class="card-meta-chip">Re-uses: <strong>Native SDK split</strong></span>
+            </div>
+            <div class="prompt-actions">
+              <span class="prompt-label">Self-contained prompt — copy + paste with zip</span>
+              <button class="copy-btn" onclick="copyPrompt(this)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <span class="copy-btn-text">Copy Prompt</span>
+              </button>
+            </div>
+<pre class="prompt-block">You are an OMEGA-V5 senior TypeScript engineer building/refactoring ONE file for CROWN.
+
+PROJECT CONTEXT
+═══════════════════════════════════════════════════════════
+Firebase Phone Auth is CROWN's universal SMS fallback rail. It works in every country where Firebase delivers SMS. The existing codebase (zip `orbit-app-main`) already has Firebase configured via `/lib/firebase.ts` (native SDK) and `/lib/firebase.web.ts` (web SDK), with Metro platform extensions splitting them, plus a shared OTP handle var `globalThis.__orbitOtp` (which you should rename to `globalThis.__crownOtp` per the brand migration).
+
+The existing app's auth code is scattered (some in `/contexts/AuthContext.tsx`, some in `/lib/auth.ts`). This file consolidates the Firebase SMS rail into a single module that conforms to the cascade's RailResult contract.
+
+STACK
+─────
+• TypeScript strict
+• `@react-native-firebase/auth` (native — already in deps)
+• Firebase web SDK fallback (for Expo Go / web builds) — already wired
+• AsyncStorage
+
+FILE
+══════════════════════════════════════════════════════════
+PATH: `/lib/auth/firebase-sms.ts`
+TYPE: Pure TypeScript module
+STATUS: REFACTOR — the existing /lib/auth.ts has overlapping logic. Move the Firebase SMS-specific pieces here. /lib/auth.ts can remain for shared auth utilities (current user, sign-out, etc.).
+
+EXPORTS
+───────
+1. `async function verify({ phone }: { phone: E164String }): Promise<RailResult>` — sends OTP, returns success+verificationId.
+2. `async function confirmCode({ verificationId, code }: { verificationId: string; code: string }): Promise<{ uid: string }>` — confirms OTP, signs user into Firebase.
+3. `function cancel(): void` — clears in-flight verification listener.
+
+verify() ALGORITHM
+──────────────────
+1. Determine SDK to use: native if Platform.OS in [ios, android] and `@react-native-firebase/auth` is linked, else web SDK.
+2. Native path:
+   • Call `auth().signInWithPhoneNumber(phone)` → returns a confirmation handle.
+   • Store the handle in `globalThis.__crownOtp` (matches existing pattern).
+   • Return `{ rail: 'firebase-sms', status: 'success', data: { verificationId: handle.verificationId, phone }, durationMs }`.
+3. Web path:
+   • Use RecaptchaVerifier + signInWithPhoneNumber. (See existing /lib/firebase.web.ts for setup.) 
+   • Same RailResult shape.
+4. On SMS quota exceeded / phone invalid / Firebase project misconfigured: return status: 'error' with specific code.
+
+confirmCode() ALGORITHM
+───────────────────────
+1. Read handle from `globalThis.__crownOtp` (native) or web verifier (web).
+2. Call `handle.confirm(code)`.
+3. On success, returns Firebase User. Return `{ uid: user.uid }`.
+4. On wrong code (`auth/invalid-verification-code`): throw `InvalidOtpError`.
+5. On expired (`auth/code-expired`): throw `OtpExpiredError`.
+6. Clear `globalThis.__crownOtp` after confirm (success or failure).
+
+ERROR TYPES
+───────────
+Re-use the InvalidOtpError and OtpExpiredError from `/lib/auth/whatsapp-otp.ts` (import them). This keeps error types unified across rails — the OTP screen handles them once.
+
+SECURITY
+────────
+• Never log code.
+• Web path: do not store the handle in localStorage — keep in memory (recaptcha verifier instance).
+• `globalThis.__crownOtp` is only set during the OTP window; clear ASAP.
+
+NOTES ON THE EXISTING CODE
+──────────────────────────
+In the zip, `/lib/auth.ts` currently mixes:
+• Firebase init
+• Phone OTP send
+• Phone OTP confirm
+• Auth state listener
+Split these so this new file owns ONLY the SMS send/confirm. Keep auth state listener in `/lib/auth.ts` or move to `/contexts/AuthContext.tsx`. State your decision in a JSDoc comment.
+
+ACCEPTANCE CRITERIA
+[ ] verify() handles native and web paths correctly.
+[ ] confirmCode() throws typed errors.
+[ ] Handle clearing happens on both success and failure.
+[ ] globalThis.__crownOtp (renamed from __orbitOtp) is the cross-rail handle.
+[ ] Error types unified with whatsapp-otp.ts.
+
+WHAT TO RETURN
+Return one file — `/lib/auth/firebase-sms.ts`. At top, JSDoc explaining what was extracted from `/lib/auth.ts`. Production-ready.</pre>
+          </div>
+        </div>
+      </article>
+
+      <!-- CARD 14 -->
+      <article class="card" data-search="whatsapp send api endpoint meta business cloud">
+        <div class="card-head">
+          <span class="card-status new">new</span>
+          <div class="card-info">
+            <div class="card-path">/app/api/auth/whatsapp-send+api.ts</div>
+            <div class="card-title">API · Send WhatsApp OTP (Meta Business Cloud)</div>
+            <div class="card-purpose">Server endpoint that generates a 6-digit code, stores in Redis with TTL, sends via Meta WhatsApp Business API. Honors rate limits and behavior signals.</div>
+          </div>
+          <button class="card-toggle"><span>Open Prompt</span><span class="card-toggle-icon">▾</span></button>
+        </div>
+        <div class="card-body">
+          <div class="card-body-inner">
+            <div class="card-meta">
+              <span class="card-meta-chip">Type: <strong>Expo Router API route</strong></span>
+              <span class="card-meta-chip">Rate limit: <strong>3/15min per phone</strong></span>
+              <span class="card-meta-chip">Storage: <strong>Upstash Redis</strong></span>
+            </div>
+            <div class="prompt-actions">
+              <span class="prompt-label">Self-contained prompt — copy + paste with zip</span>
+              <button class="copy-btn" onclick="copyPrompt(this)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <span class="copy-btn-text">Copy Prompt</span>
+              </button>
+            </div>
+<pre class="prompt-block">You are an OMEGA-V5 senior backend engineer building ONE file for CROWN.
+
+PROJECT CONTEXT
+═══════════════════════════════════════════════════════════
+This endpoint receives a phone number from the client, generates a 6-digit OTP, stores it in Upstash Redis with 5-minute TTL, and calls Meta's WhatsApp Business Cloud API to send the OTP via a pre-approved template message. Rate-limited per phone (3 sends per 15 minutes) and per IP (10 sends per hour). Feeds behavior signals on suspicious patterns.
+
+STACK
+─────
+• Expo Router v6 API route (Node.js runtime)
+• TypeScript strict
+• `zod` for input validation
+• `@upstash/redis` for OTP storage + rate limiting
+• `@upstash/ratelimit` for the rate-limit primitive
+• `firebase-admin` for any user-existence check
+• Existing helpers: `/lib/server/env.ts` (validated env), `/lib/server/behavior-analysis.ts` (recordSignal helper) — assume exist; if missing, declare PREREQUISITE.
+
+FILE
+══════════════════════════════════════════════════════════
+PATH: `/app/api/auth/whatsapp-send+api.ts`
+TYPE: Expo Router API route (server)
+STATUS: NEW
+
+INPUT SCHEMA (Zod)
+──────────────────
+```typescript
+const BodySchema = z.object({
+  phone:  z.string().regex(/^\+[1-9]\d{6,14}$/, 'Invalid E.164 phone'),
+  locale: z.enum(['en', 'hi', 'hi-Latn', 'pa', 'pa-Latn', 'ur', 'bn', 'ta', 'te', 'mr', 'gu', 'kn',
+                  'es', 'pt-BR', 'id', 'tl', 'vi', 'ar', 'fr', 'sw', 'ru', 'ja', 'ko',
+                  'zh-Hans', 'th', 'tr', 'fa', 'am', 'ha', 'yo']),
+}).strict();
+```
+
+ALGORITHM
+─────────
+1. Parse JSON body, validate via Zod. On fail, return 400 with `{ error: 'VALIDATION_FAILED', issues }`.
+2. Behavior check: 
+   • Hash IP from `request.headers.get('x-forwarded-for')` or `x-real-ip` (fallback).
+   • Call `behaviorAnalysis.score({ subject: ipHash, type: 'ip' })`.
+   • If banned → return 403 `{ error: 'BANNED' }`.
+   • If suspicious (score ≥ 0.3) → apply tarpit delay (1500ms) before proceeding.
+3. Rate-limit check (two rails):
+   • Per-phone: `ratelimit.phone.limit(phone)` — 3 per 15 min.
+   • Per-IP: `ratelimit.ip.limit(ipHash)` — 10 per hour.
+   • On either fail → return 429 with `Retry-After` header.
+4. Generate 6-digit code: `(crypto.randomInt(100000, 999999)).toString()`.
+5. Generate sessionId: `crypto.randomUUID()`.
+6. Store in Redis: `SET otp:wa:{sessionId} JSON.stringify({ phone, code, attempts: 0, createdAt: Date.now() }) EX 300` (5 minutes TTL).
+7. Build the WhatsApp message template payload. Use Meta's "authentication" category template (CROWN must have a pre-approved template named e.g. `crown_otp_v1`).
+   Template body: "🔐 Your CROWN code is {{1}}. Don't share. Expires in 5 minutes."
+   Locale variant fallback: try template `crown_otp_v1_{locale}`, fall back to `crown_otp_v1_en` if locale variant doesn't exist.
+8. Call Meta Cloud API:
+   ```
+   POST https://graph.facebook.com/v18.0/{PHONE_NUMBER_ID}/messages
+   Authorization: Bearer {WHATSAPP_TOKEN}
+   {
+     "messaging_product": "whatsapp",
+     "to": phone (without leading +),
+     "type": "template",
+     "template": {
+       "name": "crown_otp_v1",
+       "language": { "code": locale === 'hi-Latn' ? 'en' : locale.replace('-', '_') },
+       "components": [{ "type": "body", "parameters": [{ "type": "text", "text": code }] }]
+     }
+   }
+   ```
+9. On Meta API success: return 200 `{ sessionId, expiresAt: createdAt + 300_000 }`.
+10. On Meta API failure (e.g. phone not WhatsApp-registered = error code 131_026): return 422 `{ error: 'PHONE_NOT_WHATSAPP', message: 'This number is not on WhatsApp' }`. The client cascade interprets 422 as a "fall through to next rail" signal.
+11. On unexpected Meta error (5xx): log to Sentry, return 502 `{ error: 'SEND_FAILED' }`.
+12. Audit log: write to Firestore `/audit/auth/{auto-id}` with `{ event: 'whatsapp_otp_sent', phone, sessionId, ip: ipHash, locale, ts: serverTimestamp() }`. (Never store the code itself.)
+
+ENV VARS REQUIRED
+─────────────────
+- `WHATSAPP_TOKEN` (Meta access token)
+- `WHATSAPP_PHONE_NUMBER_ID` (sender phone number ID)
+- `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`
+
+SECURITY
+────────
+• Code never logged to console, never sent to Sentry, never stored in audit.
+• OTP TTL strictly server-enforced via Redis TTL.
+• Rate limits server-side.
+
+ACCEPTANCE CRITERIA
+[ ] Zod strict validation rejects malformed input.
+[ ] Two rate-limit rails enforced.
+[ ] Behavior signals consulted before send.
+[ ] OTP code never leaves the server in any log or response.
+[ ] 422 returned for non-WhatsApp numbers (cascade fall-through trigger).
+[ ] Audit entry written with no code.
+[ ] TypeScript strict.
+
+WHAT TO RETURN
+Return one file — `/app/api/auth/whatsapp-send+api.ts`. JSDoc at top. Include the Meta API call as a clean fetch with proper error handling. Production-ready.</pre>
+          </div>
+        </div>
+      </article>
+
+      <!-- CARD 15 -->
+      <article class="card" data-search="whatsapp verify otp api confirm session firebase custom token">
+        <div class="card-head">
+          <span class="card-status new">new</span>
+          <div class="card-info">
+            <div class="card-path">/app/api/auth/whatsapp-verify+api.ts</div>
+            <div class="card-title">API · Verify WhatsApp OTP + Issue Firebase Custom Token</div>
+            <div class="card-purpose">Confirms the user's OTP, increments attempts, on success creates or fetches the Firebase user and returns a signed custom token for client sign-in.</div>
+          </div>
+          <button class="card-toggle"><span>Open Prompt</span><span class="card-toggle-icon">▾</span></button>
+        </div>
+        <div class="card-body">
+          <div class="card-body-inner">
+            <div class="card-meta">
+              <span class="card-meta-chip">Max attempts: <strong>3</strong></span>
+              <span class="card-meta-chip">Issues: <strong>Firebase custom token</strong></span>
+            </div>
+            <div class="prompt-actions">
+              <span class="prompt-label">Self-contained prompt — copy + paste with zip</span>
+              <button class="copy-btn" onclick="copyPrompt(this)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <span class="copy-btn-text">Copy Prompt</span>
+              </button>
+            </div>
+<pre class="prompt-block">You are an OMEGA-V5 senior backend engineer building ONE file for CROWN.
+
+PROJECT CONTEXT
+═══════════════════════════════════════════════════════════
+Pair to /api/auth/whatsapp-send+api.ts. Receives sessionId + code, validates against Redis-stored OTP, on success either creates a new Firebase Auth user (using the phone number as the unique key) or returns the existing user, then mints a Firebase custom token for the client to sign in with.
+
+STACK
+─────
+• Expo Router v6 API route, Node runtime
+• TypeScript strict
+• `zod`, `@upstash/redis`
+• `firebase-admin` (assume initialized at `/lib/server/firebase-admin.ts` — if missing, PREREQUISITE)
+• Crypto constant-time compare
+
+FILE
+══════════════════════════════════════════════════════════
+PATH: `/app/api/auth/whatsapp-verify+api.ts`
+STATUS: NEW
+
+INPUT SCHEMA
+────────────
+```typescript
+const BodySchema = z.object({
+  sessionId: z.string().uuid(),
+  code:      z.string().regex(/^\d{6}$/),
+}).strict();
+```
+
+ALGORITHM
+─────────
+1. Parse + validate. On fail → 400 with issues.
+2. Behavior check: IP hash, scoring, tarpit if suspicious.
+3. Rate-limit: 5 verify attempts per sessionId in Redis (`INCR otp:wa:attempts:{sessionId}`).
+4. Read `otp:wa:{sessionId}` from Redis.
+   • If null → 401 `{ error: 'SESSION_EXPIRED' }`.
+   • Else parse `{ phone, code: stored, attempts, createdAt }`.
+5. Constant-time compare submitted code vs stored. Use Node's `crypto.timingSafeEqual(Buffer.from(submitted), Buffer.from(stored))`. Padding to same length first.
+6. If mismatch:
+   • INCR attempts. If attempts ≥ 3 → DEL session, return 401 `{ error: 'TOO_MANY_ATTEMPTS' }`.
+   • Else return 401 `{ error: 'INVALID_OTP', attemptsRemaining: 3 - attempts - 1 }`.
+   • Record behavior signal `VALIDATION_FAIL` weight 0.05.
+7. If match:
+   • DEL Redis session immediately (one-shot use).
+   • Look up Firebase user by phone:
+     - Try `admin.auth().getUserByPhoneNumber(phone)` — if exists, take their uid.
+     - If not found, create with `admin.auth().createUser({ phoneNumber: phone })`.
+   • Mint custom token: `const customToken = await admin.auth().createCustomToken(uid, { rail: 'whatsapp' });`
+   • Optionally fetch user profile from Firestore `/users/{uid}` for the response payload (handle, role, etc. — null if first-time user).
+   • Audit: `/audit/auth/{auto-id}` `{ event: 'whatsapp_otp_verified', uid, phone, sessionId, ip: ipHash, ts: serverTimestamp() }`.
+   • Return 200 `{ customToken, profile: {...} | null }`.
+8. On unexpected errors → 500.
+
+EDGE CASES
+──────────
+• If a user has been previously banned (admin set custom claim `banned: true`): the verify endpoint still succeeds and issues the token, but the token's claims include the ban. Client-side AuthContext sees the ban claim and shows the "Banned" screen. Server-side, the custom token additionally embeds `{ banned: true }` in custom claims if applicable.
+
+SECURITY
+────────
+• Constant-time compare on OTP.
+• OTP TTL handled by Redis (no manual expiry needed).
+• Audit never includes the OTP.
+• Banned users still get a token but with ban claim (preserves transparency rule).
+
+ACCEPTANCE CRITERIA
+[ ] Zod strict validation.
+[ ] Constant-time OTP compare (timing-attack-safe).
+[ ] Max 3 attempts enforced.
+[ ] One-shot OTP (DEL after success).
+[ ] Custom token issued with rail claim.
+[ ] Audit entry written.
+[ ] TypeScript strict.
+
+WHAT TO RETURN
+Return one file — `/app/api/auth/whatsapp-verify+api.ts`. JSDoc on each branch. Production-ready.</pre>
+          </div>
+        </div>
+      </article>
+
+      <!-- CARD 16 -->
+      <article class="card" data-search="auth context provider rail tracking session">
+        <div class="card-head">
+          <span class="card-status refactor">refactor</span>
+          <div class="card-info">
+            <div class="card-path">/contexts/AuthContext.tsx</div>
+            <div class="card-title">AuthContext (Refactor — Rail Tracking + Ban Claim Support)</div>
+            <div class="card-purpose">Existing AuthContext refactored to track which rail signed the session, expose ban state from custom claims, and integrate with the new cascade.</div>
+          </div>
+          <button class="card-toggle"><span>Open Prompt</span><span class="card-toggle-icon">▾</span></button>
+        </div>
+        <div class="card-body">
+          <div class="card-body-inner">
+            <div class="card-meta">
+              <span class="card-meta-chip">Existing: <strong>contexts/AuthContext.tsx (partial)</strong></span>
+              <span class="card-meta-chip">Adds: <strong>rail, banned, role claims</strong></span>
+            </div>
+            <div class="prompt-actions">
+              <span class="prompt-label">Self-contained prompt — copy + paste with zip</span>
+              <button class="copy-btn" onclick="copyPrompt(this)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <span class="copy-btn-text">Copy Prompt</span>
+              </button>
+            </div>
+<pre class="prompt-block">You are an OMEGA-V5 senior React-Native engineer refactoring ONE file for CROWN.
+
+PROJECT CONTEXT
+═══════════════════════════════════════════════════════════
+The existing zip has `/contexts/AuthContext.tsx`. It currently provides `user`, `loading`, `signIn`, `signOut`. We need to upgrade it to:
+1. Track which rail signed the user in (truecaller / whatsapp / firebase-sms).
+2. Expose `banned: boolean`, `role: 'adult' | 'minor' | 'admin'`, `homeGeography` from Firestore.
+3. Live-sync `userProfile` from Firestore for the current user.
+4. Listen for token refresh to pick up custom-claim changes (ban, role, etc.).
+5. Provide an `idToken` getter for API calls that need it.
+
+STACK
+─────
+• Expo SDK 54, React 19, TypeScript strict
+• `@react-native-firebase/auth` (native) and `firebase` (web) — split via Metro extensions, existing pattern
+• Existing import paths: `@/lib/firebase` (native), `@/lib/firebase.web` (web)
+• Firestore `/users/{uid}` collection — assume populated by onboarding
+
+FILE
+══════════════════════════════════════════════════════════
+PATH: `/contexts/AuthContext.tsx`
+TYPE: React Context Provider
+STATUS: REFACTOR — preserve existing API where possible, add new fields.
+
+EXPORTED CONTEXT VALUE SHAPE
+────────────────────────────
+```typescript
+export interface CrownAuthContextValue {
+  // Auth state
+  status:    'unknown' | 'unauthenticated' | 'authenticated' | 'banned';
+  loading:   boolean;
+  user:      FirebaseUser | null;
+  uid:       string | null;
+  rail:      Rail | null;            // truecaller | whatsapp | firebase-sms
+
+  // Profile sync (from Firestore /users/{uid})
+  profile:   UserProfile | null;
+  banned:    boolean;
+  role:      'adult' | 'minor' | 'admin' | null;
+  home:      HomeGeography | null;
+  handle:    string | null;
+
+  // Actions
+  signOut:           () => Promise<void>;
+  refreshProfile:    () => Promise<void>;
+  getIdToken:        (forceRefresh?: boolean) => Promise<string | null>;
+
+  // Onboarding state
+  onboardingComplete: boolean;
+}
+```
+
+INTERNAL LOGIC
+──────────────
+1. Subscribe to `auth().onAuthStateChanged` (native) or `onAuthStateChanged(auth, ...)` (web). When user logs in:
+   a. Set user + uid.
+   b. Pull custom claims via `await user.getIdTokenResult(true)`. Read `claims.rail`, `claims.banned`.
+   c. Subscribe to Firestore `/users/{uid}` onSnapshot. Sync profile fields (handle, home, role, onboarding.completed).
+   d. Set status: `banned ? 'banned' : 'authenticated'`.
+2. On sign-out: unsubscribe Firestore listener, clear state, set status to 'unauthenticated'.
+3. On token refresh event (`auth().onIdTokenChanged`): re-fetch claims, update banned/role.
+4. `getIdToken(forceRefresh)`: returns `await user.getIdToken(forceRefresh ?? false)` or null if not signed in. Used by API call helpers.
+5. `refreshProfile()`: one-shot Firestore re-read of `/users/{uid}`, in case the realtime listener missed an update (rare but possible).
+
+PROVIDER STRUCTURE
+──────────────────
+```typescript
+export function CrownAuthProvider({ children }: { children: React.ReactNode }) {
+  const [state, dispatch] = useReducer(authReducer, initialState);
+  
+  useEffect(() => { /* subscribe to onAuthStateChanged */ }, []);
+  useEffect(() => { /* subscribe to Firestore profile when uid changes */ }, [state.uid]);
+  useEffect(() => { /* subscribe to onIdTokenChanged */ }, []);
+  
+  const value: CrownAuthContextValue = useMemo(() => ({...}), [...]);
+  return <CrownAuthContext.Provider value={value}>{children}</CrownAuthContext.Provider>;
+}
+```
+
+HOOKS TO EXPORT
+───────────────
+- `useAuth(): CrownAuthContextValue`
+- `useRequireAuth(): CrownAuthContextValue` — throws if not authenticated (for screens that require auth)
+- `useIsBanned(): boolean`
+
+PROFILE TYPE (define inline — should match /types/user.ts if it exists)
+───────────────────────────────────────────────────────────────────────
+```typescript
+export interface UserProfile {
+  uid:    string;
+  handle: string;
+  dob?:   { day: number; month: number; year: number; computedAge: number; declaredAt: number; };
+  role:   'adult' | 'minor' | 'admin';
+  banned: boolean;
+  home:   HomeGeography;
+  cashoutBinding: { currency: string; rail: string; country: string; lockedUntilCountryChange: boolean; };
+  onboarding: { completed: boolean; completedAt?: number; lastStep?: number; };
+  followers: number;
+  following: number;
+  trustScore: number;
+  createdAt: number;
+}
+
+export interface HomeGeography {
+  country: string;          // ISO2 e.g. "IN"
+  city:    string;          // slug e.g. "chandigarh"
+  sector:  string;          // slug e.g. "sector-22"
+  setAt:   number;
+}
+```
+
+ACCEPTANCE CRITERIA
+[ ] Backward-compatible: `user`, `loading`, `signOut` still work.
+[ ] New: `rail`, `banned`, `role`, `home`, `handle`, `profile`, `getIdToken`.
+[ ] Live Firestore sync for `/users/{uid}`.
+[ ] Token refresh picks up ban claim changes.
+[ ] Reducer-based state management.
+[ ] TypeScript strict.
+
+WHAT TO RETURN
+Return one file — `/contexts/AuthContext.tsx`. Refactored. JSDoc on all hooks. Production-ready. Include a `// MIGRATION NOTE:` comment at top explaining what changed from the existing file.</pre>
+          </div>
+        </div>
+      </article>
+
+      <!-- CARD 17 -->
+      <article class="card" data-search="firestore security rules auth handle reservation atomic">
+        <div class="card-head">
+          <span class="card-status refactor">refactor</span>
+          <div class="card-info">
+            <div class="card-path">/firestore.rules</div>
+            <div class="card-title">Firestore Security Rules — Auth + Handles + Consent (Patch)</div>
+            <div class="card-purpose">Add rule blocks for /handles (atomic reservation), /users (self-write with field whitelist), /audit (server-only), and /users/{uid}/consent.</div>
+          </div>
+          <button class="card-toggle"><span>Open Prompt</span><span class="card-toggle-icon">▾</span></button>
+        </div>
+        <div class="card-body">
+          <div class="card-body-inner">
+            <div class="card-meta">
+              <span class="card-meta-chip">Existing: <strong>firestore.rules (partial)</strong></span>
+              <span class="card-meta-chip">Adds: <strong>handles, consent, audit blocks</strong></span>
+            </div>
+            <div class="prompt-actions">
+              <span class="prompt-label">Self-contained prompt — copy + paste with zip</span>
+              <button class="copy-btn" onclick="copyPrompt(this)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <span class="copy-btn-text">Copy Prompt</span>
+              </button>
+            </div>
+<pre class="prompt-block">You are an OMEGA-V5 senior backend engineer extending ONE Firestore rules file for CROWN.
+
+PROJECT CONTEXT
+═══════════════════════════════════════════════════════════
+The existing zip's `/firestore.rules` covers some collections from the old ORBIT app. We're adding rules for the Part 2 collections:
+• `/users/{uid}` — self-readable, self-writable with a strict field whitelist (cannot set role, banned, trustScore, credits, handle directly; those are server-only)
+• `/handles/{lowercase}` — anyone can read, atomic create only by the uid that matches, delete/update only by server
+• `/users/{uid}/consent/{version}` — owner-read-only, write only via transaction tagged with serverTimestamp
+• `/users/{uid}/onboarding/{state}` — owner-readwrite
+• `/users/{uid}/minorConsent/{auto-id}` — owner read, write blocked client-side (server creates via Cloud Function)
+• `/audit/{collection}/{id}` — totally read/write: false (Cloud Function only)
+• `/geography/...` — public read, write blocked
+
+STACK
+─────
+• Firestore Rules language v2
+• Existing helper functions in the file (if any) may be reused
+
+FILE
+══════════════════════════════════════════════════════════
+PATH: `/firestore.rules`
+TYPE: Firestore Security Rules
+STATUS: REFACTOR / EXTEND — additive, do not remove existing rules. If the existing file has rules for /users that conflict, deprecate the old block (commented out) and put the new one.
+
+HELPER FUNCTIONS (define at top, reuse if existing)
+────────────────────────────────────────────────────
+```
+function isAuthenticated()    { return request.auth != null; }
+function isOwner(uid)         { return isAuthenticated() && request.auth.uid == uid; }
+function isAdult()            { return isAuthenticated() && request.auth.token.role == 'adult'; }
+function isMinor()            { return isAuthenticated() && request.auth.token.role == 'minor'; }
+function isAdmin()            { return isAuthenticated() && request.auth.token.role == 'admin'; }
+function isNotBanned()        { return !request.auth.token.banned; }
+function existingDoc()        { return resource.data; }
+function newDoc()             { return request.resource.data; }
+function fieldsAreOnly(allowed) {
+  return newDoc().keys().hasOnly(allowed);
+}
+function fieldsAreUnchanged(fields) {
+  return fields.toSet().intersection(newDoc().diff(existingDoc()).affectedKeys()).size() == 0;
+}
+```
+
+RULE BLOCKS TO ADD
+──────────────────
+
+```
+match /users/{uid} {
+  allow read: if isOwner(uid) || (existingDoc().visibility == 'public');
+  
+  // Create only via server (Cloud Function) — clients cannot create user docs directly.
+  // The auth verify endpoint creates the initial user doc with safe defaults.
+  allow create: if false;
+  
+  // Self-update with strict whitelist:
+  allow update: if isOwner(uid)
+    && isNotBanned()
+    && fieldsAreOnly([
+        'handle',           // restricted further below — handles atomically claimed via /handles
+        'dob',              // 90-day cooldown enforced server-side
+        'home',             // 90-day cooldown enforced server-side
+        'cashoutBinding',   // server validates currency match
+        'onboarding',
+        'visibility',       // 'public' | 'private'
+        'locationMode',     // 'show-all' | 'city-only' | 'hidden'
+        'bio',
+        'avatarUrl',
+        'languagePref',
+        'safetyModeEnabled',
+        'updatedAt'
+    ])
+    // These fields can NEVER be set/changed by user:
+    && fieldsAreUnchanged([
+        'uid', 'role', 'banned', 'trustScore', 'credits',
+        'handleLockUntil', 'createdAt', 'followers', 'following'
+    ]);
+  
+  allow delete: if false; // soft-delete via DPDP request workflow only
+}
+
+match /handles/{lowercase} {
+  allow read: if true; // anyone can check availability
+  allow create: if isAuthenticated()
+    && newDoc().uid == request.auth.uid
+    && newDoc().claimedAt == request.time
+    && fieldsAreOnly(['uid', 'claimedAt']);
+  allow update, delete: if false; // server-only (handle rename Cloud Function)
+}
+
+match /users/{uid}/consent/{version} {
+  allow read: if isOwner(uid);
+  allow create: if isOwner(uid)
+    && newDoc().keys().hasAll(['privacy', 'money', 'conduct', 'locale', 'appVersion', 'ts'])
+    && newDoc().privacy.granted == true
+    && newDoc().money.granted == true
+    && newDoc().conduct.granted == true
+    && newDoc().ts == request.time;
+  allow update, delete: if false; // consent records are append-only / immutable
+}
+
+match /users/{uid}/onboarding/{state} {
+  allow read, write: if isOwner(uid);
+}
+
+match /users/{uid}/minorConsent/{auto} {
+  allow read: if isOwner(uid);
+  allow write: if false; // server-only (Cloud Function `sendMinorConsentRequest` writes here)
+}
+
+match /audit/{collection}/{id} {
+  allow read, write: if false; // server-only
+}
+
+match /geography/{path=**} {
+  allow read: if true; // public reference data
+  allow write: if false; // server-managed
+}
+```
+
+ACCEPTANCE CRITERIA
+[ ] Users can self-update their own doc with whitelisted fields only.
+[ ] Users cannot escalate role/banned/credits/trustScore.
+[ ] Handles are atomic (race-condition-safe at the rules layer).
+[ ] Consent records are append-only.
+[ ] Audit is fully locked to server.
+[ ] Geography is read-only public.
+[ ] All helper functions defined once at top.
