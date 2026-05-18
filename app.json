@@ -1,61 +1,46 @@
 {
   "expo": {
-    "name": "ORBIT",
-    "slug": "orbit-pgk3wsw2wj63bzjdvvmj",
+    "name": "CROWN",
+    "slug": "crown-pgk3wsw2wj63bzjdvvmj",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "orbit-app",
-    "userInterfaceStyle": "dark",
+    "scheme": "crown-app",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/images/icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#17212B"
+      "backgroundColor": "#0D1018"
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.nooralam.orbit",
+      "bundleIdentifier": "com.nooralam.crown",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSLocationWhenInUseUsageDescription": "CROWN uses your location to connect you to your city and sector chat room.",
+        "NSCameraUsageDescription": "CROWN uses the camera to let you update your profile photo.",
+        "NSPhotoLibraryUsageDescription": "CROWN uses your photo library to let you choose a profile photo."
       }
     },
     "android": {
-      "package": "com.nooralam.orbit"
+      "package": "com.nooralam.crown",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#0D1018"
+      }
     },
-    "web": {
-      "favicon": "./assets/images/icon.png"
-    },
+    "web": { "favicon": "./assets/images/icon.png" },
     "plugins": [
-      [
-        "expo-router",
-        {}
-      ],
+      ["expo-router", {}],
       "expo-font",
       "expo-web-browser",
       "expo-dev-client",
       "@react-native-firebase/app",
       "@react-native-firebase/auth",
-      [
-        "expo-build-properties",
-        {
-          "ios": {
-            "useFrameworks": "static"
-          },
-          "android": {
-            "minSdkVersion": 24
-          }
-        }
-      ]
+      ["expo-build-properties", { "ios": { "useFrameworks": "static" }, "android": { "minSdkVersion": 24 } }]
     ],
-    "experiments": {
-      "typedRoutes": true,
-      "reactCompiler": true
-    },
-    "extra": {
-      "eas": {
-        "projectId": "427cbfe2-93f1-491f-954d-b23a87f32a93"
-      }
-    }
+    "experiments": { "typedRoutes": true, "reactCompiler": true },
+    "extra": { "eas": { "projectId": "427cbfe2-93f1-491f-954d-b23a87f32a93" } }
   }
 }
