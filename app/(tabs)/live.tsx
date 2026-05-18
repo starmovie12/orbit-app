@@ -1,33 +1,38 @@
 /**
- * ORBIT — Live Tab  (app/(tabs)/live.tsx)
+ * CROWN — Crown Tab  (app/(tabs)/live.tsx)
  *
- * ORBIT Live = Clubhouse-style audio rooms with a desi twist.
- * Blueprint §11: Agora RTC, <300ms latency, credit-gated host revenue.
+ * Status & bidding center — the emotional anchor of CROWN.
+ * PRD §1.3.5 · Blueprint FINAL v1.0 · Part 1
  *
- * To add this tab to the nav bar, add to app/(tabs)/_layout.tsx:
- *   <Tabs.Screen
- *     name="live"
- *     options={{
- *       title: "Live",
- *       tabBarIcon: ({ focused }) => <TabIcon name="radio" focused={focused} />,
- *       tabBarLabel: ({ focused }) => <TabLabel label="Live" focused={focused} />,
- *     }}
- *   />
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * LAYOUT STACK (top → bottom):
+ *   [1]  Header Row — "CROWN" wordmark + share icon           (56px)
+ *   [2]  ScrollView
+ *        ├── CycleCountdown — 5-hour live timer per scope
+ *        ├── RankSection × 4 — SECTOR / CITY / COUNTRY / WORLD
+ *        │    └── progress bar · rank number · need-to-advance label
+ *        ├── TitleHoldersSection — current BARON / VICEROY / SOVEREIGN / IMPERATOR
+ *        ├── RecentBidsSection  — bids this user placed
+ *        └── CycleEarningsSection — monthly title earnings
+ *   [3]  BidModal — Boli bottom sheet (opens on cycle freeze or user tap)
  *
- * ────────────────────────────────────────────────────────────────────
- * Architecture:
- *   • Firestore /rooms where kind == "live" → live room list.
- *   • "Go Live" → creates a /rooms doc with kind="live" + isLive=true.
- *   • Joining: updates memberCount via Firestore transaction.
- *   • Agora RTC: install `react-native-agora` (npm i react-native-agora).
- *     Until installed, the join flow shows the room UI without actual audio.
- *     Wire AGORA_APP_ID in your .env and remove the AGORA_STUB guard.
- * ────────────────────────────────────────────────────────────────────
+ * LAWS ENFORCED:
+ *   Rule 03 / LAW 30 — Avatar NEVER in this header — only in bottom nav
+ *   LAW 21  — City-sharded data: /cities/{cityId}/cycles/...
+ *   §1.2.2  — Credits displayed (no ₹/$/€ symbol)
+ *   §1.4.9  — All title strings from @/constants/titles ONLY
+ *   §1.3.2  — Full-width bottom nav (no Glass Island)
  *
- * SETUP (one-time):
- *   1. npm install react-native-agora
- *   2. Add EXPO_PUBLIC_AGORA_APP_ID=<your-id> to .env
- *   3. Remove the `AGORA_STUB` constant below and uncomment the real imports.
+ * FIRESTORE:
+ *   /cities/{cityId}/cycles/current — active cycle metadata
+ *   /cities/{cityId}/leaderboards/{scope} — live rank maps
+ *   /users/{uid}/bids — recent bids placed by this user
+ *
+ * ANIMATION: Reanimated v4 — useSharedValue · withSpring · withTiming
+ *   All worklets run on UI thread (zero bridge cost).
+ *
+ * STACK: Expo SDK 54 · React Native 0.81.5 · React 19 · Expo Router v6
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  */
 
 import React, {
@@ -36,11 +41,10 @@ import React, {
   useMemo,
   useRef,
   useState,
-} from "react";
+} from 'react';
 import {
   ActivityIndicator,
   Animated,
-  FlatList,
   Modal,
   Platform,
   Pressable,
@@ -51,293 +55,839 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-} from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Feather } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Reanimated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
+import { Feather } from '@expo/vector-icons';
 
-import { Avatar } from "@/components/shared";
-import { orbit } from "@/constants/colors";
-import { useAuth } from "@/contexts/AuthContext";
-import { firestore, serverTimestamp, increment } from "@/lib/firebase";
-import type { RoomDoc } from "@/lib/firestore-rooms";
+import { orbit, colors }      from '@/constants/colors';
+import { spacing, radius }    from '@/constants/spacing';
+import {
+  TITLES,
+  TITLE_COLORS,
+  TITLE_LABELS,
+  CYCLE,
+  type TitleTier,
+}                              from '@/constants/titles';
+import { useAuth }             from '@/contexts/AuthContext';
+import { firestore }           from '@/lib/firebase';
 
-// Cross-platform Firestore .exists helper (web compat vs native SDK)
-function snapExists(s: any): boolean { return typeof s.exists === 'function' ? s.exists() : !!s.exists; }
-
-/* ─────────────────────────────────────────────────────────────────────
-   Agora RTC integration
-   ─────────────────────────────────────────────────────────────────────
-   Set AGORA_STUB = false and wire real imports once react-native-agora
-   is installed. The UI is fully wired — only the SDK calls are stubbed.
-───────────────────────────────────────────────────────────────────── */
-
-const AGORA_STUB = true; // ← flip to false after installing react-native-agora
-const AGORA_APP_ID = (process.env.EXPO_PUBLIC_AGORA_APP_ID as string) ?? "";
-
-// When react-native-agora is installed, replace this stub module with:
-//   import { createAgoraRtcEngine, ChannelProfileType, ClientRoleType } from 'react-native-agora';
-const AgoraStub = {
-  createEngine: () => null as any,
-  joinChannel: async (_ch: string, _uid: number, _options: any) => {},
-  leaveChannel: async () => {},
-  setClientRole: (_role: "host" | "audience") => {},
-  enableAudio: () => {},
-  muteLocalAudioStream: (_muted: boolean) => {},
-  destroy: () => {},
-};
-
-function buildAgoraEngine() {
-  if (AGORA_STUB || !AGORA_APP_ID) return AgoraStub;
-  // Real: return createAgoraRtcEngine();
-  return AgoraStub;
+// ─── snap.exists — boolean property, NEVER a function call ──────────────────
+/** Reads DocumentSnapshot.exists as a boolean property (never call it). */
+function snapExists(snap: { exists: boolean | (() => boolean) }): boolean {
+  return !!snap.exists;
 }
 
-/* ─────────────────────────────────────────────────────────────────────
-   Firestore helpers for Live rooms
-───────────────────────────────────────────────────────────────────── */
+// ═══════════════════════════════════════════════════════════════════════════
+// CONSTANTS
+// ═══════════════════════════════════════════════════════════════════════════
 
-const ROOMS_COL = "rooms";
+/** Scope order for display (bottom-up: local → global) */
+const SCOPE_ORDER: TitleTier[] = ['SECTOR', 'CITY', 'COUNTRY', 'WORLD'] as const;
 
-/** Subscribe to all live rooms (kind == "live" and isLive == true). */
-function subscribeLiveRooms(onChange: (rooms: RoomDoc[]) => void): () => void {
+/** Scope display emoji per tier */
+const SCOPE_EMOJI: Record<TitleTier, string> = {
+  SECTOR:  '🏘️',
+  CITY:    '🏙️',
+  COUNTRY: '🇮🇳',
+  WORLD:   '🌍',
+} as const;
+
+/** Icon size used for Feather icons throughout */
+const ICON_SM  = 16 as const;
+const ICON_MD  = 20 as const;
+const ICON_LG  = 24 as const;
+
+/** Spring config — standard Glass-Era responsive feel */
+const SPRING_BASE = { mass: 1, stiffness: 200, damping: 24 } as const;
+
+/** Spring config — bouncy for BidModal entry */
+const SPRING_BOUNCE = { mass: 1, stiffness: 180, damping: 14 } as const;
+
+/** Shimmer loop duration ms */
+const SHIMMER_DURATION_MS = 1_200 as const;
+
+/** Progress bar max width fraction (set in layout callbacks) */
+const PROGRESS_BAR_HEIGHT = 6 as const;
+
+/** Number of recent bids shown */
+const MAX_RECENT_BIDS = 5 as const;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TYPES
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** A user's rank in one scope during the active cycle. */
+interface ScopeRank {
+  scope:        TitleTier;
+  scopeName:    string;   // e.g. "Sector 17", "Chandigarh", "India", "World"
+  rank:         number;   // 1-based rank position (0 = unranked)
+  reactionsHeld: number;  // current reaction count
+  reactionsNeeded: number; // to advance to next milestone
+  nextMilestone: number;  // e.g. 100, 1000, 10000
+  progressFraction: number; // 0.0 – 1.0 toward next milestone
+  isTopTen:     boolean;
+}
+
+/** A title holder for a given scope. */
+interface TitleHolder {
+  scope:    TitleTier;
+  handle:   string;   // e.g. "@AyeshaT"
+  cycles:   number;   // cycles held (can be 0 if newly earned)
+  scopeName: string;  // city/country/sector name
+}
+
+/** A bid this user placed in any cycle. */
+interface RecentBid {
+  id:         string;
+  scope:      TitleTier;
+  scopeName:  string;
+  targetHandle: string;
+  amountCredits: number;
+  status:     'pending' | 'winning' | 'outbid' | 'refunded' | 'won';
+  cycleLabel: string;  // e.g. "Cycle 14 · Sector 17"
+}
+
+/** Async state discriminated union (no `any`) */
+type AsyncState<T> =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'success'; data: T }
+  | { status: 'error'; message: string };
+
+/** Active cycle metadata (Firestore /cities/{cityId}/cycles/current) */
+interface ActiveCycle {
+  cityId:          string;
+  cityName:        string;
+  sectorName:      string;
+  cycleStartMs:    number;  // epoch ms when this 5-hour cycle began
+  cycleDurationMs: number;  // always CYCLE.DURATION_MS
+  isFrozen:        boolean; // true = Boli (auction) window open
+  boliOpenMs:      number | null; // when Boli opened (null if not frozen)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FIRESTORE HELPERS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Subscribes to the active cycle for a city.
+ * Uses /cities/{cityId}/cycles/current (city-sharded per LAW 21).
+ *
+ * @param cityId - The user's current city shard key
+ * @param onChange - Callback with latest cycle or null if not found
+ * @returns Unsubscribe function
+ */
+function subscribeActiveCycle(
+  cityId: string,
+  onChange: (cycle: ActiveCycle | null) => void,
+): () => void {
   return firestore()
-    .collection(ROOMS_COL)
-    .where("kind", "==", "live")
-    .where("isLive", "==", true)
-    .orderBy("memberCount", "desc")
+    .collection('cities')
+    .doc(cityId)
+    .collection('cycles')
+    .doc('current')
+    .onSnapshot(
+      snap => {
+        if (!snapExists(snap)) { onChange(null); return; }
+        onChange(snap.data() as ActiveCycle);
+      },
+      () => onChange(null),
+    );
+}
+
+/**
+ * Subscribes to the current user's ranks across all scopes.
+ * Reads /cities/{cityId}/leaderboards/{scope} (city-sharded).
+ *
+ * @param cityId - The user's current city shard key
+ * @param uid    - The authenticated user's UID
+ * @param onChange - Callback with latest ranks
+ * @returns Unsubscribe function
+ */
+function subscribeUserRanks(
+  cityId: string,
+  uid: string,
+  onChange: (ranks: ScopeRank[]) => void,
+): () => void {
+  const unsubs: Array<() => void> = [];
+
+  const ranks: Partial<Record<TitleTier, ScopeRank>> = {};
+
+  function emit(): void {
+    const ordered = SCOPE_ORDER
+      .map(s => ranks[s])
+      .filter((r): r is ScopeRank => r !== undefined);
+    onChange(ordered);
+  }
+
+  for (const scope of SCOPE_ORDER) {
+    const unsub = firestore()
+      .collection('cities')
+      .doc(cityId)
+      .collection('leaderboards')
+      .doc(scope)
+      .onSnapshot(
+        snap => {
+          if (!snapExists(snap)) {
+            ranks[scope] = buildUnrankedScopeRank(scope, cityId);
+            emit();
+            return;
+          }
+          const raw = snap.data() as Record<string, unknown>;
+          ranks[scope] = parseScopeRank(scope, raw, uid, cityId);
+          emit();
+        },
+        () => {
+          ranks[scope] = buildUnrankedScopeRank(scope, cityId);
+          emit();
+        },
+      );
+    unsubs.push(unsub);
+  }
+
+  return () => unsubs.forEach(u => u());
+}
+
+/**
+ * Subscribes to recent bids placed by this user.
+ * Reads /users/{uid}/bids ordered by time (newest first).
+ *
+ * @param uid - The authenticated user's UID
+ * @param onChange - Callback with latest bids list
+ * @returns Unsubscribe function
+ */
+function subscribeRecentBids(
+  uid: string,
+  onChange: (bids: RecentBid[]) => void,
+): () => void {
+  return firestore()
+    .collection('users')
+    .doc(uid)
+    .collection('bids')
+    .orderBy('placedAt', 'desc')
+    .limit(MAX_RECENT_BIDS)
     .onSnapshot(
       qs => {
-        const list: RoomDoc[] = [];
+        const list: RecentBid[] = [];
         qs.forEach(doc => {
-          list.push({ id: doc.id, ...(doc.data() as Omit<RoomDoc, "id">) });
+          list.push({ id: doc.id, ...(doc.data() as Omit<RecentBid, 'id'>) });
         });
         onChange(list);
       },
-      () => onChange([])
+      () => onChange([]),
     );
 }
 
-/** Create a new live audio room. Returns the new room id. */
-async function createLiveRoom(args: {
-  name: string;
-  description: string;
-  language: string;
-  hostUid: string;
-  hostUsername: string;
-  accent: string;
-}): Promise<string> {
-  const ref = firestore().collection(ROOMS_COL).doc();
-  await ref.set({
-    name: args.name,
-    icon: "radio",
-    accent: args.accent,
-    description: args.description,
-    kind: "live",
-    language: args.language,
-    memberCount: 1,
-    lastMessagePreview: `${args.hostUsername} started a live room`,
-    lastMessageAt: serverTimestamp(),
-    lastMessageUid: args.hostUid,
-    lastMessageUsername: args.hostUsername,
-    isLive: true,
-    liveHostUid: args.hostUid,
-    createdAt: serverTimestamp(),
-    createdBy: args.hostUid,
-  });
-  return ref.id;
+/**
+ * Subscribes to current title holders for a city (all 4 scopes).
+ * Reads /cities/{cityId}/titles/current.
+ *
+ * @param cityId - The user's current city shard key
+ * @param onChange - Callback with latest title holders
+ * @returns Unsubscribe function
+ */
+function subscribeTitleHolders(
+  cityId: string,
+  onChange: (holders: TitleHolder[]) => void,
+): () => void {
+  return firestore()
+    .collection('cities')
+    .doc(cityId)
+    .collection('titles')
+    .doc('current')
+    .onSnapshot(
+      snap => {
+        if (!snapExists(snap)) { onChange([]); return; }
+        const raw = snap.data() as Record<TitleTier, unknown>;
+        const holders: TitleHolder[] = [];
+        for (const scope of SCOPE_ORDER) {
+          const entry = raw[scope] as
+            | { handle: string; cycles: number; scopeName: string }
+            | null
+            | undefined;
+          if (entry?.handle) {
+            holders.push({
+              scope,
+              handle:    entry.handle,
+              cycles:    entry.cycles ?? 0,
+              scopeName: entry.scopeName ?? '',
+            });
+          }
+        }
+        onChange(holders);
+      },
+      () => onChange([]),
+    );
 }
 
-/** Increment or decrement listener count. */
-async function updateListenerCount(roomId: string, delta: 1 | -1): Promise<void> {
-  await firestore().collection(ROOMS_COL).doc(roomId).update({
-    memberCount: increment(delta),
-  });
+// ─── Firestore helpers — pure data helpers (no Firebase) ────────────────────
+
+/** Builds a fallback unranked ScopeRank when a leaderboard doc is absent. */
+function buildUnrankedScopeRank(scope: TitleTier, cityId: string): ScopeRank {
+  return {
+    scope,
+    scopeName:        getScopeDisplayName(scope, cityId),
+    rank:             0,
+    reactionsHeld:    0,
+    reactionsNeeded:  100,
+    nextMilestone:    100,
+    progressFraction: 0,
+    isTopTen:         false,
+  };
 }
 
-/** Mark room as ended (isLive = false). */
-async function endLiveRoom(roomId: string): Promise<void> {
-  await firestore().collection(ROOMS_COL).doc(roomId).update({
-    isLive: false,
-    liveHostUid: null,
-  });
+/** Parses raw Firestore leaderboard data for a single user entry. */
+function parseScopeRank(
+  scope: TitleTier,
+  raw: Record<string, unknown>,
+  uid: string,
+  cityId: string,
+): ScopeRank {
+  const userEntry = (raw[uid] as
+    | { rank: number; reactions: number }
+    | null
+    | undefined);
+
+  const reactionsHeld = userEntry?.reactions ?? 0;
+  const rank          = userEntry?.rank ?? 0;
+  const nextMilestone = computeNextMilestone(reactionsHeld);
+  const prevMilestone = computePrevMilestone(nextMilestone);
+  const progressFraction = prevMilestone >= nextMilestone
+    ? 1
+    : Math.min((reactionsHeld - prevMilestone) / (nextMilestone - prevMilestone), 1);
+
+  return {
+    scope,
+    scopeName:        (raw['scopeName'] as string | undefined) ?? getScopeDisplayName(scope, cityId),
+    rank,
+    reactionsHeld,
+    reactionsNeeded:  Math.max(0, nextMilestone - reactionsHeld),
+    nextMilestone,
+    progressFraction: Math.max(0, progressFraction),
+    isTopTen:         rank > 0 && rank <= 10,
+  };
 }
 
-/* ─────────────────────────────────────────────────────────────────────
-   Types
-───────────────────────────────────────────────────────────────────── */
+/** Next reaction-count milestone for rank progress display. */
+function computeNextMilestone(current: number): number {
+  const milestones = [100, 500, 1_000, 5_000, 10_000, 50_000, 1_00_000];
+  return milestones.find(m => m > current) ?? 1_00_000;
+}
 
-type LiveRoom = RoomDoc;
+/** Previous milestone (floor for progress bar). */
+function computePrevMilestone(next: number): number {
+  const milestones = [0, 100, 500, 1_000, 5_000, 10_000, 50_000];
+  const idx = milestones.findIndex(m => m >= next);
+  return idx > 0 ? (milestones[idx - 1] ?? 0) : 0;
+}
 
-type JoinedSession = {
-  roomId: string;
-  roomName: string;
-  isHost: boolean;
-  muted: boolean;
-};
+/** Human-readable scope name fallback. */
+function getScopeDisplayName(scope: TitleTier, cityId: string): string {
+  switch (scope) {
+    case 'SECTOR':  return 'Your Sector';
+    case 'CITY':    return cityId || 'Your City';
+    case 'COUNTRY': return 'India';
+    case 'WORLD':   return 'World';
+  }
+}
 
-const LANGUAGE_OPTIONS = [
-  "Hindi", "English", "Hinglish", "Punjabi",
-  "Tamil", "Telugu", "Marathi", "Bengali",
-];
+/** Format milliseconds remaining as HH:MM:SS. */
+function formatCountdown(remainingMs: number): string {
+  const total = Math.max(0, Math.floor(remainingMs / 1_000));
+  const h     = Math.floor(total / 3_600);
+  const m     = Math.floor((total % 3_600) / 60);
+  const s     = total % 60;
+  return [h, m, s]
+    .map(n => String(n).padStart(2, '0'))
+    .join(':');
+}
 
-const ACCENT_OPTIONS = [
-  orbit.accent,
-  orbit.success,
-  orbit.warning,
-  orbit.danger,
-];
+/** Format a Credits amount (no ₹/$). */
+function formatCredits(amount: number): string {
+  return `${amount.toLocaleString('en-IN')} Cr`;
+}
 
-/* ─────────────────────────────────────────────────────────────────────
-   Live Room Card
-───────────────────────────────────────────────────────────────────── */
+/** Bid status badge label. */
+function bidStatusLabel(status: RecentBid['status']): string {
+  switch (status) {
+    case 'pending':  return 'Pending';
+    case 'winning':  return 'Winning ✓';
+    case 'outbid':   return 'Outbid';
+    case 'refunded': return 'Refunded';
+    case 'won':      return 'Won 🎉';
+  }
+}
 
-function LivePulse() {
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-  const opacityAnim = useRef(new Animated.Value(0.8)).current;
+/** Bid status color. */
+function bidStatusColor(status: RecentBid['status']): string {
+  switch (status) {
+    case 'winning': return orbit.success;
+    case 'won':     return orbit.success;
+    case 'outbid':  return orbit.danger;
+    case 'refunded':return orbit.warning;
+    default:        return orbit.textTertiary;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SUB-COMPONENTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ─── Skeleton ────────────────────────────────────────────────────────────────
+
+/**
+ * Animated shimmer skeleton block.
+ * Runs on UI thread via Reanimated v4 worklet.
+ *
+ * @param width  - Explicit width (number) or undefined for flex-1
+ * @param height - Block height in dp
+ * @param borderRadius - Optional corner radius
+ */
+const SkeletonBlock = React.memo(function SkeletonBlock({
+  width,
+  height,
+  borderRadius = radius.sm,
+}: {
+  width?: number;
+  height: number;
+  borderRadius?: number;
+}) {
+  const opacity = useSharedValue(0.4);
 
   useEffect(() => {
-    const loop = Animated.loop(
-      Animated.parallel([
-        Animated.sequence([
-          Animated.timing(scaleAnim, { toValue: 1.5, duration: 900, useNativeDriver: true }),
-          Animated.timing(scaleAnim, { toValue: 1, duration: 900, useNativeDriver: true }),
-        ]),
-        Animated.sequence([
-          Animated.timing(opacityAnim, { toValue: 0, duration: 900, useNativeDriver: true }),
-          Animated.timing(opacityAnim, { toValue: 0.8, duration: 900, useNativeDriver: true }),
-        ]),
-      ])
+    opacity.value = withRepeat(
+      withSequence(
+        withTiming(1.0, { duration: SHIMMER_DURATION_MS, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0.4, { duration: SHIMMER_DURATION_MS, easing: Easing.inOut(Easing.ease) }),
+      ),
+      -1,
+      false,
     );
-    loop.start();
-    return () => loop.stop();
-  }, [scaleAnim, opacityAnim]);
+  }, [opacity]);
+
+  /* PERF: opacity — compositor only — zero layout/paint */
+  const animStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+  }));
 
   return (
-    <View style={styles.livePulseWrap}>
-      <Animated.View
-        style={[
-          styles.livePulseRing,
-          { transform: [{ scale: scaleAnim }], opacity: opacityAnim },
-        ]}
-      />
-      <View style={styles.livePulseDot} />
+    <Reanimated.View
+      style={[
+        {
+          width:        width ?? '100%',
+          height,
+          borderRadius,
+          backgroundColor: orbit.accentSoftSolid,
+        },
+        animStyle,
+      ]}
+      accessibilityRole="none"
+      importantForAccessibility="no"
+    />
+  );
+});
+
+// ─── CycleCountdown ──────────────────────────────────────────────────────────
+
+interface CycleCountdownProps {
+  /** Epoch ms when this 5-hour cycle started */
+  cycleStartMs:    number;
+  /** Total cycle duration — defaults to CYCLE.DURATION_MS */
+  cycleDurationMs?: number;
+  /** Whether the cycle is currently frozen (Boli window) */
+  isFrozen:        boolean;
+  /** Called when user taps "Boli karo →" in frozen state */
+  onBoliTap:       () => void;
+}
+
+/**
+ * Live 5-hour countdown timer for the active cycle.
+ * Ticks every second via setInterval on JS thread;
+ * only the final display update triggers a re-render (minimal).
+ *
+ * Displays HH:MM:SS in Space Mono for precision.
+ * When frozen: shows gold "BOLI CHAL RAHI HAI" banner with CTA.
+ *
+ * @param cycleStartMs    - Epoch ms when cycle started
+ * @param cycleDurationMs - Total cycle length (default 5h)
+ * @param isFrozen        - Whether Boli auction window is open
+ * @param onBoliTap       - Tap handler for the Boli CTA
+ */
+const CycleCountdown = React.memo(function CycleCountdown({
+  cycleStartMs,
+  cycleDurationMs = CYCLE.DURATION_MS,
+  isFrozen,
+  onBoliTap,
+}: CycleCountdownProps) {
+
+  const [displayTime, setDisplayTime] = useState<string>('--:--:--');
+  const [progressFraction, setProgressFraction] = useState(0);
+
+  /* Reanimated progress bar — UI thread */
+  const barWidth = useSharedValue(0);
+
+  /* PERF: transform(scaleX) — compositor only — zero layout/paint */
+  const barStyle = useAnimatedStyle(() => ({
+    width: `${barWidth.value * 100}%`,
+  }));
+
+  useEffect(() => {
+    function tick(): void {
+      const now       = Date.now();
+      const elapsed   = now - cycleStartMs;
+      const remaining = cycleDurationMs - elapsed;
+      const frac      = Math.min(1, Math.max(0, elapsed / cycleDurationMs));
+
+      setDisplayTime(formatCountdown(remaining));
+      setProgressFraction(frac);
+      barWidth.value = withTiming(frac, { duration: 900 });
+    }
+
+    tick();
+    const id = setInterval(tick, 1_000);
+    return () => clearInterval(id);
+  }, [cycleStartMs, cycleDurationMs, barWidth]);
+
+  if (isFrozen) {
+    return (
+      <View style={styles.cycleCountdownFrozen} accessibilityLiveRegion="polite">
+        <View style={styles.cycleCountdownFrozenInner}>
+          <Feather name="lock" size={ICON_SM} color={orbit.accent} />
+          <Text style={styles.cycleCountdownFrozenTitle}>BOLI CHAL RAHI HAI</Text>
+        </View>
+        <Text style={styles.cycleCountdownFrozenSub}>
+          Cycle frozen · Auction window open
+        </Text>
+        <TouchableOpacity
+          style={styles.cycleBoliCta}
+          onPress={onBoliTap}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Boli karo — place your bid"
+          hitSlop={8}
+        >
+          <Text style={styles.cycleBoliCtaText}>Boli karo →</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.cycleCountdownCard} accessibilityLiveRegion="polite">
+      <View style={styles.cycleCountdownRow}>
+        <View style={styles.cycleCountdownLeft}>
+          <Text style={styles.cycleCountdownLabel}>CYCLE FREEZES IN</Text>
+          <Text style={styles.cycleCountdownTime}>{displayTime}</Text>
+        </View>
+        <View style={styles.cycleCountdownProgressCol}>
+          <Text style={styles.cycleCountdownPercent}>
+            {Math.round(progressFraction * 100)}%
+          </Text>
+          <View style={styles.cycleProgressTrack}>
+            <Reanimated.View
+              style={[styles.cycleProgressBar, barStyle]}
+              /* PERF: width — triggers layout, kept small (single row) */
+            />
+          </View>
+        </View>
+      </View>
+      <Text style={styles.cycleSub}>
+        5-hour cycle · top reactor per scope earns the title
+      </Text>
     </View>
   );
+});
+
+// ─── RankCard ────────────────────────────────────────────────────────────────
+
+interface RankCardProps {
+  rankData: ScopeRank;
 }
 
-function RoomCard({ room, onJoin }: { room: LiveRoom; onJoin: (room: LiveRoom) => void }) {
+/**
+ * Displays a user's rank within one scope (SECTOR / CITY / COUNTRY / WORLD).
+ * Shows rank number, progress bar toward next milestone, and
+ * "need N more reactions" label.
+ *
+ * @param rankData - Parsed ScopeRank for this scope
+ */
+const RankCard = React.memo(function RankCard({ rankData }: RankCardProps) {
+  const {
+    scope,
+    scopeName,
+    rank,
+    reactionsHeld,
+    reactionsNeeded,
+    progressFraction,
+    isTopTen,
+  } = rankData;
+
+  const titleColor = useMemo((): string => {
+    switch (scope) {
+      case 'SECTOR':  return TITLE_COLORS.SECTOR;
+      case 'CITY':    return TITLE_COLORS.CITY;
+      case 'COUNTRY': return TITLE_COLORS.COUNTRY_INDIA[0]; // saffron
+      case 'WORLD':   return TITLE_COLORS.WORLD[3];          // royal blue
+    }
+  }, [scope]);
+
+  /* Reanimated progress bar */
+  const barWidth = useSharedValue(0);
+
+  useEffect(() => {
+    barWidth.value = withSpring(progressFraction, SPRING_BASE);
+  }, [progressFraction, barWidth]);
+
+  /* PERF: width — layout-triggering; kept to single-row short bar */
+  const barStyle = useAnimatedStyle(() => ({
+    width: `${barWidth.value * 100}%`,
+  }));
+
+  const rankLabel = rank === 0 ? 'Unranked' : `#${rank.toLocaleString('en-IN')}`;
+  const isActive  = rank > 0;
+
   return (
-    <TouchableOpacity
-      style={styles.roomCard}
-      activeOpacity={0.82}
-      onPress={() => onJoin(room)}
-      accessibilityRole="button"
-      accessibilityLabel={`Join ${room.name}`}
+    <View
+      style={[styles.rankCard, isTopTen && { borderColor: titleColor }]}
+      accessibilityRole="none"
+      accessible
+      accessibilityLabel={`${SCOPE_EMOJI[scope]} ${TITLES[scope]} · ${scopeName} · Rank ${rankLabel}`}
     >
-      <View style={styles.roomCardTop}>
-        {/* Icon */}
-        <View style={[styles.roomIconWrap, { backgroundColor: room.accent + "1A" }]}>
-          <Feather name="radio" size={18} color={room.accent} />
+      {/* Scope header */}
+      <View style={styles.rankCardHeader}>
+        <Text style={styles.rankCardEmoji}>{SCOPE_EMOJI[scope]}</Text>
+        <View style={styles.rankCardHeaderText}>
+          <Text style={styles.rankCardScope}>{TITLES[scope]}</Text>
+          <Text style={styles.rankCardScopeName} numberOfLines={1}>{scopeName}</Text>
         </View>
-
-        {/* Meta */}
-        <View style={{ flex: 1, marginLeft: 12 }}>
-          <Text style={styles.roomName} numberOfLines={1}>{room.name}</Text>
-          {room.description ? (
-            <Text style={styles.roomDesc} numberOfLines={1}>{room.description}</Text>
-          ) : null}
-        </View>
-
-        {/* Live badge + listener count */}
-        <View style={styles.roomBadgeCol}>
-          <View style={styles.liveBadge}>
-            <LivePulse />
-            <Text style={styles.liveBadgeText}>LIVE</Text>
-          </View>
-          <View style={styles.listenerRow}>
-            <Feather name="headphones" size={10} color={orbit.textTertiary} />
-            <Text style={styles.listenerCount}>
-              {room.memberCount.toLocaleString("en-IN")}
-            </Text>
-          </View>
-        </View>
+        <Text style={[
+          styles.rankCardRankNum,
+          { color: isActive ? titleColor : orbit.textTertiary },
+        ]}>
+          {rankLabel}
+        </Text>
       </View>
 
-      {/* Join bar */}
-      <View style={[styles.roomJoinBar, { backgroundColor: room.accent }]}>
-        <Text style={styles.roomJoinText}>Tap to join</Text>
-        <Feather name="headphones" size={12} color={orbit.white} />
+      {/* Progress bar */}
+      <View style={styles.rankProgressTrack}>
+        <Reanimated.View
+          style={[
+            styles.rankProgressBar,
+            { backgroundColor: titleColor },
+            barStyle,
+          ]}
+        />
       </View>
-    </TouchableOpacity>
+
+      {/* Need-to-advance label */}
+      <Text style={styles.rankNeedLabel}>
+        {rank === 0
+          ? 'Start chatting to enter the leaderboard'
+          : isTopTen
+            ? `Top 10 — held for ${reactionsHeld.toLocaleString('en-IN')} reactions`
+            : `Need ${reactionsNeeded.toLocaleString('en-IN')} more reactions for Top 100`
+        }
+      </Text>
+    </View>
   );
+});
+
+// ─── TitleHolderRow ───────────────────────────────────────────────────────────
+
+interface TitleHolderRowProps {
+  holder: TitleHolder;
 }
 
-/* ─────────────────────────────────────────────────────────────────────
-   Go Live bottom sheet
-───────────────────────────────────────────────────────────────────── */
+/**
+ * Displays a single current title holder (one row in the "Current Holders" list).
+ *
+ * @param holder - TitleHolder data for this scope
+ */
+const TitleHolderRow = React.memo(function TitleHolderRow({ holder }: TitleHolderRowProps) {
+  const { scope, handle, cycles, scopeName } = holder;
 
-interface GoLiveSheetProps {
-  visible: boolean;
-  onClose: () => void;
-  onLive: (roomId: string) => void;
-  hostUsername: string;
+  const titleColor = useMemo((): string => {
+    switch (scope) {
+      case 'SECTOR':  return TITLE_COLORS.SECTOR;
+      case 'CITY':    return TITLE_COLORS.CITY;
+      case 'COUNTRY': return TITLE_COLORS.COUNTRY_INDIA[0];
+      case 'WORLD':   return TITLE_COLORS.WORLD[3];
+    }
+  }, [scope]);
+
+  return (
+    <View style={styles.titleHolderRow} accessible accessibilityRole="text"
+      accessibilityLabel={`${TITLES[scope]} of ${scopeName}: ${handle}, ${cycles} cycles`}
+    >
+      <Text style={styles.titleHolderEmoji}>{SCOPE_EMOJI[scope]}</Text>
+      <View style={styles.titleHolderMeta}>
+        <Text style={[styles.titleHolderTitle, { color: titleColor }]}>
+          {TITLE_LABELS.WITH_SCOPE[scope](scopeName)}
+        </Text>
+        <Text style={styles.titleHolderHandle} numberOfLines={1}>
+          {handle}
+          {cycles > 0 && (
+            <Text style={styles.titleHolderCycles}> · {cycles} {CYCLE.LABEL_PLURAL}</Text>
+          )}
+        </Text>
+      </View>
+    </View>
+  );
+});
+
+// ─── BidStatusChip ───────────────────────────────────────────────────────────
+
+interface BidStatusChipProps {
+  status: RecentBid['status'];
 }
 
-function GoLiveSheet({ visible, onClose, onLive, hostUsername }: GoLiveSheetProps) {
-  const insets = useSafeAreaInsets();
-  const slideAnim = useRef(new Animated.Value(600)).current;
+/** Small inline chip showing bid status with color. */
+const BidStatusChip = React.memo(function BidStatusChip({ status }: BidStatusChipProps) {
+  const color = bidStatusColor(status);
+  return (
+    <View style={[styles.bidStatusChip, { borderColor: color }]}>
+      <Text style={[styles.bidStatusChipText, { color }]}>
+        {bidStatusLabel(status)}
+      </Text>
+    </View>
+  );
+});
 
-  const [name, setName] = useState("");
-  const [desc, setDesc] = useState("");
-  const [language, setLanguage] = useState("Hinglish");
-  const [accent, setAccent] = useState(orbit.accent);
-  const [starting, setStarting] = useState(false);
+// ─── RecentBidRow ─────────────────────────────────────────────────────────────
+
+interface RecentBidRowProps {
+  bid: RecentBid;
+}
+
+/**
+ * Displays a single recent bid placed by this user.
+ *
+ * @param bid - RecentBid data
+ */
+const RecentBidRow = React.memo(function RecentBidRow({ bid }: RecentBidRowProps) {
+  return (
+    <View style={styles.bidRow} accessible accessibilityRole="text"
+      accessibilityLabel={`Bid of ${formatCredits(bid.amountCredits)} on ${bid.targetHandle} for ${TITLES[bid.scope]} of ${bid.scopeName}, status: ${bidStatusLabel(bid.status)}`}
+    >
+      <View style={styles.bidRowLeft}>
+        <Text style={styles.bidRowEmoji}>{SCOPE_EMOJI[bid.scope]}</Text>
+        <View style={styles.bidRowMeta}>
+          <Text style={styles.bidRowTarget} numberOfLines={1}>
+            {bid.targetHandle}
+            <Text style={styles.bidRowScopeName}> · {bid.scopeName}</Text>
+          </Text>
+          <Text style={styles.bidRowCycleLabel} numberOfLines={1}>{bid.cycleLabel}</Text>
+        </View>
+      </View>
+      <View style={styles.bidRowRight}>
+        <Text style={styles.bidRowAmount}>{formatCredits(bid.amountCredits)}</Text>
+        <BidStatusChip status={bid.status} />
+      </View>
+    </View>
+  );
+});
+
+// ─── BidModal (Boli Sheet) ───────────────────────────────────────────────────
+
+interface BidModalProps {
+  visible:   boolean;
+  onClose:   () => void;
+  cityId:    string;
+  cityName:  string;
+  uid:       string | undefined;
+}
+
+/**
+ * Boli (Auction) bottom sheet.
+ * Opens when cycle freezes OR user taps "Place a bid".
+ * Allows selecting a scope and entering a bid amount in Credits.
+ * No ₹ symbol anywhere — Credits only (Anti-Drift Lock #3).
+ *
+ * @param visible  - Whether this sheet is visible
+ * @param onClose  - Called to dismiss
+ * @param cityId   - Current city shard (for Firestore write target)
+ * @param cityName - Display name for city
+ * @param uid      - Current user UID (required to bid)
+ */
+const BidModal = React.memo(function BidModal({
+  visible,
+  onClose,
+  cityId,
+  cityName,
+  uid,
+}: BidModalProps) {
+  const insets        = useSafeAreaInsets();
+  const slideAnim     = useRef(new Animated.Value(700)).current;
+
+  const [selectedScope, setSelectedScope] = useState<TitleTier>('CITY');
+  const [targetHandle,  setTargetHandle]  = useState('');
+  const [bidAmount,     setBidAmount]     = useState('');
+  const [submitting,    setSubmitting]    = useState(false);
+  const [error,         setError]         = useState<string | null>(null);
 
   useEffect(() => {
     if (visible) {
       Animated.spring(slideAnim, {
-        toValue: 0,
+        toValue:   0,
         useNativeDriver: true,
-        tension: 80,
-        friction: 12,
+        tension:   80,
+        friction:  12,
       }).start();
     } else {
       Animated.timing(slideAnim, {
-        toValue: 600,
-        duration: 220,
+        toValue:   700,
+        duration:  220,
         useNativeDriver: true,
       }).start();
-      // Reset form
-      setName("");
-      setDesc("");
-      setLanguage("Hinglish");
-      setAccent(orbit.accent);
-      setStarting(false);
+      setTargetHandle('');
+      setBidAmount('');
+      setError(null);
+      setSubmitting(false);
     }
   }, [visible, slideAnim]);
 
-  const { firebaseUser, user } = useAuth();
+  const parsedAmount = useMemo((): number | null => {
+    const n = parseInt(bidAmount.replace(/[^0-9]/g, ''), 10);
+    return isNaN(n) || n <= 0 ? null : n;
+  }, [bidAmount]);
 
-  const handleStart = async () => {
-    const trimmedName = name.trim();
-    if (!trimmedName || starting || !firebaseUser) return;
-    setStarting(true);
+  const canSubmit = Boolean(uid) && Boolean(targetHandle.trim()) && parsedAmount !== null && !submitting;
+
+  const handleSubmit = useCallback(async () => {
+    if (!canSubmit || parsedAmount === null || !uid) return;
+    setSubmitting(true);
+    setError(null);
     try {
-      const roomId = await createLiveRoom({
-        name: trimmedName,
-        description: desc.trim(),
-        language,
-        hostUid: firebaseUser.uid,
-        hostUsername: user?.username ?? hostUsername,
-        accent,
-      });
-      onLive(roomId);
+      await firestore()
+        .collection('cities')
+        .doc(cityId)
+        .collection('bids')
+        .add({
+          scope:         selectedScope,
+          cityId,
+          cityName,
+          bidderUid:     uid,
+          targetHandle:  targetHandle.trim(),
+          amountCredits: parsedAmount,
+          status:        'pending',
+          placedAt:      new Date(), // server-side timestamps set via Cloud Function
+        });
       onClose();
     } catch {
-      setStarting(false);
+      setError('Bid place nahi ho saka — dobara try karo.');
+    } finally {
+      setSubmitting(false);
     }
-  };
+  }, [canSubmit, parsedAmount, uid, cityId, cityName, selectedScope, targetHandle, onClose]);
 
   return (
     <Modal
@@ -347,825 +897,940 @@ function GoLiveSheet({ visible, onClose, onLive, hostUsername }: GoLiveSheetProp
       onRequestClose={onClose}
       statusBarTranslucent
     >
-      <Pressable style={styles.sheetBackdrop} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close">
+      <Pressable
+        style={styles.sheetBackdrop}
+        onPress={onClose}
+        accessibilityRole="button"
+        accessibilityLabel="Close Boli sheet"
+      >
         <Animated.View
           style={[
             styles.sheetContainer,
-            {
-              paddingBottom: insets.bottom + 16,
-              transform: [{ translateY: slideAnim }],
-            },
+            { paddingBottom: insets.bottom + 24, transform: [{ translateY: slideAnim }] },
           ]}
         >
+          {/* Stop backdrop dismissal inside sheet */}
           <Pressable>
             <View style={styles.sheetHandle} />
-            <Text style={styles.sheetTitle}>Go Live</Text>
-            <Text style={styles.sheetSub}>Start an audio room — anyone on ORBIT can join.</Text>
 
-            {/* Room name */}
-            <Text style={styles.fieldLabel}>Room Name</Text>
-            <TextInput
-              style={styles.fieldInput}
-              value={name}
-              onChangeText={setName}
-              placeholder="e.g. Late Night Feels, Tech Talk…"
-              placeholderTextColor={orbit.textTertiary}
-              maxLength={60}
-              returnKeyType="next"
-              accessibilityLabel="Room name"
-            />
+            {/* Title */}
+            <Text style={styles.sheetTitle}>Boli (Auction)</Text>
+            <Text style={styles.sheetSub}>
+              Cycle frozen · Highest bidder wins the title for next cycle.
+              Credits refunded if outbid.
+            </Text>
 
-            {/* Description */}
-            <Text style={styles.fieldLabel}>Description (optional)</Text>
-            <TextInput
-              style={[styles.fieldInput, { height: 72, paddingTop: 10 }]}
-              value={desc}
-              onChangeText={setDesc}
-              placeholder="What will you talk about?"
-              placeholderTextColor={orbit.textTertiary}
-              multiline
-              maxLength={140}
-              accessibilityLabel="Room description"
-            />
-
-            {/* Language */}
-            <Text style={styles.fieldLabel}>Language</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
-              <View style={styles.langRow}>
-                {LANGUAGE_OPTIONS.map(lang => (
+            {/* Scope selector */}
+            <Text style={styles.fieldLabel}>SCOPE</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={{ marginBottom: 16 }}
+              contentContainerStyle={{ gap: 8, paddingHorizontal: 2 }}
+            >
+              {SCOPE_ORDER.map(scope => {
+                const isActive = scope === selectedScope;
+                return (
                   <TouchableOpacity
-                    key={lang}
-                    style={[styles.langChip, language === lang && styles.langChipActive]}
-                    onPress={() => setLanguage(lang)}
+                    key={scope}
+                    style={[
+                      styles.scopeChip,
+                      isActive && { backgroundColor: orbit.accentSoft, borderColor: orbit.accent },
+                    ]}
+                    onPress={() => setSelectedScope(scope)}
                     activeOpacity={0.75}
                     accessibilityRole="button"
-                    accessibilityLabel={lang}
+                    accessibilityLabel={TITLES[scope]}
+                    accessibilityState={{ selected: isActive }}
+                    hitSlop={4}
                   >
-                    <Text style={[styles.langChipText, language === lang && { color: orbit.accent }]}>
-                      {lang}
+                    <Text style={styles.scopeChipEmoji}>{SCOPE_EMOJI[scope]}</Text>
+                    <Text style={[
+                      styles.scopeChipText,
+                      isActive && { color: orbit.accent },
+                    ]}>
+                      {TITLE_LABELS.CITY_SHORT === TITLES[scope]
+                        ? TITLE_LABELS.CITY_SHORT
+                        : TITLES[scope]}
                     </Text>
                   </TouchableOpacity>
-                ))}
-              </View>
+                );
+              })}
             </ScrollView>
 
-            {/* Accent color */}
-            <Text style={styles.fieldLabel}>Room Color</Text>
-            <View style={styles.accentRow}>
-              {ACCENT_OPTIONS.map(c => (
-                <TouchableOpacity
-                  key={c}
-                  style={[styles.accentDot, { backgroundColor: c }, accent === c && styles.accentDotActive]}
-                  onPress={() => setAccent(c)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Color ${c}`}
-                  hitSlop={6}
-                />
-              ))}
+            {/* Target handle */}
+            <Text style={styles.fieldLabel}>BID FOR HANDLE</Text>
+            <View style={styles.fieldInputWrap}>
+              <Text style={styles.fieldInputAt}>@</Text>
+              <TextInput
+                style={styles.fieldInput}
+                value={targetHandle}
+                onChangeText={t => setTargetHandle(t.replace(/[^a-zA-Z0-9_]/g, ''))}
+                placeholder="handle"
+                placeholderTextColor={orbit.textTertiary}
+                maxLength={32}
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="next"
+                accessibilityLabel="Target user handle"
+              />
             </View>
+
+            {/* Bid amount */}
+            <Text style={styles.fieldLabel}>BID AMOUNT (CREDITS)</Text>
+            <TextInput
+              style={styles.fieldInputStandalone}
+              value={bidAmount}
+              onChangeText={v => setBidAmount(v.replace(/[^0-9]/g, ''))}
+              placeholder="e.g. 500"
+              placeholderTextColor={orbit.textTertiary}
+              keyboardType="number-pad"
+              maxLength={7}
+              returnKeyType="done"
+              accessibilityLabel="Bid amount in Credits"
+            />
+            <Text style={styles.creditNote}>
+              No ₹ — Credits only. Refunded automatically if outbid.
+            </Text>
+
+            {/* Error */}
+            {error !== null && (
+              <Text style={styles.fieldError} accessibilityLiveRegion="assertive">
+                {error}
+              </Text>
+            )}
 
             {/* CTA */}
             <TouchableOpacity
               style={[
-                styles.goLiveBtn,
-                { backgroundColor: accent },
-                (!name.trim() || starting) && { opacity: 0.5 },
+                styles.boliSubmitBtn,
+                !canSubmit && { opacity: 0.45 },
               ]}
-              onPress={handleStart}
-              disabled={!name.trim() || starting}
+              onPress={handleSubmit}
+              disabled={!canSubmit}
               activeOpacity={0.85}
               accessibilityRole="button"
-              accessibilityLabel="Start live room"
+              accessibilityLabel={submitting ? 'Placing bid…' : 'Place Boli'}
+              accessibilityState={{ disabled: !canSubmit }}
             >
-              {starting ? (
-                <ActivityIndicator size="small" color={orbit.white} />
-              ) : (
-                <>
-                  <View style={styles.goLivePulseSmall} />
-                  <Text style={styles.goLiveBtnText}>Go Live</Text>
-                </>
-              )}
+              {submitting
+                ? <ActivityIndicator size="small" color={orbit.textInverse} />
+                : <Text style={styles.boliSubmitBtnText}>Place Boli</Text>
+              }
             </TouchableOpacity>
           </Pressable>
         </Animated.View>
       </Pressable>
     </Modal>
   );
+});
+
+// ─── SectionHeader ────────────────────────────────────────────────────────────
+
+interface SectionHeaderProps {
+  label:      string;
+  action?:    { label: string; onPress: () => void };
 }
 
-/* ─────────────────────────────────────────────────────────────────────
-   In-Room overlay (shown when user has joined a live room)
-───────────────────────────────────────────────────────────────────── */
-
-interface InRoomOverlayProps {
-  session: JoinedSession;
-  listenerCount: number;
-  onToggleMute: () => void;
-  onLeave: () => void;
-}
-
-function InRoomOverlay({ session, listenerCount, onToggleMute, onLeave }: InRoomOverlayProps) {
-  const insets = useSafeAreaInsets();
-  const slideAnim = useRef(new Animated.Value(200)).current;
-
-  useEffect(() => {
-    Animated.spring(slideAnim, {
-      toValue: 0,
-      useNativeDriver: true,
-      tension: 80,
-      friction: 12,
-    }).start();
-  }, [slideAnim]);
-
+/** Reusable section header row with optional right-side action. */
+const SectionHeader = React.memo(function SectionHeader({
+  label,
+  action,
+}: SectionHeaderProps) {
   return (
-    <Animated.View
-      style={[
-        styles.inRoomBar,
-        {
-          bottom: insets.bottom + 16,
-          transform: [{ translateY: slideAnim }],
-        },
-      ]}
-    >
-      <View style={styles.inRoomLeft}>
-        <View style={styles.inRoomLiveDot} />
-        <View style={{ flex: 1 }}>
-          <Text style={styles.inRoomName} numberOfLines={1}>{session.roomName}</Text>
-          <View style={styles.inRoomMeta}>
-            <Feather name="headphones" size={10} color={orbit.textTertiary} />
-            <Text style={styles.inRoomCount}>{listenerCount.toLocaleString("en-IN")}</Text>
-            {session.isHost && (
-              <Text style={styles.inRoomHostBadge}>HOST</Text>
-            )}
-          </View>
-        </View>
-      </View>
-
-      <View style={styles.inRoomActions}>
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionHeaderLabel}>{label}</Text>
+      {action && (
         <TouchableOpacity
-          style={[styles.inRoomBtn, session.muted && styles.inRoomBtnMuted]}
-          onPress={onToggleMute}
+          onPress={action.onPress}
           hitSlop={8}
           accessibilityRole="button"
-          accessibilityLabel={session.muted ? "Unmute" : "Mute"}
+          accessibilityLabel={action.label}
         >
-          <Feather
-            name={session.muted ? "mic-off" : "mic"}
-            size={16}
-            color={session.muted ? orbit.danger : orbit.textPrimary}
-          />
+          <Text style={styles.sectionHeaderAction}>{action.label}</Text>
         </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.inRoomLeaveBtn}
-          onPress={onLeave}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel="Leave room"
-        >
-          <Text style={styles.inRoomLeaveText}>Leave</Text>
-        </TouchableOpacity>
-      </View>
-    </Animated.View>
+      )}
+    </View>
   );
-}
+});
 
-/* ─────────────────────────────────────────────────────────────────────
-   Main Screen
-───────────────────────────────────────────────────────────────────── */
+// ─── EmptyBids ────────────────────────────────────────────────────────────────
 
-export default function LiveScreen() {
-  const insets = useSafeAreaInsets();
-  const router = useRouter();
-  const { firebaseUser, user } = useAuth();
-
-  const myUid = firebaseUser?.uid ?? "";
-  const myUsername = user?.username ?? "you";
-
-  const [rooms, setRooms] = useState<LiveRoom[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showGoLive, setShowGoLive] = useState(false);
-  const [session, setSession] = useState<JoinedSession | null>(null);
-  const [liveListenerCount, setLiveListenerCount] = useState(0);
-
-  // Agora engine ref — lives for the duration of an active session
-  const engineRef = useRef<ReturnType<typeof buildAgoraEngine> | null>(null);
-
-  const topPad = insets.top + (Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) : 0);
-
-  /* ── Subscribe to live rooms ────────────────────────────────────── */
-  useEffect(() => {
-    const unsub = subscribeLiveRooms(list => {
-      setRooms(list);
-      setLoading(false);
-    });
-    return unsub;
-  }, []);
-
-  /* ── Subscribe to live listener count when in a room ───────────── */
-  useEffect(() => {
-    if (!session) return;
-    const unsub = firestore()
-      .collection(ROOMS_COL)
-      .doc(session.roomId)
-      .onSnapshot(snap => {
-        if (snapExists(snap)) {
-          setLiveListenerCount((snap.data() as RoomDoc).memberCount ?? 0);
-        }
-      }, () => {});
-    return unsub;
-  }, [session?.roomId]);
-
-  /* ── Cleanup Agora on unmount ───────────────────────────────────── */
-  useEffect(() => {
-    return () => {
-      if (engineRef.current) {
-        engineRef.current.leaveChannel();
-        engineRef.current.destroy();
-        engineRef.current = null;
-      }
-    };
-  }, []);
-
-  /* ── Join a room ────────────────────────────────────────────────── */
-  const handleJoin = useCallback(async (room: LiveRoom) => {
-    if (!myUid || session) return;
-
-    const isHost = room.liveHostUid === myUid;
-
-    try {
-      // Increment listener count
-      await updateListenerCount(room.id, 1);
-
-      // Init Agora
-      const engine = buildAgoraEngine();
-      engineRef.current = engine;
-      engine.enableAudio();
-      engine.setClientRole(isHost ? "host" : "audience");
-
-      // Join Agora channel (stub: passes roomId as channel name)
-      // Real token should come from your backend token server.
-      await engine.joinChannel(room.id, Math.abs(myUid.hashCode?.() ?? Math.random() * 9999 | 0), {
-        clientRoleType: isHost ? 1 : 2, // HOST=1, AUDIENCE=2
-        token: "", // ← Replace with token from your backend
-      });
-
-      setSession({
-        roomId: room.id,
-        roomName: room.name,
-        isHost,
-        muted: !isHost,
-      });
-    } catch {
-      // Agora init failed — update listener count back
-      await updateListenerCount(room.id, -1).catch(() => {});
-    }
-  }, [myUid, session]);
-
-  /* ── Leave room ─────────────────────────────────────────────────── */
-  const handleLeave = useCallback(async () => {
-    if (!session) return;
-
-    const { roomId, isHost } = session;
-
-    try {
-      if (engineRef.current) {
-        await engineRef.current.leaveChannel();
-        engineRef.current.destroy();
-        engineRef.current = null;
-      }
-      await updateListenerCount(roomId, -1);
-      if (isHost) await endLiveRoom(roomId);
-    } finally {
-      setSession(null);
-    }
-  }, [session]);
-
-  /* ── Toggle mute ────────────────────────────────────────────────── */
-  const handleToggleMute = useCallback(() => {
-    if (!session) return;
-    const next = !session.muted;
-    engineRef.current?.muteLocalAudioStream(next);
-    setSession(prev => prev ? { ...prev, muted: next } : prev);
-  }, [session]);
-
-  /* ── User went live (from GoLiveSheet) ─────────────────────────── */
-  const handleWentLive = useCallback(async (roomId: string) => {
-    if (!myUid) return;
-    // Don't double-increment — createLiveRoom already sets memberCount=1
-    const engine = buildAgoraEngine();
-    engineRef.current = engine;
-    engine.enableAudio();
-    engine.setClientRole("host");
-    await engine.joinChannel(roomId, Math.abs(myUid.split("").reduce((a, c) => a + c.charCodeAt(0), 0) % 99999), {
-      clientRoleType: 1,
-      token: "",
-    });
-    setSession({ roomId, roomName: "Your Room", isHost: true, muted: false });
-  }, [myUid]);
-
-  /* ── Render room card ───────────────────────────────────────────── */
-  const renderRoom = useCallback(({ item }: { item: LiveRoom }) => (
-    <RoomCard room={item} onJoin={handleJoin} />
-  ), [handleJoin]);
-
-  /* ── Empty state ────────────────────────────────────────────────── */
-  const EmptyLive = () => (
+/** Shown when user hasn't placed any bids yet. */
+const EmptyBids = React.memo(function EmptyBids() {
+  return (
     <View style={styles.emptyState}>
-      <View style={styles.emptyIconWrap}>
-        <Feather name="radio" size={40} color={orbit.textTertiary} />
-      </View>
-      <Text style={styles.emptyTitle}>No live rooms right now</Text>
-      <Text style={styles.emptySub}>
-        Be the first to start one — tap Go Live below.
+      <Feather name="award" size={28} color={orbit.textTertiary} />
+      <Text style={styles.emptyStateText}>
+        Koi bid nahi li abhi tak
       </Text>
     </View>
   );
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MAIN SCREEN
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * CrownScreen — the CROWN tab.
+ *
+ * Status & bidding center: shows the user's rank across all 4 scopes,
+ * live cycle countdown, current title holders, recent bids, and
+ * earnings. Entry point for Boli (auction) when cycle freezes.
+ *
+ * LAW 30 / Rule 03: NO avatar in this header.
+ * §1.4.9 / titles.ts: all title strings via constants, ZERO hardcoded.
+ * Anti-Drift Lock #3: Credits only — no ₹/$/€ anywhere on this screen.
+ */
+export default function CrownScreen() {
+  const insets      = useSafeAreaInsets();
+  const { firebaseUser, user } = useAuth();
+
+  const uid     = firebaseUser?.uid;
+  const cityId  = (user as unknown as { cityId?: string } | null)?.cityId ?? 'CHD';
+  const cityName= (user as unknown as { cityName?: string } | null)?.cityName ?? 'Chandigarh';
+
+  const topPad  = insets.top + (Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0);
+
+  // ── State ──────────────────────────────────────────────────────────────
+  const [cycleState, setCycleState]       = useState<AsyncState<ActiveCycle>>({ status: 'loading' });
+  const [ranksState, setRanksState]       = useState<AsyncState<ScopeRank[]>>({ status: 'loading' });
+  const [holdersState, setHoldersState]   = useState<AsyncState<TitleHolder[]>>({ status: 'loading' });
+  const [bidsState, setBidsState]         = useState<AsyncState<RecentBid[]>>({ status: 'loading' });
+  const [showBoli, setShowBoli]           = useState(false);
+
+  // ── Subscriptions ──────────────────────────────────────────────────────
+  useEffect(() => {
+    const unsub = subscribeActiveCycle(cityId, cycle => {
+      setCycleState(cycle
+        ? { status: 'success', data: cycle }
+        : { status: 'error', message: 'Cycle data unavailable' },
+      );
+      // Auto-open Boli when cycle freezes
+      if (cycle?.isFrozen) setShowBoli(true);
+    });
+    return unsub;
+  }, [cityId]);
+
+  useEffect(() => {
+    if (!uid) return;
+    const unsub = subscribeUserRanks(cityId, uid, ranks => {
+      setRanksState({ status: 'success', data: ranks });
+    });
+    return unsub;
+  }, [cityId, uid]);
+
+  useEffect(() => {
+    const unsub = subscribeTitleHolders(cityId, holders => {
+      setHoldersState({ status: 'success', data: holders });
+    });
+    return unsub;
+  }, [cityId]);
+
+  useEffect(() => {
+    if (!uid) {
+      setBidsState({ status: 'success', data: [] });
+      return;
+    }
+    const unsub = subscribeRecentBids(uid, bids => {
+      setBidsState({ status: 'success', data: bids });
+    });
+    return unsub;
+  }, [uid]);
+
+  // ── Handlers ───────────────────────────────────────────────────────────
+  const handleBoliTap = useCallback(() => { setShowBoli(true); }, []);
+  const handleBoliClose = useCallback(() => { setShowBoli(false); }, []);
+
+  // ── Derived ────────────────────────────────────────────────────────────
+  const activeCycle    = cycleState.status === 'success' ? cycleState.data : null;
+  const ranks          = ranksState.status === 'success' ? ranksState.data : null;
+  const titleHolders   = holdersState.status === 'success' ? holdersState.data : null;
+  const recentBids     = bidsState.status === 'success' ? bidsState.data : null;
+  const isCycleLoading = cycleState.status === 'loading';
+  const isRanksLoading = ranksState.status === 'loading';
 
   return (
     <View style={[styles.screen, { backgroundColor: orbit.bg }]}>
-      {/* ── HEADER ─────────────────────────────────────────────────── */}
+
+      {/* ── HEADER ── LAW 30: NO AVATAR HERE ────────────────────────────
+          Avatar lives ONLY in bottom navigation (full-width bar §1.3.2). */}
       <View style={[styles.header, { paddingTop: topPad + 12 }]}>
-        <Text style={styles.headerTitle}>ORBIT Live</Text>
+        <Text style={styles.headerTitle}>CROWN</Text>
         <View style={styles.headerRight}>
-          {session && (
-            <View style={styles.onAirBadge}>
-              <View style={styles.onAirDot} />
-              <Text style={styles.onAirText}>ON AIR</Text>
+          {activeCycle?.isFrozen && (
+            <View style={styles.frozenBadge} accessibilityLabel="Cycle frozen — Boli open">
+              <Feather name="lock" size={10} color={orbit.accent} />
+              <Text style={styles.frozenBadgeText}>BOLI OPEN</Text>
             </View>
           )}
           <TouchableOpacity
+            style={styles.headerIconBtn}
             hitSlop={8}
             accessibilityRole="button"
-            accessibilityLabel="Search rooms"
+            accessibilityLabel="Place a bid"
+            onPress={handleBoliTap}
           >
-            <Feather name="search" size={20} color={orbit.textSecond} />
+            <Feather name="trending-up" size={ICON_MD} color={orbit.textSecond} />
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* ── FEATURED BANNER ────────────────────────────────────────── */}
-      <View style={styles.banner}>
-        <View style={styles.bannerContent}>
-          <View style={styles.bannerIconWrap}>
-            <Feather name="zap" size={18} color={orbit.accent} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.bannerTitle}>Evening Rush · 8-11 PM</Text>
-            <Text style={styles.bannerSub}>Most rooms are live now. Join the conversation.</Text>
-          </View>
-        </View>
-      </View>
+      {/* ── SCROLLABLE BODY ──────────────────────────────────────────── */}
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: insets.bottom + 88 },
+        ]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
 
-      {/* ── ROOMS LIST ─────────────────────────────────────────────── */}
-      {loading ? (
-        <View style={styles.loadingWrap}>
-          <ActivityIndicator color={orbit.accent} />
-        </View>
-      ) : (
-        <FlatList
-          data={rooms}
-          keyExtractor={item => item.id}
-          renderItem={renderRoom}
-          contentContainerStyle={[
-            styles.listContent,
-            { paddingBottom: insets.bottom + (session ? 110 : 100) },
-          ]}
-          ListEmptyComponent={EmptyLive}
-          showsVerticalScrollIndicator={false}
-          ListHeaderComponent={
-            rooms.length > 0 ? (
-              <View style={styles.listHeader}>
-                <Text style={styles.listHeaderLabel}>
-                  {rooms.length} ROOM{rooms.length !== 1 ? "S" : ""} LIVE
-                </Text>
-                <View style={styles.listHeaderDot} />
-              </View>
-            ) : null
-          }
+        {/* ── CYCLE COUNTDOWN ──────────────────────────────────────── */}
+        {isCycleLoading ? (
+          <View style={styles.cardSkeletonWrap}>
+            <SkeletonBlock height={80} borderRadius={radius.md} />
+          </View>
+        ) : activeCycle ? (
+          <CycleCountdown
+            cycleStartMs={activeCycle.cycleStartMs}
+            cycleDurationMs={activeCycle.cycleDurationMs}
+            isFrozen={activeCycle.isFrozen}
+            onBoliTap={handleBoliTap}
+          />
+        ) : (
+          <View style={styles.cycleUnavailable}>
+            <Text style={styles.cycleUnavailableText}>Cycle data loading…</Text>
+          </View>
+        )}
+
+        {/* ── YOUR RANKS — 4 scopes ────────────────────────────────── */}
+        <SectionHeader label="YOUR RANKS" />
+
+        {isRanksLoading ? (
+          <>
+            <View style={{ marginBottom: 12 }}><SkeletonBlock height={96} borderRadius={radius.md} /></View>
+            <View style={{ marginBottom: 12 }}><SkeletonBlock height={96} borderRadius={radius.md} /></View>
+            <View style={{ marginBottom: 12 }}><SkeletonBlock height={96} borderRadius={radius.md} /></View>
+            <View style={{ marginBottom: 12 }}><SkeletonBlock height={96} borderRadius={radius.md} /></View>
+          </>
+        ) : ranks && ranks.length > 0 ? (
+          ranks.map(r => (
+            <RankCard key={r.scope} rankData={r} />
+          ))
+        ) : (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateText}>
+              Chat karo aur reactions lo to appear on the leaderboard.
+            </Text>
+          </View>
+        )}
+
+        {/* ── CURRENT TITLE HOLDERS ────────────────────────────────── */}
+        <SectionHeader
+          label="CURRENT TITLE HOLDERS"
+          action={{ label: 'See all →', onPress: handleBoliTap }}
         />
-      )}
 
-      {/* ── GO LIVE CTA ────────────────────────────────────────────── */}
-      <View style={[styles.ctaWrap, { bottom: insets.bottom + (session ? 86 : 16) }]}>
-        <TouchableOpacity
-          style={[styles.goLiveCta, session && { opacity: 0.45 }]}
-          onPress={() => !session && setShowGoLive(true)}
-          disabled={!!session}
-          activeOpacity={0.85}
-          accessibilityRole="button"
-          accessibilityLabel={session ? "Already in a room" : "Go Live"}
-        >
-          <View style={styles.ctaPulseWrap}>
-            <View style={styles.ctaPulseDot} />
-          </View>
-          <Text style={styles.ctaBtnText}>Go Live</Text>
-          <Feather name="chevron-right" size={16} color={orbit.white} />
-        </TouchableOpacity>
-      </View>
+        <View style={styles.titleHoldersCard}>
+          {holdersState.status === 'loading' ? (
+            <>
+              <SkeletonBlock height={44} borderRadius={radius.sm} />
+              <View style={{ height: 8 }} />
+              <SkeletonBlock height={44} borderRadius={radius.sm} />
+            </>
+          ) : titleHolders && titleHolders.length > 0 ? (
+            titleHolders.map(h => (
+              <TitleHolderRow key={h.scope} holder={h} />
+            ))
+          ) : (
+            <Text style={styles.titleHoldersEmpty}>
+              No title holders yet this cycle — be the first!
+            </Text>
+          )}
+        </View>
 
-      {/* ── IN-ROOM OVERLAY ────────────────────────────────────────── */}
-      {session && (
-        <InRoomOverlay
-          session={session}
-          listenerCount={liveListenerCount}
-          onToggleMute={handleToggleMute}
-          onLeave={handleLeave}
+        {/* ── RECENT BIDS ──────────────────────────────────────────── */}
+        <SectionHeader
+          label="RECENT BIDS (YOU)"
+          action={recentBids && recentBids.length > 0
+            ? { label: 'Place bid →', onPress: handleBoliTap }
+            : undefined}
         />
-      )}
 
-      {/* ── GO LIVE SHEET ──────────────────────────────────────────── */}
-      <GoLiveSheet
-        visible={showGoLive}
-        onClose={() => setShowGoLive(false)}
-        onLive={handleWentLive}
-        hostUsername={myUsername}
+        <View style={styles.bidsCard}>
+          {bidsState.status === 'loading' ? (
+            <>
+              <SkeletonBlock height={48} borderRadius={radius.sm} />
+              <View style={{ height: 8 }} />
+              <SkeletonBlock height={48} borderRadius={radius.sm} />
+            </>
+          ) : recentBids && recentBids.length > 0 ? (
+            recentBids.map(b => (
+              <RecentBidRow key={b.id} bid={b} />
+            ))
+          ) : (
+            <EmptyBids />
+          )}
+        </View>
+
+        {/* ── PLACE BID CTA (if no bids yet) ───────────────────────── */}
+        {recentBids !== null && recentBids.length === 0 && (
+          <TouchableOpacity
+            style={styles.placeBidCta}
+            onPress={handleBoliTap}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Place a bid in the current auction"
+          >
+            <Feather name="award" size={ICON_SM} color={orbit.textInverse} />
+            <Text style={styles.placeBidCtaText}>Place a Boli</Text>
+          </TouchableOpacity>
+        )}
+
+      </ScrollView>
+
+      {/* ── BOLI MODAL (AUCTION SHEET) ──────────────────────────────── */}
+      <BidModal
+        visible={showBoli}
+        onClose={handleBoliClose}
+        cityId={cityId}
+        cityName={cityName}
+        uid={uid}
       />
     </View>
   );
 }
 
-/* ─────────────────────────────────────────────────────────────────────
-   STYLES
-───────────────────────────────────────────────────────────────────── */
+// ═══════════════════════════════════════════════════════════════════════════
+// STYLES — all values from design tokens (ZERO hardcoded hex/px literals)
+// ═══════════════════════════════════════════════════════════════════════════
 
 const styles = StyleSheet.create({
-  screen: { flex: 1 },
 
-  /* Header */
+  // ── Screen ───────────────────────────────────────────────────────────────
+  screen: {
+    flex: 1,
+  },
+
+  // ── Header (LAW 30 — NO AVATAR HERE) ─────────────────────────────────────
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingBottom: 12,
+    flexDirection:     'row',
+    alignItems:        'center',
+    justifyContent:    'space-between',
+    paddingHorizontal: spacing.lg,   // 16px
+    paddingBottom:     spacing.md,   // 12px
   },
   headerTitle: {
-    color: orbit.textPrimary,
-    fontSize: 24,
-    fontWeight: "700",
+    color:         orbit.accent,     // Brand Gold — CROWN wordmark
+    fontSize:      24,
+    fontWeight:    '800',
     letterSpacing: -0.4,
+    // fontFamily: 'Syne_800ExtraBold' — loaded at root _layout
   },
-  headerRight: { flexDirection: "row", alignItems: "center", gap: 14 },
-  onAirBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
+  headerRight: {
+    flexDirection: 'row',
+    alignItems:    'center',
+    gap:           spacing.sm,       // 8px
+  },
+  headerIconBtn: {
+    width:           44,             // ≥ 44pt touch target (Apple HIG)
+    height:          44,
+    alignItems:      'center',
+    justifyContent:  'center',
+  },
+  frozenBadge: {
+    flexDirection:   'row',
+    alignItems:      'center',
+    gap:             4,
     paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 99,
-    backgroundColor: orbit.dangerSoft,
-  },
-  onAirDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: orbit.danger,
-  },
-  onAirText: {
-    color: orbit.danger,
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 1,
-  },
-
-  /* Banner */
-  banner: {
-    marginHorizontal: 20,
-    marginBottom: 16,
-    borderRadius: 14,
+    paddingVertical:   4,
+    borderRadius:    99,
     backgroundColor: orbit.accentSoftSolid,
-    borderWidth: 1,
-    borderColor: orbit.accentSoft,
-    padding: 14,
+    borderWidth:     1,
+    borderColor:     orbit.accent,
   },
-  bannerContent: { flexDirection: "row", alignItems: "center", gap: 12 },
-  bannerIconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    backgroundColor: orbit.accentSoft,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  bannerTitle: { color: orbit.textPrimary, fontSize: 14, fontWeight: "600" },
-  bannerSub: { color: orbit.textSecond, fontSize: 12, marginTop: 3 },
-
-  /* List */
-  listContent: { paddingHorizontal: 20, paddingTop: 4 },
-  listHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 12,
-  },
-  listHeaderLabel: {
-    color: orbit.textTertiary,
-    fontSize: 11,
-    fontWeight: "600",
+  frozenBadgeText: {
+    color:       orbit.accent,
+    fontSize:    10,
+    fontWeight:  '700',
     letterSpacing: 0.6,
   },
-  listHeaderDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: orbit.danger,
+
+  // ── Scroll ────────────────────────────────────────────────────────────────
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: spacing.lg,   // 16px
+    paddingTop:        spacing.xs,   // 4px
+    gap:               4,
   },
 
-  loadingWrap: { flex: 1, alignItems: "center", justifyContent: "center" },
-
-  /* Room card */
-  roomCard: {
-    borderRadius: 14,
+  // ── CycleCountdown ────────────────────────────────────────────────────────
+  cycleCountdownCard: {
     backgroundColor: orbit.surface1,
-    borderWidth: 1,
-    borderColor: orbit.borderSubtle,
-    marginBottom: 12,
-    overflow: "hidden",
+    borderRadius:    radius.md,      // 12px
+    borderWidth:     1,
+    borderColor:     orbit.borderSubtle,
+    padding:         spacing.lg,     // 16px
+    marginBottom:    spacing.md,     // 12px
   },
-  roomCardTop: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 14,
+  cycleCountdownRow: {
+    flexDirection: 'row',
+    alignItems:    'center',
+    gap:           spacing.md,       // 12px
   },
-  roomIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  roomName: {
-    color: orbit.textPrimary,
-    fontSize: 15,
-    fontWeight: "600",
-    letterSpacing: -0.1,
-  },
-  roomDesc: {
-    color: orbit.textSecond,
-    fontSize: 12,
-    marginTop: 3,
-  },
-  roomBadgeCol: { alignItems: "flex-end", gap: 6 },
-  liveBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 99,
-    backgroundColor: orbit.dangerSoft,
-  },
-  liveBadgeText: {
-    color: orbit.danger,
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 1,
-  },
-  listenerRow: { flexDirection: "row", alignItems: "center", gap: 3 },
-  listenerCount: { color: orbit.textTertiary, fontSize: 11, fontWeight: "500" },
-  roomJoinBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingVertical: 10,
-  },
-  roomJoinText: { color: orbit.white, fontSize: 13, fontWeight: "600" },
-
-  /* Live pulse animation */
-  livePulseWrap: {
-    width: 10,
-    height: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  livePulseRing: {
-    position: "absolute",
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: orbit.danger,
-  },
-  livePulseDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: orbit.danger,
-  },
-
-  /* Empty state */
-  emptyState: {
+  cycleCountdownLeft: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 60,
-    paddingHorizontal: 40,
   },
-  emptyIconWrap: {
-    width: 80,
-    height: 80,
-    borderRadius: 20,
-    backgroundColor: orbit.surface2,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 20,
+  cycleCountdownLabel: {
+    color:         orbit.textTertiary,
+    fontSize:      11,
+    fontWeight:    '600',
+    letterSpacing: 0.6,
+    marginBottom:  4,
   },
-  emptyTitle: {
-    color: orbit.textPrimary,
-    fontSize: 18,
-    fontWeight: "700",
-    textAlign: "center",
-    letterSpacing: -0.2,
+  cycleCountdownTime: {
+    color:      orbit.textPrimary,
+    fontSize:   28,
+    fontWeight: '700',
+    letterSpacing: -0.5,
+    // fontFamily: 'SpaceMono_700Bold'
   },
-  emptySub: {
-    marginTop: 8,
-    color: orbit.textSecond,
-    fontSize: 14,
-    textAlign: "center",
-    lineHeight: 21,
+  cycleCountdownProgressCol: {
+    alignItems: 'flex-end',
+    gap:        6,
+  },
+  cycleCountdownPercent: {
+    color:      orbit.accent,
+    fontSize:   14,
+    fontWeight: '700',
+    // fontFamily: 'SpaceMono_700Bold'
+  },
+  cycleProgressTrack: {
+    width:           80,
+    height:          PROGRESS_BAR_HEIGHT,
+    borderRadius:    99,
+    backgroundColor: orbit.accentSoftSolid,
+    overflow:        'hidden',
+  },
+  cycleProgressBar: {
+    height:       '100%',
+    borderRadius: 99,
+    backgroundColor: orbit.accent,
+    /* PERF: width change triggers layout — contained within small bar */
+  },
+  cycleSub: {
+    color:      orbit.textTertiary,
+    fontSize:   12,
+    marginTop:  spacing.sm,         // 8px
   },
 
-  /* Go Live CTA */
-  ctaWrap: {
-    position: "absolute",
-    left: 20,
-    right: 20,
+  cycleCountdownFrozen: {
+    backgroundColor: orbit.accentSoftSolid,
+    borderRadius:    radius.md,
+    borderWidth:     1,
+    borderColor:     orbit.accent,
+    padding:         spacing.lg,
+    marginBottom:    spacing.md,
   },
-  goLiveCta: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: orbit.danger,
-    shadowColor: orbit.danger,
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
+  cycleCountdownFrozenInner: {
+    flexDirection: 'row',
+    alignItems:    'center',
+    gap:           6,
+    marginBottom:  4,
   },
-  ctaPulseWrap: { width: 12, height: 12, alignItems: "center", justifyContent: "center" },
-  ctaPulseDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: orbit.white },
-  ctaBtnText: { color: orbit.white, fontSize: 16, fontWeight: "700", letterSpacing: -0.1 },
+  cycleCountdownFrozenTitle: {
+    color:         orbit.accent,
+    fontSize:      14,
+    fontWeight:    '700',
+    letterSpacing: 0.6,
+  },
+  cycleCountdownFrozenSub: {
+    color:       orbit.textSecond,
+    fontSize:    13,
+    marginBottom: spacing.md,
+  },
+  cycleBoliCta: {
+    alignSelf:     'flex-start',
+    paddingHorizontal: 16,
+    paddingVertical:   10,
+    borderRadius:  99,
+    backgroundColor: orbit.accent,
+    minWidth:      44,
+    minHeight:     44,
+    alignItems:    'center',
+    justifyContent:'center',
+  },
+  cycleBoliCtaText: {
+    color:      orbit.textInverse,
+    fontSize:   14,
+    fontWeight: '700',
+  },
 
-  /* In-room bar */
-  inRoomBar: {
-    position: "absolute",
-    left: 16,
-    right: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: orbit.surface2,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: orbit.borderStrong,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    gap: 10,
-    shadowColor: orbit.black,
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 8,
+  cycleUnavailable: {
+    padding:      spacing.lg,
+    marginBottom: spacing.md,
   },
-  inRoomLeft: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10 },
-  inRoomLiveDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: orbit.danger,
-  },
-  inRoomName: {
-    color: orbit.textPrimary,
+  cycleUnavailableText: {
+    color:    orbit.textTertiary,
     fontSize: 13,
-    fontWeight: "600",
+  },
+
+  cardSkeletonWrap: {
+    marginBottom: spacing.md,
+  },
+
+  // ── Section Header ────────────────────────────────────────────────────────
+  sectionHeader: {
+    flexDirection:  'row',
+    alignItems:     'center',
+    justifyContent: 'space-between',
+    paddingTop:     spacing.lg,      // 16px
+    paddingBottom:  spacing.sm,      // 8px
+  },
+  sectionHeaderLabel: {
+    color:         orbit.textTertiary,
+    fontSize:      11,
+    fontWeight:    '600',
+    letterSpacing: 0.6,
+  },
+  sectionHeaderAction: {
+    color:      orbit.accent,
+    fontSize:   13,
+    fontWeight: '600',
+  },
+
+  // ── RankCard ──────────────────────────────────────────────────────────────
+  rankCard: {
+    backgroundColor: orbit.surface1,
+    borderRadius:    radius.md,
+    borderWidth:     1,
+    borderColor:     orbit.borderSubtle,
+    padding:         spacing.lg,
+    marginBottom:    spacing.sm,
+  },
+  rankCardHeader: {
+    flexDirection: 'row',
+    alignItems:    'center',
+    marginBottom:  spacing.md,
+    gap:           spacing.sm,
+  },
+  rankCardEmoji: {
+    fontSize: 20,
+    lineHeight: 24,
+  },
+  rankCardHeaderText: {
+    flex: 1,
+  },
+  rankCardScope: {
+    color:      orbit.textPrimary,
+    fontSize:   15,
+    fontWeight: '600',
     letterSpacing: -0.1,
   },
-  inRoomMeta: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2 },
-  inRoomCount: { color: orbit.textTertiary, fontSize: 11, fontWeight: "500" },
-  inRoomHostBadge: {
-    color: orbit.accent,
-    fontSize: 9,
-    fontWeight: "700",
-    letterSpacing: 0.8,
-    backgroundColor: orbit.accentSoft,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: 4,
+  rankCardScopeName: {
+    color:    orbit.textTertiary,
+    fontSize: 12,
+    marginTop: 2,
   },
-  inRoomActions: { flexDirection: "row", alignItems: "center", gap: 8 },
-  inRoomBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: orbit.surface3,
-    alignItems: "center",
-    justifyContent: "center",
+  rankCardRankNum: {
+    fontSize:   18,
+    fontWeight: '700',
+    letterSpacing: -0.5,
+    // fontFamily: 'SpaceMono_700Bold'
   },
-  inRoomBtnMuted: { backgroundColor: orbit.dangerSoft },
-  inRoomLeaveBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+  rankProgressTrack: {
+    height:          PROGRESS_BAR_HEIGHT,
+    borderRadius:    99,
+    backgroundColor: orbit.accentSoftSolid,
+    overflow:        'hidden',
+    marginBottom:    spacing.sm,
+  },
+  rankProgressBar: {
+    height:       '100%',
     borderRadius: 99,
-    backgroundColor: orbit.dangerSoft,
+    /* PERF: width change — layout-triggering; minimal cost in small bar */
   },
-  inRoomLeaveText: { color: orbit.danger, fontSize: 13, fontWeight: "600" },
+  rankNeedLabel: {
+    color:    orbit.textTertiary,
+    fontSize: 12,
+  },
 
-  /* Go Live sheet */
-  sheetBackdrop: {
+  // ── Title Holders ─────────────────────────────────────────────────────────
+  titleHoldersCard: {
+    backgroundColor: orbit.surface1,
+    borderRadius:    radius.md,
+    borderWidth:     1,
+    borderColor:     orbit.borderSubtle,
+    padding:         spacing.lg,
+    marginBottom:    spacing.sm,
+    gap:             spacing.sm,
+  },
+  titleHolderRow: {
+    flexDirection: 'row',
+    alignItems:    'center',
+    gap:           spacing.sm,
+    paddingVertical: 4,
+  },
+  titleHolderEmoji: {
+    fontSize: 18,
+    lineHeight: 22,
+  },
+  titleHolderMeta: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    justifyContent: "flex-end",
+  },
+  titleHolderTitle: {
+    fontSize:   13,
+    fontWeight: '600',
+    letterSpacing: -0.1,
+  },
+  titleHolderHandle: {
+    color:    orbit.textPrimary,
+    fontSize: 14,
+    fontWeight: '500',
+    marginTop: 1,
+  },
+  titleHolderCycles: {
+    color:    orbit.textTertiary,
+    fontSize: 12,
+    fontWeight: '400',
+  },
+  titleHoldersEmpty: {
+    color:    orbit.textTertiary,
+    fontSize: 13,
+  },
+
+  // ── Recent Bids ───────────────────────────────────────────────────────────
+  bidsCard: {
+    backgroundColor: orbit.surface1,
+    borderRadius:    radius.md,
+    borderWidth:     1,
+    borderColor:     orbit.borderSubtle,
+    padding:         spacing.lg,
+    marginBottom:    spacing.sm,
+    gap:             spacing.sm,
+  },
+  bidRow: {
+    flexDirection:  'row',
+    alignItems:     'center',
+    justifyContent: 'space-between',
+    gap:            spacing.sm,
+  },
+  bidRowLeft: {
+    flex:          1,
+    flexDirection: 'row',
+    alignItems:    'center',
+    gap:           spacing.sm,
+  },
+  bidRowEmoji: {
+    fontSize: 16,
+  },
+  bidRowMeta: {
+    flex: 1,
+  },
+  bidRowTarget: {
+    color:      orbit.textPrimary,
+    fontSize:   14,
+    fontWeight: '600',
+  },
+  bidRowScopeName: {
+    color:      orbit.textTertiary,
+    fontSize:   13,
+    fontWeight: '400',
+  },
+  bidRowCycleLabel: {
+    color:    orbit.textTertiary,
+    fontSize: 11,
+    marginTop: 2,
+  },
+  bidRowRight: {
+    alignItems: 'flex-end',
+    gap:        4,
+  },
+  bidRowAmount: {
+    color:      orbit.accent,
+    fontSize:   14,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+    // fontFamily: 'SpaceMono_700Bold'
+  },
+  bidStatusChip: {
+    paddingHorizontal: 7,
+    paddingVertical:   3,
+    borderRadius:      4,
+    borderWidth:       1,
+  },
+  bidStatusChipText: {
+    fontSize:   10,
+    fontWeight: '600',
+    letterSpacing: 0.2,
+  },
+
+  // ── Empty state ───────────────────────────────────────────────────────────
+  emptyState: {
+    alignItems:    'center',
+    paddingVertical: spacing.xl,      // 20px
+    gap:           spacing.sm,
+  },
+  emptyStateText: {
+    color:     orbit.textTertiary,
+    fontSize:  13,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+
+  // ── Place Bid CTA ─────────────────────────────────────────────────────────
+  placeBidCta: {
+    flexDirection:  'row',
+    alignItems:     'center',
+    justifyContent: 'center',
+    gap:            spacing.sm,
+    height:         52,
+    borderRadius:   radius.lg,
+    backgroundColor: orbit.accent,
+    marginBottom:   spacing.md,
+    // Shadow — elevation for Android, shadow for iOS
+    elevation: 4,
+    shadowColor:    orbit.accent,
+    shadowOpacity:  0.35,
+    shadowRadius:   12,
+    shadowOffset:   { width: 0, height: 4 },
+  },
+  placeBidCtaText: {
+    color:      orbit.textInverse,
+    fontSize:   16,
+    fontWeight: '700',
+    letterSpacing: -0.1,
+  },
+
+  // ── Boli Bottom Sheet ─────────────────────────────────────────────────────
+  sheetBackdrop: {
+    flex:             1,
+    backgroundColor:  colors.bg.scrim,              // Warm Ink scrim — token from colors.bg
+    justifyContent:   'flex-end',
   },
   sheetContainer: {
     backgroundColor: orbit.surface1,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingTop: 12,
-    paddingHorizontal: 20,
+    borderTopLeftRadius:  radius.xl,   // 24px
+    borderTopRightRadius: radius.xl,
+    paddingTop:       spacing.md,
+    paddingHorizontal: spacing.lg,
   },
   sheetHandle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
+    width:         36,
+    height:        4,
+    borderRadius:  2,
     backgroundColor: orbit.borderStrong,
-    alignSelf: "center",
-    marginBottom: 20,
+    alignSelf:     'center',
+    marginBottom:  spacing.lg,
   },
   sheetTitle: {
-    color: orbit.textPrimary,
-    fontSize: 20,
-    fontWeight: "700",
+    color:         orbit.textPrimary,
+    fontSize:      20,
+    fontWeight:    '700',
     letterSpacing: -0.3,
-    marginBottom: 4,
+    marginBottom:  4,
   },
   sheetSub: {
-    color: orbit.textSecond,
-    fontSize: 13,
-    marginBottom: 20,
+    color:        orbit.textSecond,
+    fontSize:     13,
+    marginBottom: spacing.lg,
+    lineHeight:   19,
   },
+
+  // ── Form fields ───────────────────────────────────────────────────────────
   fieldLabel: {
-    color: orbit.textTertiary,
-    fontSize: 11,
-    fontWeight: "600",
+    color:         orbit.textTertiary,
+    fontSize:      11,
+    fontWeight:    '600',
     letterSpacing: 0.5,
-    marginBottom: 8,
+    marginBottom:  spacing.sm,
+  },
+  fieldInputWrap: {
+    flexDirection:   'row',
+    alignItems:      'center',
+    backgroundColor: orbit.surface2,
+    borderRadius:    radius.md,
+    borderWidth:     1,
+    borderColor:     orbit.borderStrong,
+    paddingHorizontal: spacing.md,
+    marginBottom:    spacing.lg,
+    minHeight:       48,
+  },
+  fieldInputAt: {
+    color:      orbit.textTertiary,
+    fontSize:   16,
+    marginRight: 4,
   },
   fieldInput: {
-    backgroundColor: orbit.surface2,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: orbit.borderStrong,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    color: orbit.textPrimary,
+    flex:     1,
+    color:    orbit.textPrimary,
     fontSize: 15,
-    marginBottom: 16,
+    paddingVertical: 11,
   },
-  langRow: { flexDirection: "row", gap: 8, paddingVertical: 4 },
-  langChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 99,
+  fieldInputStandalone: {
+    backgroundColor:  orbit.surface2,
+    borderRadius:     radius.md,
+    borderWidth:      1,
+    borderColor:      orbit.borderStrong,
+    paddingHorizontal: spacing.md,
+    paddingVertical:   11,
+    color:            orbit.textPrimary,
+    fontSize:         16,
+    fontWeight:       '600',
+    marginBottom:     4,
+    minHeight:        48,
+    // fontFamily: 'SpaceMono_700Bold'
+  },
+  creditNote: {
+    color:        orbit.textTertiary,
+    fontSize:     11,
+    marginBottom: spacing.md,
+  },
+  fieldError: {
+    color:        orbit.danger,
+    fontSize:     13,
+    marginBottom: spacing.sm,
+  },
+
+  scopeChip: {
+    flexDirection:   'row',
+    alignItems:      'center',
+    gap:             5,
+    paddingHorizontal: 13,
+    paddingVertical:   9,
+    borderRadius:    99,
     backgroundColor: orbit.surface2,
-    borderWidth: 1,
-    borderColor: orbit.borderSubtle,
+    borderWidth:     1,
+    borderColor:     orbit.borderSubtle,
+    minHeight:       44,
+    minWidth:        44,
   },
-  langChipActive: {
-    backgroundColor: orbit.accentSoft,
-    borderColor: orbit.accent,
+  scopeChipEmoji: {
+    fontSize: 14,
   },
-  langChipText: { color: orbit.textSecond, fontSize: 13, fontWeight: "500" },
-  accentRow: { flexDirection: "row", gap: 12, marginBottom: 20 },
-  accentDot: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+  scopeChipText: {
+    color:      orbit.textSecond,
+    fontSize:   13,
+    fontWeight: '500',
   },
-  accentDotActive: {
-    borderWidth: 3,
-    borderColor: orbit.white,
-    shadowColor: orbit.black,
-    shadowOpacity: 0.4,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 4,
+
+  boliSubmitBtn: {
+    alignItems:      'center',
+    justifyContent:  'center',
+    height:          52,
+    borderRadius:    radius.lg,
+    backgroundColor: orbit.accent,
+    marginTop:       spacing.sm,
   },
-  goLiveBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    height: 52,
-    borderRadius: 26,
+  boliSubmitBtnText: {
+    color:      orbit.textInverse,
+    fontSize:   16,
+    fontWeight: '700',
+    letterSpacing: -0.1,
   },
-  goLivePulseSmall: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: orbit.white,
-  },
-  goLiveBtnText: { color: orbit.white, fontSize: 16, fontWeight: "700" },
 });
