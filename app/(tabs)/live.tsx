@@ -44,7 +44,6 @@ import React, {
 } from 'react';
 import {
   ActivityIndicator,
-  Animated,
   Modal,
   Platform,
   Pressable,
@@ -78,7 +77,7 @@ import {
   type TitleTier,
 }                              from '@/constants/titles';
 import { useAuth }             from '@/contexts/AuthContext';
-import { firestore }           from '@/lib/firebase';
+import { firestore, serverTimestamp } from '@/lib/firebase';
 
 // ─── snap.exists — boolean property, NEVER a function call ──────────────────
 /** Reads DocumentSnapshot.exists as a boolean property (never call it). */
@@ -109,7 +108,7 @@ const ICON_LG  = 24 as const;
 /** Spring config — standard Glass-Era responsive feel */
 const SPRING_BASE = { mass: 1, stiffness: 200, damping: 24 } as const;
 
-/** Spring config — bouncy for BidModal entry */
+/** Spring config — bouncy for BidModal entry (Reanimated v4 withSpring) */
 const SPRING_BOUNCE = { mass: 1, stiffness: 180, damping: 14 } as const;
 
 /** Shimmer loop duration ms */
@@ -162,6 +161,18 @@ type AsyncState<T> =
   | { status: 'loading' }
   | { status: 'success'; data: T }
   | { status: 'error'; message: string };
+
+/** Monthly earnings summary for this user (CROWN tab §1.3.5). */
+interface CycleEarnings {
+  /** Number of days user held Sector top-10 this calendar month */
+  sectorHeroDays:   number;
+  /** Number of days user appeared in City top-100 this month */
+  cityTop100Days:   number;
+  /** Number of full title wins (any scope) this month */
+  titlesEarned:     number;
+  /** Total Credits earned from title bid-fee shares this month */
+  earnedCredits:    number;
+}
 
 /** Active cycle metadata (Firestore /cities/{cityId}/cycles/current) */
 interface ActiveCycle {
@@ -329,7 +340,37 @@ function subscribeTitleHolders(
     );
 }
 
-// ─── Firestore helpers — pure data helpers (no Firebase) ────────────────────
+/**
+ * Subscribes to monthly earnings summary for this user.
+ * Reads /users/{uid}/earningsMonthly/current.
+ *
+ * @param uid      - The authenticated user's UID
+ * @param onChange - Callback with latest earnings or null
+ * @returns Unsubscribe function
+ */
+function subscribeCycleEarnings(
+  uid: string,
+  onChange: (earnings: CycleEarnings | null) => void,
+): () => void {
+  return firestore()
+    .collection('users')
+    .doc(uid)
+    .collection('earningsMonthly')
+    .doc('current')
+    .onSnapshot(
+      snap => {
+        if (!snapExists(snap)) { onChange(null); return; }
+        const raw = snap.data() as Partial<CycleEarnings> | undefined;
+        onChange({
+          sectorHeroDays: raw?.sectorHeroDays  ?? 0,
+          cityTop100Days: raw?.cityTop100Days   ?? 0,
+          titlesEarned:   raw?.titlesEarned     ?? 0,
+          earnedCredits:  raw?.earnedCredits    ?? 0,
+        });
+      },
+      () => onChange(null),
+    );
+}
 
 /** Builds a fallback unranked ScopeRank when a leaderboard doc is absent. */
 function buildUnrankedScopeRank(scope: TitleTier, cityId: string): ScopeRank {
@@ -357,30 +398,35 @@ function parseScopeRank(
     | null
     | undefined);
 
-  const reactionsHeld = userEntry?.reactions ?? 0;
-  const rank          = userEntry?.rank ?? 0;
-  const nextMilestone = computeNextMilestone(reactionsHeld);
-  const prevMilestone = computePrevMilestone(nextMilestone);
-  const progressFraction = prevMilestone >= nextMilestone
+  const reactionsHeld    = userEntry?.reactions ?? 0;
+  const rank             = userEntry?.rank ?? 0;
+  const nextMilestone    = computeNextMilestone(reactionsHeld);
+  const isMaxed          = nextMilestone === null;
+  const effectiveNext    = isMaxed ? 1_00_000 : nextMilestone;
+  const prevMilestone    = computePrevMilestone(effectiveNext);
+  const progressFraction = isMaxed
     ? 1
-    : Math.min((reactionsHeld - prevMilestone) / (nextMilestone - prevMilestone), 1);
+    : prevMilestone >= effectiveNext
+      ? 1
+      : Math.min((reactionsHeld - prevMilestone) / (effectiveNext - prevMilestone), 1);
 
   return {
     scope,
     scopeName:        (raw['scopeName'] as string | undefined) ?? getScopeDisplayName(scope, cityId),
     rank,
     reactionsHeld,
-    reactionsNeeded:  Math.max(0, nextMilestone - reactionsHeld),
-    nextMilestone,
+    reactionsNeeded:  isMaxed ? 0 : Math.max(0, effectiveNext - reactionsHeld),
+    nextMilestone:    effectiveNext,
     progressFraction: Math.max(0, progressFraction),
     isTopTen:         rank > 0 && rank <= 10,
   };
 }
 
-/** Next reaction-count milestone for rank progress display. */
-function computeNextMilestone(current: number): number {
+/** Next reaction-count milestone for rank progress display.
+ *  Returns null when user has surpassed the highest milestone (1 Lakh+). */
+function computeNextMilestone(current: number): number | null {
   const milestones = [100, 500, 1_000, 5_000, 10_000, 50_000, 1_00_000];
-  return milestones.find(m => m > current) ?? 1_00_000;
+  return milestones.find(m => m > current) ?? null;
 }
 
 /** Previous milestone (floor for progress bar). */
@@ -694,7 +740,9 @@ const RankCard = React.memo(function RankCard({ rankData }: RankCardProps) {
           ? 'Start chatting to enter the leaderboard'
           : isTopTen
             ? `Top 10 — held for ${reactionsHeld.toLocaleString('en-IN')} reactions`
-            : `Need ${reactionsNeeded.toLocaleString('en-IN')} more reactions for Top 100`
+            : reactionsNeeded === 0
+              ? `1 Lakh+ reactions — legendary status!`
+              : `Need ${reactionsNeeded.toLocaleString('en-IN')} more reactions for Top 100`
         }
       </Text>
     </View>
@@ -812,6 +860,9 @@ interface BidModalProps {
  * Allows selecting a scope and entering a bid amount in Credits.
  * No ₹ symbol anywhere — Credits only (Anti-Drift Lock #3).
  *
+ * ANIMATION: Reanimated v4 — useSharedValue + withSpring + withTiming.
+ * placedAt uses serverTimestamp() — never client new Date().
+ *
  * @param visible  - Whether this sheet is visible
  * @param onClose  - Called to dismiss
  * @param cityId   - Current city shard (for Firestore write target)
@@ -825,8 +876,10 @@ const BidModal = React.memo(function BidModal({
   cityName,
   uid,
 }: BidModalProps) {
-  const insets        = useSafeAreaInsets();
-  const slideAnim     = useRef(new Animated.Value(700)).current;
+  const insets  = useSafeAreaInsets();
+
+  /* PERF: transform — compositor only — zero layout/paint */
+  const slideY  = useSharedValue(700);
 
   const [selectedScope, setSelectedScope] = useState<TitleTier>('CITY');
   const [targetHandle,  setTargetHandle]  = useState('');
@@ -834,26 +887,25 @@ const BidModal = React.memo(function BidModal({
   const [submitting,    setSubmitting]    = useState(false);
   const [error,         setError]         = useState<string | null>(null);
 
+  /* Reanimated v4 slide-up / slide-down animation (SPRING_BOUNCE) */
   useEffect(() => {
     if (visible) {
-      Animated.spring(slideAnim, {
-        toValue:   0,
-        useNativeDriver: true,
-        tension:   80,
-        friction:  12,
-      }).start();
+      slideY.value = withSpring(0, SPRING_BOUNCE);
     } else {
-      Animated.timing(slideAnim, {
-        toValue:   700,
-        duration:  220,
-        useNativeDriver: true,
-      }).start();
+      slideY.value = withTiming(700, {
+        duration: 220,
+        easing:   Easing.in(Easing.ease),
+      });
       setTargetHandle('');
       setBidAmount('');
       setError(null);
       setSubmitting(false);
     }
-  }, [visible, slideAnim]);
+  }, [visible, slideY]);
+
+  const sheetAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: slideY.value }],
+  }));
 
   const parsedAmount = useMemo((): number | null => {
     const n = parseInt(bidAmount.replace(/[^0-9]/g, ''), 10);
@@ -879,7 +931,7 @@ const BidModal = React.memo(function BidModal({
           targetHandle:  targetHandle.trim(),
           amountCredits: parsedAmount,
           status:        'pending',
-          placedAt:      new Date(), // server-side timestamps set via Cloud Function
+          placedAt:      serverTimestamp(), // server-authoritative — never client new Date()
         });
       onClose();
     } catch {
@@ -903,10 +955,11 @@ const BidModal = React.memo(function BidModal({
         accessibilityRole="button"
         accessibilityLabel="Close Boli sheet"
       >
-        <Animated.View
+        <Reanimated.View
           style={[
             styles.sheetContainer,
-            { paddingBottom: insets.bottom + 24, transform: [{ translateY: slideAnim }] },
+            { paddingBottom: insets.bottom + 24 },
+            sheetAnimStyle,
           ]}
         >
           {/* Stop backdrop dismissal inside sheet */}
@@ -945,13 +998,12 @@ const BidModal = React.memo(function BidModal({
                     hitSlop={4}
                   >
                     <Text style={styles.scopeChipEmoji}>{SCOPE_EMOJI[scope]}</Text>
+                    {/* Render full title from constants — no dead ternary */}
                     <Text style={[
                       styles.scopeChipText,
                       isActive && { color: orbit.accent },
                     ]}>
-                      {TITLE_LABELS.CITY_SHORT === TITLES[scope]
-                        ? TITLE_LABELS.CITY_SHORT
-                        : TITLES[scope]}
+                      {TITLES[scope]}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -1019,9 +1071,80 @@ const BidModal = React.memo(function BidModal({
               }
             </TouchableOpacity>
           </Pressable>
-        </Animated.View>
+        </Reanimated.View>
       </Pressable>
     </Modal>
+  );
+});
+
+// ─── CycleEarningsSection ────────────────────────────────────────────────────
+
+interface CycleEarningsSectionProps {
+  earnings: CycleEarnings | null;
+  loading:  boolean;
+}
+
+/**
+ * Monthly title earnings summary for the current user.
+ * PRD §1.3.5 CROWN Tab layout — "CYCLE EARNINGS (this month)".
+ * Shows: Sector Hero days · City Top-100 days · Titles earned · Credits earned.
+ * No ₹ symbol — Credits only (Anti-Drift Lock #3).
+ *
+ * @param earnings - Parsed CycleEarnings, or null if no data yet
+ * @param loading  - Whether data is loading
+ */
+const CycleEarningsSection = React.memo(function CycleEarningsSection({
+  earnings,
+  loading,
+}: CycleEarningsSectionProps) {
+  return (
+    <View
+      style={styles.earningsCard}
+      accessible
+      accessibilityLabel="Cycle earnings this month"
+    >
+      {loading ? (
+        <>
+          <SkeletonBlock height={16} width={140} borderRadius={radius.sm} />
+          <View style={{ height: 8 }} />
+          <SkeletonBlock height={14} borderRadius={radius.sm} />
+        </>
+      ) : earnings === null ? (
+        <Text style={styles.earningsEmpty}>
+          Koi earnings nahi abhi tak is mahine — title jeeto aur Credits kamao!
+        </Text>
+      ) : (
+        <View style={styles.earningsGrid}>
+          <View style={styles.earningsStat}>
+            <Text style={styles.earningsStatValue}>
+              {earnings.sectorHeroDays}
+            </Text>
+            <Text style={styles.earningsStatLabel}>Sector{'\n'}Hero Days</Text>
+          </View>
+          <View style={styles.earningsDivider} />
+          <View style={styles.earningsStat}>
+            <Text style={styles.earningsStatValue}>
+              {earnings.cityTop100Days}
+            </Text>
+            <Text style={styles.earningsStatLabel}>City Top-100{'\n'}Days</Text>
+          </View>
+          <View style={styles.earningsDivider} />
+          <View style={styles.earningsStat}>
+            <Text style={styles.earningsStatValue}>
+              {earnings.titlesEarned}
+            </Text>
+            <Text style={styles.earningsStatLabel}>Titles{'\n'}Won</Text>
+          </View>
+          <View style={styles.earningsDivider} />
+          <View style={styles.earningsStat}>
+            <Text style={[styles.earningsStatValue, { color: orbit.accent }]}>
+              {formatCredits(earnings.earnedCredits)}
+            </Text>
+            <Text style={styles.earningsStatLabel}>Earned{'\n'}This Month</Text>
+          </View>
+        </View>
+      )}
+    </View>
   );
 });
 
@@ -1098,17 +1221,32 @@ export default function CrownScreen() {
   const [ranksState, setRanksState]       = useState<AsyncState<ScopeRank[]>>({ status: 'loading' });
   const [holdersState, setHoldersState]   = useState<AsyncState<TitleHolder[]>>({ status: 'loading' });
   const [bidsState, setBidsState]         = useState<AsyncState<RecentBid[]>>({ status: 'loading' });
+  const [earningsState, setEarningsState] = useState<AsyncState<CycleEarnings>>({ status: 'loading' });
   const [showBoli, setShowBoli]           = useState(false);
+
+  /**
+   * Tracks whether we've already auto-opened Boli for the current freeze.
+   * Prevents Firestore snapshot re-fires from re-opening a dismissed sheet.
+   */
+  const hasAutoOpenedBoliRef = useRef(false);
 
   // ── Subscriptions ──────────────────────────────────────────────────────
   useEffect(() => {
+    hasAutoOpenedBoliRef.current = false; // reset on city change
     const unsub = subscribeActiveCycle(cityId, cycle => {
       setCycleState(cycle
         ? { status: 'success', data: cycle }
         : { status: 'error', message: 'Cycle data unavailable' },
       );
-      // Auto-open Boli when cycle freezes
-      if (cycle?.isFrozen) setShowBoli(true);
+      // Auto-open Boli only ONCE per freeze — not on every snapshot update
+      if (cycle?.isFrozen && !hasAutoOpenedBoliRef.current) {
+        hasAutoOpenedBoliRef.current = true;
+        setShowBoli(true);
+      }
+      // Reset the auto-open gate when cycle unfreezes
+      if (!cycle?.isFrozen) {
+        hasAutoOpenedBoliRef.current = false;
+      }
     });
     return unsub;
   }, [cityId]);
@@ -1139,17 +1277,37 @@ export default function CrownScreen() {
     return unsub;
   }, [uid]);
 
+  useEffect(() => {
+    if (!uid) {
+      setEarningsState({ status: 'success', data: {
+        sectorHeroDays: 0, cityTop100Days: 0, titlesEarned: 0, earnedCredits: 0,
+      }});
+      return;
+    }
+    const unsub = subscribeCycleEarnings(uid, earnings => {
+      setEarningsState(earnings
+        ? { status: 'success', data: earnings }
+        : { status: 'success', data: {
+            sectorHeroDays: 0, cityTop100Days: 0, titlesEarned: 0, earnedCredits: 0,
+          }},
+      );
+    });
+    return unsub;
+  }, [uid]);
+
   // ── Handlers ───────────────────────────────────────────────────────────
   const handleBoliTap = useCallback(() => { setShowBoli(true); }, []);
   const handleBoliClose = useCallback(() => { setShowBoli(false); }, []);
 
   // ── Derived ────────────────────────────────────────────────────────────
-  const activeCycle    = cycleState.status === 'success' ? cycleState.data : null;
-  const ranks          = ranksState.status === 'success' ? ranksState.data : null;
-  const titleHolders   = holdersState.status === 'success' ? holdersState.data : null;
-  const recentBids     = bidsState.status === 'success' ? bidsState.data : null;
-  const isCycleLoading = cycleState.status === 'loading';
-  const isRanksLoading = ranksState.status === 'loading';
+  const activeCycle      = cycleState.status === 'success' ? cycleState.data : null;
+  const ranks            = ranksState.status === 'success' ? ranksState.data : null;
+  const titleHolders     = holdersState.status === 'success' ? holdersState.data : null;
+  const recentBids       = bidsState.status === 'success' ? bidsState.data : null;
+  const earningsData     = earningsState.status === 'success' ? earningsState.data : null;
+  const isCycleLoading   = cycleState.status === 'loading';
+  const isRanksLoading   = ranksState.status === 'loading';
+  const isEarningsLoading= earningsState.status === 'loading';
 
   return (
     <View style={[styles.screen, { backgroundColor: orbit.bg }]}>
@@ -1290,6 +1448,13 @@ export default function CrownScreen() {
           </TouchableOpacity>
         )}
 
+        {/* ── CYCLE EARNINGS (THIS MONTH) ──────────────────────────── */}
+        <SectionHeader label="CYCLE EARNINGS (THIS MONTH)" />
+        <CycleEarningsSection
+          earnings={earningsData}
+          loading={isEarningsLoading}
+        />
+
       </ScrollView>
 
       {/* ── BOLI MODAL (AUCTION SHEET) ──────────────────────────────── */}
@@ -1326,9 +1491,9 @@ const styles = StyleSheet.create({
   headerTitle: {
     color:         orbit.accent,     // Brand Gold — CROWN wordmark
     fontSize:      24,
+    fontFamily:    'Syne_800ExtraBold', // §1.4.3 — Syne 800 for wordmark, loaded at root _layout
     fontWeight:    '800',
     letterSpacing: -0.4,
-    // fontFamily: 'Syne_800ExtraBold' — loaded at root _layout
   },
   headerRight: {
     flexDirection: 'row',
@@ -1396,9 +1561,9 @@ const styles = StyleSheet.create({
   cycleCountdownTime: {
     color:      orbit.textPrimary,
     fontSize:   28,
+    fontFamily: 'SpaceMono_700Bold', // §1.4.3 — Space Mono 700 for numeric countdown
     fontWeight: '700',
     letterSpacing: -0.5,
-    // fontFamily: 'SpaceMono_700Bold'
   },
   cycleCountdownProgressCol: {
     alignItems: 'flex-end',
@@ -1407,8 +1572,8 @@ const styles = StyleSheet.create({
   cycleCountdownPercent: {
     color:      orbit.accent,
     fontSize:   14,
+    fontFamily: 'SpaceMono_700Bold', // §1.4.3 — numeric display
     fontWeight: '700',
-    // fontFamily: 'SpaceMono_700Bold'
   },
   cycleProgressTrack: {
     width:           80,
@@ -1539,9 +1704,9 @@ const styles = StyleSheet.create({
   },
   rankCardRankNum: {
     fontSize:   18,
+    fontFamily: 'SpaceMono_700Bold', // §1.4.3 — rank numbers in Space Mono
     fontWeight: '700',
     letterSpacing: -0.5,
-    // fontFamily: 'SpaceMono_700Bold'
   },
   rankProgressTrack: {
     height:          PROGRESS_BAR_HEIGHT,
@@ -1654,9 +1819,9 @@ const styles = StyleSheet.create({
   bidRowAmount: {
     color:      orbit.accent,
     fontSize:   14,
+    fontFamily: 'SpaceMono_700Bold', // §1.4.3 — credit amounts in Space Mono
     fontWeight: '700',
     letterSpacing: -0.2,
-    // fontFamily: 'SpaceMono_700Bold'
   },
   bidStatusChip: {
     paddingHorizontal: 7,
@@ -1781,10 +1946,10 @@ const styles = StyleSheet.create({
     paddingVertical:   11,
     color:            orbit.textPrimary,
     fontSize:         16,
+    fontFamily:       'SpaceMono_700Bold', // §1.4.3 — numeric input in Space Mono
     fontWeight:       '600',
     marginBottom:     4,
     minHeight:        48,
-    // fontFamily: 'SpaceMono_700Bold'
   },
   creditNote: {
     color:        orbit.textTertiary,
@@ -1832,5 +1997,50 @@ const styles = StyleSheet.create({
     fontSize:   16,
     fontWeight: '700',
     letterSpacing: -0.1,
+  },
+
+  // ── Cycle Earnings Section ────────────────────────────────────────────────
+  earningsCard: {
+    backgroundColor: orbit.surface1,
+    borderRadius:    radius.md,      // 12px
+    borderWidth:     1,
+    borderColor:     orbit.borderSubtle,
+    padding:         spacing.lg,     // 16px
+    marginBottom:    spacing.sm,
+  },
+  earningsEmpty: {
+    color:    orbit.textTertiary,
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  earningsGrid: {
+    flexDirection:  'row',
+    alignItems:     'stretch',
+    justifyContent: 'space-between',
+  },
+  earningsStat: {
+    flex:       1,
+    alignItems: 'center',
+    gap:        spacing.xs,          // 4px
+  },
+  earningsStatValue: {
+    color:      orbit.textPrimary,
+    fontSize:   17,
+    fontFamily: 'SpaceMono_700Bold', // §1.4.3 — numeric display
+    fontWeight: '700',
+    letterSpacing: -0.5,
+  },
+  earningsStatLabel: {
+    color:     orbit.textTertiary,
+    fontSize:  10,
+    fontWeight: '500',
+    textAlign: 'center',
+    lineHeight: 14,
+  },
+  earningsDivider: {
+    width:           1,
+    backgroundColor: orbit.borderSubtle,
+    marginVertical:  spacing.xs,     // 4px
+    alignSelf:       'stretch',
   },
 });
