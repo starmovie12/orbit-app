@@ -1,201 +1,276 @@
 /**
  * OnlineCountStrip — components/molecules/OnlineCountStrip.tsx
  * ─────────────────────────────────────────────────────────────────────────────
- * CROWD WORLD · Blueprint v5.0 BAAP EDITION · Layer: molecule · Status: new · P0
- * Revision 3 — Radius Protocol compliance: hardcoded pill radii → radii.pill token
+ * CROWN App · PRD v3.2 §9.2 Row 3 — "Online Count Strip"
+ * Blueprint v5.0 BAAP EDITION · Layer: molecule · Status: updated · P0
  *
- * Spec ref   : § Home Screen [4] ONLINE COUNT STRIP
- * Blueprint  : H=32px · Bg=#FFFFFF · Z-Index=900 · justify-content space-between
+ * Revision 4 — PRD v3.2 §9.2 Row 3 full compliance pass
+ *
+ * Spec ref   : §9.2 Row 3 — "Always Names the Active Scope" (Founder-Locked)
+ * Blueprint  : H=32px · Bg=colors.bg.surface · Z-Index=900 · justify-content space-between
  * Position   : 103–135px from screen top — ABOVE FOLD on all target devices ✓
  *
  * Sub-elements
  * ────────────
- *  [4.A] Online Member Pill   — LiveDot (amber, white ring) + count text
- *  [4.B] Heat Score Pill      — gradient pill · visible only when heatScore ≥ 30
- *  [4.C] Trust Anchor Chip    — conditional · first session of calendar day
+ *  [4.A] Pulsing Dot         — 8×8px amber circle · Animated opacity loop 1500ms
+ *  [4.A] Count Text          — scope-aware text · Inter 500 12px · text-muted
+ *  [4.B] Heat Score Pill     — flat amber[50] bg · "🔥 Heat {score}" · visible only ≥30
+ *  [4.C] Trust Anchor Chip   — "📍 1.2 Lakh+" · gold[50] bg · first session · 60s hide
  *
- * Layout    : flex-row · justify-content space-between · align-items center
- * Left side : [4.A]
- * Right side : [4.B] + [4.C] — row with 8px gap
- *
- * Deps      : atoms/LiveDot · atoms/Skeleton
- *             (HeatPulseDot not used — Blueprint §[4.B] replaces it with gradient pill)
+ * Founder-Locked Rule: Row 3 ALWAYS names the active scope's geography.
+ *   NEVER "234K online" — ALWAYS "234K Mumbai mein online".
  *
  * REVISION HISTORY
  * ────────────────
  * Rev 1 — Initial implementation
  * Rev 2 — Fixed: bg/zIndex · heat pill gradient · layout · trust anchor
- * Rev 3 — Fixed: HEAT_PILL_RADIUS + TRUST_CHIP_RADIUS hardcoded → radii.pill token
- *          Removed: HEAT_PILL_RADIUS const (was 11 — height/2 manual calc, Spec violation)
- *          Removed: TRUST_CHIP_RADIUS const (was 12 — height/2 manual calc, Spec violation)
- *          Added  : radii.pill (28) used directly in StyleSheet for both pill shapes
- *          Rationale: RN clamps borderRadius to height/2 automatically, so radii.pill=28
- *          on a 22px or 24px element still renders a perfect pill — token wins.
+ * Rev 3 — Radius Protocol: hardcoded pill radii → radii.pill token
+ * Rev 4 — PRD v3.2 §9.2 Row 3 compliance:
+ *          CHANGED : props interface — count → onlineCount; added scope / cityLabel / sectorLabel
+ *          CHANGED : count formatting — Lakh/K/plain (Indian system, not K/quiet)
+ *          CHANGED : text format — scope-aware "{count} {geo} mein online" (Founder-Locked)
+ *          CHANGED : pulsing dot — 8×8px self-contained Animated.loop opacity (was LiveDot atom)
+ *          CHANGED : heat pill — flat amber[50] bg; text "🔥 Heat {score}"; font 11px/600
+ *          CHANGED : trust chip — "📍 1.2 Lakh+"; bg gold[50] (#FCF7E5); font 11px/600/muted
+ *          CHANGED : showTrustAnchor / onTrustAnchorDismiss — now required (not optional)
+ *          REMOVED : LinearGradient import (heat pill no longer gradient)
+ *          REMOVED : LiveDot import (dot now self-contained)
+ *          KEPT    : useAnimatedCount hook, React.memo, export name, testIDs
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 
-import LiveDot       from '@/components/atoms/LiveDot';
-import { Skeleton }  from '@/components/atoms/Skeleton';
+import { Skeleton } from '@/components/atoms/Skeleton';
 
 import { colors, palette, radii, spacing, zIndex as zIndexTokens } from '@/constants/colors';
-import { typography, FONT_BODY, FONT_SIZE }                         from '@/constants/typography';
+import { FONT_BODY, FONT_SIZE }                                       from '@/constants/typography';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // § 1 — LAYOUT & DIMENSION CONSTANTS
-// Source of truth: Blueprint §[4] and sub-section specs.
+// Source of truth: PRD v3.2 §9.2 Row 3 and task spec.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Strip fixed height — Blueprint §[4] H: 32px */
+/** Strip fixed height — PRD §9.2 Row 3: H=32px */
 const STRIP_HEIGHT = 32 as const;
 
-/** LiveDot inner diameter — Blueprint §[4.A]: 6×6 dot */
-const DOT_INNER_SIZE = 6 as const;
+/**
+ * Pulsing presence dot — PRD Rev 4 spec:
+ *   Size: 8×8px, border-radius: 4px (circle), color: amber[600]
+ */
+const DOT_SIZE   = 8 as const;
+const DOT_RADIUS = 4 as const;
 
-/** White border ring thickness — Blueprint §[4.A]: 2px #FFFFFF border */
-const DOT_BORDER_W = 2 as const;
+/** Pulse animation loop duration — PRD Rev 4: 1500ms loop */
+const PULSE_DURATION_MS = 1_500 as const;
 
-/** Total LiveDot container size, including border ring on all sides */
-const DOT_OUTER_SIZE = DOT_INNER_SIZE + DOT_BORDER_W * 2; // 10px
-
-/** Gap between dot container and count text label */
+/** Gap between dot and count text */
 const DOT_TO_TEXT_GAP = spacing.xs; // 4px
 
-/** Heat pill height — Blueprint §[4.B] H: 22px */
+/** Heat pill height */
 const HEAT_PILL_H = 22 as const;
 
-// ─── REMOVED (Rev 3): HEAT_PILL_RADIUS = 11 ──────────────────────────────────
-// Was: const HEAT_PILL_RADIUS = 11 as const;  // height / 2 — manual calc
-// Why removed: Radius Protocol mandates radii.pill for pill shapes.
-// radii.pill = 28 > height/2; RN clamps to height/2 → still a perfect pill.
-// Fix: borderRadius: radii.pill used directly in styles.heatPill below.
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** Heat pill horizontal padding — Blueprint §[4.B] Padding: 8px horizontal */
+/** Heat pill horizontal padding */
 const HEAT_PILL_PAD_H = spacing.sm; // 8px
 
-/** Heat score threshold below which pill is hidden — Blueprint §[4.B] "Visible only when Heat Score ≥ 30" */
+/** Heat score threshold below which pill is hidden — PRD §9.2: "visible only when heatScore ≥ 30" */
 const HEAT_VISIBLE_THRESHOLD = 30 as const;
 
-/** Trust anchor chip height — Blueprint §[4.C] H: 24px */
+/** Trust anchor chip height */
 const TRUST_CHIP_H = 24 as const;
 
-// ─── REMOVED (Rev 3): TRUST_CHIP_RADIUS = 12 ─────────────────────────────────
-// Was: const TRUST_CHIP_RADIUS = 12 as const;  // height / 2 — manual calc
-// Why removed: same Radius Protocol violation as HEAT_PILL_RADIUS above.
-// Fix: borderRadius: radii.pill used directly in styles.trustChip below.
-// ─────────────────────────────────────────────────────────────────────────────
+/** Trust chip horizontal padding */
+const TRUST_CHIP_PAD_H = 10 as const; // no 10px token — spec-mandated literal
 
-/**
- * Trust chip horizontal padding — Blueprint §[4.C] Padding: 10px horizontal.
- * No spacing token for 10px — spec-mandated literal used here only.
- */
-const TRUST_CHIP_PAD_H = 10 as const;
-
-/** Auto-hide duration for trust chip — Blueprint §[4.C] "after 60s on screen" */
+/** Trust chip auto-hide duration — PRD §9.2 Row 3: "auto-hide after 60s" */
 const TRUST_AUTO_HIDE_MS = 60_000 as const;
 
-/** Count-up animation duration — Blueprint §[4.A] "200ms count-up" */
+/** Count-up animation duration — PRD §9.2: "200ms count-up, no jarring jump" */
 const COUNT_ANIM_MS = 200 as const;
 
-/** Below this count, show quiet-state text instead — Blueprint §[4.A] State (low) */
-const LOW_COUNT_THRESHOLD = 50 as const;
-
-/** Above this count, abbreviate to "12.5K" — Blueprint §[4.A] State (>10K) */
-const HIGH_COUNT_THRESHOLD = 10_000 as const;
-
-/** Skeleton dimensions — Blueprint §Q6b / §Q6c */
+/** Skeleton dimensions */
 const SKELETON_COUNT_W = 80 as const;
 const SKELETON_HEAT_W  = 60 as const;
 const SKELETON_H       = 16 as const;
 
+/**
+ * Indian number system thresholds — PRD Rev 4 count formatting:
+ *   ≥ 1,00,000 → "{X} Lakh"
+ *   ≥ 1,000    → "{X}K"
+ *   otherwise  → plain number
+ */
+const LAKH = 1_00_000 as const; // 100,000
+const K    = 1_000    as const;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // § 2 — COLOR CONSTANTS
-// Blueprint v1 → v2 token mapping noted on each entry.
-// Zero hardcoded hex literals — all values reference palette primitives.
+// All values reference design-system tokens — zero hardcoded hex literals.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * LiveDot fill — Blueprint §[4.A]: #E07B20 (v1 goldenOrange)
- * v2 mapping: colors.fg.warning → palette.amber[600] = #D4651A
+ * Presence dot fill — PRD Rev 4: amber[600] (Burnished Amber)
+ * v2 token: palette.amber[600] = #D4651A
  */
-const DOT_COLOR = colors.fg.warning;
+const DOT_COLOR = palette.amber[600];
 
 /**
- * Heat pill gradient — Blueprint §[4.B]: linear-gradient #E07B20 → #F5C842 (45deg)
- * v2 mapping:
- *   #E07B20 → palette.amber[600] = #D4651A  (Burnished Amber)
- *   #F5C842 → palette.gold[400]  = #E2C66B  (Refined Celebrate)
+ * Heat pill background — PRD Rev 4: amber[50] light amber tint (flat, no gradient)
+ * v2 token: palette.amber[50]  ≈ #FFF8F0
  */
-const HEAT_GRADIENT = [palette.amber[600], palette.gold[400]] as const;
+const HEAT_PILL_BG = palette.amber[50];
 
 /**
- * Trust chip background — Blueprint §[4.C]: #F5E6C8 (v1 cream)
- * v2 mapping: palette.cream[200] = #F7ECD0
+ * Heat pill text — dark amber for legible contrast on amber[50] bg
+ * v2 token: palette.amber[700] = #B45309
  */
-const TRUST_CHIP_BG = palette.cream[200];
+const HEAT_PILL_TEXT_COLOR = palette.amber[700];
 
 /**
- * Trust chip text color — Blueprint §[4.C]: #6B5B2E (v1 espresso)
- * v2 mapping: palette.ink[600] = #6B5B47
+ * Trust chip background — PRD Rev 4: gold[50] = #FCF7E5
+ * v2 token: palette.gold[50]
  */
-const TRUST_CHIP_TEXT_COLOR = palette.ink[600];
+const TRUST_CHIP_BG = palette.gold[50]; // #FCF7E5
 
 // ─────────────────────────────────────────────────────────────────────────────
-// § 3 — PROPS
+// § 3 — PROPS — PRD v3.2 §9.2 Row 3 interface
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface OnlineCountStripProps {
   /**
-   * Online member count for the current sector.
-   * `null` while loading. Triggers skeleton state when combined with `loading=true`.
+   * Currently-active chat scope — drives geography label in the count text.
+   * Founder-Locked: Row 3 ALWAYS names the geography of the active scope.
    */
-  count: number | null;
+  scope: 'world' | 'country' | 'city' | 'sector';
 
   /**
-   * Sector heat score 0–100.
-   * Pill hidden when `null` OR when value < HEAT_VISIBLE_THRESHOLD (30).
+   * Display name of the active city (e.g. "Mumbai").
+   * Used when scope === 'city'.
+   */
+  cityLabel: string;
+
+  /**
+   * Display name of the active sector (e.g. "Bandra W").
+   * Used when scope === 'sector'.
+   */
+  sectorLabel: string;
+
+  /**
+   * Online member count for the active scope.
+   * `null` while loading — triggers skeleton state with `loading=true`.
+   */
+  onlineCount: number | null;
+
+  /**
+   * Scope heat score 0–100.
+   * Pill hidden when `null` OR value < HEAT_VISIBLE_THRESHOLD (30).
    */
   heatScore: number | null;
 
   /**
    * Show shimmer skeleton loading state.
-   * Managed by the Firestore listener in the parent screen.
+   * Managed by the real-time listener in the parent screen.
    */
   loading: boolean;
 
   /**
    * Show the Trust Anchor Chip §[4.C].
-   * Caller is responsible for first-session-of-day detection
-   * (compare cached AsyncStorage timestamp to current calendar day).
+   * Caller is responsible for:
+   *   - First-session-of-day detection (AsyncStorage timestamp vs calendar day)
+   *   - Setting false on first scroll (FlatList onScroll handler)
    * The component self-manages the 60s auto-hide timer once visible.
-   * @default false
    */
-  showTrustAnchor?: boolean;
+  showTrustAnchor: boolean;
 
   /**
    * Called when the trust anchor chip auto-hides after 60 seconds.
-   * Use to update parent state / AsyncStorage so chip isn't re-shown
-   * if the screen unmounts + remounts within the same session.
+   * Update parent state / AsyncStorage so the chip isn't re-shown
+   * if the screen unmounts and remounts within the same session.
    */
-  onTrustAnchorDismiss?: () => void;
+  onTrustAnchorDismiss: () => void;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// § 4 — CUSTOM HOOK: useAnimatedCount
+// § 4 — HELPERS — scope-aware text + Indian number formatting
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Animates a displayed integer from its previous value to `target` over
- * COUNT_ANIM_MS (200ms) using an ease-out cubic curve.
+ * Formats a raw count per PRD Rev 4 Indian-system rules:
+ *   ≥ 1,00,000 → "{X} Lakh"   e.g. 247891  → "2.5 Lakh"
+ *   ≥ 1,000    → "{X}K"       e.g.  12847  → "12.8K"
+ *   otherwise  → plain number  e.g.    847  → "847"
  *
- * Runs on the JS thread via requestAnimationFrame — no Reanimated dependency
- * required for a 200ms scrub on a single integer.
+ * Trailing ".0" is stripped for cleanliness (e.g. "3.0 Lakh" → "3 Lakh").
+ */
+function formatCount(count: number): string {
+  if (count >= LAKH) {
+    const lakh = count / LAKH;
+    const str  = lakh % 1 === 0 ? `${lakh}` : lakh.toFixed(1);
+    return `${str} Lakh`;
+  }
+  if (count >= K) {
+    const k   = count / K;
+    const str = k % 1 === 0 ? `${k}` : k.toFixed(1);
+    return `${str}K`;
+  }
+  return count.toLocaleString('en-IN');
+}
+
+/**
+ * Resolves the geography label for the active scope.
+ *   sector  → sectorLabel prop    (e.g. "Bandra W")
+ *   city    → cityLabel prop      (e.g. "Mumbai")
+ *   country → "India"             (hardcoded per PRD — app is India-first)
+ *   world   → "duniya bhar"       (hardcoded per PRD localization)
  *
- * Blueprint §[4.A]: "count change → number scrubs old→new (200ms count-up)"
+ * Founder-Locked: this function is the single authority on geography labels.
+ */
+function resolveGeoLabel(
+  scope:       OnlineCountStripProps['scope'],
+  cityLabel:   string,
+  sectorLabel: string,
+): string {
+  switch (scope) {
+    case 'sector':  return sectorLabel;
+    case 'city':    return cityLabel;
+    case 'country': return 'India';
+    case 'world':   return 'duniya bhar';
+  }
+}
+
+/**
+ * Builds the complete count+geography display string.
+ * Format: "{formattedCount} {geoLabel} mein online"
+ *
+ * Examples (Founder-Locked per PRD §9.2):
+ *   "12.8K Bandra W mein online"
+ *   "2.5 Lakh Mumbai mein online"
+ *   "124 Lakh India mein online"
+ *   "2470 Lakh duniya bhar mein online"
+ */
+function buildCountText(
+  count:       number,
+  scope:       OnlineCountStripProps['scope'],
+  cityLabel:   string,
+  sectorLabel: string,
+): string {
+  const formatted = formatCount(count);
+  const geo       = resolveGeoLabel(scope, cityLabel, sectorLabel);
+  return `${formatted} ${geo} mein online`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// § 5 — CUSTOM HOOK: useAnimatedCount
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Animates the displayed integer from its previous value to `target` over
+ * COUNT_ANIM_MS (200ms) using an ease-out cubic curve on the JS thread.
+ *
+ * PRD §9.2: "count change → number scrubs old→new (200ms count-up, no jarring jump)"
+ *
+ * Runs via requestAnimationFrame — no Reanimated dependency required
+ * for a 200ms scrub on a single integer.
  */
 function useAnimatedCount(target: number | null): number | null {
   const [displayed, setDisplayed] = useState<number | null>(target);
@@ -249,62 +324,64 @@ function useAnimatedCount(target: number | null): number | null {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// § 5 — HELPERS
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface CountDisplay {
-  text:  string;
-  isLow: boolean; // true → no dot, muted color, different text
-}
-
-/**
- * Resolve count label per Blueprint §[4.A] state table:
- *   < 50      → "Quiet abhi · pehle ho"       (quiet state — no dot)
- *   50–9,999  → "1,234 yahan online"           (en-IN locale grouping)
- *   ≥ 10,000  → "12.5K online"                 (abbreviated)
- */
-function resolveCountDisplay(count: number): CountDisplay {
-  if (count < LOW_COUNT_THRESHOLD) {
-    return { text: 'Quiet abhi · pehle ho', isLow: true };
-  }
-  if (count >= HIGH_COUNT_THRESHOLD) {
-    const k = (count / 1000).toFixed(1);
-    return { text: `${k}K online`, isLow: false };
-  }
-  return { text: `${count.toLocaleString('en-IN')} yahan online`, isLow: false };
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// § 6 — SUB-COMPONENT: LiveDotWithBorder
+// § 6 — SUB-COMPONENT: PulsingDot
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * LiveDotWithBorder
+ * PulsingDot — PRD Rev 4 spec:
+ *   Size:        8×8px
+ *   Radius:      4px (perfect circle)
+ *   Color:       amber[600] = #D4651A (Burnished Amber)
+ *   Animation:   Animated.loop opacity 1.0 → 0.2 → 1.0, 1500ms, ease-in-out
+ *   Driver:      useNativeDriver: true — compositor thread, zero JS overhead
  *
- * Blueprint §[4.A]: 6×6 amber dot with 2px #FFFFFF border ring.
- *
- * Achieved by wrapping a 6px LiveDot (amber) inside a 10px white-filled circle.
- * The white circle's background creates the "border" effect without modifying
- * the LiveDot atom contract.
- *
- * Container: 10×10px white circle → provides 2px ring on all sides
- * Inner dot : 6×6px LiveDot (colors.fg.warning = amber[600])
+ * Self-contained — no LiveDot atom dependency (Rev 4 change).
+ * The white-ring wrapper from Rev 3 is removed; dot is a plain amber circle.
  */
-const LiveDotWithBorder = React.memo(() => (
-  <View style={dotRingStyles.wrapper}>
-    <LiveDot color={DOT_COLOR} size={DOT_INNER_SIZE} />
-  </View>
-));
-LiveDotWithBorder.displayName = 'LiveDotWithBorder';
+const PulsingDot = React.memo(() => {
+  const opacity = useRef(new Animated.Value(1)).current;
 
-const dotRingStyles = StyleSheet.create({
-  wrapper: {
-    width:           DOT_OUTER_SIZE,        // 10px
-    height:          DOT_OUTER_SIZE,        // 10px
-    borderRadius:    DOT_OUTER_SIZE / 2,    // 5px — full circle
-    backgroundColor: colors.bg.surface,     // #FFFFFF — creates the 2px white ring
-    alignItems:      'center',
-    justifyContent:  'center',
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, {
+          toValue:        0.2,
+          duration:       PULSE_DURATION_MS / 2, // 750ms fade-out
+          easing:         Easing.inOut(Easing.ease),
+          useNativeDriver: true, // PERF: compositor — zero layout/paint
+        }),
+        Animated.timing(opacity, {
+          toValue:        1,
+          duration:       PULSE_DURATION_MS / 2, // 750ms fade-in
+          easing:         Easing.inOut(Easing.ease),
+          useNativeDriver: true, // PERF: compositor — zero layout/paint
+        }),
+      ]),
+    );
+
+    animation.start();
+
+    return () => {
+      animation.stop();
+    };
+  }, [opacity]);
+
+  return (
+    <Animated.View
+      style={[dotStyles.dot, { opacity }]}
+      accessible={false}
+    />
+  );
+});
+
+PulsingDot.displayName = 'PulsingDot';
+
+const dotStyles = StyleSheet.create({
+  dot: {
+    width:           DOT_SIZE,   // 8px
+    height:          DOT_SIZE,   // 8px
+    borderRadius:    DOT_RADIUS, // 4px — perfect circle
+    backgroundColor: DOT_COLOR,  // amber[600] = #D4651A
   },
 });
 
@@ -316,40 +393,47 @@ const dotRingStyles = StyleSheet.create({
  * OnlineCountStrip
  *
  * 32px trust-anchor strip. Renders flush below the two-row Home Screen header.
- * Blueprint §[4] specification compliance:
- *   ✓ Bg: colors.bg.surface (#FFFFFF)
+ * PRD v3.2 §9.2 Row 3 compliance (Rev 4):
+ *   ✓ Bg: colors.bg.surface
  *   ✓ Z-Index: zIndexTokens.fixedHeader (900)
  *   ✓ justifyContent: 'space-between'
- *   ✓ [4.A] Online Member Pill — amber dot (white ring) + count text + state variants
- *   ✓ [4.B] Heat Score Pill    — gradient pill "🔥 {score}", visible only ≥ 30
- *   ✓ [4.C] Trust Anchor Chip  — "👥 1 Lakh+", conditional, 60s auto-hide
- *   ✓ Count animation          — 200ms ease-out scrub on value change
- *   ✓ Quiet state (< 50)       — no dot, muted text "Quiet abhi · pehle ho"
- *   ✓ High state (≥ 10K)       — abbreviated "12.5K online"
- *   ✓ accessibilityLiveRegion  — "polite" on count element
- *   ✓ testIDs                  — home-online-count · home-heat-score · home-trust-anchor
- *   ✓ Radius Protocol          — radii.pill token for both pill shapes (Rev 3)
+ *   ✓ [4.A] 8×8px PulsingDot — amber[600] · Animated opacity loop 1500ms
+ *   ✓ [4.A] Scope-aware count text — "{count} {geo} mein online" (Founder-Locked)
+ *   ✓ [4.A] Indian format — Lakh / K / plain number
+ *   ✓ [4.A] 200ms ease-out count-up animation on value change
+ *   ✓ [4.B] Heat pill — amber[50] flat bg · "🔥 Heat {score}" · 11px 600 · ≥30 only
+ *   ✓ [4.C] Trust chip — "📍 1.2 Lakh+" · gold[50] bg · 11px 600 · 60s auto-hide
+ *   ✓ accessibilityLiveRegion "polite" on count element
+ *   ✓ testIDs: home-online-count · home-heat-score · home-trust-anchor
+ *   ✓ Radius Protocol: radii.pill token for all pill shapes
  *
  * @example
  * <OnlineCountStrip
- *   count={onlineCount}
- *   heatScore={sectorHeat}
- *   loading={isLoading}
+ *   scope="city"
+ *   cityLabel="Mumbai"
+ *   sectorLabel="Bandra W"
+ *   onlineCount={247891}
+ *   heatScore={92}
+ *   loading={false}
  *   showTrustAnchor={isFirstSessionOfDay}
  *   onTrustAnchorDismiss={markTrustAnchorSeen}
  * />
+ * // → "2.5 Lakh Mumbai mein online · 🔥 Heat 92 · 📍 1.2 Lakh+"
  */
 const OnlineCountStripBase: React.FC<OnlineCountStripProps> = ({
-  count,
+  scope,
+  cityLabel,
+  sectorLabel,
+  onlineCount,
   heatScore,
   loading,
-  showTrustAnchor    = false,
+  showTrustAnchor,
   onTrustAnchorDismiss,
 }) => {
 
-  // ── [4.C] Trust anchor 60s auto-hide timer ────────────────────────────────
-  // Blueprint §[4.C]: "Auto-hide: after 60s on screen OR on first scroll"
-  // → 60s: handled here via setTimeout
+  // ── [4.C] Trust anchor 60s auto-hide timer ───────────────────────────────
+  // PRD §9.2: "Auto-hide: after 60s on screen OR on first scroll"
+  // → 60s:        handled here via setTimeout
   // → First scroll: caller sets showTrustAnchor=false from FlatList onScroll
   const [trustVisible, setTrustVisible] = useState<boolean>(false);
 
@@ -358,20 +442,21 @@ const OnlineCountStripBase: React.FC<OnlineCountStripProps> = ({
       setTrustVisible(false);
       return;
     }
+
     setTrustVisible(true);
 
     const timer = setTimeout(() => {
       setTrustVisible(false);
-      onTrustAnchorDismiss?.();
+      onTrustAnchorDismiss();
     }, TRUST_AUTO_HIDE_MS);
 
     return () => clearTimeout(timer);
   }, [showTrustAnchor, onTrustAnchorDismiss]);
 
-  // ── Count animation ───────────────────────────────────────────────────────
-  const displayedCount = useAnimatedCount(count);
+  // ── Count animation ──────────────────────────────────────────────────────
+  const displayedCount = useAnimatedCount(onlineCount);
 
-  // ── Loading state: two skeleton rects per Blueprint §Q6b / §Q6c ──────────
+  // ── Loading state ────────────────────────────────────────────────────────
   if (loading) {
     return (
       <View
@@ -386,44 +471,43 @@ const OnlineCountStripBase: React.FC<OnlineCountStripProps> = ({
     );
   }
 
-  // ── Count display variant ─────────────────────────────────────────────────
-  const { text: countText, isLow } = displayedCount !== null
-    ? resolveCountDisplay(displayedCount)
-    : { text: '—', isLow: false };
+  // ── Count text — Founder-Locked scope-aware format ───────────────────────
+  const countText = displayedCount !== null
+    ? buildCountText(displayedCount, scope, cityLabel, sectorLabel)
+    : '—';
 
   // ── Heat pill visibility ─────────────────────────────────────────────────
   const showHeatPill = heatScore !== null && heatScore >= HEAT_VISIBLE_THRESHOLD;
 
-  // ── Accessibility labels ──────────────────────────────────────────────────
+  // ── Accessibility label ──────────────────────────────────────────────────
+  const geoLabel       = resolveGeoLabel(scope, cityLabel, sectorLabel);
   const countA11yLabel = displayedCount !== null
-    ? `${displayedCount.toLocaleString('en-IN')} members online in this sector`
+    ? `${displayedCount.toLocaleString('en-IN')} members online in ${geoLabel}`
     : 'Online count unavailable';
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // ── Render ───────────────────────────────────────────────────────────────
   return (
     <View style={styles.strip} testID="online-count-strip">
 
-      {/* ── LEFT: [4.A] Online Member Pill ─────────────────────────────── */}
+      {/* ── LEFT: [4.A] Pulsing Dot + Scope-Aware Count Text ───────────── */}
       <View
         style={styles.leftGroup}
         accessible
         accessibilityLabel={countA11yLabel}
         accessibilityRole="text"
-        accessibilityLiveRegion="polite"  // Blueprint §[4.A]: announces on threshold crosses
+        accessibilityLiveRegion="polite" // announces on scope/count changes
         testID="home-online-count"
       >
-        {/* Dot suppressed in quiet state (count < 50) */}
-        {!isLow && (
-          <>
-            <LiveDotWithBorder />
-            <View style={styles.dotGap} />
-          </>
-        )}
+        {/* 8×8px amber pulsing dot — always visible (no quiet suppression) */}
+        <PulsingDot />
 
+        <View style={styles.dotGap} />
+
+        {/* Scope-aware text: "{count} {geo} mein online" — Founder-Locked */}
         <Text
-          style={isLow ? styles.countTextLow : styles.countTextNormal}
+          style={styles.countText}
           numberOfLines={1}
-          accessible={false}  // parent View owns the a11y label
+          accessible={false} // parent View owns a11y label
         >
           {countText}
         </Text>
@@ -433,14 +517,9 @@ const OnlineCountStripBase: React.FC<OnlineCountStripProps> = ({
       {(showHeatPill || trustVisible) && (
         <View style={styles.rightGroup}>
 
-          {/* [4.B] Heat Score Pill — gradient, visible only when heatScore ≥ 30 */}
+          {/* [4.B] Heat Score Pill — flat amber[50] · "🔥 Heat {score}" · ≥30 only */}
           {showHeatPill && (
-            <LinearGradient
-              // Blueprint §[4.B]: "linear-gradient #E07B20 → #F5C842 (45deg)"
-              // start {x:0,y:1} → end {x:1,y:0} = bottom-left → top-right = 45deg
-              colors={HEAT_GRADIENT}
-              start={{ x: 0, y: 1 }}
-              end={{ x: 1, y: 0 }}
+            <View
               style={styles.heatPill}
               accessible
               accessibilityLabel={`Heat Score ${Math.round(heatScore!)} out of 100`}
@@ -448,22 +527,22 @@ const OnlineCountStripBase: React.FC<OnlineCountStripProps> = ({
               testID="home-heat-score"
             >
               <Text style={styles.heatPillText} accessible={false} numberOfLines={1}>
-                {`🔥 ${Math.round(heatScore!)}`}
+                {`🔥 Heat ${Math.round(heatScore!)}`}
               </Text>
-            </LinearGradient>
+            </View>
           )}
 
-          {/* [4.C] Trust Anchor Chip — first session of day · 60s auto-hide */}
+          {/* [4.C] Trust Anchor Chip — "📍 1.2 Lakh+" · gold[50] · 60s auto-hide */}
           {trustVisible && (
             <View
               style={styles.trustChip}
               accessible
-              accessibilityLabel="Trusted by over 1 lakh users"
+              accessibilityLabel="Trusted by over 1.2 lakh users"
               accessibilityRole="text"
               testID="home-trust-anchor"
             >
               <Text style={styles.trustChipText} accessible={false} numberOfLines={1}>
-                {'👥 1 Lakh+'}
+                {'📍 1.2 Lakh+'}
               </Text>
             </View>
           )}
@@ -477,138 +556,112 @@ const OnlineCountStripBase: React.FC<OnlineCountStripProps> = ({
 
 // ─────────────────────────────────────────────────────────────────────────────
 // § 8 — STYLES
-// Zero hardcoded hex values or magic numbers — all tokens referenced above.
+// Zero hardcoded hex values — all colors reference design-system tokens above.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
 
-  // ─── Strip container ───────────────────────────────────────────────────────
+  // ─── Strip container ─────────────────────────────────────────────────────
   strip: {
-    height:             STRIP_HEIGHT,               // 32px — Blueprint §[4]
-    flexDirection:      'row',
-    alignItems:         'center',
-    justifyContent:     'space-between',            // Blueprint §[4] "justify-content space-between"
-    paddingHorizontal:  spacing.base,               // 16px — Blueprint §[4] "16px horizontal"
-    backgroundColor:    colors.bg.surface,          // #FFFFFF — Blueprint §[4] "Bg #FFFFFF"
-    borderBottomWidth:  StyleSheet.hairlineWidth,
-    borderBottomColor:  colors.border.default,      // cream[400] — Blueprint §[4] "1px hairline #E8D5A0"
-    zIndex:             zIndexTokens.fixedHeader,   // 900 — Blueprint §[4] "Z-Index: 900"
-    elevation:          4,                          // Android: zIndex needs elevation for non-absolute flow
+    height:            STRIP_HEIGHT,             // 32px — PRD §9.2 Row 3
+    flexDirection:     'row',
+    alignItems:        'center',
+    justifyContent:    'space-between',
+    paddingHorizontal: spacing.base,             // 16px horizontal — task spec
+    backgroundColor:   colors.bg.surface,        // --bg-surface (white/light)
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border.default,
+    zIndex:            zIndexTokens.fixedHeader, // 900
+    elevation:         4,                        // Android: zIndex for non-absolute flow
   },
 
-  // ─── [4.A] Left group ──────────────────────────────────────────────────────
+  // ─── [4.A] Left group ────────────────────────────────────────────────────
   leftGroup: {
     flexDirection: 'row',
     alignItems:    'center',
-    flexShrink:    1,  // yields space to right group if viewport is narrow
+    flex:          1,       // fills remaining space — task spec
+    flexShrink:    1,       // yields to right group on narrow viewports
   },
 
   dotGap: {
-    width: DOT_TO_TEXT_GAP, // 4px between ring container and text
+    width: DOT_TO_TEXT_GAP, // 4px between dot and text
   },
 
   /**
-   * Normal count text — Blueprint §[4.A]: "12px 600 #1A1A1A"
-   * v2: 12px 600 DM Sans SemiBold · ink[950]
-   * Note: captionBold has wide tracking for uppercase — using explicit 0
-   *       tracking here to match spec (mixed-case count string).
+   * Count text — task spec: Inter 500, 12px, text-muted color
+   * FONT_BODY.medium resolves to Inter_500Medium or equivalent project font.
    */
-  countTextNormal: {
-    fontFamily:    FONT_BODY.semiBold,   // DMSans_600SemiBold
-    fontSize:      FONT_SIZE.cap,        // 12
-    fontWeight:    '600' as const,
+  countText: {
+    fontFamily:    FONT_BODY.medium,       // Inter 500
+    fontSize:      FONT_SIZE.cap,          // 12px
+    fontWeight:    '500' as const,
     lineHeight:    17,
     letterSpacing: 0,
-    color:         colors.fg.primary,    // ink[950] = #1A1208
+    color:         colors.fg.secondary,    // text-muted = ink[600] = #6B5B47
     flexShrink:    1,
   },
 
-  /**
-   * Quiet state text — Blueprint §[4.A]: "#6B5B2E text" (no dot)
-   * v2: 11px 500 DM Sans Medium · ink[600]
-   */
-  countTextLow: {
-    ...typography.metaMedium,            // 11px 500 DM Sans · relaxed lh 17
-    color:      colors.fg.secondary,     // ink[600] = #6B5B47
-    flexShrink: 1,
-  },
-
-  // ─── Right group ───────────────────────────────────────────────────────────
+  // ─── Right group ─────────────────────────────────────────────────────────
   rightGroup: {
     flexDirection: 'row',
     alignItems:    'center',
-    gap:           spacing.sm,  // 8px between heat pill and trust chip
-    flexShrink:    0,           // right group never shrinks — always fully visible
+    gap:           spacing.sm, // 8px between heat pill and trust chip
+    flexShrink:    0,          // right group never shrinks — always fully visible
   },
 
-  // ─── [4.B] Heat Score Pill ─────────────────────────────────────────────────
+  // ─── [4.B] Heat Score Pill ───────────────────────────────────────────────
   /**
-   * Blueprint §[4.B]: H=22px · radius=11px (pill) · padding=8px horizontal
-   *
-   * Rev 3 — Radius Protocol fix:
-   *   BEFORE: borderRadius: HEAT_PILL_RADIUS  (11 — manual height/2 calculation)
-   *   AFTER : borderRadius: radii.pill        (28 — design system token)
-   *
-   * RN automatically clamps borderRadius to height/2, so radii.pill=28 on a
-   * 22px-tall element renders identically to 11px. Token is the source of truth.
-   *
-   * Gradient applied by LinearGradient wrapper; this style handles geometry only.
+   * PRD Rev 4 change — flat amber[50] bg (was LinearGradient amber→gold).
+   * H=22px · radii.pill token · 8px horizontal padding · visible when ≥30.
+   * Text: "🔥 Heat {score}" (was "🔥 {score}") · 11px 600
    */
   heatPill: {
-    height:            HEAT_PILL_H,    // 22px
-    borderRadius:      radii.pill,     // ← Rev 3: was HEAT_PILL_RADIUS (11), now token (28)
-    paddingHorizontal: HEAT_PILL_PAD_H,// 8px
+    height:            HEAT_PILL_H,     // 22px
+    borderRadius:      radii.pill,      // Radius Protocol — token (28 → clamped to 11)
+    paddingHorizontal: HEAT_PILL_PAD_H, // 8px
+    backgroundColor:   HEAT_PILL_BG,    // amber[50] ≈ #FFF8F0
     alignItems:        'center',
     justifyContent:    'center',
-    overflow:          'hidden',       // clips gradient to border-radius on Android
   },
 
-  /**
-   * Blueprint §[4.B]: "12px 700 #FFFFFF · 4.5+:1 contrast on gradient"
-   * Token: typography.captionStrong — purpose-built for heat pill text
-   * (see typography.ts: "heat pill text (\"🔥 87\" in gradient pill)")
-   */
   heatPillText: {
-    ...typography.captionStrong, // 12px 700 DM Sans Bold · tight lh 14
-    color: palette.white,        // #FFFFFF — contrast guaranteed per blueprint spec
+    fontSize:      11,
+    fontWeight:    '600' as const,
+    lineHeight:    14,
+    color:         HEAT_PILL_TEXT_COLOR, // amber[700] = #B45309 — contrast on amber[50]
   },
 
-  // ─── [4.C] Trust Anchor Chip ───────────────────────────────────────────────
+  // ─── [4.C] Trust Anchor Chip ─────────────────────────────────────────────
   /**
-   * Blueprint §[4.C]: H=24px · radius=12px (pill) · padding=10px horizontal
-   * Bg: #F5E6C8 (v1) → palette.cream[200] = #F7ECD0 (v2)
-   *
-   * Rev 3 — Radius Protocol fix:
-   *   BEFORE: borderRadius: TRUST_CHIP_RADIUS  (12 — manual height/2 calculation)
-   *   AFTER : borderRadius: radii.pill         (28 — design system token)
-   *
-   * Same reasoning as heatPill above — RN clamps to height/2 at render time.
+   * PRD Rev 4 changes:
+   *   Text: "📍 1.2 Lakh+" (was "👥 1 Lakh+")
+   *   Bg:   gold[50] = #FCF7E5 (was cream[200] = #F7ECD0)
+   *   Font: 11px 600 text-muted (was 11px 500)
+   * H=24px · radii.pill token · 10px horizontal padding
    */
   trustChip: {
-    height:            TRUST_CHIP_H,   // 24px
-    borderRadius:      radii.pill,     // ← Rev 3: was TRUST_CHIP_RADIUS (12), now token (28)
-    paddingHorizontal: TRUST_CHIP_PAD_H,  // 10px
-    backgroundColor:   TRUST_CHIP_BG,     // cream[200] = #F7ECD0
+    height:            TRUST_CHIP_H,    // 24px
+    borderRadius:      radii.pill,      // Radius Protocol — token (28 → clamped to 12)
+    paddingHorizontal: TRUST_CHIP_PAD_H,// 10px — spec-mandated literal (no token)
+    backgroundColor:   TRUST_CHIP_BG,   // gold[50] = #FCF7E5
     alignItems:        'center',
     justifyContent:    'center',
   },
 
-  /**
-   * Blueprint §[4.C]: "11px 500 #6B5B2E"
-   * Token: typography.metaMedium — 11px 500 DM Sans Medium
-   * Color: palette.ink[600] = #6B5B47 (v2 espresso)
-   */
   trustChipText: {
-    ...typography.metaMedium,          // 11px 500 DM Sans · relaxed lh
-    color: TRUST_CHIP_TEXT_COLOR,      // palette.ink[600] = #6B5B47
+    fontSize:   11,
+    fontWeight: '600' as const,
+    lineHeight: 14,
+    color:      colors.fg.secondary, // text-muted = ink[600] = #6B5B47
   },
+
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // § 9 — EXPORT
-// React.memo — all 5 props are primitives + stable callbacks.
+// React.memo — all props are primitives + stable callbacks.
 // Shallow compare prevents re-renders on unrelated parent state changes.
-// Strip only re-renders when Firestore pushes a new count / heatScore value.
+// Strip only re-renders when the real-time listener pushes a new value.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const OnlineCountStrip = React.memo(OnlineCountStripBase);
