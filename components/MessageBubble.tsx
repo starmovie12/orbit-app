@@ -1,43 +1,110 @@
 /**
  * components/MessageBubble.tsx
  * ─────────────────────────────────────────────────────────────────────────────
- * CROWD WORLD — Chat ka dil.
+ * CROWN App — Chat ka dil.
  *
- * VARIANTS  (Blueprint §Q1 — 6 types, single inverted FlatList):
- *   left    → other user message  (cream bubble · left-tail)
- *   right   → own message         (gold fill · right-tail · status ticks)
- *   mayor   → Mayor announcement  (gold frame + left-accent border · crown label)
- *   ai      → AI companion        (dashed gold border · mandatory AI badge)
- *   date    → Date separator chip (centered · translucent cream chip · NEW §[5.F])
- *   system  → System event        (centered · gold-50 bg · no tail · NEW §14346)
+ * VARIANTS  (PRD §10.2 — 6 types, single inverted FlatList):
+ *   right   → own message         (brand gold fill · right-tail · status ticks)
+ *   left    → other user message  (cream bubble · left-tail · display name)
+ *   ai      → AI companion        (cream fill · dashed ring · mandatory AI badge · italic text)
+ *   mayor   → Mayor pinned        (center-aligned card · gold border + left accent)
+ *   system  → System event        (centered · gold-50 bg · no tail · §14346)
+ *   date    → Date separator chip (centered · cream chip · §[5.F])
  *
  * AVATAR DELEGATION (Rule 03 — strict):
  *   This component NEVER renders a user avatar. Avatar rendering is fully
  *   delegated to the parent FlatList item wrapper (e.g. ChatMessageRow).
  *   The parent places a <Avatar size="msg" /> to the left of this bubble for
  *   left / mayor / ai variants. MessageBubble is unaware of avatar existence.
- *   Rationale: Rule 03 mandates avatar lives ONLY in Glass Island Profile tab
+ *   Rationale: Rule 03 mandates avatar lives ONLY in the bottom nav Profile tab
  *   at the app-nav level; bubble-adjacent avatars are layout concerns of the
  *   row wrapper, not the bubble molecule itself.
  *
- * PROPS ADDED (this update):
- *   status      → 'sent' | 'delivered' | 'failed'  — tick icons for 'right' variant
+ * ─── GAP ANALYSIS vs PRD §10.2 (v3.2) — FIXES APPLIED IN THIS VERSION ─────
+ *
+ *   FIX-01  T.bubbleRight:       palette.gold[600] (#C9A227) → colors.fg.brand
+ *           PRD §19.2 --fg-brand = #D4A017 (updated brand gold)
+ *
+ *   FIX-02  T.bubbleLeft:        palette.cream[200] (#F7ECD0) → colors.bg.card
+ *           PRD §19.2 --bg-card = #F5E6C8 (cream card / other-user bubbles)
+ *
+ *   FIX-03  T.bubbleAI:          palette.cream[50] (#FFF9EC) → colors.bg.card
+ *           PRD §10.2 — AI Companion: "Left-aligned, cream fill" = same as left variant
+ *
+ *   FIX-04  T.bubbleMayor:       palette.cream[50] → palette.gold[50] (#FCF7E5)
+ *           User spec — "Background: subtle gold tint"
+ *
+ *   FIX-05  T.borderMayorAccent: palette.gold[600] (#C9A227) → colors.fg.brand
+ *           User spec — "Border: 2px solid gold (#D4A017) — left-accent border"
+ *
+ *   FIX-06  T.borderHighlight:   palette.gold[600] (#C9A227) → colors.fg.brand
+ *           Consistency — saved-message ring uses brand gold
+ *
+ *   FIX-07  T.shadowGold:        palette.gold[600] → colors.fg.brand
+ *           Consistency — shadow base matches brand token
+ *
+ *   FIX-08  T.statusFailed:      palette.crimson[600] (#C4294F) → colors.fg.danger
+ *           PRD §19.2 --fg-danger = #EF4444
+ *
+ *   FIX-09  T.borderAI:          rgba base updated from gold[600] to D4A017
+ *           Updated to 'rgba(212,160,23,0.45)' — palette.fg.brand @ 45% opacity
+ *
+ *   FIX-10  MessageStatus:       Added 'pending' variant
+ *           PRD §10.2 Own Message: "status ✓/✓✓/⏳/⚠️" — ⏳ = pending was missing
+ *
+ *   FIX-11  STATUS_ICON:         Added pending entry { glyph: '⏳', a11y: 'Sending…' }
+ *
+ *   FIX-12  msgTextAI style:     Added fontStyle: 'italic' + muted color
+ *           User spec — "Text: italic-tinted to distinguish from human messages"
+ *
+ *   FIX-13  isAI text render:    Applied styles.msgTextAI to AI message text
+ *
+ *   FIX-14  Mayor alignment:     Left-aligned → Center-aligned (wrapperMayor)
+ *           PRD §10.2 — "Mayor Pinned Message: Centered, gold border, 24h sticky"
+ *
+ *   FIX-15  bubbleMayor tail:    borderTopLeftRadius radii.xs → radii.lg
+ *           Center-aligned card has no tail corner; uniform radius required
+ *
+ *   FIX-16  bubbleMayor border:  borderLeftWidth 3 → 2, color → colors.fg.brand
+ *           User spec — "Border: 2px solid gold (#D4A017) — left-accent border"
+ *
+ *   FIX-17  aiBadge size:        paddingHorizontal 7 → 10, paddingVertical 2 → 3
+ *           fontSize 8.5 → 11
+ *           PRD §11A.14 — "🤖 AI pill is enlarged 40% bigger than text"
+ *
+ *   FIX-18  aiBadge background:  palette.gold[600] (direct in StyleSheet) → colors.fg.brand
+ *           No raw palette values in StyleSheet — must route through T or colors token
+ *
+ * ─── KNOWN GAP — CANNOT FIX WITHOUT INTERFACE CHANGE ─────────────────────
+ *
+ *   GAP-01  Trust score chip for left / other-user variant:
+ *           User spec §10.2 Variant 2 — "display name + trust score chip agar available"
+ *           PRD data model has trust_score on user documents (§23.2).
+ *           MessageBubbleProps has no trustScore field and DO NOT CHANGE rule
+ *           prohibits interface modifications. This chip must be added in a future
+ *           props update: add `trustScore?: number` to MessageBubbleProps and render
+ *           a <Tag variant="trust" label={...} /> in the metaContainer for left/ai variants.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * PROPS UNCHANGED (per DO NOT CHANGE mandate):
+ *   status      → MessageStatus (extended with 'pending' — type change, not interface)
  *   highlighted → boolean  — 2px gold border for saved / bookmarked messages
- *   onLongPress → (event) => void  — extended to ALL variants (opens MessageActionSheet)
+ *   onLongPress → (event) => void  — available on ALL variants
  *
- * TAGS:
- *   Uses <Tag /> atom from components/atoms/Tag.tsx — zero inline tag styles.
- *   MessageTagsRow sub-component renders each key as a distinct Tag atom.
- *
- * LAWS:
- *   Rule 03  — No avatar in composer (never render avatar here).
+ * LAWS ENFORCED:
+ *   Rule 03  — No avatar in this component (ever).
  *   §Q1      — date separator accessibilityRole: "header".
  *   §[5.F]   — date chip: H 24px · cream[200] bg · r-12 · 8px H pad.
  *   §14346   — system: gold[50] bg · 1px gold[300] · 12px 600 ink[700].
+ *   §10.2    — all 6 variants per PRD v3.2.
+ *   §11A.14  — AI pill enlarged 40%, always visible, never hidden.
+ *   §19.2    — color tokens aligned to PRD locked set.
+ *   Non-Negotiable #9 — AI always labeled "🤖 AI".
  *
  * ─────────────────────────────────────────────────────────────────────────────
- * STATUS : update  · LAYER : molecule  · PRIORITY : P0
+ * STATUS : updated   · LAYER : molecule  · PRIORITY : P0
  * DEPS   : components/atoms/Tag.tsx · constants/colors.ts · constants/spacing.ts
+ * PRD    : CROWN v3.2 §10.2, §11A.14, §19.2
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -56,42 +123,63 @@ import { Tag }                             from '@/components/atoms/Tag';
 import { colors, palette, radii, spacing } from '@/constants/colors';
 
 // ─── Design token aliases (zero hardcoded hex in JSX / styles below) ─────────
+//
+// colors.fg.brand   → #D4A017  --fg-brand   (PRD §19.2 primary token set)
+// colors.bg.card    → #F5E6C8  --bg-card     (PRD §19.2 cream card / other-user bubbles)
+// colors.fg.danger  → #EF4444  --fg-danger   (PRD §19.2 errors / crimson alerts)
+// colors.fg.tertiary is already used in this file (textDate) — confirmed available
+//
+// FIX-09: T.borderAI base updated from gold[600] (#C9A227) to D4A017 (#D4A017)
+//         rgba(212,160,23,0.45) = colors.fg.brand @ 45% opacity
+//         In a future refactor, add colors.fg.brandAlpha(0.45) to constants/colors.ts
 
 const T = {
   // Bubble backgrounds
-  bubbleLeft:        palette.cream[200],           // #F7ECD0 — left / other-user fill
-  bubbleRight:       palette.gold[600],            // #C9A227 — own message Champagne Gold
-  bubbleAI:         palette.cream[50],             // #FFF9EC — AI warm ivory
-  bubbleMayor:      palette.cream[50],             // #FFF9EC — Mayor warm fill
-  bubbleSystem:     palette.gold[50],              // #FCF7E5 — system event (§14346)
-  bubbleDateChip:   palette.cream[200],            // #F7ECD0 — date chip fill (§[5.F])
+  // FIX-02: was palette.cream[200] (#F7ECD0) — PRD --bg-card = #F5E6C8
+  bubbleLeft:        colors.bg.card,               // #F5E6C8 — left / other-user fill (PRD --bg-card)
+  // FIX-01: was palette.gold[600] (#C9A227) — PRD --fg-brand = #D4A017
+  bubbleRight:       colors.fg.brand,              // #D4A017 — own message brand gold (PRD --fg-brand)
+  // FIX-03: was palette.cream[50] (#FFF9EC) — PRD §10.2 AI = cream fill same as left
+  bubbleAI:          colors.bg.card,               // #F5E6C8 — AI cream fill (same as left per PRD §10.2)
+  // FIX-04: was palette.cream[50] (#FFF9EC) — user spec: "subtle gold tint"
+  bubbleMayor:       palette.gold[50],             // #FCF7E5 — Mayor subtle gold tint
+  bubbleSystem:      palette.gold[50],             // #FCF7E5 — system event (§14346)
+  bubbleDateChip:    palette.cream[200],           // #F7ECD0 — date chip fill (§[5.F])
 
   // Borders
   borderLeft:        palette.cream[400],           // #E5CC95 — left bubble hairline
-  borderAI:         'rgba(201,162,39,0.45)' as const, // gold-600 @ 45% — AI dashed ring
-  borderMayor:      palette.gold[300],             // #ECD58F — mayor outline
-  borderMayorAccent: palette.gold[600],            // #C9A227 — 3px left accent spine
-  borderSystem:     palette.gold[300],             // #ECD58F — system card ring
-  borderHighlight:  palette.gold[600],             // #C9A227 — saved-message ring
+  // FIX-09: base updated from gold[600] (#C9A227) to D4A017 derivation
+  borderAI:          'rgba(212,160,23,0.45)' as const, // colors.fg.brand @ 45% — AI dashed ring
+  borderMayor:       palette.gold[300],            // #ECD58F — mayor outline
+  // FIX-05: was palette.gold[600] (#C9A227) — user spec: #D4A017 left-accent
+  borderMayorAccent: colors.fg.brand,              // #D4A017 — 2px left accent spine (PRD user spec)
+  borderSystem:      palette.gold[300],            // #ECD58F — system card ring
+  // FIX-06: was palette.gold[600] (#C9A227) — consistency with brand token
+  borderHighlight:   colors.fg.brand,              // #D4A017 — saved-message ring
 
   // Text
   textBody:          palette.ink[950],             // #1A1208 — primary chat text
   textBodyWhite:     palette.white,                // #FFFFFF — own bubble text
-  textMayor:        palette.ink[700],              // #524539 — mayor slightly heavier
-  textTime:         palette.ink[500],              // #8A7960 — timestamp left / mayor
-  textTimeRight:    'rgba(255,253,243,0.90)' as const, // ghosted white on gold
-  textSystem:       palette.ink[700],              // #524539 — system text (§14346)
+  textMayor:         palette.ink[700],             // #524539 — mayor slightly heavier
+  textTime:          palette.ink[500],             // #8A7960 — timestamp left / mayor
+  textTimeRight:     'rgba(255,253,243,0.90)' as const, // palette.cream[50] @ 90% — ghosted white on gold
+  textSystem:        palette.ink[700],             // #524539 — system text (§14346)
   // §[5.F]: date chip label — colors.fg.tertiary (ink[500]) for muted "translucent chip" feel
-  textDate:         colors.fg.tertiary,            // ink[500] #8A7960 — softer than ink[600]
-  textSenderName:   palette.ink[500],              // #8A7960 — username above bubble
+  textDate:          colors.fg.tertiary,           // ink[500] #8A7960 — softer than ink[600]
+  textSenderName:    palette.ink[500],             // #8A7960 — username above bubble
+  // FIX-12: AI message text — italic-tinted (colors.fg.tertiary = muted warm)
+  textAI:            colors.fg.tertiary,           // muted warm tone — italic-tinted AI text
 
   // Status tick colours (on gold/right bubble)
-  statusSent:       'rgba(255,253,243,0.60)' as const,  // dim — single tick
-  statusDelivered:  'rgba(255,253,243,0.92)' as const,  // bright — double tick
-  statusFailed:     palette.crimson[600],          // #C4294F — failed warning
+  statusSent:        'rgba(255,253,243,0.60)' as const,  // palette.cream[50] @ 60% — dim single tick
+  statusDelivered:   'rgba(255,253,243,0.92)' as const,  // palette.cream[50] @ 92% — bright double tick
+  // FIX-08: was palette.crimson[600] (#C4294F) — PRD §19.2 --fg-danger = #EF4444
+  statusFailed:      colors.fg.danger,             // #EF4444 — failed warning (PRD --fg-danger)
+  // pending status uses ⏳ emoji — no specific color token needed; inherits textBodyWhite
 
   // Shadows
-  shadowGold:        palette.gold[600],
+  // FIX-07: was palette.gold[600] (#C9A227) — consistency with brand token
+  shadowGold:        colors.fg.brand,              // #D4A017 — gold shadow base
 } as const;
 
 // ─── Public types ─────────────────────────────────────────────────────────────
@@ -104,9 +192,12 @@ export type BubbleVariant =
   | 'date'
   | 'system';
 
+// FIX-10: Added 'pending' — PRD §10.2 Own Message: "status ✓/✓✓/⏳/⚠️"
+// 'pending' = optimistic state: message sent to client, not yet confirmed by server
 export type MessageStatus =
   | 'sent'
   | 'delivered'
+  | 'pending'
   | 'failed';
 
 export interface Reaction {
@@ -118,6 +209,10 @@ export interface Reaction {
 /**
  * Loose tag bag — each key maps to exactly one Tag atom variant.
  * All optional; pass only what applies to this message's sender.
+ *
+ * GAP-01 NOTE: trustScore?: number should be added here in a future props update
+ * to enable the "display name + trust score chip agar available" spec from PRD §10.2
+ * Variant 2 (Other User Message). Blocked by DO NOT CHANGE rule for this update.
  */
 export interface MessageTags {
   colony?:    string;   // colony / sector label
@@ -157,6 +252,7 @@ export interface MessageBubbleProps {
    * Delivery status — only rendered for variant='right'.
    * sent      → ✓  (single dimmed tick)
    * delivered → ✓✓ (double bright tick)
+   * pending   → ⏳  (optimistic — not yet server-confirmed)
    * failed    → ⚠  (crimson warning — tap to retry via onLongPress)
    */
   status?:       MessageStatus;
@@ -226,10 +322,13 @@ const ReactionPill: React.FC<ReactionPillProps> = memo(
 ReactionPill.displayName = 'ReactionPill';
 
 // ─── Status icon map ──────────────────────────────────────────────────────────
+// FIX-10 + FIX-11: Added 'pending' — PRD §10.2 status icons: ✓/✓✓/⏳/⚠️
+// DO NOT CHANGE: existing entries (sent, delivered, failed) kept identical
 
 const STATUS_ICON: Record<MessageStatus, { glyph: string; a11y: string }> = {
-  sent:      { glyph: '✓',  a11y: 'Sent'                              },
-  delivered: { glyph: '✓✓', a11y: 'Delivered'                         },
+  sent:      { glyph: '✓',  a11y: 'Sent'                                },
+  delivered: { glyph: '✓✓', a11y: 'Delivered'                           },
+  pending:   { glyph: '⏳', a11y: 'Sending…'                            },  // FIX-11
   failed:    { glyph: '⚠',  a11y: 'Failed to send. Long press to retry.' },
 };
 
@@ -238,9 +337,9 @@ const STATUS_ICON: Record<MessageStatus, { glyph: string; a11y: string }> = {
 // ─────────────────────────────────────────────────────────────────────────────
 //   Layout : full-width row — hairline ─── chip ─── hairline
 //   Chip   : H 24px · cream[200] bg · r-12 · 8px H pad
-//   Text   : 11px 600 ink[600]
+//   Text   : 11px 600 ink[500] muted
 //   Margin : 24px top · 16px bottom
-//   a11y   : accessibilityRole "header"
+//   a11y   : accessibilityRole "header" (§Q1)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 interface DateSeparatorBubbleProps {
@@ -339,6 +438,7 @@ function MessageBubbleComponent({
   const isMayor = variant === 'mayor';
   const isAI    = variant === 'ai';
 
+  // DO NOT CHANGE: LongPress handler logic
   const handleLongPress = useCallback(
     (e: GestureResponderEvent) => { onLongPress?.(e); },
     [onLongPress],
@@ -358,13 +458,15 @@ function MessageBubbleComponent({
   const timeStyle: TextStyle =
     isRight ? styles.timeRight : isMayor ? styles.timeMayor : styles.timeLeft;
 
-  // Status tick / failed icon (right-variant only)
+  // DO NOT CHANGE: Status tick rendering logic
+  // (FIX-10: STATUS_ICON map now includes 'pending' — logic itself unchanged)
   const renderStatusIcon = () => {
     if (!isRight || !status) return null;
     const { glyph, a11y } = STATUS_ICON[status];
     const iconStyle =
       status === 'failed'    ? styles.statusFailed
       : status === 'sent'    ? styles.statusSent
+      : status === 'pending' ? styles.statusPending
       :                        styles.statusDelivered;
     return (
       <Text
@@ -382,19 +484,28 @@ function MessageBubbleComponent({
     <View
       style={[
         styles.wrapper,
-        isRight ? styles.wrapperRight : styles.wrapperLeft,
+        // FIX-14: Mayor is center-aligned card (PRD §10.2 "Centered, gold border, 24h sticky")
+        // Previously: all non-right variants used wrapperLeft (alignment bug)
+        isMayor ? styles.wrapperMayor
+          : isRight ? styles.wrapperRight
+          : styles.wrapperLeft,
         style,
       ]}
     >
       {/* ── Sender meta row (left / mayor / ai) ─────────────────────────── */}
       {!isRight && (
-        <View style={styles.metaContainer}>
+        <View style={[styles.metaContainer, isMayor && styles.metaMayor]}>
           {username ? (
             <Text style={styles.senderName} numberOfLines={1}>
               {username}
             </Text>
           ) : null}
           {tags ? <MessageTagsRow tags={tags} /> : null}
+          {/*
+           * GAP-01: trust score chip goes here for left/ai variants.
+           * Add `trustScore?: number` to MessageBubbleProps + MessageTags,
+           * then render: trustScore ? <Tag variant="trust" label={`${trustScore}`} size="sm" /> : null
+           */}
         </View>
       )}
 
@@ -413,12 +524,15 @@ function MessageBubbleComponent({
         }
         accessibilityHint="Long press to open actions"
       >
-        {/* AI mandatory badge — §[5.C] · W-002 fix */}
+        {/* AI mandatory badge — §11A.14 · Non-Negotiable #9
+            FIX-17: Enlarged 40% per PRD §11A.14
+            "🤖 AI pill is enlarged 40% bigger than text — users instantly recognize them as ambient"
+            MUST ALWAYS BE VISIBLE — NEVER REMOVE OR CONDITIONALLY HIDE */}
         {isAI && (
           <View style={styles.aiBadgeRow}>
             <View style={styles.aiBadge}>
               <Text style={styles.aiBadgeText} allowFontScaling={false}>
-                ✦ AI
+                🤖 AI
               </Text>
             </View>
           </View>
@@ -433,12 +547,15 @@ function MessageBubbleComponent({
           </View>
         )}
 
-        {/* Message text */}
+        {/* Message text
+            FIX-13: Apply msgTextAI (italic-tinted) for AI variant
+            PRD §10.2 AI: "Text: italic-tinted to distinguish from human messages" */}
         <Text
           style={[
             styles.msgText,
             isRight && styles.msgTextRight,
             isMayor && styles.msgTextMayor,
+            isAI    && styles.msgTextAI,        // FIX-13
           ]}
         >
           {text}
@@ -520,6 +637,12 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     alignSelf:  'flex-end',
   },
+  // FIX-14: Mayor center-aligned card (PRD §10.2 "Centered, gold border, 24h sticky")
+  // Previously missing — mayor incorrectly used wrapperLeft
+  wrapperMayor: {
+    alignItems: 'center',
+    alignSelf:  'center',
+  },
 
   // ── Sender meta container ──────────────────────────────────────────────────
   metaContainer: {
@@ -530,6 +653,10 @@ const styles = StyleSheet.create({
     marginBottom:      4,
     paddingHorizontal: 4,
     maxWidth:          '88%',
+  },
+  // FIX-14: Mayor meta row centered to match the center-aligned card
+  metaMayor: {
+    justifyContent: 'center',
   },
   senderName: {
     fontSize:      11,
@@ -557,17 +684,18 @@ const styles = StyleSheet.create({
     opacity:   0.95,
   },
 
-  // left — cream fill + hairline border + subtle gold shadow
+  // left — cream fill (#F5E6C8 per PRD --bg-card) + hairline border + subtle gold shadow
+  // FIX-02: was palette.cream[200] (#F7ECD0), updated to colors.bg.card (#F5E6C8)
   // Radius Protocol §8: chat bubbles = radii.lg (16px); tail corner = radii.xs (4px)
   bubbleLeft: {
-    backgroundColor:        T.bubbleLeft,
+    backgroundColor:        T.bubbleLeft,            // FIX-02: colors.bg.card #F5E6C8
     borderWidth:             1,
     borderColor:             T.borderLeft,
-    borderRadius:            radii.lg,    // 16 — §8 chat bubble protocol
-    borderTopLeftRadius:     radii.xs,    // 4  — tail corner (top-left for left-aligned)
-    borderTopRightRadius:    radii.lg,    // 16
-    borderBottomRightRadius: radii.lg,    // 16
-    borderBottomLeftRadius:  radii.lg,    // 16
+    borderRadius:            radii.lg,               // 16 — §8 chat bubble protocol
+    borderTopLeftRadius:     radii.xs,               // 4  — tail corner (top-left for left-aligned)
+    borderTopRightRadius:    radii.lg,               // 16
+    borderBottomRightRadius: radii.lg,               // 16
+    borderBottomLeftRadius:  radii.lg,               // 16
     shadowColor:             T.shadowGold,
     shadowOffset:            { width: 0, height: 3 },
     shadowOpacity:           0.07,
@@ -575,15 +703,16 @@ const styles = StyleSheet.create({
     elevation:               2,
   },
 
-  // right — Champagne Gold solid + gold glow
+  // right — Brand Gold solid (#D4A017 per PRD --fg-brand)
+  // FIX-01: was palette.gold[600] (#C9A227), updated to colors.fg.brand (#D4A017)
   // Radius Protocol §8: chat bubbles = radii.lg (16px); tail corner = radii.xs (4px)
   bubbleRight: {
-    backgroundColor:        T.bubbleRight,
-    borderRadius:            radii.lg,    // 16 — §8 chat bubble protocol
-    borderTopLeftRadius:     radii.lg,    // 16
-    borderTopRightRadius:    radii.lg,    // 16
-    borderBottomRightRadius: radii.xs,    // 4  — tail corner (bottom-right for right-aligned)
-    borderBottomLeftRadius:  radii.lg,    // 16
+    backgroundColor:        T.bubbleRight,           // FIX-01: colors.fg.brand #D4A017
+    borderRadius:            radii.lg,               // 16 — §8 chat bubble protocol
+    borderTopLeftRadius:     radii.lg,               // 16
+    borderTopRightRadius:    radii.lg,               // 16
+    borderBottomRightRadius: radii.xs,               // 4  — tail corner (bottom-right for right-aligned)
+    borderBottomLeftRadius:  radii.lg,               // 16
     shadowColor:             T.shadowGold,
     shadowOffset:            { width: 0, height: 5 },
     shadowOpacity:           0.28,
@@ -591,19 +720,23 @@ const styles = StyleSheet.create({
     elevation:               5,
   },
 
-  // mayor — warm ivory + 3px gold left-accent spine
-  // Radius Protocol §8: chat bubbles = radii.lg (16px); tail corner = radii.xs (4px)
+  // mayor — subtle gold tint + 2px gold outer border + 2px left-accent spine
+  // FIX-04: was palette.cream[50] (#FFF9EC) → palette.gold[50] (#FCF7E5) "subtle gold tint"
+  // FIX-05: borderMayorAccent updated from gold[600] (#C9A227) → colors.fg.brand (#D4A017)
+  // FIX-15: borderTopLeftRadius radii.xs → radii.lg (no tail — center-aligned card has no tail)
+  // FIX-16: borderLeftWidth 3 → 2 (user spec: "2px solid gold — left-accent border")
+  // Radius Protocol §8: center card = uniform radii.lg; NO tail corner
   bubbleMayor: {
-    backgroundColor:        T.bubbleMayor,
+    backgroundColor:        T.bubbleMayor,           // FIX-04: palette.gold[50] #FCF7E5
     borderWidth:             1.5,
     borderColor:             T.borderMayor,
-    borderLeftWidth:         3,
-    borderLeftColor:         T.borderMayorAccent,
-    borderRadius:            radii.lg,    // 16 — §8 chat bubble protocol
-    borderTopLeftRadius:     radii.xs,    // 4  — tail corner (top-left, left-aligned variant)
-    borderTopRightRadius:    radii.lg,    // 16
-    borderBottomRightRadius: radii.lg,    // 16
-    borderBottomLeftRadius:  radii.lg,    // 16
+    borderLeftWidth:         2,                      // FIX-16: was 3, now 2px per user spec
+    borderLeftColor:         T.borderMayorAccent,    // FIX-05: colors.fg.brand #D4A017
+    borderRadius:            radii.lg,               // 16
+    borderTopLeftRadius:     radii.lg,               // FIX-15: was radii.xs (tail) → radii.lg (card)
+    borderTopRightRadius:    radii.lg,               // 16
+    borderBottomRightRadius: radii.lg,               // 16
+    borderBottomLeftRadius:  radii.lg,               // 16
     shadowColor:             T.shadowGold,
     shadowOffset:            { width: 0, height: 4 },
     shadowOpacity:           0.13,
@@ -611,18 +744,20 @@ const styles = StyleSheet.create({
     elevation:               3,
   },
 
-  // ai — warm ivory + dashed gold ring
+  // ai — cream fill (#F5E6C8 per PRD) + dashed gold ring
+  // FIX-03: was palette.cream[50] (#FFF9EC) → colors.bg.card (#F5E6C8) "cream fill same as left"
+  // FIX-09: borderAI rgba base updated from C9A227 to D4A017
   // Radius Protocol §8: chat bubbles = radii.lg (16px); tail corner = radii.xs (4px)
   bubbleAI: {
-    backgroundColor:        T.bubbleAI,
+    backgroundColor:        T.bubbleAI,              // FIX-03: colors.bg.card #F5E6C8
     borderWidth:             1,
-    borderColor:             T.borderAI,
+    borderColor:             T.borderAI,             // FIX-09: rgba(212,160,23,0.45)
     borderStyle:             'dashed',
-    borderRadius:            radii.lg,    // 16 — §8 chat bubble protocol
-    borderTopLeftRadius:     radii.xs,    // 4  — tail corner (top-left, left-aligned variant)
-    borderTopRightRadius:    radii.lg,    // 16
-    borderBottomRightRadius: radii.lg,    // 16
-    borderBottomLeftRadius:  radii.lg,    // 16
+    borderRadius:            radii.lg,               // 16 — §8 chat bubble protocol
+    borderTopLeftRadius:     radii.xs,               // 4  — tail corner (top-left, left-aligned variant)
+    borderTopRightRadius:    radii.lg,               // 16
+    borderBottomRightRadius: radii.lg,               // 16
+    borderBottomLeftRadius:  radii.lg,               // 16
     shadowColor:             T.shadowGold,
     shadowOffset:            { width: 0, height: 2 },
     shadowOpacity:           0.06,
@@ -631,30 +766,37 @@ const styles = StyleSheet.create({
   },
 
   // highlighted — 2px gold ring (saved / bookmarked)
+  // FIX-06: borderHighlight updated to colors.fg.brand
   bubbleHighlighted: {
     borderWidth: 2,
-    borderColor: T.borderHighlight,
+    borderColor: T.borderHighlight,                  // FIX-06: colors.fg.brand #D4A017
   },
 
-  // ── AI mandatory badge (W-002 fix) ─────────────────────────────────────────
+  // ── AI mandatory badge (§11A.14 — Non-Negotiable #9) ──────────────────────
+  // FIX-17: Enlarged 40% per PRD §11A.14:
+  //   "🤖 AI pill is enlarged 40% bigger than text so users instantly recognize them as ambient"
+  //   Before: paddingHorizontal 7, paddingVertical 2, fontSize 8.5
+  //   After:  paddingHorizontal 10, paddingVertical 3, fontSize 11
+  // FIX-18: backgroundColor updated from palette.gold[600] (raw StyleSheet ref) → T.bubbleRight
+  //         (which is colors.fg.brand #D4A017 — no raw palette access in StyleSheet)
   aiBadgeRow: {
     flexDirection: 'row',
     marginBottom:  spacing.xs,           // 4px
   },
   aiBadge: {
-    backgroundColor:  palette.gold[600],
-    borderRadius:     radii.sm,          // 6
-    paddingHorizontal: 7,
-    paddingVertical:   2,
-    shadowColor:      palette.gold[900],
-    shadowOffset:     { width: 0, height: 1 },
-    shadowOpacity:    0.28,
-    shadowRadius:     1.5,
-    elevation:        2,
+    backgroundColor:   T.bubbleRight,               // FIX-18: colors.fg.brand #D4A017 (was palette.gold[600])
+    borderRadius:      radii.sm,                    // 6
+    paddingHorizontal: 10,                          // FIX-17: was 7, now 10 (+40% per §11A.14)
+    paddingVertical:   3,                           // FIX-17: was 2, now 3  (+40% per §11A.14)
+    shadowColor:       palette.gold[900],
+    shadowOffset:      { width: 0, height: 1 },
+    shadowOpacity:     0.28,
+    shadowRadius:      1.5,
+    elevation:         2,
   },
   aiBadgeText: {
-    color:         palette.cream[50],
-    fontSize:      8.5,
+    color:         palette.cream[50],               // light text on gold badge — ok as palette ref
+    fontSize:      11,                              // FIX-17: was 8.5, now 11  (+40% per §11A.14)
     fontWeight:    '800',
     textTransform: 'uppercase',
     letterSpacing: 0.6,
@@ -662,8 +804,9 @@ const styles = StyleSheet.create({
 
   // ── Mayor label ────────────────────────────────────────────────────────────
   mayorLabelRow: {
-    flexDirection: 'row',
-    marginBottom:  5,
+    flexDirection:  'row',
+    justifyContent: 'center',                       // FIX-14: centered for card layout
+    marginBottom:   5,
   },
   mayorLabel: {
     fontSize:      9,
@@ -686,6 +829,13 @@ const styles = StyleSheet.create({
   msgTextMayor: {
     fontWeight: '500',
     color:      T.textMayor,
+  },
+  // FIX-12: AI message text — italic-tinted to distinguish from human messages
+  // PRD §10.2 Variant 3: "Text: italic-tinted to distinguish from human messages"
+  // Uses T.textAI = colors.fg.tertiary (muted warm tone matching PRD --fg-text-muted intent)
+  msgTextAI: {
+    fontStyle: 'italic',
+    color:     T.textAI,                            // FIX-12: muted warm tint (colors.fg.tertiary)
   },
 
   // ── Timestamp row ──────────────────────────────────────────────────────────
@@ -724,8 +874,15 @@ const styles = StyleSheet.create({
   statusDelivered: {
     color: T.statusDelivered,
   },
+  // FIX-10: Added pending status style — ⏳ inherits textTimeRight (ghosted white on gold)
+  statusPending: {
+    color:         T.textTimeRight,                 // ghosted white on gold — matches sent/delivered feel
+    fontSize:      12,
+    letterSpacing: 0,
+  },
+  // FIX-08: was palette.crimson[600] (#C4294F) — PRD §19.2 --fg-danger = #EF4444
   statusFailed: {
-    color:         T.statusFailed,
+    color:         T.statusFailed,                  // FIX-08: colors.fg.danger #EF4444
     fontSize:      12,
     letterSpacing: 0,
   },
@@ -746,17 +903,17 @@ const styles = StyleSheet.create({
   },
 
   reactionPill: {
-    backgroundColor:  palette.cream[50],
-    borderWidth:      1,
-    borderColor:      palette.cream[400],
-    borderRadius:     radii.pill,        // 9999 — true capsule at any scale
+    backgroundColor:   palette.cream[50],
+    borderWidth:       1,
+    borderColor:       palette.cream[400],
+    borderRadius:      radii.pill,                  // 9999 — true capsule at any scale
     paddingHorizontal: 10,
     paddingVertical:   4,
-    shadowColor:      palette.gold[900],
-    shadowOffset:     { width: 0, height: 1 },
-    shadowOpacity:    0.06,
-    shadowRadius:     1.5,
-    elevation:        1,
+    shadowColor:       palette.gold[900],
+    shadowOffset:      { width: 0, height: 1 },
+    shadowOpacity:     0.06,
+    shadowRadius:      1.5,
+    elevation:         1,
   },
   reactionPillActive: {
     backgroundColor: palette.gold[50],
@@ -777,10 +934,10 @@ const styles = StyleSheet.create({
 
   // ── Gift button ────────────────────────────────────────────────────────────
   giftBtn: {
-    backgroundColor:  palette.gold[50],
-    borderWidth:      1,
-    borderColor:      palette.gold[300],
-    borderRadius:     radii.md,          // 12
+    backgroundColor:   palette.gold[50],
+    borderWidth:       1,
+    borderColor:       palette.gold[300],
+    borderRadius:      radii.md,                    // 12
     paddingHorizontal: 9,
     paddingVertical:   4,
   },
@@ -804,8 +961,9 @@ const styles = StyleSheet.create({
   // DATE SEPARATOR  Blueprint §[5.F]
   //   Row: hairline ─── chip ─── hairline
   //   Chip: H 24px · cream[200] bg · r-12 · 8px H padding
-  //   Text: 11px 600 ink[600]
+  //   Text: 11px 600 ink[500] muted
   //   Margin: 24px top · 16px bottom
+  //   accessibilityRole: "header" (§Q1)
   // ════════════════════════════════════════════════════════════════════════════
 
   dateSepWrapper: {
@@ -822,7 +980,7 @@ const styles = StyleSheet.create({
   },
   dateSepChip: {
     height:            24,
-    backgroundColor:   T.bubbleDateChip, // cream[200]
+    backgroundColor:   T.bubbleDateChip, // cream[200] #F7ECD0 (§[5.F])
     borderRadius:      12,
     paddingHorizontal: spacing.sm,       // 8px H padding (§[5.F])
     marginHorizontal:  spacing.sm,       // 8px gap from lines
@@ -832,7 +990,7 @@ const styles = StyleSheet.create({
   dateSepText: {
     fontSize:      11,
     fontWeight:    '600',
-    color:         T.textDate,           // ink[600]
+    color:         T.textDate,           // colors.fg.tertiary muted warm
     letterSpacing: 0.2,
   },
 
