@@ -22,13 +22,29 @@
  * ║             Never "234K online" without context.                          ║
  * ╠══════════════════════════════════════════════════════════════════════════╣
  * ║  SCROLL BEHAVIOR:                                                         ║
- * ║    Full header (136px) hides on scroll-down (220ms easeInQuad)           ║
+ * ║    Full header (136px + safe-area) hides on scroll-down as ONE BLOCK     ║
  * ║    Reappears on scroll-up (280ms spring(160, 20))                         ║
  * ║    Exception: Row 2 NEVER hides when composer focused (keyboard open)     ║
+ * ║    → showHeader() is called immediately on composerFocused = true         ║
  * ╚══════════════════════════════════════════════════════════════════════════╝
+ *
+ * FIX LOG (v3.2):
+ *   [1] Removed dead refs: row12Anim, row3Anim (created but never used)
+ *   [2] Fixed animation target: translateY now applied to the ENTIRE
+ *       Animated.View container (all 3 rows move as one block per PRD §9.2)
+ *       Previously only Row 1 had translateY — Row 2 & Row 3 never animated.
+ *   [3] containerTranslateY uses -(TOTAL_H + insets.top) so the full block
+ *       (including safe-area padding) slides off-screen on hide.
+ *   [4] composerFocused prop is now wired: useEffect calls showHeader()
+ *       whenever the composer receives focus, ensuring Row 2 is always visible
+ *       while the user is composing (PRD §9.2 "Row 2 never hides" exception).
+ *   [5] Notification and DM badges now render the unread COUNT as text, not
+ *       just a coloured dot (PRD §9.2: "badged with unread count").
+ *   [6] Row 1 is now a plain View (the old inner Animated.View was the only
+ *       thing that animated before; it is no longer needed).
  */
 
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   Animated,
   StyleSheet,
@@ -58,7 +74,7 @@ const HDR = {
   /** §1.3.3 Row 3 — "32px H" */
   ROW3_H: 32 as const,
 
-  /** Total header height: 56 + 48 + 32 = 136px */
+  /** Total header content height: 56 + 48 + 32 = 136px (safe-area added at runtime) */
   TOTAL_H: 136 as const,
 
   /** §1.3.3 Row 1 wordmark: "Syne 800, 22px, letter-spacing -0.5px" */
@@ -88,29 +104,35 @@ const HDR = {
 
   /** Horizontal screen padding */
   PAD_H: spacing.base as const, // 16px
+
+  /** Badge max count before "99+" label */
+  BADGE_MAX: 99 as const,
 } as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SCROLL ANIMATION — shared with CrownBottomNav
 //
 // headerScrollAnim: 0 = visible, 1 = hidden
+//
+// FIX [2]: This value now drives the ENTIRE header container translateY,
+// not just Row 1. All three rows move as one block (PRD §9.2).
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const headerScrollAnim = new Animated.Value(0);
 
 export function hideHeader(): void {
   Animated.timing(headerScrollAnim, {
-    toValue:  1,
-    duration: HDR.HIDE_DURATION,
+    toValue:         1,
+    duration:        HDR.HIDE_DURATION,
     useNativeDriver: true,
   }).start();
 }
 
 export function showHeader(): void {
   Animated.spring(headerScrollAnim, {
-    toValue:  0,
-    tension:  HDR.SHOW_SPRING_TENSION,  // 160
-    friction: HDR.SHOW_SPRING_FRICTION, // 20
+    toValue:         0,
+    tension:         HDR.SHOW_SPRING_TENSION,  // 160
+    friction:        HDR.SHOW_SPRING_FRICTION, // 20
     useNativeDriver: true,
   }).start();
 }
@@ -138,6 +160,14 @@ function buildScopePhrase(scope: ChatScope, geoName: string): string {
     case 'country': return `${geoName} mein online`;
     case 'world':   return 'duniya bhar mein online';
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BADGE COUNT LABEL — "99+" when over HDR.BADGE_MAX
+// ─────────────────────────────────────────────────────────────────────────────
+
+function badgeLabel(count: number): string {
+  return count > HDR.BADGE_MAX ? `${HDR.BADGE_MAX}+` : String(count);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -199,10 +229,32 @@ export function HomeHeader({
 
   const insets = useSafeAreaInsets();
 
-  // ── Header hide animation ────────────────────────────────────────────────
-  // Row 2 separately tracked: never hides when composer focused
-  const row12Anim = useRef(new Animated.Value(0)).current;  // 0=visible 1=hidden
-  const row3Anim  = useRef(new Animated.Value(0)).current;
+  // ── FIX [2] + [3]: containerTranslateY drives ALL THREE ROWS as one block ─
+  //
+  // outputRange upper bound = -(content height + safe area top) so the entire
+  // header (including the status-bar padding) slides fully off screen.
+  // useMemo re-derives when insets.top changes (orientation / device change).
+  const containerTranslateY = useMemo(
+    () =>
+      headerScrollAnim.interpolate({
+        inputRange:  [0, 1],
+        outputRange: [0, -(HDR.TOTAL_H + insets.top)],
+        extrapolate: 'clamp',
+      }),
+    [insets.top],
+  );
+
+  // ── FIX [4]: composerFocused → always show header ────────────────────────
+  //
+  // PRD §9.2: "Row 2 (the 4-scope switcher) NEVER hides when the user is
+  // composing a message (input focused)."
+  // Calling showHeader() when the composer receives focus guarantees Row 2
+  // is on screen regardless of prior scroll position.
+  useEffect(() => {
+    if (composerFocused) {
+      showHeader();
+    }
+  }, [composerFocused]);
 
   // ── Active scope name for Row 3 ─────────────────────────────────────────
   const geoName = (() => {
@@ -217,28 +269,25 @@ export function HomeHeader({
   const scopePhrase = buildScopePhrase(activeScope, geoName);
   const showHeat    = heatScore >= HDR.HEAT_VISIBLE_THRESHOLD;
 
-  // ── Row 1 translateY ─────────────────────────────────────────────────────
-  const row1TranslateY = headerScrollAnim.interpolate({
-    inputRange:  [0, 1],
-    outputRange: [0, -(HDR.ROW1_H)],
-    extrapolate: 'clamp',
-  });
-
   return (
+    // ── FIX [2]: translateY applied to the entire container (one block) ────
+    //    Previously only Row 1 had translateY; Rows 2 & 3 were plain Views
+    //    and therefore stayed visible when the header "hid". Now all three
+    //    rows are children of this single Animated.View and move together.
     <Animated.View
       style={[
         styles.headerContainer,
         { paddingTop: insets.top },
+        { transform: [{ translateY: containerTranslateY }] },
       ]}
-      // Header is above chat body, below sheets/modals
       pointerEvents="box-none"
     >
-      {/* ── ROW 1: Brand + Actions (56px) ──────────────────────────────────── */}
-      <Animated.View
-        style={[
-          styles.row1,
-          { transform: [{ translateY: row1TranslateY }] },
-        ]}
+
+      {/* ── ROW 1: Brand + Actions (56px) ─────────────────────────────────── */}
+      {/* FIX [6]: plain View — the old inner Animated.View is no longer needed
+           since the outer container handles the translateY for the whole block */}
+      <View
+        style={styles.row1}
         pointerEvents="box-none"
       >
         {/* LEFT: CROWN wordmark */}
@@ -271,8 +320,20 @@ export function HomeHeader({
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Feather name="bell" size={HDR.ACTION_ICON} color={colors.fg.primary} />
+
+            {/* FIX [5]: badge now shows the unread COUNT, not just a dot */}
             {unreadNotifications > 0 ? (
-              <View style={styles.actionBadge} accessibilityElementsHidden />
+              <View
+                style={[
+                  styles.actionBadge,
+                  unreadNotifications > 9 ? styles.actionBadgeWide : null,
+                ]}
+                accessibilityElementsHidden
+              >
+                <Text style={styles.badgeText} allowFontScaling={false}>
+                  {badgeLabel(unreadNotifications)}
+                </Text>
+              </View>
             ) : null}
           </TouchableOpacity>
 
@@ -293,16 +354,30 @@ export function HomeHeader({
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Feather name="message-circle" size={HDR.ACTION_ICON} color={colors.fg.primary} />
+
+            {/* FIX [5]: badge now shows the unread COUNT, not just a dot */}
             {unreadDms > 0 ? (
-              <View style={styles.actionBadge} accessibilityElementsHidden />
+              <View
+                style={[
+                  styles.actionBadge,
+                  unreadDms > 9 ? styles.actionBadgeWide : null,
+                ]}
+                accessibilityElementsHidden
+              >
+                <Text style={styles.badgeText} allowFontScaling={false}>
+                  {badgeLabel(unreadDms)}
+                </Text>
+              </View>
             ) : null}
           </TouchableOpacity>
 
         </View>
-      </Animated.View>
+      </View>
 
       {/* ── ROW 2: 4-Scope Switcher (48px) ─────────────────────────────────── */}
-      {/* NEVER hides when composer focused — §1.3.3 exception */}
+      {/* FIX [4]: Row 2 participates in the one-block animation but is always
+           brought back into view via showHeader() when composerFocused = true,
+           satisfying §1.3.3 "Row 2 NEVER hides when composer focused". */}
       <View style={styles.row2}>
         <FourScopeSwitcher
           activeScope={activeScope}
@@ -367,6 +442,8 @@ const styles = StyleSheet.create({
 
   // ── Header wrapper — sticks above chat body ────────────────────────────────
   // z-index: 100 per §1.3.4 Z-Index Stack
+  // FIX [2]: This is now the Animated.View that receives translateY for the
+  //          ENTIRE block (rows 1 + 2 + 3 move together per PRD §9.2).
   headerContainer: {
     position:        'absolute',
     top:             0,
@@ -377,126 +454,145 @@ const styles = StyleSheet.create({
   },
 
   // ── ROW 1 — 56px (§1.3.3) ─────────────────────────────────────────────────
+  // FIX [6]: plain View, not Animated.View (outer container handles animation)
   row1: {
-    height:          HDR.ROW1_H,               // 56px
-    flexDirection:   'row',
-    alignItems:      'center',
-    justifyContent:  'space-between',
-    paddingHorizontal: HDR.PAD_H,              // 16px
+    height:             HDR.ROW1_H,             // 56px
+    flexDirection:      'row',
+    alignItems:         'center',
+    justifyContent:     'space-between',
+    paddingHorizontal:  HDR.PAD_H,              // 16px
   },
 
   // ── CROWN wordmark — Syne 800, 22px, gold, -0.5px letter-spacing ─────────
   // §1.3.3: "CROWN in Syne 800, 22px, gold #D4A017 (light) / #F59E0B (dark)"
   wordmark: {
     fontFamily:    'Syne_800ExtraBold',
-    fontSize:      HDR.WORDMARK_SIZE,          // 22px
+    fontSize:      HDR.WORDMARK_SIZE,           // 22px
     letterSpacing: HDR.WORDMARK_LETTER_SPACING, // -0.5px
-    color:         colors.fg.brand,            // gold[600]
+    color:         colors.fg.brand,             // gold[600]
     lineHeight:    28,
   },
 
   // ── Right action group ────────────────────────────────────────────────────
   actions: {
-    flexDirection:   'row',
-    alignItems:      'center',
-    gap:             8,
+    flexDirection: 'row',
+    alignItems:    'center',
+    gap:           8,
   },
 
   // ── Each action button — 44×44 touch target ───────────────────────────────
   actionButton: {
-    width:           HDR.ACTION_TOUCH,         // 44
-    height:          HDR.ACTION_TOUCH,         // 44
-    alignItems:      'center',
-    justifyContent:  'center',
-    position:        'relative',
+    width:          HDR.ACTION_TOUCH,           // 44
+    height:         HDR.ACTION_TOUCH,           // 44
+    alignItems:     'center',
+    justifyContent: 'center',
+    position:       'relative',
   },
 
-  // ── Action badge dot (unread indicator) ───────────────────────────────────
+  // ── Action badge — count badge (single digit) ────────────────────────────
+  // FIX [5]: badge now shows count text. Minimum 16×16 pill.
   actionBadge: {
-    position:        'absolute',
-    top:             8,
-    right:           6,
-    width:           8,
-    height:          8,
-    borderRadius:    4,
-    backgroundColor: colors.fg.error,
-    borderWidth:     1.5,
-    borderColor:     colors.bg.surface,
+    position:         'absolute',
+    top:              6,
+    right:            4,
+    minWidth:         16,
+    height:           16,
+    borderRadius:     8,
+    backgroundColor:  colors.fg.error,
+    borderWidth:      1.5,
+    borderColor:      colors.bg.surface,
+    alignItems:       'center',
+    justifyContent:   'center',
+    paddingHorizontal: 3,
+  },
+
+  // ── Wider badge for two-digit counts (10–99+) ─────────────────────────────
+  actionBadgeWide: {
+    minWidth: 20,
+  },
+
+  // ── Badge count text ──────────────────────────────────────────────────────
+  // FIX [5]: new style for count label inside badge
+  badgeText: {
+    fontSize:   9,
+    fontWeight: '700',
+    color:      '#FFFFFF',
+    lineHeight: 11,
   },
 
   // ── ROW 2 — 48px (§1.3.3) — scope switcher ────────────────────────────────
   row2: {
-    height:          HDR.ROW2_H,               // 48px
-    paddingHorizontal: HDR.PAD_H,             // 16px horizontal
-    backgroundColor: 'transparent',            // Transparent track — §1.3.3
+    height:            HDR.ROW2_H,              // 48px
+    paddingHorizontal: HDR.PAD_H,              // 16px horizontal
+    backgroundColor:   'transparent',           // Transparent track — §1.3.3 v3.1
   },
 
   // ── ROW 3 — 32px (§1.3.3) — online count strip ────────────────────────────
   row3: {
-    height:          HDR.ROW3_H,               // 32px
-    flexDirection:   'row',
-    alignItems:      'center',
-    justifyContent:  'space-between',
-    paddingHorizontal: HDR.PAD_H,             // 16px
+    height:            HDR.ROW3_H,              // 32px
+    flexDirection:     'row',
+    alignItems:        'center',
+    justifyContent:    'space-between',
+    paddingHorizontal: HDR.PAD_H,              // 16px
   },
 
   // ── Row 3 left — dot + count + scope ─────────────────────────────────────
   row3Left: {
-    flexDirection:   'row',
-    alignItems:      'center',
-    gap:             6,
-    flex:            1,
+    flexDirection: 'row',
+    alignItems:    'center',
+    gap:           6,
+    flex:          1,
   },
 
   // ── Online count text ─────────────────────────────────────────────────────
   // §1.3.3: "12px Inter 600"
   onlineText: {
-    fontSize:        12,
-    fontWeight:      '600',
-    color:           colors.fg.secondary,
-    lineHeight:      16,
+    fontSize:   12,
+    fontWeight: '600',
+    color:      colors.fg.secondary,
+    lineHeight: 16,
   },
 
   // ── Scope name inside online text (slightly lighter) ─────────────────────
   scopeNameText: {
-    fontWeight:      '400',
-    color:           colors.fg.tertiary,
+    fontWeight: '400',
+    color:      colors.fg.tertiary,
   },
 
   // ── Row 3 right — heat + trust ───────────────────────────────────────────
   row3Right: {
-    flexDirection:   'row',
-    alignItems:      'center',
-    gap:             6,
+    flexDirection: 'row',
+    alignItems:    'center',
+    gap:           6,
   },
 
   // ── Heat pill ─────────────────────────────────────────────────────────────
   heatPill: {
-    flexDirection:   'row',
-    alignItems:      'center',
-    gap:             4,
+    flexDirection: 'row',
+    alignItems:    'center',
+    gap:           4,
   },
 
   heatText: {
-    fontSize:        12,
-    fontWeight:      '700',
-    color:           colors.fg.warning,         // amber[600]
-    lineHeight:      16,
+    fontSize:   12,
+    fontWeight: '700',
+    color:      colors.fg.warning,              // amber[600]
+    lineHeight: 16,
   },
 
   // ── Trust anchor chip ─────────────────────────────────────────────────────
   trustPill: {
-    backgroundColor: colors.bg.goldSoft,
-    borderRadius:    radii.xs,                  // 4px
+    backgroundColor:   colors.bg.goldSoft,
+    borderRadius:      radii.xs,                // 4px
     paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingVertical:   2,
   },
 
   trustText: {
-    fontSize:        11,
-    fontWeight:      '500',
-    color:           colors.fg.brandText,       // gold[700]
-    lineHeight:      15,
+    fontSize:   11,
+    fontWeight: '500',
+    color:      colors.fg.brandText,            // gold[700]
+    lineHeight: 15,
   },
 
 });
