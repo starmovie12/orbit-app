@@ -1,26 +1,40 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║   CROWD WORLD — Premium Design Token System                             ║
- * ║   Version: v2.0  (against v5.0 BAAP EDITION blueprint · Part 3 § 2)    ║
- * ║   Philosophy: Champagne Gold · Warm Ivory · Refined Espresso            ║
+ * ║   CROWN — Premium Design Token System                                   ║
+ * ║   Version: v2.3  (against PRD v5.1 §19.2 "Color System (Locked)")      ║
+ * ║   Philosophy: Brand Gold · Clean White · Crisp Emerald + Crimson        ║
  * ║   WCAG 2.2 AA compliant — all critical text/bg pairs verified           ║
  * ║                                                                          ║
  * ║   Generated: 29 April 2026 · Chandigarh · Owner: Ail (Founder)         ║
  * ║   Companion to: Part 1 + Part 2 + Part 3 Blueprints                    ║
  * ╠══════════════════════════════════════════════════════════════════════════╣
- * ║   Migration from v1.0 (Part 3 § 2 map):                                ║
- * ║     #D4A017 → gold[600]  = #C9A227  Champagne Gold · -10% sat          ║
- * ║     #E07B20 → amber[600] = #D4651A  Burnished Amber · less aggressive  ║
- * ║     #F5C842 → gold[400]  = #E2C66B  Refined celebrate state            ║
- * ║     #F5E6C8 → cream[200]            Warm ivory · cleaner               ║
- * ║     #1A1A1A → ink[950]   = #1A1208  Warm Ink · golden undertone        ║
- * ║     #6B5B2E → ink[600]   = #6B5B47  Espresso Brown · feels human       ║
- * ║     #E8D5A0 → cream[400]            Refined divider · stronger         ║
- * ║     rgba(13,16,24,0.85) → glass.bg  Warmer · matches palette           ║
- * ║     Success  → emerald[600] = #1A7A4A  Forest Emerald                  ║
- * ║     Error    → crimson[600] = #C4294F  Crimson Rose                    ║
- * ║   NEW in v2.0: semanticSuccess · semanticError · semanticWarning ·     ║
- * ║                semanticInfo · lightTheme · darkTheme exports            ║
+ * ║   Migration log v2.2 (PRD v5.1 §9.2, §9.3, §19.2 — locked values):    ║
+ * ║     crimson[600] #C4294F → #EF4444  --fg-danger (PRD §19.2)            ║
+ * ║     emerald[600] #1A7A4A → #10B981  --fg-success (PRD §19.2)           ║
+ * ║     cream[400]   #E5CC95 → #E8D5A0  --border-subtle (PRD §19.2)        ║
+ * ║     locationRowHeight 44 → 48       Row 2 height (PRD §9.2)            ║
+ * ║     totalStickyHeader 132→ 136      56+48+32 total (PRD §9.2)          ║
+ * ║     Glass Island @deprecated        PRD §9.3 Founder mandate v5.1-rev2 ║
+ * ╠══════════════════════════════════════════════════════════════════════════╣
+ * ║   Migration log v2.1 (PRD v3.2 §19.2 — locked values):                 ║
+ * ║     gold[600]  #C9A227 → #D4A017  --fg-brand (PRD §19.2)              ║
+ * ║     ink[950]   #1A1208 → #1A1A1A  --fg-text-strong (PRD §19.2)        ║
+ * ║     ink[600]   #6B5B47 → #6B5B2E  --fg-text-muted (PRD §19.2)         ║
+ * ║     fgBrand dark mode  → #F59E0B  brighter on dark bg (PRD §19.2)     ║
+ * ║     orbitDark.bg       → #0D1018  --bg-surface dark OLED (PRD §19.2)  ║
+ * ╠══════════════════════════════════════════════════════════════════════════╣
+ * ║   Migration log v2.3 (Dark Mode critical fix):                          ║
+ * ║     makePalette v2.0 tokens: colors.* static → o.* dynamic params      ║
+ * ║     bgSurface: colors.bg.surface → o.bg    (white→#0D1018 in dark)     ║
+ * ║     bgCard:    colors.bg.card    → o.surface1 (cream→#131316 in dark)  ║
+ * ║     bgSubtle:  colors.bg.subtle  → o.bgWarm                            ║
+ * ║     bgSkeleton:colors.bg.skeleton→ o.surface2                          ║
+ * ║     bgInverse: colors.bg.inverse → o.textPrimary (elegant inversion)   ║
+ * ║     fgPrimary:  colors.fg.primary → o.textPrimary                      ║
+ * ║     fgSecondary:colors.fg.secondary→o.textSecond                       ║
+ * ║     fgTertiary: colors.fg.tertiary → o.textTertiary                    ║
+ * ║     fgSuccess/Error/Warning → o.success/danger/warning                 ║
+ * ║     all border* tokens → o.borderSubtle/goldBorder/danger/success      ║
  * ╚══════════════════════════════════════════════════════════════════════════╝
  */
 
@@ -41,11 +55,11 @@ export const palette = {
     300: '#C7BCA8',  // Light taupe
     400: '#A89A85',  // Mid taupe — disabled text
     500: '#8A7960',  // Placeholder text / tertiary fg
-    600: '#6B5B47',  // ⭐ Text Secondary — espresso · warm
+    600: '#6B5B2E',  // ⭐ Text Secondary — espresso · --fg-text-muted (PRD §19.2)
     700: '#524539',  // Dark espresso
     800: '#3D342A',  // Very dark warm brown
     900: '#2A2520',  // Near-black warm
-    950: '#1A1208',  // ⭐ Text Primary — Warm Ink (#1A1208 · golden undertone · Part 3 § 2)
+    950: '#1A1A1A',  // ⭐ Text Primary — --fg-text-strong (PRD §19.2)
   },
 
   // ── GOLD ────────────────────────────────────────────────────────────────
@@ -57,7 +71,7 @@ export const palette = {
     300: '#ECD58F',  // Soft gold — subtle borders
     400: '#E2C66B',  // ⭐ Celebrate / earned states (replaces #F5C842)
     500: '#D4B244',  // Mid brand gold
-    600: '#C9A227',  // ⭐ PRIMARY brand gold — Champagne Gold (#C9A227 · Part 3 § 2)
+    600: '#D4A017',  // ⭐ PRIMARY brand gold — --fg-brand (PRD §19.2)
     700: '#A88A24',  // ⭐ Hover / pressed brand / links on white
     800: '#8B6F18',  // ⭐ Brand wordmark on light bg (LAW 15)
     900: '#6B5512',  // Deep antique gold
@@ -71,7 +85,7 @@ export const palette = {
     100: '#FBF4E2',  // Card hover bg
     200: '#F7ECD0',  // ⭐ Card bg / primary surface (replaces #F5E6C8)
     300: '#F0DEB6',  // Card pressed bg
-    400: '#E5CC95',  // ⭐ Default border / divider (replaces #E8D5A0)
+    400: '#E8D5A0',  // ⭐ --border-subtle · hairlines, pill borders (PRD §19.2 locked)
     500: '#D4B870',  // Stronger cream — rare use
   },
 
@@ -98,7 +112,7 @@ export const palette = {
     100: '#D1FAE5',
     400: '#34D399',
     500: '#10B981',
-    600: '#1A7A4A',  // ⭐ PRIMARY success — Forest Emerald (#1A7A4A · Part 3 § 2)
+    600: '#10B981',  // ⭐ PRIMARY success — --fg-success (PRD §19.2 locked)
     700: '#047857',
   },
 
@@ -109,7 +123,7 @@ export const palette = {
     100: '#FDD0C7',
     400: '#D85F4F',
     500: '#C84B3D',
-    600: '#C4294F',  // ⭐ PRIMARY error — Crimson Rose (#C4294F · Part 3 § 2)
+    600: '#EF4444',  // ⭐ PRIMARY error — --fg-danger (PRD §19.2 locked)
     700: '#9B2C1F',
     800: '#7E2316',
   },
@@ -123,11 +137,13 @@ export const palette = {
   },
 
   // ── GLASS ───────────────────────────────────────────────────────────────
-  // Glass Island specific. LAW 13 — navy preserved, slightly warmer.
+  // @deprecated — PRD §9.3 Founder mandate v5.1-rev2: "No backdrop-filter.
+  // No transparency. No floating. No island." Bottom nav uses --bg-surface solid.
+  // These values kept for any legacy BlurView refs — delete when all cleared.
   glass: {
-    bg:     'rgba(20, 16, 12, 0.85)',    // Warm-tinted dark (was rgba(13,16,24,0.85))
-    border: 'rgba(255, 255, 255, 0.12)', // Subtle inner edge — 0.5px
-    shadow: 'rgba(20, 16, 12, 0.40)',    // Drop shadow — warmer than pure navy
+    bg:     'rgba(20, 16, 12, 0.85)',    // @deprecated — use colors.bg.surface (solid)
+    border: 'rgba(255, 255, 255, 0.12)', // @deprecated
+    shadow: 'rgba(20, 16, 12, 0.40)',    // @deprecated
   },
 
   // ── ABSOLUTES ───────────────────────────────────────────────────────────
@@ -161,8 +177,8 @@ export const colors = {
     toast:            palette.ink[950],           // Toast bg (dark pill)
     overlay:          'rgba(28, 24, 20, 0.55)',   // Full screen overlay
     offlineBanner:    palette.ink[950],           // Offline alert banner
-    successSoft:      'rgba(26, 122, 74, 0.10)',   // Forest Emerald wash bg (#1A7A4A)
-    errorSoft:        'rgba(196, 41, 79, 0.10)',   // Crimson Rose wash bg (#C4294F)
+    successSoft:      'rgba(16, 185, 129, 0.10)',  // --fg-success (#10B981) wash
+    errorSoft:        'rgba(239, 68, 68, 0.10)',    // --fg-danger (#EF4444) wash
     warningSoft:      'rgba(212, 101, 26, 0.10)',  // Burnished Amber wash bg (#D4651A)
     goldSoft:         palette.gold[50],           // Light gold tint — hover states
     amberSoft:        palette.amber[50],          // Light amber tint
@@ -438,7 +454,10 @@ export const zIndex = {
   fixedHeader:        900,   // ⭐ Sticky header — both rows (LAW 15)
   stickyBanner:       930,   // Offline banner
   stickyCTA:          940,   // Sticky chat input
-  glassIsland:        950,   // ⭐ Glass Island (LAW 13)
+  // DEPRECATED (PRD §9.3 Founder mandate v5.1-rev2): glassIsland removed.
+  // Bottom nav is now a simple full-width fixed bar. z-index kept for backward compat.
+  bottomNavBar:       950,   // ⭐ Fixed full-width bottom nav (replaces Glass Island)
+  glassIsland:        950,   // @deprecated — use bottomNavBar. Will be removed in v3.0.
   sheetScrim:         955,   // Bottom sheet scrim
   bottomSheet:        960,   // ⭐ City/Sector/Action/Auth sheets
   centeredModal:      970,   // Send-Failed modal
@@ -533,17 +552,21 @@ export const animation = {
 
 export const dimensions = {
 
-  // Headers
-  headerHeight:         56,
-  locationRowHeight:    44,
-  onlineStripHeight:    32,
-  totalStickyHeader:   132,
+  // Headers — PRD §9.2: Row1(56) + Row2(48) + Row3(32) = 136px total
+  headerHeight:         56,   // Row 1: Brand + Bell + DM
+  locationRowHeight:    48,   // Row 2: 4-scope switcher (was 44 — FIXED per PRD §9.2)
+  onlineStripHeight:    32,   // Row 3: Online count strip
+  totalStickyHeader:   136,   // 56+48+32 = 136 (was 132 — FIXED per PRD §9.2)
 
-  // Glass Island (LAW 13)
-  glassIslandH:         56,
-  glassIslandW:        280,
-  glassIslandRadius:    28,
-  glassIslandAbove:     16,
+  // Bottom Navigation Bar — PRD §9.3 (simple full-width fixed bar)
+  // DEPRECATED: Glass Island removed per Founder mandate v5.1-rev2.
+  // Old glass island values kept below as @deprecated for migration — delete in v3.0.
+  bottomNavH:           56,   // ⭐ Fixed bar height (+ safe-area-inset-bottom on iOS)
+  bottomNavRadius:       0,   // ⭐ flush rectangle — NO rounded corners (PRD §9.3)
+  /** @deprecated PRD §9.3 — Glass Island removed. Use bottomNavH. */ glassIslandH:  56,
+  /** @deprecated PRD §9.3 — Glass Island removed. */ glassIslandW:        280,
+  /** @deprecated PRD §9.3 — Glass Island removed. */ glassIslandRadius:    28,
+  /** @deprecated PRD §9.3 — Glass Island removed. */ glassIslandAbove:     16,
   glassIconSize:        24,
 
   // Avatars
@@ -669,18 +692,19 @@ const orbitGold = {
   accentHover:     palette.gold[700],
   goldLight:       palette.gold[400],
   accentSoftSolid: palette.gold[50],
-  accentSoft:      'rgba(201, 162, 39, 0.10)',   // Champagne Gold (#C9A227) soft wash
+  accentSoft:      'rgba(212, 160, 23, 0.10)',   // Brand Gold (#D4A017) soft wash
+  fgBrand:         palette.gold[600],  // ⭐ --fg-brand light = #D4A017 (PRD §19.2)
 
   // Shadows
-  shadowGold:      '0 4px 16px rgba(201, 162, 39, 0.35)', // Champagne Gold glow
+  shadowGold:      '0 4px 16px rgba(212, 160, 23, 0.35)', // Brand Gold glow
 
   // Status
   success:         palette.emerald[600],
-  successSoft:     'rgba(26, 122, 74, 0.10)',    // Forest Emerald (#1A7A4A) wash
+  successSoft:     'rgba(16, 185, 129, 0.10)',   // --fg-success (#10B981) wash
   warning:         palette.amber[600],
   warningSoft:     'rgba(212, 101, 26, 0.10)',   // Burnished Amber (#D4651A) wash
   danger:          palette.crimson[600],
-  dangerSoft:      'rgba(196, 41, 79, 0.10)',    // Crimson Rose (#C4294F) wash
+  dangerSoft:      'rgba(239, 68, 68, 0.10)',    // --fg-danger (#EF4444) wash
 
   // Absolutes
   white:           palette.white,
@@ -688,7 +712,7 @@ const orbitGold = {
 } as const;
 
 const orbitDark = {
-  bg:              '#0A0A0B',
+  bg:              '#0D1018',  // ⭐ --bg-surface dark · OLED deep navy (PRD §19.2)
   bgWarm:          '#0D0900',
   surface1:        '#131316',
   surface2:        '#1C1C20',
@@ -699,19 +723,20 @@ const orbitDark = {
   textPrimary:     '#F5F5F7',
   textSecond:      '#A1A1AA',
   textTertiary:    '#6B6B73',
-  textInverse:     '#0A0A0B',
+  textInverse:     '#0D1018',
   accent:          palette.gold[600],
   accentHover:     palette.gold[700],
   goldLight:       palette.gold[400],
   accentSoftSolid: '#2A1F0A',
-  accentSoft:      'rgba(201, 162, 39, 0.10)',   // Champagne Gold (#C9A227) soft wash
-  shadowGold:      '0 4px 16px rgba(201, 162, 39, 0.35)',
+  accentSoft:      'rgba(212, 160, 23, 0.10)',   // Brand Gold (#D4A017) soft wash
+  shadowGold:      '0 4px 16px rgba(212, 160, 23, 0.35)',
+  fgBrand:         '#F59E0B',  // ⭐ --fg-brand dark · brighter on dark bg (PRD §19.2)
   success:         '#2BB673',
   successSoft:     'rgba(43, 182, 115, 0.10)',
   warning:         palette.amber[600],
   warningSoft:     'rgba(212, 101, 26, 0.10)',   // Burnished Amber (#D4651A) wash
   danger:          palette.crimson[600],
-  dangerSoft:      'rgba(196, 41, 79, 0.10)',    // Crimson Rose (#C4294F) wash
+  dangerSoft:      'rgba(239, 68, 68, 0.10)',    // --fg-danger (#EF4444) wash
   white:           palette.white,
   black:           palette.black,
 } as const;
@@ -730,6 +755,8 @@ type OrbitBase = {
   textPrimary: string; textSecond: string; textTertiary: string; textInverse: string;
   accent: string; accentHover: string; goldLight: string; accentSoftSolid: string; accentSoft: string;
   shadowGold: string;
+  /** Optional: per-theme fgBrand override. Falls back to colors.fg.brand (light value). */
+  fgBrand?: string;
   success: string; successSoft: string; warning: string; warningSoft: string;
   danger: string; dangerSoft: string; white: string; black: string;
 };
@@ -801,35 +828,53 @@ function makePalette(o: OrbitBase) {
     danger:                  o.danger,
     dangerSoft:              o.dangerSoft,
 
-    // v2.0 semantic tokens (for new components — direct access)
-    bgSurface:               colors.bg.surface,
-    bgCard:                  colors.bg.card,
-    bgGlass:                 colors.bg.glass,
-    bgScrim:                 colors.bg.scrim,
-    bgSkeleton:              colors.bg.skeleton,
-    bgInverse:               colors.bg.inverse,
-    bgSubtle:                colors.bg.subtle,
+    // v2.0 semantic tokens — THEME-AWARE (fixed: was incorrectly hardcoded to colors.* light values)
+    // Each maps to the dynamic `o` parameter so darkTheme/lightTheme both resolve correctly.
+    //
+    // MAPPING RATIONALE:
+    //   o.bg         = light:#FFFFFF  / dark:#0D1018  → correct bgSurface per theme
+    //   o.surface1   = light:cream[50]/ dark:#131316  → correct card surface per theme
+    //   o.bgWarm     = light:cream[50]/ dark:#0D0900  → subtle alternate row bg
+    //   o.surface2   = light:gold[50] / dark:#1C1C20  → skeleton/disabled bg per theme
+    //   o.textPrimary = light:#1A1A1A / dark:#F5F5F7  → bgInverse: text IS the inverse of bg
+    //   o.textSecond  / o.textTertiary → fg tokens per theme
+    //   o.borderSubtle / o.goldBorder / o.danger / o.success → border tokens per theme
+    //   STATIC (intentionally theme-invariant):
+    //     bgGlass — @deprecated, not used in new code
+    //     bgScrim — rgba semi-transparent, works on both themes
+    //     fgBrandSubtle — brand wordmark, gold[800] fixed by brand identity
+    //     fgOnBrand — always white text on gold CTA button
+    //     fgOnGlass — always white text on dark surfaces
+    //     fgCelebrate — gold[400] earn/celebration state (fixed brand moment)
+    //     fgSaffron — cultural accent, fixed design choice
+    bgSurface:               o.bg,           // light:#FFFFFF dark:#0D1018 ✓
+    bgCard:                  o.surface1,     // light:cream[50] dark:#131316 ✓
+    bgGlass:                 colors.bg.glass, // @deprecated (PRD §9.3) — static
+    bgScrim:                 colors.bg.scrim, // rgba semi-transparent — works both themes
+    bgSkeleton:              o.surface2,     // light:gold[50] dark:#1C1C20 ✓
+    bgInverse:               o.textPrimary,  // light:#1A1A1A dark:#F5F5F7 — elegant inversion ✓
+    bgSubtle:                o.bgWarm,       // light:cream[50] dark:#0D0900 ✓
 
-    fgPrimary:               colors.fg.primary,
-    fgSecondary:             colors.fg.secondary,
-    fgTertiary:              colors.fg.tertiary,
-    fgBrand:                 colors.fg.brand,
-    fgBrandText:             colors.fg.brandText,
-    fgBrandSubtle:           colors.fg.brandSubtle,
-    fgOnBrand:               colors.fg.onBrand,
-    fgOnGlass:               colors.fg.onGlass,
-    fgWarning:               colors.fg.warning,
-    fgCelebrate:             colors.fg.celebrate,
-    fgSuccess:               colors.fg.success,
-    fgError:                 colors.fg.error,
-    fgSaffron:               colors.fg.saffron,
+    fgPrimary:               o.textPrimary,  // light:#1A1A1A dark:#F5F5F7 ✓
+    fgSecondary:             o.textSecond,   // light:#6B5B2E dark:#A1A1AA ✓
+    fgTertiary:              o.textTertiary, // light:ink[500] dark:#6B6B73 ✓
+    fgBrand:                 o.fgBrand ?? colors.fg.brand, // light:#D4A017 dark:#F59E0B (PRD §19.2)
+    fgBrandText:             o.accentHover,  // light:gold[700] dark:gold[700] ✓
+    fgBrandSubtle:           colors.fg.brandSubtle, // gold[800] — brand wordmark, static ✓
+    fgOnBrand:               o.white,        // always white text on gold CTA ✓
+    fgOnGlass:               o.white,        // always white on dark surfaces ✓
+    fgWarning:               o.warning,      // light/dark: amber[600] ✓
+    fgCelebrate:             colors.fg.celebrate, // gold[400] — earn moment, static ✓
+    fgSuccess:               o.success,      // light:#10B981 dark:#2BB673 ✓
+    fgError:                 o.danger,       // light:#EF4444 dark:#EF4444 ✓
+    fgSaffron:               colors.fg.saffron, // cultural accent, static ✓
 
-    borderDefault:           colors.border.default,
-    borderCard:              colors.border.card,
-    borderInputIdle:         colors.border.inputIdle,
-    borderInputFocus:        colors.border.inputFocus,
-    borderInputError:        colors.border.inputError,
-    borderInputSuccess:      colors.border.inputSuccess,
+    borderDefault:           o.borderSubtle, // light:cream[400] dark:#1F1F24 ✓
+    borderCard:              o.borderSubtle, // light:cream[400] dark:#1F1F24 ✓
+    borderInputIdle:         o.borderSubtle, // light:cream[400] dark:#1F1F24 ✓
+    borderInputFocus:        o.goldBorder,   // light:gold[600] dark:#3A2E00 ✓
+    borderInputError:        o.danger,       // light:#EF4444 dark:#EF4444 ✓
+    borderInputSuccess:      o.success,      // light:#10B981 dark:#2BB673 ✓
 
     // Full orbit object for access to all raw tokens
     orbit: o,
@@ -856,27 +901,27 @@ const legacyColors = {
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const semanticSuccess = {
-  /** Foreground: Forest Emerald — text · icons on light or white bg */
-  fg:     palette.emerald[600],          // #1A7A4A
+  /** Foreground: --fg-success — text · icons on light or white bg */
+  fg:     palette.emerald[600],          // #10B981 (PRD §19.2 locked)
   /** Soft background wash — success banners · toast bg · validation bg */
-  bg:     'rgba(26, 122, 74, 0.10)',     // #1A7A4A @ 10%
+  bg:     'rgba(16, 185, 129, 0.10)',    // #10B981 @ 10%
   /** Border — success input ring · success card outline */
-  border: palette.emerald[600],          // #1A7A4A
+  border: palette.emerald[600],          // #10B981
   /** Icon color — checkmark · shield · badge icon */
-  icon:   palette.emerald[600],          // #1A7A4A
+  icon:   palette.emerald[600],          // #10B981
   /** Hover — pressed state icon / text */
   fgHover: palette.emerald[700],         // #047857
 } as const;
 
 export const semanticError = {
-  /** Foreground: Crimson Rose — error text · icons on light or white bg */
-  fg:     palette.crimson[600],          // #C4294F
+  /** Foreground: --fg-danger — error text · icons on light or white bg */
+  fg:     palette.crimson[600],          // #EF4444 (PRD §19.2 locked)
   /** Soft background wash — error banners · validation failure bg */
-  bg:     'rgba(196, 41, 79, 0.10)',     // #C4294F @ 10%
+  bg:     'rgba(239, 68, 68, 0.10)',     // #EF4444 @ 10%
   /** Border — error input ring · destructive card outline */
-  border: palette.crimson[600],          // #C4294F
+  border: palette.crimson[600],          // #EF4444
   /** Icon color — alert · X · trash icon in destructive states */
-  icon:   palette.crimson[600],          // #C4294F
+  icon:   palette.crimson[600],          // #EF4444
   /** Hover — pressed state */
   fgHover: palette.crimson[700],         // #9B2C1F
 } as const;
@@ -902,7 +947,7 @@ export const semanticInfo = {
   /** Border — info card outline · tip container ring */
   border: palette.gold[300],             // #ECD58F
   /** Icon color — info circle · lightbulb · sparkle */
-  icon:   palette.gold[600],             // #C9A227
+  icon:   palette.gold[600],             // #D4A017
   /** Hover — pressed state */
   fgHover: palette.gold[800],            // #8B6F18
 } as const;
@@ -1001,15 +1046,24 @@ export type DarkTheme        = typeof darkTheme;
 //   import { tokens } from '@/constants/colors';
 //   const { colors, spacing, radii, typography, animation } = tokens;
 //
-// GLASS ISLAND (LAW 13):
-//   <BlurView style={{
-//     backgroundColor: colors.bg.glass,
-//     borderRadius: radii['4xl'],
-//     ...colors.shadow.glass,
+// BOTTOM NAV BAR (PRD §9.3 — simple full-width fixed bar):
+//   // ❌ DEPRECATED — Glass Island removed (Founder mandate v5.1-rev2):
+//   // <BlurView style={{ backgroundColor: colors.bg.glass, borderRadius: radii['4xl'] }} />
+//   //
+//   // ✅ CORRECT — Simple fixed bar, solid bg, no blur, no float:
+//   <View style={{
+//     position:        'absolute',
+//     bottom:          0,
+//     left:            0,
+//     right:           0,
+//     height:          dimensions.bottomNavH,  // 56px + safe-area
+//     backgroundColor: colors.bg.surface,      // solid white (light) / #0D1018 (dark)
+//     borderTopWidth:  1,
+//     borderTopColor:  colors.border.default,
 //   }} />
 //
-// BRAND WORDMARK (LAW 15):
-//   <Text style={{ color: colors.fg.brandSubtle, height: 24 }}>CROWD</Text>
+// BRAND WORDMARK (PRD §19.1 — uppercase, weight 700, letter-spacing -0.4px):
+//   <Text style={{ color: colors.fg.brandSubtle, fontWeight: '700', letterSpacing: -0.4 }}>CROWN</Text>
 //
 // SEMANTIC ALIASES (v2.0 — Blueprint Part 3 § 2):
 //   import { semanticSuccess, semanticError, semanticWarning, semanticInfo } from '@/constants/colors';
