@@ -1,7 +1,7 @@
 /**
  * ScrollFAB — components/atoms/ScrollFAB.tsx
  * ─────────────────────────────────────────────────────────────────────────────
- * CROWD WORLD · Blueprint v5.0 BAAP EDITION · Layer: atom · Status: new · P2
+ * CROWN App · PRD v3.2 §10.1 Home Screen Anatomy · Layer: atom · Status: updated · P1
  *
  * Floating action button that surfaces when the user scrolls away from the
  * bottom of the Home Screen chat body. Signals unread messages below and
@@ -10,41 +10,49 @@
  * Visual anatomy
  * ──────────────
  *   ┌──────────────────────────────┐
- *   │  ↓  New messages  (or ↓)    │  ← Gold pill · frosted border · tier-2 shadow
+ *   │  ↓  3 nayi messages          │  ← Brand gold pill (#D4A017) · subtle shadow
  *   └──────────────────────────────┘
- *        ↑ centred, bottom: 80px above Glass Island floor
+ *        ↑ centred, 12px above sticky chat input
  *
- * Animation
- * ─────────
- *   Enter : opacity 0→1 + translateY +8→0 · 240ms · easeOut   (fadeConfig + 8px lift)
- *   Exit  : opacity 1→0 + translateY 0→+8 · 160ms · easeIn    (faster — less intrusive)
- *   Press : scale 1→0.95→1 via springStiff                     (useButtonPress hook)
- *   Reduced motion: opacity-only · no translate · blueprint "New messages chip slide" row
+ * Positioning (PRD §10.1)
+ * ───────────────────────
+ *   bottom = chatInputHeight (64) + bottomNavHeight (56) + insets.bottom + 12px gap
+ *   horizontal = alignSelf: 'center' (CSS equivalent: left:50% + translateX(-50%))
+ *   zIndex: stickyCTA (940) — sits above chat content, below bottom nav
  *
- * Positioning
- * ───────────
- *   position: absolute · bottom: 80px (Glass Island 56px + gap 24px) · alignSelf: center
- *   zIndex: stickyCTA (940) — sits above content, below Glass Island (950)
+ * Animation (PRD §10.1 visibility spec)
+ * ──────────────────────────────────────
+ *   Show : opacity 0→1 + translateY 20→0 · 250ms · easeOut
+ *   Hide : opacity 1→0 + translateY 0→10 · 150ms · easeIn
+ *   Press: scale 1→0.95→1 via springStiff  (useButtonPress hook)
+ *   Reduced motion: opacity-only · no translate
+ *
+ * Label format (PRD §10.1)
+ * ────────────────────────
+ *   count === 1 → "1 nayi message"
+ *   count  > 1 → "{count} nayi messages"
+ *   count === 0 → "Neeche jao"
+ *   Use `buildScrollFABLabel(count)` exported below to build the string.
  *
  * Props
  * ─────
- *   visible   boolean       Whether the FAB is visible (driven by scroll position).
- *   onPress   () => void    Scrolls chat to bottom / dismisses FAB.
- *   label?    string        Override label. Defaults to "New messages".
- *                           Pass undefined / empty string for icon-only mode (↓ only).
+ *   visible          boolean        FAB visibility (driven by scroll position).
+ *   label            string         Label text — required. Use buildScrollFABLabel(count).
+ *   onPress          () => void     Scrolls chat to bottom / dismisses FAB.
+ *   chatInputHeight? number         Height of sticky input bar. Default: 64px (PRD §10.1).
+ *   bottomNavHeight? number         Height of bottom nav bar.  Default: 56px (PRD §10.1).
  *
  * Usage
  * ─────
- *   import ScrollFAB from '@/components/atoms/ScrollFAB';
+ *   import ScrollFAB, { buildScrollFABLabel } from '@/components/atoms/ScrollFAB';
  *
- *   // In Home Screen chat body — drive via FlatList onScroll / onContentSizeChange
  *   <ScrollFAB
- *     visible={!isAtBottom && hasNewMessages}
+ *     visible={!isAtBottom}
  *     onPress={scrollToBottom}
- *     label="New messages"
+ *     label={buildScrollFABLabel(unreadCount)}
  *   />
  *
- * Deps: constants/colors.ts, constants/animations.ts
+ * Deps: constants/colors.ts, constants/animations.ts, react-native-safe-area-context
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -58,6 +66,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   colors,
@@ -66,9 +75,7 @@ import {
   zIndex,
 } from '@/constants/colors';
 import {
-  durations,
   easings,
-  springConfigs,
   useButtonPress,
   useReducedMotion,
 } from '@/constants/animations';
@@ -77,36 +84,100 @@ import {
 // § 1 — DESIGN TOKENS  (no hardcoded values below this block)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Distance from bottom of the container. Glass Island (56) + gap (24) = 80px. */
-const BOTTOM_OFFSET = 80 as const;
+/**
+ * Y-axis travel on enter: opacity 0→1, translateY SLIDE_DISTANCE_IN→0.
+ * PRD §10.1 show animation: 20px lift.
+ */
+const SLIDE_DISTANCE_IN = 20 as const;
 
-/** Y-axis travel distance for enter/exit slide animation (logical px). */
-const SLIDE_DISTANCE = 8 as const;
+/**
+ * Y-axis travel on exit: opacity 1→0, translateY 0→SLIDE_DISTANCE_OUT.
+ * PRD §10.1 hide animation: 10px drop.
+ */
+const SLIDE_DISTANCE_OUT = 10 as const;
 
-/** Default label when the caller does not override. */
-const DEFAULT_LABEL = 'New messages' as const;
+/** Show animation duration (PRD §10.1): 250ms easeOut. */
+const DURATION_SHOW = 250 as const;
 
-/** Chevron-down glyph — single source of truth so it's easy to swap to an icon. */
-const CHEVRON_DOWN = '↓' as const;
+/** Hide animation duration (PRD §10.1): 150ms easeIn — exit faster than enter. */
+const DURATION_HIDE = 150 as const;
+
+/**
+ * Default sticky chat input height from PRD §10.1 anatomy (64px).
+ * Overridable via chatInputHeight prop when the input resizes (e.g. multi-line input).
+ */
+const DEFAULT_CHAT_INPUT_HEIGHT = 64 as const;
+
+/**
+ * Default bottom nav height from PRD §10.1 anatomy (56px simple fixed bar).
+ * Overridable via bottomNavHeight prop.
+ */
+const DEFAULT_BOTTOM_NAV_HEIGHT = 56 as const;
+
+/**
+ * Gap between FAB bottom edge and chat input top edge (PRD §10.1 positioning spec).
+ */
+const BOTTOM_GAP = 12 as const;
 
 // Token aliases — never use raw color strings in JSX / StyleSheet below.
-const GOLD           = colors.fg.brand;                        // #C9A227 Champagne Gold
-const GOLD_TEXT      = colors.fg.onBrand;                     // #FFFFFF — text on gold pill
-const PILL_BG        = colors.fg.brand;                       // solid gold pill fill
-const BORDER_COLOR   = 'rgba(201, 162, 39, 0.40)' as const;  // frosted edge — 40% gold
-const SHADOW_COLOR   = colors.fg.brand;                       // gold glow
+/** Brand gold — #D4A017. Ensure constants/colors.ts fg.brand = '#D4A017'. */
+const PILL_BG      = colors.fg.brand;
+/** White — text rendered on gold pill. */
+const LABEL_COLOR  = colors.fg.onBrand;
+/** Gold glow for shadow. */
+const SHADOW_COLOR = colors.fg.brand;
+
+/**
+ * Frosted border — 40% opacity derivative of brand gold (#D4A017).
+ * Single source of truth for this derived value.
+ * Replace with `colors.fg.brandBorder40` once the token is added to constants/colors.ts.
+ */
+const BORDER_COLOR = 'rgba(212, 160, 23, 0.40)' as const; // 40% of #D4A017
+
+/** Chevron-down glyph — swap for an icon component in the icon-system pass. */
+const CHEVRON_DOWN = '↓' as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// § 2 — PROPS
+// § 2 — LABEL UTILITY
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Builds the ScrollFAB label string from a new-message count.
+ * Call this in the parent and pass the result to the `label` prop.
+ *
+ * @param count - Number of new messages below the viewport (0 = plain scroll indicator).
+ * @returns Localised Hindi label string per PRD §10.1.
+ *
+ * @example
+ * <ScrollFAB label={buildScrollFABLabel(unreadCount)} visible={!atBottom} onPress={scrollToBottom} />
+ */
+export function buildScrollFABLabel(count: number): string {
+  if (count === 1) return '1 nayi message';
+  if (count > 1)   return `${count} nayi messages`;
+  return 'Neeche jao';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// § 3 — PROPS
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface ScrollFABProps {
   /**
-   * Controls FAB visibility. Driven by the parent FlatList scroll position.
-   * true  → animate in  (easeOut enter)
-   * false → animate out (easeIn exit)
+   * Controls FAB visibility. Driven by parent FlatList scroll position.
+   *   true  → animate in  (opacity 0→1, translateY 20→0, 250ms easeOut)
+   *   false → animate out (opacity 1→0, translateY 0→10, 150ms easeIn)
    */
   visible: boolean;
+
+  /**
+   * Label text rendered beside the ↓ chevron. Always required.
+   * Build via `buildScrollFABLabel(count)` exported from this file.
+   * Format (PRD §10.1):
+   *   count === 1 → "1 nayi message"
+   *   count  > 1 → "{count} nayi messages"
+   *   count === 0 → "Neeche jao"
+   */
+  label: string;
 
   /**
    * Invoked when the user taps the FAB.
@@ -115,87 +186,113 @@ export interface ScrollFABProps {
   onPress: () => void;
 
   /**
-   * Custom label text rendered beside the ↓ chevron.
-   * Pass an empty string or undefined to render icon-only mode.
-   * @default "New messages"
+   * Height of the sticky chat input bar in logical pixels.
+   * Pass the measured value from the parent layout so the FAB repositions
+   * correctly when the keyboard adjusts the input or the input grows multi-line.
+   * @default 64  (PRD §10.1 anatomy)
    */
-  label?: string;
+  chatInputHeight?: number;
+
+  /**
+   * Height of the bottom navigation bar in logical pixels.
+   * @default 56  (PRD §10.1 anatomy — simple, fixed, full-width bar)
+   */
+  bottomNavHeight?: number;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// § 3 — COMPONENT
+// § 4 — COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * ScrollFAB
  *
- * Floating pill button anchored 80px above Glass Island. Fades and slides in
- * when unread messages exist below the viewport; tapping scrolls to the live edge.
+ * Floating pill button anchored above the sticky chat input.
+ * Fades and slides in when the user has scrolled away from the live edge;
+ * tapping scrolls back to the bottom instantly.
+ *
+ * Positioning formula (PRD §10.1):
+ *   bottom = chatInputHeight + bottomNavHeight + insets.bottom + 12px
  *
  * @example
- * // With label (new-message count context visible to parent)
- * <ScrollFAB visible={hasNew && !atBottom} onPress={scrollToBottom} label="New messages" />
+ * // New-message count context from parent
+ * <ScrollFAB
+ *   visible={hasNew && !atBottom}
+ *   onPress={scrollToBottom}
+ *   label={buildScrollFABLabel(unreadCount)}
+ * />
  *
  * @example
- * // Icon-only — for a simple "scroll down" affordance
- * <ScrollFAB visible={!atBottom} onPress={scrollToBottom} />
+ * // Plain scroll-down affordance (no unread count)
+ * <ScrollFAB
+ *   visible={!atBottom}
+ *   onPress={scrollToBottom}
+ *   label={buildScrollFABLabel(0)}  // "Neeche jao"
+ * />
  */
 const ScrollFAB: React.FC<ScrollFABProps> = ({
   visible,
+  label,
   onPress,
-  label = DEFAULT_LABEL,
+  chatInputHeight = DEFAULT_CHAT_INPUT_HEIGHT,
+  bottomNavHeight = DEFAULT_BOTTOM_NAV_HEIGHT,
 }) => {
+  const insets        = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
 
   // ── Animated values — created once, never re-instantiated ────────────────
   const opacity    = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(SLIDE_DISTANCE)).current;
+  const translateY = useRef(new Animated.Value(SLIDE_DISTANCE_IN)).current;
 
   // ── Button press scale from animations hook ───────────────────────────────
   const { scale, handlers: pressHandlers } = useButtonPress();
 
-  // ── Enter / exit orchestration ─────────────────────────────────────────────
+  // ── Dynamic bottom offset (PRD §10.1 positioning formula) ─────────────────
+  // bottom = chatInputHeight + bottomNavHeight + insets.bottom + 12px gap
+  // Default: 64 + 56 + insets.bottom + 12 = 132 + insets.bottom
+  const bottomOffset =
+    chatInputHeight + bottomNavHeight + insets.bottom + BOTTOM_GAP;
+
+  // ── Enter: opacity 0→1, translateY 20→0, 250ms easeOut ───────────────────
   const animateIn = useCallback(() => {
-    // Cancel any in-flight exit
+    // Cancel any in-flight exit animation
     opacity.stopAnimation();
     translateY.stopAnimation();
 
-    const parallel = Animated.parallel([
+    if (reducedMotion) {
+      // Reduced motion: hold translateY at 0, fade only
+      translateY.setValue(0);
+    }
+
+    Animated.parallel([
       Animated.timing(opacity, {
         toValue:         1,
-        duration:        durations.normal,          // 240ms
+        duration:        DURATION_SHOW,       // 250ms
         easing:          easings.easeOut,
         useNativeDriver: true,
       }),
-      // Skip translate on reduced motion — blueprint "New messages chip slide" row
       ...(reducedMotion
         ? []
         : [
             Animated.timing(translateY, {
               toValue:         0,
-              duration:        durations.normal,    // 240ms — match opacity
+              duration:        DURATION_SHOW,  // 250ms — match opacity
               easing:          easings.easeOut,
               useNativeDriver: true,
             }),
           ]),
-    ]);
-
-    if (reducedMotion) {
-      // Hold translateY at 0 — no movement, only fade
-      translateY.setValue(0);
-    }
-
-    parallel.start();
+    ]).start();
   }, [opacity, translateY, reducedMotion]);
 
+  // ── Exit: opacity 1→0, translateY 0→10, 150ms easeIn ─────────────────────
   const animateOut = useCallback(() => {
     opacity.stopAnimation();
     translateY.stopAnimation();
 
-    const parallel = Animated.parallel([
+    Animated.parallel([
       Animated.timing(opacity, {
         toValue:         0,
-        duration:        durations.fast,             // 160ms — exit faster than enter
+        duration:        DURATION_HIDE,            // 150ms — exit faster than enter
         easing:          easings.easeIn,
         useNativeDriver: true,
       }),
@@ -203,15 +300,13 @@ const ScrollFAB: React.FC<ScrollFABProps> = ({
         ? []
         : [
             Animated.timing(translateY, {
-              toValue:         SLIDE_DISTANCE,
-              duration:        durations.fast,       // 160ms
+              toValue:         SLIDE_DISTANCE_OUT,  // 10px drop on exit
+              duration:        DURATION_HIDE,       // 150ms
               easing:          easings.easeIn,
               useNativeDriver: true,
             }),
           ]),
-    ]);
-
-    parallel.start();
+    ]).start();
   }, [opacity, translateY, reducedMotion]);
 
   // ── React to visibility changes ───────────────────────────────────────────
@@ -223,23 +318,22 @@ const ScrollFAB: React.FC<ScrollFABProps> = ({
     }
   }, [visible, animateIn, animateOut]);
 
-  // ── Derived display state ─────────────────────────────────────────────────
-  const showLabel = label.trim().length > 0;
-
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <Animated.View
       style={[
         styles.root,
         {
+          // Dynamic bottom offset — injected inline so StyleSheet can stay static
+          bottom:    bottomOffset,
           opacity,
           transform: [
             { translateY },
-            { scale },      // press tactile — from useButtonPress
+            { scale }, // tactile press feedback — from useButtonPress
           ],
         },
       ]}
-      // When invisible, remove from hit-testing so taps don't get swallowed
+      // When invisible, remove from hit-testing so ghost taps don't get swallowed
       pointerEvents={visible ? 'box-none' : 'none'}
       accessibilityElementsHidden={!visible}
       importantForAccessibility={visible ? 'yes' : 'no-hide-descendants'}
@@ -252,10 +346,7 @@ const ScrollFAB: React.FC<ScrollFABProps> = ({
         hitSlop={{ top: 8, bottom: 8, left: 12, right: 12 }}
         accessible
         accessibilityRole="button"
-        accessibilityLabel={
-          showLabel ? `${label}. Tap to scroll down.` : 'Scroll down'
-        }
-        accessibilityHint="Returns to the bottom of the conversation"
+        accessibilityLabel={label}
       >
         <View style={styles.pill}>
           {/* ↓ Chevron */}
@@ -270,16 +361,14 @@ const ScrollFAB: React.FC<ScrollFABProps> = ({
             </Text>
           </View>
 
-          {/* Label — hidden in icon-only mode */}
-          {showLabel && (
-            <Text
-              style={styles.label}
-              numberOfLines={1}
-              allowFontScaling={false}
-            >
-              {label}
-            </Text>
-          )}
+          {/* Label — always shown (label is a required prop per PRD §10.1) */}
+          <Text
+            style={styles.label}
+            numberOfLines={1}
+            allowFontScaling={false}
+          >
+            {label}
+          </Text>
         </View>
       </Pressable>
     </Animated.View>
@@ -287,20 +376,20 @@ const ScrollFAB: React.FC<ScrollFABProps> = ({
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// § 4 — STYLES
-// Tokens only — zero hardcoded values.
+// § 5 — STYLES
+// Tokens only — zero hardcoded color values.
+// `bottom` intentionally absent here — injected as inline style (dynamic offset).
 // ─────────────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  // ── Root — positioned above Glass Island ──────────────────────────────────
+  // ── Root — position: absolute, centred, z-index above chat content ────────
   root: {
-    position:   'absolute',
-    bottom:     BOTTOM_OFFSET,
-    // Centre horizontally: alignSelf works inside absolutely-positioned parents
-    // only when the parent has a defined width. Callers should render this inside
-    // a full-width View (e.g. the chat body container) with pointerEvents="box-none".
-    alignSelf:  'center',
-    zIndex:     zIndex.stickyCTA,   // 940 — above content, below Glass Island (950)
+    position:  'absolute',
+    // `bottom` injected inline — formula: chatInputHeight + bottomNavHeight + insets.bottom + 12
+    // Horizontal centering via alignSelf: 'center'
+    // (equivalent to CSS `left: 50%; transform: translateX(-50%)` in a full-width container)
+    alignSelf: 'center',
+    zIndex:    zIndex.stickyCTA,  // 940 — above content, below bottom nav (950)
     // Ensure shadow isn't clipped by parent overflow:hidden
     ...Platform.select({
       ios:     { overflow: 'visible' },
@@ -310,31 +399,35 @@ const styles = StyleSheet.create({
 
   // ── Pressable — full pill tap area ────────────────────────────────────────
   pressable: {
-    // No additional sizing — pill defines the visual & touch target
+    // No additional sizing — pill geometry defines the visual & touch target
   },
 
-  // ── Gold pill ─────────────────────────────────────────────────────────────
+  // ── Gold pill (PRD §10.1 visual spec) ─────────────────────────────────────
   pill: {
-    flexDirection:    'row',
-    alignItems:       'center',
-    alignSelf:        'center',
-    gap:              spacing.xs,          // 4px between chevron and label
-    paddingVertical:  spacing.sm,          // 8px top/bottom
-    paddingHorizontal: spacing.base,       // 16px sides
-    backgroundColor:  PILL_BG,            // solid gold fill
-    borderRadius:     999,                 // full-pill
-    borderWidth:      1,
-    borderColor:      BORDER_COLOR,        // frosted gold edge — 40% opacity
+    flexDirection:     'row',
+    alignItems:        'center',
+    alignSelf:         'center',
+    gap:               spacing.xs,  // 4px between chevron and label
 
-    // Tier-2 gold glow shadow (blueprint shadow.tier2 values)
+    // PRD §10.1: padding 10px 20px
+    paddingVertical:   10,
+    paddingHorizontal: 20,
+
+    // PRD §10.1: brand gold bg, white text, 20px border-radius (pill)
+    backgroundColor:   PILL_BG,
+    borderRadius:      20,           // PRD §10.1 pill shape (20px, not full 999)
+    borderWidth:       1,
+    borderColor:       BORDER_COLOR, // frosted gold edge — 40% of #D4A017
+
+    // Subtle elevation (PRD §10.1 shadow spec)
     shadowColor:   SHADOW_COLOR,
     shadowOffset:  { width: 0, height: 2 },
-    shadowOpacity: 0.28,
-    shadowRadius:  10,
-    elevation:     6,                      // Android tier-2 elevation
+    shadowOpacity: 0.24,
+    shadowRadius:  8,
+    elevation:     4,                // Android subtle elevation
   },
 
-  // ── Chevron wrap — consistent optical size ────────────────────────────────
+  // ── Chevron wrap — consistent optical sizing ──────────────────────────────
   chevronWrap: {
     width:          16,
     height:         16,
@@ -345,7 +438,7 @@ const styles = StyleSheet.create({
   // ── ↓ glyph ───────────────────────────────────────────────────────────────
   chevron: {
     ...typography.body,
-    color:      GOLD_TEXT,
+    color:      LABEL_COLOR,
     fontWeight: '700' as const,
     lineHeight: 16,
     fontSize:   14,
@@ -354,17 +447,18 @@ const styles = StyleSheet.create({
   // ── Label text ────────────────────────────────────────────────────────────
   label: {
     ...typography.caption,
-    color:        GOLD_TEXT,
-    fontWeight:   '600' as const,
+    color:         LABEL_COLOR,
+    fontWeight:    '600' as const,
     letterSpacing: 0.15,
-    // Prevent the label from growing and misaligning with the chevron
-    flexShrink:   1,
+    // Prevent label from growing and misaligning with the chevron
+    flexShrink:    1,
   },
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// § 5 — EXPORT
-// React.memo — re-renders only on visible / onPress / label changes.
+// § 6 — EXPORT
+// React.memo — re-renders only when visible / label / onPress /
+// chatInputHeight / bottomNavHeight change.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default React.memo(ScrollFAB);
