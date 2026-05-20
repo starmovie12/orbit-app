@@ -1,56 +1,74 @@
 /**
  * ChatInput — components/molecules/ChatInput.tsx
  * ─────────────────────────────────────────────────────────────────────────────
- * CROWD WORLD · Blueprint v5.0 BAAP EDITION · Layer: molecule · Status: new · P0
+ * CROWN App · PRD v3.2 §9.3.5 — Coordinated Input Box Behavior (Gap-Fill Trick)
+ * Blueprint v5.0 BAAP EDITION · Layer: molecule · Status: updated · P0
  *
- * Spec ref  : § Home Screen [7] STICKY INPUT AREA
- * Blueprint : H=64px + safeAreaBottom · Bg=#FFFFFF · Z-Index=stickyCTA(940)
+ * Spec ref  : § Home Screen [7] STICKY INPUT AREA + §9.3.5 Gap-Fill Trick
+ * Blueprint : H=64px (min) · Bg=colors.bg.surface · Z-Index=935
  *
  * Sub-elements
  * ────────────
- *  [7.A] Input Field   — pill · cream bg · animated border on focus
+ *  [7.A] Input Field   — pill · cream bg · animated border on focus · scope-aware placeholder
  *  [7.B] Send Button   — circular 40px · state machine: idle/active/sending/failed
  *  [7.C] Emoji Trigger — 20×20 inside input · right-aligned · opens emoji KB
  *  [7.D] Char Counter  — shows from 850 chars · fades in above input row
  *
+ * §9.3.5 — THE GAP-FILL TRICK
+ * ────────────────────────────
+ * When the bottom nav scrolls away (navVisible=false), ChatInput slides down to
+ * fill the vacated space. Both animate in lockstep at 200ms Easing.ease.
+ *
+ *   navVisible=true  → bottom: BOTTOM_NAV_HEIGHT(56) + insets.bottom
+ *   navVisible=false → bottom: insets.bottom
+ *
+ * Component is position:'absolute' with animated bottom (Animated.timing).
+ * useNativeDriver:false required — 'bottom' is a layout property.
+ *
  * Compliance
  * ──────────
- *  ✓ Rule 03 — NO user avatar in composer (avatar lives ONLY in Glass Island Profile tab)
- *  ✓ Rule 04 — position: static · margin-bottom: 0 · flush above Glass Island
- *  ✓ Z-Index — zIndexTokens.stickyCTA (940) · below Glass Island (950)
- *  ✓ Radius Protocol — radii.pill on input field + send button (no height/2 calculations)
- *  ✓ Auth gate — tap on unauthenticated input triggers onAuthGate before keyboard opens
- *  ✓ Haptic — impactLight on send (Blueprint Q13 · 16 triggers)
- *  ✓ Keyboard — KeyboardAvoidingView is the PARENT's responsibility (see § KEYBOARD note)
+ *  ✓ §9.3.5 — Gap-Fill Trick: position absolute · animated bottom · 200ms Easing.ease
+ *  ✓ Rule 03 — NO user avatar in composer (avatar lives ONLY in bottom nav Profile tab)
+ *  ✓ Z-Index — 935 (below bottom nav · above chat content)
+ *  ✓ Radius Protocol — radii.pill on input field + send button
+ *  ✓ Auth gate — unauthenticated tap triggers onAuthGate before keyboard opens
+ *  ✓ Haptic — impactLight on send
+ *  ✓ Scope-aware placeholder — §9.3.5 format per active scope
+ *  ✓ Disabled state — offline visual dim + interaction block
  *  ✓ React.memo — all props are primitives + stable callbacks
  *
  * § KEYBOARD NOTE
- * The spec (§ Section 5) mandates KeyboardAvoidingView wraps the ENTIRE screen
- * below the header — not just this component. This component is position:static
- * so the parent HomeScreen should wrap [ChatBody + ChatInput] in one KAV:
+ * With position:'absolute', this component is OUT of the normal document flow.
+ * The parent HomeScreen must:
+ *   1. Add paddingBottom to ChatBody equal to STRIP_H so content isn't hidden
+ *   2. Use KeyboardAvoidingView wrapping ChatBody only (not ChatInput)
+ *   ChatInput handles its own position via bottomAnim.
  *
- *   <KeyboardAvoidingView
- *     behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
- *     keyboardVerticalOffset={0}
- *     style={{ flex: 1 }}
- *   >
- *     <ChatBody />
- *     <ChatInput ... />
- *   </KeyboardAvoidingView>
+ * § Z-INDEX NOTE (PRD v3.2 reconciliation)
+ * PRD §9.3.5 mandates z-935 (below bottom nav, above chat content).
+ * Previous Rev used zIndexTokens.stickyCTA (940) — overridden by explicit PRD spec.
+ * Z_CHAT_INPUT = 935 as const defined below.
  *
- * § Z-INDEX DISCREPANCY NOTE
- * Blueprint text says z-935; token file (§ 6) defines stickyCTA=940.
- * Token wins — zIndexTokens.stickyCTA (940) used throughout.
- * Still strictly below glassIsland (950) — Rule 04 preserved.
- *
- * § onVoice / onImage NOTE
- * Props accepted for future media attachment row.
- * Blueprint §[7] current revision has no voice/image buttons in composer;
- * they are not rendered. Remove from props when the attachment row ships.
- *
- * Deps:
- *   @expo/vector-icons (Feather) · react-native-safe-area-context
- *   hooks/useHaptics · constants/colors · constants/typography
+ * REVISION HISTORY
+ * ────────────────
+ * Rev 1 — Initial implementation
+ * Rev 2 — Fixed: bg/zIndex · heat pill gradient · layout · trust anchor
+ * Rev 3 — Radius Protocol: hardcoded radii → radii.pill token
+ * Rev 4 — PRD v3.2 §9.3.5 compliance:
+ *          ADDED  : navVisible prop (boolean, default true)
+ *          ADDED  : scope / cityLabel / sectorLabel props
+ *          ADDED  : resolvePlaceholder() scope-aware helper
+ *          ADDED  : BOTTOM_NAV_HEIGHT (56), Z_CHAT_INPUT (935), NAV_ANIM_DURATION_MS (200)
+ *          ADDED  : Scope type
+ *          CHANGED: wrapper → position:'absolute', left:0, right:0, zIndex:935
+ *          CHANGED: bottomAnim Animated.Value + useEffect for gap-fill animation
+ *          CHANGED: View wrapper → Animated.View with animated bottom
+ *          CHANGED: paddingBottom = PAD_V only (bottom prop carries insets.bottom)
+ *          CHANGED: placeholder default → scope-aware resolvePlaceholder()
+ *          CHANGED: TextInput accessibilityLabel → scope-aware
+ *          KEPT   : onSend, isAuthenticated, onAuthGate unchanged
+ *          KEPT   : disabled prop (already existed)
+ *          KEPT   : all existing SendButton logic, spinner, haptics
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -88,10 +106,10 @@ import { FONT_BODY, FONT_SIZE }               from '@/constants/typography';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // § 1 — DIMENSION & LAYOUT CONSTANTS
-// All values from Blueprint §[7] and constants/colors.ts dimension tokens.
+// All values from Blueprint §[7], §9.3.5, and constants/colors.ts dimension tokens.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Composer strip height excluding safe-area — Blueprint §[7] H: 64px */
+/** Composer strip base height — Blueprint §[7] H: 64px */
 const STRIP_H = dimensions.inputLg; // 64
 
 /** Vertical padding inside the strip — Blueprint §[7] "12px top · 12px bottom" */
@@ -114,7 +132,7 @@ const INPUT_SEND_GAP = spacing.sm; // 8
 
 /**
  * Input field internal horizontal padding — Blueprint §[7.A] "14px L · 14px R".
- * No spacing token for 14 — spec-mandated literal, used only here.
+ * No spacing token for 14 — spec-mandated literal.
  */
 const INPUT_PAD_H = 14 as const;
 
@@ -123,34 +141,26 @@ const EMOJI_SIZE = 20 as const;
 
 /**
  * Emoji button right offset inside input — Blueprint §[7.A] "12px from right edge".
- * No spacing token for 12... actually spacing.md = 12. Using token.
+ * Uses spacing.md = 12.
  */
 const EMOJI_RIGHT = spacing.md; // 12
 
 /**
- * Input right padding: reserves space for the 20px emoji icon + 12px from right
- * + 8px gap between text cursor and icon left edge.
+ * Input right padding: reserves space for 20px emoji icon + 12px offset + 8px gap.
  * Total: 12 + 20 + 8 = 40px
  *
- * ⚠️  FUTURE ICONS NOTE: This padding ONLY reserves space for the single emoji
- * trigger defined in Blueprint §[7.A]. If voice/image buttons are added to the
- * right side of the input field in a future revision, this value must be updated:
- *   INPUT_PAD_RIGHT = EMOJI_RIGHT + (iconCount × EMOJI_SIZE) + ((iconCount) × gapBetweenIcons)
- * Failing to update will cause text to overlap the new icons.
- * Corresponding EMOJI_RIGHT constant (absolute position of first icon from right)
- * stays the same — additional icons stack leftward from it.
+ * ⚠️  FUTURE ICONS: If voice/image buttons are added, update this value.
  */
 const INPUT_PAD_RIGHT = EMOJI_RIGHT + EMOJI_SIZE + spacing.sm; // 40
 
-/** Idle input border width — Blueprint §[7.A] "1px solid #E8D5A0" */
+/** Idle input border width — Blueprint §[7.A] */
 const BORDER_IDLE_W = 1 as const;
 
-/** Focused input border width — Blueprint §[7.A] "2px #D4A017 (focused)" */
+/** Focused input border width — Blueprint §[7.A] */
 const BORDER_FOCUS_W = 2 as const;
 
 /**
- * Input field idle opacity when disabled (offline state) — Blueprint §[7.A] "opacity 0.5"
- * Not exposed as prop; controlled via `editable` when implementing offline banner.
+ * Input field idle opacity when disabled — Blueprint §[7.A] "opacity 0.5"
  */
 const INPUT_DISABLED_OPACITY = 0.5 as const;
 
@@ -160,75 +170,99 @@ const CHAR_LIMIT = 1_000 as const;
 /** Char counter appears from this threshold — Blueprint §[7.A] "counter visible from 850 chars" */
 const COUNTER_THRESHOLD = 850 as const;
 
-/** Send button opacity when disabled (no text) — Blueprint §[7.B] "Opacity: 0.6" */
+/** Send button opacity when disabled — Blueprint §[7.B] "Opacity: 0.6" */
 const SEND_DISABLED_OPACITY = 0.6 as const;
 
 /** Failed state auto-reset duration — Blueprint §[7.B] "failed (3s) → idle" */
 const FAILED_RESET_MS = 3_000 as const;
 
-/** Brief sending state duration before returning to idle (fire-and-forget onSend) */
+/** Brief sending state duration before returning to idle */
 const SENDING_IDLE_RESET_MS = 300 as const;
+
+/**
+ * Bottom navigation bar height — PRD §9.3 "height: 56px".
+ * Used to position ChatInput above the nav bar (navVisible=true state).
+ */
+const BOTTOM_NAV_HEIGHT = 56 as const;
+
+/**
+ * Z-index for ChatInput — PRD §9.3.5 "z-index: 935".
+ * Below bottom nav (which sits above) · above chat content.
+ * PRD v3.2 overrides previous stickyCTA (940) token decision.
+ */
+const Z_CHAT_INPUT = 935 as const;
+
+/**
+ * Gap-fill animation duration — PRD §9.3.5 "200ms".
+ * Both nav hide and ChatInput bottom-slide happen in 200ms lockstep.
+ */
+const NAV_ANIM_DURATION_MS = 200 as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // § 2 — COLOR CONSTANTS
 // All from semantic tokens — zero hardcoded hex literals.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Strip background — Blueprint §[7] "Bg #FFFFFF" */
-const STRIP_BG = colors.bg.surface; // #FFFFFF
+/** Strip background — Blueprint §[7] */
+const STRIP_BG = colors.bg.surface;
 
-/** Top divider — Blueprint §[7] "top border 1px #E8D5A0" */
-const STRIP_BORDER = colors.border.default; // cream[400]
+/** Top divider — Blueprint §[7] */
+const STRIP_BORDER = colors.border.default;
 
-/** Input field background — Blueprint §[7.A] "#F5E6C8" → v2 cream[200] */
-const INPUT_BG = palette.cream[200]; // #F7ECD0
+/** Input field background — Blueprint §[7.A] */
+const INPUT_BG = palette.cream[200];
 
 /** Input idle border color */
-const INPUT_BORDER_IDLE = colors.border.inputIdle; // cream[400]
+const INPUT_BORDER_IDLE = colors.border.inputIdle;
 
 /** Input focused / filled border color */
-const INPUT_BORDER_FOCUS = colors.border.inputFocus; // gold[600] #C9A227
+const INPUT_BORDER_FOCUS = colors.border.inputFocus;
 
-/** Input text color — Blueprint §[7.A] "15px 400 #1A1A1A" */
-const INPUT_TEXT_COLOR = colors.fg.primary; // ink[950] #1A1208
+/** Input text color — Blueprint §[7.A] */
+const INPUT_TEXT_COLOR = colors.fg.primary;
 
-/** Input placeholder color — Blueprint §[7.A] "placeholder 15px 400 #6B5B2E" */
-const INPUT_PLACEHOLDER_COLOR = colors.fg.placeholder; // ink[500]
+/** Input placeholder color — Blueprint §[7.A] */
+const INPUT_PLACEHOLDER_COLOR = colors.fg.placeholder;
 
-/** Emoji icon color — Blueprint §[7.A] "20×20 · #6B5B2E" */
-const EMOJI_COLOR = colors.fg.secondary; // ink[600] #6B5B47
+/** Emoji icon color — Blueprint §[7.A] */
+const EMOJI_COLOR = colors.fg.secondary;
 
-/** Send button idle background — Blueprint §[7.B] Idle: "#F5E6C8" → cream[200] */
-const SEND_BG_IDLE = palette.cream[200]; // #F7ECD0
+/** Send button idle background */
+const SEND_BG_IDLE = palette.cream[200];
 
-/** Send button idle icon color — Blueprint §[7.B] Idle: "#6B5B2E" */
-const SEND_ICON_IDLE = colors.fg.secondary; // ink[600]
+/** Send button idle icon color */
+const SEND_ICON_IDLE = colors.fg.secondary;
 
-/** Send button active background — Blueprint §[7.B] Active: "#D4A017" → gold[600] */
-const SEND_BG_ACTIVE = colors.fg.brand; // gold[600] #C9A227
+/** Send button active background */
+const SEND_BG_ACTIVE = colors.fg.brand;
 
-/** Send button active/sending icon color — Blueprint §[7.B] Active: "#FFFFFF" */
-const SEND_ICON_ACTIVE = palette.white; // #FFFFFF
+/** Send button active/sending icon color */
+const SEND_ICON_ACTIVE = palette.white;
 
-/** Send button failed background — Blueprint §[7.B] Failed: "#E07B20" → amber[600] */
-const SEND_BG_FAILED = palette.amber[600]; // #D4651A
+/** Send button failed background */
+const SEND_BG_FAILED = palette.amber[600];
 
-/** Char counter warning color — amber when nearing limit */
-const COUNTER_COLOR_DEFAULT = colors.fg.secondary;   // ink[600]
+/** Char counter default color */
+const COUNTER_COLOR_DEFAULT = colors.fg.secondary;
+
 /**
- * Warning color — Blueprint §[7.A]: last 50 chars warning.
- * Rev fix: was palette.amber[600] (hardcoded primitive).
- * Now: colors.fg.warning (semantic token → amber[600] = #D4651A).
- * Same value, but token ensures design system consistency if amber scale shifts.
+ * Char counter warning color — last 50 chars.
+ * Semantic token (colors.fg.warning → amber[600]).
  */
-const COUNTER_COLOR_WARN    = colors.fg.warning;      // semantic token → amber[600] #D4651A
+const COUNTER_COLOR_WARN = colors.fg.warning;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // § 3 — TYPES
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Send button state machine — Blueprint §[7.B] state table */
+/** Send button state machine — Blueprint §[7.B] */
 type SendState = 'idle' | 'active' | 'sending' | 'failed';
+
+/**
+ * Active chat scope — determines placeholder text and geographic context.
+ * PRD §9.3.5: scope-aware placeholder format.
+ */
+type Scope = 'world' | 'country' | 'city' | 'sector';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // § 4 — PROPS
@@ -238,8 +272,7 @@ export interface ChatInputProps {
   /**
    * Called when the user taps the active send button.
    * Receives trimmed, non-empty text.
-   * onSend is fire-and-forget — the component returns to idle after calling it.
-   * Message-level send state (✓ / ⚠️) is managed in the bubble, not here.
+   * Fire-and-forget — component returns to idle after calling.
    */
   onSend: (text: string) => void;
 
@@ -269,39 +302,133 @@ export interface ChatInputProps {
   isAuthenticated: boolean;
 
   /**
-   * Input placeholder copy.
-   * @default "Sector 17 mein message likho..."
+   * Whether the bottom navigation bar is currently visible.
+   *
+   * PRD §9.3.5 — Gap-Fill Trick:
+   *   true  → bottom = BOTTOM_NAV_HEIGHT(56) + insets.bottom
+   *   false → bottom = insets.bottom (fills vacated nav space)
+   *
+   * Both this component and the nav bar animate at 200ms Easing.ease in lockstep.
+   * Parent must keep these in sync: set navVisible=false on scroll-down,
+   * navVisible=true on scroll-up.
+   *
+   * @default true
+   */
+  navVisible?: boolean;
+
+  /**
+   * Currently-active chat scope.
+   * Drives the placeholder text per PRD §9.3.5 scope-aware format.
+   * @default 'sector'
+   */
+  scope?: Scope;
+
+  /**
+   * Display name of the active city (e.g. "Mumbai").
+   * Used when scope === 'city': "{cityLabel} ki chat mein message likho..."
+   * @default ''
+   */
+  cityLabel?: string;
+
+  /**
+   * Display name of the active sector (e.g. "Bandra W").
+   * Used when scope === 'sector': "{sectorLabel} mein message likho..."
+   * @default 'Sector 17'
+   */
+  sectorLabel?: string;
+
+  /**
+   * Override placeholder text — backward-compatible escape hatch.
+   * If provided, overrides the scope-aware computed placeholder.
+   * New callers should omit this and use scope/cityLabel/sectorLabel instead.
+   *
+   * @deprecated Prefer scope-aware props. Will be removed in a future revision.
    */
   placeholder?: string;
 
   /**
    * Offline / network-error disabled state.
-   * Blueprint §[7.A] State (disabled): "opacity 0.5 (offline state)".
    * When true:
    *   · Input container opacity drops to INPUT_DISABLED_OPACITY (0.5)
    *   · TextInput is not editable (keyboard will not open)
-   *   · Send button is disabled (existing sendState guard handles this)
-   * Distinct from `isAuthenticated=false` — auth gate shows a sheet;
-   * `disabled=true` silently blocks interaction during offline state.
+   *   · Send button is disabled
+   * Distinct from isAuthenticated=false — auth gate shows a sheet;
+   * disabled=true silently blocks interaction during offline state.
    * @default false
    */
   disabled?: boolean;
 
   /**
-   * Additional styles applied to the outermost container.
-   * Use sparingly — most layout is fixed by Rule 04.
+   * Additional styles applied to the Animated.View wrapper.
+   * Use sparingly — most layout is governed by position/bottom/z-index rules.
    */
   style?: ViewStyle;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// § 5 — SUB-COMPONENT: SendButton
+// § 5 — HELPERS
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Resolves the scope-aware placeholder string.
+ * PRD §9.3.5 format:
+ *   world   → "World ki chat mein message likho..."
+ *   country → "India ki chat mein message likho..."
+ *   city    → "{cityLabel} ki chat mein message likho..."
+ *   sector  → "{sectorLabel} mein message likho..."
+ *
+ * If `override` is provided (backward-compat placeholder prop), it wins.
+ *
+ * @param scope       - Active chat scope
+ * @param cityLabel   - Active city display name
+ * @param sectorLabel - Active sector display name
+ * @param override    - Explicit override (deprecated placeholder prop)
+ * @returns           Placeholder string for the TextInput
+ */
+function resolvePlaceholder(
+  scope:       Scope,
+  cityLabel:   string,
+  sectorLabel: string,
+  override?:   string,
+): string {
+  if (override !== undefined) return override; // backward-compat
+  switch (scope) {
+    case 'world':   return 'World ki chat mein message likho...';
+    case 'country': return 'India ki chat mein message likho...';
+    case 'city':    return `${cityLabel} ki chat mein message likho...`;
+    case 'sector':  return `${sectorLabel} mein message likho...`;
+  }
+}
+
+/**
+ * Resolves the scope-aware accessibility label for the TextInput.
+ *
+ * @param scope       - Active chat scope
+ * @param cityLabel   - Active city display name
+ * @param sectorLabel - Active sector display name
+ * @returns           Accessibility label string
+ */
+function resolveA11yLabel(
+  scope:       Scope,
+  cityLabel:   string,
+  sectorLabel: string,
+): string {
+  switch (scope) {
+    case 'world':   return 'Type a message in World chat';
+    case 'country': return 'Type a message in India chat';
+    case 'city':    return `Type a message in ${cityLabel} chat`;
+    case 'sector':  return `Type a message in ${sectorLabel}`;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// § 6 — SUB-COMPONENT: SendButton
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface SendButtonProps {
   sendState:  SendState;
   onPress:    () => void;
-  spinValue:  Animated.Value; // shared animated value for spinner rotation
+  spinValue:  Animated.Value;
 }
 
 /**
@@ -309,16 +436,16 @@ interface SendButtonProps {
  *
  * 40×40 circular button with four visual states:
  *   idle     — cream bg · play icon · opacity 0.6 · disabled
- *   active   — gold bg · send icon · opacity 1.0 · enabled (+ spring scale on transition)
+ *   active   — gold bg · send icon · opacity 1.0 · enabled + spring scale
  *   sending  — gold bg · rotating loader · disabled
  *   failed   — amber bg · warning icon · disabled → auto-resets to idle after 3s
  *
- * Radius Protocol: radii.pill (9999) — RN clamps to SEND_SIZE/2 = 20px for full circle.
+ * Radius Protocol: radii.pill (9999) — RN clamps to SEND_SIZE/2 = 20px for circle.
  */
 const SendButtonBase: React.FC<SendButtonProps> = ({ sendState, onPress, spinValue }) => {
   // ── Scale spring on idle→active ────────────────────────────────────────
-  const btnScale   = useRef(new Animated.Value(1)).current;
-  const wasActive  = useRef(false);
+  const btnScale  = useRef(new Animated.Value(1)).current;
+  const wasActive = useRef(false);
 
   const isActiveNow = sendState === 'active';
 
@@ -330,7 +457,7 @@ const SendButtonBase: React.FC<SendButtonProps> = ({ sendState, onPress, spinVal
         toValue:         1,
         stiffness:       animation.easing.springGentle.stiffness, // 100
         damping:         animation.easing.springGentle.damping,   // 15
-        useNativeDriver: true,
+        useNativeDriver: true, // PERF: transform — compositor thread
       }).start();
     }
     wasActive.current = isActiveNow;
@@ -357,7 +484,7 @@ const SendButtonBase: React.FC<SendButtonProps> = ({ sendState, onPress, spinVal
         <Animated.View style={{ transform: [{ rotate: spin }] }}>
           <Feather
             name="loader"
-            size={SEND_ICON_SIZE - 4}  // 16px per Blueprint §[7.B]
+            size={SEND_ICON_SIZE - 4}  // 16px — Blueprint §[7.B]
             color={SEND_ICON_ACTIVE}
           />
         </Animated.View>
@@ -381,7 +508,7 @@ const SendButtonBase: React.FC<SendButtonProps> = ({ sendState, onPress, spinVal
         />
       );
     }
-    // idle — play arrow (closest Feather icon to ▷)
+    // idle — play arrow
     return (
       <Feather
         name="play"
@@ -400,7 +527,7 @@ const SendButtonBase: React.FC<SendButtonProps> = ({ sendState, onPress, spinVal
       <Pressable
         onPress={isDisabled ? undefined : onPress}
         disabled={isDisabled}
-        hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}  // 44×44 touch target
+        hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
         accessible
         accessibilityLabel={accessibilityLabel}
         accessibilityRole="button"
@@ -423,15 +550,15 @@ const SendButtonMemo = React.memo(SendButtonBase);
 
 const sendButtonStyles = StyleSheet.create({
   button: {
-    width:          SEND_SIZE,          // 40px — Blueprint §[7.B]
-    height:         SEND_SIZE,          // 40px
-    borderRadius:   radii.pill,         // 9999 — Radius Protocol (RN clamps to 20px for circle)
+    width:          SEND_SIZE,    // 40px
+    height:         SEND_SIZE,    // 40px
+    borderRadius:   radii.pill,   // Radius Protocol — 9999, clamps to 20px
     alignItems:     'center',
     justifyContent: 'center',
     overflow:       'hidden',
   },
   disabled: {
-    opacity: SEND_DISABLED_OPACITY,     // 0.6 — Blueprint §[7.B] Idle
+    opacity: SEND_DISABLED_OPACITY, // 0.6
   },
   pressed: {
     opacity: 0.85,
@@ -439,34 +566,36 @@ const sendButtonStyles = StyleSheet.create({
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// § 6 — MAIN COMPONENT
+// § 7 — MAIN COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * ChatInput
  *
- * Sticky bottom composer. Always visible — never hides (Rule 04).
- * Position: static — sits in the normal document flow, flush above Glass Island.
+ * Sticky bottom composer — position:'absolute' with animated bottom.
+ * Implements PRD §9.3.5 Gap-Fill Trick: slides down when nav hides.
  *
- * ⛔ RULE 04 COMPLIANCE:
- *   position             : static (NOT absolute · NOT floating)
- *   margin-bottom        : 0 — Glass Island is immediately below
- *   z-index              : zIndexTokens.stickyCTA (940) — above content · below Glass Island
+ * ─ GAP-FILL TRICK (§9.3.5): ─────────────────────────────────────────────────
+ *   navVisible=true  → bottom = 56 + insets.bottom (sits above nav bar)
+ *   navVisible=false → bottom = insets.bottom (fills the vacated nav space)
+ *   Both animate at 200ms Easing.ease — zero visual gap with nav animation.
+ *   useNativeDriver: false — 'bottom' is a layout property, not transform/opacity.
+ * ─────────────────────────────────────────────────────────────────────────────
  *
  * ⛔ RULE 03 COMPLIANCE:
- *   No user avatar in this composer. Avatar lives ONLY in Glass Island Profile tab.
+ *   No user avatar. Avatar lives ONLY in the bottom nav's Profile tab.
  *
- * Layout (horizontal flex):
- *   [input field flex-1] → 8px gap → [send button 40×40]
- *   (previously included [avatar 32px] — removed per Rule 03)
+ * ⛔ Z-INDEX: 935 — below bottom nav, above chat content.
  *
  * @example
- * // Parent HomeScreen (inside KeyboardAvoidingView):
  * <ChatInput
  *   onSend={handleSend}
  *   isAuthenticated={!!user}
  *   onAuthGate={openAuthSheet}
- *   placeholder="Sector 17 mein message likho..."
+ *   scope="city"
+ *   cityLabel="Mumbai"
+ *   sectorLabel="Bandra W"
+ *   navVisible={navVisible}
  * />
  */
 const ChatInputBase: React.FC<ChatInputProps> = ({
@@ -475,17 +604,21 @@ const ChatInputBase: React.FC<ChatInputProps> = ({
   onImage:      _onImage,   // reserved — not rendered in current revision
   onAuthGate,
   isAuthenticated,
+  navVisible    = true,
+  scope         = 'sector',
+  cityLabel     = '',
+  sectorLabel   = 'Sector 17',
   disabled      = false,
-  placeholder   = 'Sector 17 mein message likho...',
+  placeholder,              // explicit override (backward-compat)
   style,
 }) => {
   const insets  = useSafeAreaInsets();
   const haptics = useHaptics();
 
   // ── State ─────────────────────────────────────────────────────────────────
-  const [text,        setText]        = useState<string>('');
-  const [isFocused,   setIsFocused]   = useState<boolean>(false);
-  const [sendState,   setSendState]   = useState<SendState>('idle');
+  const [text,      setText]      = useState<string>('');
+  const [isFocused, setIsFocused] = useState<boolean>(false);
+  const [sendState, setSendState] = useState<SendState>('idle');
 
   // ── Refs ──────────────────────────────────────────────────────────────────
   const inputRef        = useRef<TextInput>(null);
@@ -497,7 +630,42 @@ const ChatInputBase: React.FC<ChatInputProps> = ({
   const spinLoop  = useRef<Animated.CompositeAnimation | null>(null);
 
   // ─────────────────────────────────────────────────────────────────────────
-  // § 6.1 — Spinner: start/stop when sendState changes to/from 'sending'
+  // § 7.1 — GAP-FILL ANIMATION (PRD §9.3.5)
+  // Animated.Value for the `bottom` CSS property.
+  // Initialized to BOTTOM_NAV_HEIGHT (56) — insets.bottom applied in first effect.
+  // useNativeDriver:false — layout property, cannot use UI thread.
+  // ─────────────────────────────────────────────────────────────────────────
+
+  const bottomAnim     = useRef(new Animated.Value(BOTTOM_NAV_HEIGHT)).current;
+  const isFirstRender  = useRef(true);
+
+  useEffect(() => {
+    // Target bottom position based on nav visibility:
+    //   navVisible=true  → 56 + insets.bottom (above nav bar)
+    //   navVisible=false → insets.bottom only  (fills vacated nav space)
+    const targetBottom = navVisible
+      ? BOTTOM_NAV_HEIGHT + insets.bottom
+      : insets.bottom;
+
+    if (isFirstRender.current) {
+      // First render: set immediately — no animation flash on mount
+      bottomAnim.setValue(targetBottom);
+      isFirstRender.current = false;
+      return;
+    }
+
+    // Subsequent changes: animate at 200ms Easing.ease (§9.3.5)
+    // PERF: useNativeDriver:false — 'bottom' triggers layout, not compositor
+    Animated.timing(bottomAnim, {
+      toValue:         targetBottom,
+      duration:        NAV_ANIM_DURATION_MS, // 200ms — §9.3.5 lockstep with nav
+      easing:          Easing.ease,
+      useNativeDriver: false,
+    }).start();
+  }, [navVisible, insets.bottom, bottomAnim]);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // § 7.2 — Spinner: start/stop when sendState changes to/from 'sending'
   // Blueprint §[7.B]: "16×16 #FFFFFF spinner (1000ms linear infinite)"
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -507,9 +675,9 @@ const ChatInputBase: React.FC<ChatInputProps> = ({
       spinLoop.current = Animated.loop(
         Animated.timing(spinValue, {
           toValue:         1,
-          duration:        1_000,      // Blueprint §[7.B]: 1000ms
+          duration:        1_000,         // Blueprint §[7.B]: 1000ms
           easing:          Easing.linear,
-          useNativeDriver: true,
+          useNativeDriver: true,          // PERF: transform — compositor thread
         }),
       );
       spinLoop.current.start();
@@ -530,9 +698,7 @@ const ChatInputBase: React.FC<ChatInputProps> = ({
   }, []);
 
   // ─────────────────────────────────────────────────────────────────────────
-  // § 6.2 — Derive send state from text length
-  // sendState tracks: idle (no text) · active (has text) · sending · failed
-  // sending and failed are set by handleSend — don't override them here.
+  // § 7.3 — Derive send state from text length
   // ─────────────────────────────────────────────────────────────────────────
 
   const hasText = text.trim().length > 0;
@@ -544,29 +710,25 @@ const ChatInputBase: React.FC<ChatInputProps> = ({
   }, [hasText, sendState]);
 
   // ─────────────────────────────────────────────────────────────────────────
-  // § 6.3 — Char counter display
+  // § 7.4 — Char counter display
   // Blueprint §[7.A]: "Max chars: 1000 · counter visible from 850 chars (subtle)"
   // ─────────────────────────────────────────────────────────────────────────
 
   const charsLeft   = CHAR_LIMIT - text.length;
   const showCounter = text.length >= COUNTER_THRESHOLD;
-  const counterWarn = charsLeft <= 50; // last 50 chars → amber warning color
+  const counterWarn = charsLeft <= 50; // last 50 chars → amber warning
 
   // ─────────────────────────────────────────────────────────────────────────
-  // § 6.4 — Auth gate
-  // Blueprint §[7.A]: "on first tap if unauthenticated → auth bottom sheet
-  // appears before keyboard opens"
+  // § 7.5 — Auth gate
   // ─────────────────────────────────────────────────────────────────────────
 
   const handleInputFocus = useCallback((): void => {
     if (!isAuthenticated) {
-      // Blur immediately — prevents keyboard from opening
       inputRef.current?.blur();
       onAuthGate?.();
       return;
     }
     setIsFocused(true);
-    // Blueprint Q13: "Tap input field to focus" → impactLight
     haptics.impactLight();
   }, [isAuthenticated, onAuthGate, haptics]);
 
@@ -575,43 +737,25 @@ const ChatInputBase: React.FC<ChatInputProps> = ({
   }, []);
 
   // ─────────────────────────────────────────────────────────────────────────
-  // § 6.5 — Send handler
-  // Blueprint §[7.B] on tap (active):
-  //   1. Haptic light
-  //   2. Optimistic bubble (parent's job)
-  //   3. Input field clears immediately
-  //   4. Send button → sending state
-  //   5. Network call (parent's job via onSend)
-  //   6. Return to idle (fire-and-forget; per-bubble status managed by parent)
+  // § 7.6 — Send handler
   // ─────────────────────────────────────────────────────────────────────────
 
   const handleSend = useCallback((): void => {
     const trimmed = text.trim();
     if (!trimmed || sendState !== 'active') return;
 
-    // 1. Haptic — Blueprint §[7.B] "Haptic light" + Q13 trigger
     haptics.impactLight();
-
-    // 3. Clear input immediately (optimistic UX)
     setText('');
-
-    // 4. Sending state — shows spinner
     setSendState('sending');
-
-    // 5. Notify parent (fire-and-forget)
     onSend(trimmed);
 
-    // 6. Return to idle (parent manages per-bubble failure state)
     sendingTimerRef.current = setTimeout(() => {
       setSendState(text.trim().length > 0 ? 'active' : 'idle');
     }, SENDING_IDLE_RESET_MS);
   }, [text, sendState, haptics, onSend]);
 
   // ─────────────────────────────────────────────────────────────────────────
-  // § 6.6 — Emoji keyboard trigger
-  // Blueprint §[7.A]: "On tap: opens emoji picker (system emoji keyboard)"
-  // RN has no API for programmatic emoji keyboard switch; focusing the input
-  // allows the user to access emoji via the OS keyboard globe/emoji key.
+  // § 7.7 — Emoji keyboard trigger
   // ─────────────────────────────────────────────────────────────────────────
 
   const handleEmojiPress = useCallback((): void => {
@@ -623,22 +767,39 @@ const ChatInputBase: React.FC<ChatInputProps> = ({
   }, [isAuthenticated, onAuthGate]);
 
   // ─────────────────────────────────────────────────────────────────────────
-  // § 6.7 — Derived styles
+  // § 7.8 — Derived values
   // ─────────────────────────────────────────────────────────────────────────
 
-  /** Border changes on focus — Blueprint §[7.A] state table */
+  /** Border state driven by focus */
   const inputBorderColor = isFocused ? INPUT_BORDER_FOCUS : INPUT_BORDER_IDLE;
   const inputBorderWidth = isFocused ? BORDER_FOCUS_W     : BORDER_IDLE_W;
 
+  /**
+   * Scope-aware placeholder — PRD §9.3.5.
+   * Explicit `placeholder` prop wins for backward compatibility.
+   */
+  const effectivePlaceholder = resolvePlaceholder(scope, cityLabel, sectorLabel, placeholder);
+
+  /**
+   * Scope-aware accessibility label.
+   */
+  const effectiveA11yLabel = resolveA11yLabel(scope, cityLabel, sectorLabel);
+
   // ─────────────────────────────────────────────────────────────────────────
-  // § 6.8 — Render
+  // § 7.9 — Render
+  //
+  // Animated.View is used instead of View so that `bottom: bottomAnim` works.
+  // The `bottom` property is an Animated.Value — not usable with static View.
   // ─────────────────────────────────────────────────────────────────────────
 
   return (
-    <View
+    <Animated.View
       style={[
         styles.wrapper,
-        { paddingBottom: PAD_V + insets.bottom },  // safe-area-bottom injected
+        {
+          bottom:         bottomAnim, // §9.3.5 — gap-fill animated position
+          paddingBottom:  PAD_V,      // 12px — safe-area already baked into `bottom`
+        },
         style,
       ]}
       testID="home-chat-input"
@@ -665,12 +826,10 @@ const ChatInputBase: React.FC<ChatInputProps> = ({
         {/*
          * ── [7.A] Input Field ──────────────────────────────────────────────
          *
-         * ⛔ RULE 03: Avatar previously sat here [7.A]. Removed.
-         *   "Reclaimed horizontal space allocated to a wider input field."
-         *   The input field now begins at the left edge of the inner padding zone.
+         * ⛔ RULE 03: No avatar. Avatar lives ONLY in bottom nav Profile tab.
          *
-         * The input container is position:relative so the emoji trigger can be
-         * absolutely positioned inside it at EMOJI_RIGHT px from the right edge.
+         * Input container is position:relative so emoji trigger can be
+         * absolutely positioned inside at EMOJI_RIGHT px from the right edge.
          */}
         <View
           style={[
@@ -679,9 +838,6 @@ const ChatInputBase: React.FC<ChatInputProps> = ({
               borderColor: inputBorderColor,
               borderWidth: inputBorderWidth,
             },
-            // Blueprint §[7.A] State (disabled): "opacity 0.5 (offline state)"
-            // Applied to the container (not TextInput directly) so the emoji
-            // trigger and border are also visually dimmed together.
             disabled && styles.inputContainerDisabled,
           ]}
         >
@@ -690,25 +846,24 @@ const ChatInputBase: React.FC<ChatInputProps> = ({
             style={styles.inputField}
             value={text}
             onChangeText={(val) => {
-              // Enforce char limit — Blueprint §[7.A] "Max chars: 1000"
               if (val.length <= CHAR_LIMIT) {
                 setText(val);
               }
             }}
             onFocus={handleInputFocus}
             onBlur={handleInputBlur}
-            placeholder={placeholder}
+            placeholder={effectivePlaceholder}
             placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
-            multiline={false}         // Task spec: multiline=false
-            blurOnSubmit={false}      // Task spec: blurOnSubmit=false
-            returnKeyType="default"   // Blueprint §[7.A]: Enter inserts newline equivalent
-            keyboardType="default"    // Blueprint §[7.A]
-            autoCapitalize="sentences"// Blueprint §[7.A]
-            autoCorrect               // Blueprint §[7.A] (default true)
-            editable={isAuthenticated && !disabled}// Keyboard blocked when: unauthed OR offline
-            maxLength={CHAR_LIMIT}    // Belt-and-suspenders guard
+            multiline={false}
+            blurOnSubmit={false}
+            returnKeyType="default"
+            keyboardType="default"
+            autoCapitalize="sentences"
+            autoCorrect
+            editable={isAuthenticated && !disabled}
+            maxLength={CHAR_LIMIT}
             accessible
-            accessibilityLabel="Type a message in Sector 17"
+            accessibilityLabel={effectiveA11yLabel}
             accessibilityRole="none"  // parent container owns role — "textbox" implicit
             testID="home-input-field"
           />
@@ -730,7 +885,7 @@ const ChatInputBase: React.FC<ChatInputProps> = ({
           </Pressable>
         </View>
 
-        {/* 8px gap — Blueprint §[7] "Input-send button gap: 8px" */}
+        {/* 8px gap — Blueprint §[7] */}
         <View style={styles.inputSendGap} />
 
         {/* ── [7.B] Send Button ──────────────────────────────────────────── */}
@@ -741,169 +896,153 @@ const ChatInputBase: React.FC<ChatInputProps> = ({
         />
 
       </View>
-    </View>
+    </Animated.View>
   );
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// § 7 — STYLES
+// § 8 — STYLES
 // Zero hardcoded hex values — all tokens referenced in § 2.
-// Magic numbers permitted only where no token exists and spec mandates literal
-// (INPUT_PAD_H = 14, TRUST_CHIP_PAD_H-style cases — documented inline).
 // ─────────────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
 
   // ─── Outer wrapper ───────────────────────────────────────────────────────
   /**
-   * Blueprint §[7]:
-   *   position: static (NOT absolute — flush above Glass Island per Rule 04)
-   *   H: 64px + safeAreaBottom
-   *   Bg: #FFFFFF
-   *   Top border: 1px #E8D5A0 (divider between chat body and composer)
-   *   Z-Index: stickyCTA (940)
-   *   paddingHorizontal: 16px
-   *   paddingTop: 12px
-   *   paddingBottom: 12px + safeAreaBottom (injected inline)
+   * PRD §9.3.5 — Gap-Fill Trick position spec:
+   *   position: 'absolute'  — out of normal flow · slides with nav
+   *   left: 0, right: 0     — full screen width
+   *   bottom: (animated)    — Animated.Value set inline
+   *   minHeight: STRIP_H    — 64px base; grows upward if counter row is present
+   *   zIndex: Z_CHAT_INPUT  — 935 (below nav, above chat content)
+   *   elevation: 8          — Android: zIndex needs elevation for non-absolute siblings
    *
-   * Rev fix: removed minHeight: STRIP_H (64).
-   * Reason: minHeight: 64 + paddingTop: 12 + paddingBottom: (12 + safeArea)
-   * creates a flex-layout ambiguity — the minHeight constraint and the inline
-   * paddingBottom (which varies by device) can produce unexpected behaviour
-   * when the counter row is also visible (adds to intrinsic height).
-   * Content defines the height organically:
-   *   [paddingTop 12] + [optional counter] + [row 40px] + [paddingBottom 12+safe]
-   * On iPhone 14 Pro: 12 + 40 + 12 + 34 = 98px — matches Blueprint "~98px iOS" ✓
-   * On devices with no safe area: 12 + 40 + 12 + 0 = 64px — matches STRIP_H ✓
+   * NOTE — minHeight vs height:
+   *   task spec says "height: 64px" for the base state. We use minHeight so the
+   *   char counter row (§ [7.D]) can expand the component upward without clipping.
+   *   When counter is hidden, minHeight = 64px = STRIP_H as specified. ✓
+   *
+   * NOTE — paddingBottom:
+   *   Previously PAD_V + insets.bottom (safe area via padding).
+   *   Now PAD_V only — `bottom` value already positions component above safe area.
+   *   (paddingBottom set inline in render to keep static styles simple.)
    */
   wrapper: {
-    width:              '100%',
-    // No minHeight — content + padding defines height reliably across devices
-    backgroundColor:    STRIP_BG,             // #FFFFFF
+    position:           'absolute',       // §9.3.5 — gap-fill trick
+    left:               0,
+    right:              0,
+    // bottom: set inline via bottomAnim (Animated.Value)
+    minHeight:          STRIP_H,          // 64px — grows upward for counter row
+    backgroundColor:    STRIP_BG,         // colors.bg.surface
     borderTopWidth:     StyleSheet.hairlineWidth,
-    borderTopColor:     STRIP_BORDER,         // cream[400]
-    paddingHorizontal:  PAD_H,                // 16px
-    paddingTop:         PAD_V,                // 12px
-    // paddingBottom set inline: PAD_V + insets.bottom
-    zIndex:             zIndexTokens.stickyCTA, // 940 — Rule 04
-    elevation:          8,                    // Android: zIndex needs elevation
-    // ⛔ Rule 04: position is NOT set to 'absolute' — stays in normal flow
-    // margin-bottom: 0 is the default — Glass Island sits immediately below
+    borderTopColor:     STRIP_BORDER,     // colors.border.default
+    paddingHorizontal:  PAD_H,            // 16px
+    paddingTop:         PAD_V,            // 12px
+    // paddingBottom set inline: PAD_V (12px) — safe area baked into `bottom`
+    zIndex:             Z_CHAT_INPUT,     // 935 — PRD §9.3.5
+    elevation:          8,                // Android
   },
 
   // ─── Main input row ──────────────────────────────────────────────────────
   row: {
-    flexDirection:  'row',
-    alignItems:     'center',
-    // No explicit height — items self-height at INPUT_H (40px)
+    flexDirection: 'row',
+    alignItems:    'center',
   },
 
   // ─── [7.A] Input container ───────────────────────────────────────────────
   /**
    * Blueprint §[7.A]:
-   *   H: 40px · Bg: #F5E6C8 → cream[200] · Border radius: 20px (full pill)
+   *   H: 40px · Bg: cream[200] · Border radius: pill (20px effective)
    *   Border: 1px idle → 2px focused (applied inline)
    *   paddingLeft: 14px · paddingRight: 40px (reserves emoji icon space)
-   *
-   * Radius Protocol: radii.pill (9999) — RN clamps to INPUT_H/2 = 20px (full pill).
-   * The border-state change from 1px→2px shifts inner content slightly on Android.
-   * Compensate by targeting a consistent inner area via paddingHorizontal constants.
+   * Radius Protocol: radii.pill (9999) — RN clamps to INPUT_H/2 = 20px.
    */
   inputContainer: {
-    flex:           1,
-    height:         INPUT_H,              // 40px
-    borderRadius:   radii.pill,           // Radius Protocol: 9999, clamps to 20px
-    backgroundColor: INPUT_BG,           // cream[200]
-    flexDirection:  'row',
-    alignItems:     'center',
-    overflow:       'hidden',             // clips content to border radius on Android
-    // borderColor + borderWidth applied inline (focus-driven)
+    flex:            1,
+    height:          INPUT_H,          // 40px
+    borderRadius:    radii.pill,       // Radius Protocol: 9999 → clamps to 20px
+    backgroundColor: INPUT_BG,         // cream[200]
+    flexDirection:   'row',
+    alignItems:      'center',
+    overflow:        'hidden',
   },
 
   // ─── [7.A] Input container — disabled state ─────────────────────────────
   /**
    * Blueprint §[7.A] State (disabled): "opacity 0.5 (offline state)".
-   * Rev fix: INPUT_DISABLED_OPACITY was declared but never applied.
-   * Separate style (not inline) so it composes cleanly via StyleSheet array.
    * Applied to container — dims input text, border, AND emoji trigger together.
    */
   inputContainerDisabled: {
-    opacity: INPUT_DISABLED_OPACITY,   // 0.5 — Blueprint §[7.A]
+    opacity: INPUT_DISABLED_OPACITY, // 0.5
   },
 
   // ─── [7.A] TextInput ─────────────────────────────────────────────────────
   inputField: {
     flex:               1,
-    height:             INPUT_H,          // 40px
-    paddingLeft:        INPUT_PAD_H,      // 14px — Blueprint §[7.A] spec literal
-    paddingRight:       INPUT_PAD_RIGHT,  // 40px — reserves emoji icon space
-    paddingTop:         0,                // Blueprint §[7.A] "0 V" (vertical padding)
+    height:             INPUT_H,         // 40px
+    paddingLeft:        INPUT_PAD_H,     // 14px
+    paddingRight:       INPUT_PAD_RIGHT, // 40px — reserves emoji space
+    paddingTop:         0,
     paddingBottom:      0,
-    fontFamily:         FONT_BODY.regular,   // DMSans_400Regular
-    fontSize:           FONT_SIZE.body,      // 15px — Blueprint §[7.A]
+    fontFamily:         FONT_BODY.regular,
+    fontSize:           FONT_SIZE.body,  // 15px
     fontWeight:         '400' as const,
     lineHeight:         22,
     color:              INPUT_TEXT_COLOR,    // ink[950]
-    includeFontPadding: false,               // Android: remove extra vertical gap
-    textAlignVertical:  'center',            // Android: vertical centering
+    includeFontPadding: false,
+    textAlignVertical:  'center',            // Android
   },
 
   // ─── [7.C] Emoji trigger ─────────────────────────────────────────────────
   /**
-   * Blueprint §[7.A]: "Emoji icon: 20×20 · #6B5B2E · Position: 12px from right edge"
+   * Blueprint §[7.A]: "Emoji icon: 20×20 · 12px from right edge"
    * Absolutely positioned inside inputContainer.
    */
   emojiButton: {
     position:       'absolute',
-    right:          EMOJI_RIGHT,           // 12px from right edge
-    width:          EMOJI_SIZE,            // 20px
-    height:         EMOJI_SIZE,            // 20px
+    right:          EMOJI_RIGHT,  // 12px
+    width:          EMOJI_SIZE,   // 20px
+    height:         EMOJI_SIZE,   // 20px
     alignItems:     'center',
     justifyContent: 'center',
   },
 
   // ─── Input–send gap ──────────────────────────────────────────────────────
   inputSendGap: {
-    width: INPUT_SEND_GAP,                 // 8px
+    width: INPUT_SEND_GAP, // 8px
   },
 
   // ─── [7.D] Char counter row ──────────────────────────────────────────────
   /**
    * Blueprint §[7.A]: "counter visible from 850 chars (subtle)"
-   * Floats above the input row · right-aligned · non-interactive.
+   * Sits above input row · right-aligned · non-interactive.
+   * With absolute-positioned wrapper, this expands the component upward. ✓
    */
   counterRow: {
-    alignItems:   'flex-end',
-    paddingBottom: spacing.xs,             // 4px — tight gap above input row
+    alignItems:    'flex-end',
+    paddingBottom: spacing.xs, // 4px — tight gap above input row
   },
   counterText: {
-    fontFamily:    FONT_BODY.regular,
-    fontSize:      FONT_SIZE.cap,          // 12px
-    fontWeight:    '400' as const,
-    lineHeight:    16,
-    color:         COUNTER_COLOR_DEFAULT,  // ink[600]
+    fontFamily:         FONT_BODY.regular,
+    fontSize:           FONT_SIZE.cap, // 12px
+    fontWeight:         '400' as const,
+    lineHeight:         16,
+    color:              COUNTER_COLOR_DEFAULT, // ink[600]
     includeFontPadding: false,
   },
-  /**
-   * Last 50 chars warning — amber[600]
-   * Blueprint §[7.A] doesn't specify color change but amber is the warning token.
-   */
   counterTextWarn: {
-    color: COUNTER_COLOR_WARN,             // amber[600]
+    color: COUNTER_COLOR_WARN, // colors.fg.warning → amber[600]
   },
 
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// § 8 — EXPORT
-// React.memo — all props are primitives or stable callbacks (onSend, onAuthGate).
+// § 9 — EXPORT
+// React.memo — all props are primitives or stable callbacks.
 // Caller must stabilise callbacks with useCallback to prevent unnecessary re-renders.
 //
-// Re-renders only when:
-//   · isAuthenticated changes (auth state)
-//   · placeholder changes (rare)
-//   · style changes (rare)
-//   · onSend / onAuthGate reference changes (caller's useCallback responsibility)
+// Re-renders when: isAuthenticated · navVisible · scope · cityLabel · sectorLabel
+//   · placeholder · disabled · style · onSend / onAuthGate reference changes
 // ─────────────────────────────────────────────────────────────────────────────
 
 const ChatInput = React.memo(ChatInputBase);
