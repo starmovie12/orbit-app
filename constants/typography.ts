@@ -1,36 +1,41 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║   CROWD WORLD — Typography Token System                                 ║
- * ║   Version: v2.0  (against v5.0 BAAP EDITION blueprint)                 ║
+ * ║   CROWN — Typography Token System                                        ║
+ * ║   Version: v3.0  (PRD §19.3 — Syne / Inter / Space Mono triple stack)  ║
  * ║   Philosophy: Champagne Gold · Warm Ivory · Refined Espresso            ║
  * ║                                                                          ║
  * ║   Generated: 29 April 2026 · Chandigarh · Owner: Ail (Founder)         ║
  * ║   Companion to: Part 1 + Part 2 + Part 3 Blueprints                    ║
  * ╠══════════════════════════════════════════════════════════════════════════╣
- * ║   FONT FAMILIES                                                          ║
- * ║     Cormorant Garamond (600 · 700) — Brand headings & hero titles       ║
- * ║       ⚠️  Max weight is 700Bold — no 800 variant exists in this typeface  ║
- * ║     DM Sans (400 · 500 · 600 · 700 · 800) — All UI text & body copy    ║
+ * ║   FONT FAMILIES (PRD §19.3 exact)                                        ║
+ * ║     Syne (800 · 700 · 600 · 400) — Headings, wordmark, display          ║
+ * ║       Syne_800ExtraBold — CROWN wordmark, H1, hero display              ║
+ * ║       Syne_700Bold      — H2 section headings                           ║
+ * ║       Syne_600SemiBold  — H3 sub-headings                               ║
+ * ║       Syne_400Regular   — Light brand contexts                          ║
+ * ║     Inter (400 · 500 · 600 · 700) — All body, UI text, chat messages    ║
+ * ║     Space Mono (400 · 700) — Credits, ranks, timers, scores (numerics)  ║
  * ║                                                                          ║
  * ║   INSTALL (run once):                                                    ║
  * ║     npx expo install                                                     ║
- * ║       @expo-google-fonts/cormorant-garamond                             ║
- * ║       @expo-google-fonts/dm-sans                                        ║
+ * ║       @expo-google-fonts/syne                                           ║
+ * ║       @expo-google-fonts/inter                                          ║
+ * ║       @expo-google-fonts/space-mono                                     ║
  * ║                                                                          ║
  * ║   COMPLETE SIZE SCALE (px) — all 18 values per blueprint audit:         ║
  * ║     9  10  11  12  13  14  15  16  17  18  20  22  24  26  28  32  36  40 ║
  * ╠══════════════════════════════════════════════════════════════════════════╣
  * ║   SEMANTIC STYLE GROUPS                                                  ║
  * ║     A — Display / Hero     : splash, celebration, welcome burst         ║
- * ║     B — Cormorant Headings : H1/H2/H3 brand serif moments              ║
- * ║     C — DM Sans Titles     : screen-level DM Sans headings             ║
+ * ║     B — Syne Headings      : H1/H2/H3 brand Syne premium moments        ║
+ * ║     C — Inter Titles       : screen-level Inter headings                ║
  * ║     D — Body Text          : paragraphs, chat bubbles, descriptions     ║
  * ║     E — Caption            : helper text, disclosures, card subtitles   ║
  * ║     F — Micro / Meta       : timestamps, badges, meta labels            ║
  * ║     G — Input / Form       : field text, OTP, cashout, placeholder      ║
  * ║     H — CTA / Interactive  : button labels, inline links                ║
  * ║     I — Badge / Pill       : status chips, heat score, LIVE badge       ║
- * ║     J — Number / Balance   : wallet hero, stats, counters               ║
+ * ║     J — Number / Balance   : wallet hero, stats, counters (Space Mono)  ║
  * ║     K — Chat-specific      : bubbles, sender name, timestamps           ║
  * ║     L — Navigation         : sub-nav tabs, step indicator               ║
  * ║     M — Profile            : display name, handle, bio, stats           ║
@@ -42,20 +47,27 @@
 import { TextStyle as RNTextStyle } from "react-native";
 import { useFonts as useExpoFonts } from "expo-font";
 
-// ── Cormorant Garamond imports ───────────────────────────────────────────────
+// ── Syne imports (headings · wordmark · display) ────────────────────────────
 import {
-  CormorantGaramond_600SemiBold,
-  CormorantGaramond_700Bold,
-} from '@expo-google-fonts/cormorant-garamond';
+  Syne_800ExtraBold,
+  Syne_700Bold,
+  Syne_600SemiBold,
+  Syne_400Regular,
+} from '@expo-google-fonts/syne';
 
-// ── DM Sans imports ──────────────────────────────────────────────────────────
+// ── Inter imports (body · UI · chat messages) ────────────────────────────────
 import {
-  DMSans_400Regular,
-  DMSans_500Medium,
-  DMSans_600SemiBold,
-  DMSans_700Bold,
-  DMSans_800ExtraBold,
-} from '@expo-google-fonts/dm-sans';
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+  Inter_700Bold,
+} from '@expo-google-fonts/inter';
+
+// ── Space Mono imports (credits · ranks · timers · scores) ───────────────────
+import {
+  SpaceMono_400Regular,
+  SpaceMono_700Bold,
+} from '@expo-google-fonts/space-mono';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // § 1 — FONT FAMILY CONSTANTS
@@ -63,27 +75,46 @@ import {
 // Always pass fontWeight too — some RN bridge versions need both.
 // ═══════════════════════════════════════════════════════════════════════════
 
-/** Cormorant Garamond — brand serif headings (H1/H2/H3, CROWN pass numerals)
+/** Syne — brand headings, wordmark, display text (PRD §19.3 exact)
  *
- *  ⚠️  Cormorant Garamond tops out at 700Bold in Google Fonts.
- *      There is no 800ExtraBold variant for this typeface.
- *      `extraBold` is an alias of `bold` — both resolve to CormorantGaramond_700Bold.
- *      Use `bold` for new code; `extraBold` retained for backward compatibility.
+ *  bold      → Syne_800ExtraBold — CROWN wordmark, H1, hero display
+ *  semiBold  → Syne_700Bold      — H2 section headings, prominent labels
+ *  medium    → Syne_600SemiBold  — H3 sub-headings
+ *  regular   → Syne_400Regular   — Light brand contexts
  */
 export const FONT_HEADING = {
-  semiBold:  "CormorantGaramond_600SemiBold",  // weight 600
-  bold:      "CormorantGaramond_700Bold",       // weight 700 — heaviest available
-  /** @deprecated Alias of bold — Cormorant has no 800 weight. Use FONT_HEADING.bold. */
-  extraBold: "CormorantGaramond_700Bold",       // weight 700 (no 800 exists)
+  bold:     "Syne_800ExtraBold",   // weight 800 — CROWN wordmark, H1, hero
+  semiBold: "Syne_700Bold",        // weight 700 — H2 headings
+  medium:   "Syne_600SemiBold",    // weight 600 — H3 sub-headings
+  regular:  "Syne_400Regular",     // weight 400 — light brand contexts
 } as const;
 
-/** DM Sans — all body copy, UI labels, captions, CTAs, inputs, meta */
+/** Inter — all body copy, UI labels, captions, CTAs, inputs, chat messages (PRD §19.3 exact) */
 export const FONT_BODY = {
-  regular:   "DMSans_400Regular",   // weight 400 — default readable body
-  medium:    "DMSans_500Medium",    // weight 500 — slightly emphasized
-  semiBold:  "DMSans_600SemiBold",  // weight 600 — labels, meta, captions
-  bold:      "DMSans_700Bold",      // weight 700 — strong UI, headlines
-  extraBold: "DMSans_800ExtraBold", // weight 800 — badges, counts, CTAs
+  regular:  "Inter_400Regular",   // weight 400 — default readable body
+  medium:   "Inter_500Medium",    // weight 500 — slightly emphasized
+  semiBold: "Inter_600SemiBold",  // weight 600 — labels, meta, captions
+  bold:     "Inter_700Bold",      // weight 700 — strong UI, headlines
+} as const;
+
+/** Space Mono — credits, ranks, timers, scores, numeric displays (PRD §19.3 exact) */
+export const FONT_NUMERIC = {
+  regular: "SpaceMono_400Regular", // weight 400 — numeric body
+  bold:    "SpaceMono_700Bold",    // weight 700 — wallet balance, stats, cashout amounts
+} as const;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// § 1.5 — WORDMARK SPEC (PRD §19.3 — CROWN wordmark)
+// Syne_800ExtraBold · 22px · letter-spacing -0.5px
+// Use for the "CROWN" logotype string in headers, splash, and Glass Island.
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const WORDMARK = {
+  fontFamily:    FONT_HEADING.bold,     // Syne_800ExtraBold
+  fontSize:      22,
+  fontWeight:    "800" as const,
+  letterSpacing: -0.5,
+  lineHeight:    26,                    // Math.round(22 × 1.15 tight)
 } as const;
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -150,14 +181,14 @@ export const FONT_SIZE = {
   /** 24 — Cashout success headline "Cashout successful!" (blueprint: 24px 700) */
   h2lg:       24,
 
-  /** 26 — Cormorant H2: .streak-days exact, premium section titles */
+  /** 26 — Syne H2: .streak-days exact, premium section titles */
   h2:         26,
 
   /** 28 — Display / hero headlines: Splash ("Apne sector se zindagi mein rang bharo"),
    *       Welcome Burst ("Welcome, {displayName}!"), Celebration screen. */
   hero:       28,
 
-  /** 32 — Cormorant H1: large brand serif hero titles */
+  /** 32 — Syne H1: large brand geometric hero titles */
   h1:         32,
 
   /** 36 — Cashout amount input (large number-pad entry "1000") */
@@ -248,7 +279,7 @@ export const fontWeight = {
   semibold:  "600" as const,
   /** "700" — Strong UI text, screen headlines, primary CTA labels, chat sender */
   bold:      "700" as const,
-  /** "800" — Badge text, numeric counts, hero numbers, Cormorant impact moments */
+  /** "800" — Badge text, numeric counts, hero numbers, Syne impact moments */
   extrabold: "800" as const,
 } as const;
 
@@ -287,11 +318,11 @@ export const typography = {
   // ══════════════════════════════════════════════════════════════════════════
   // A — DISPLAY / HERO HEADLINES
   // Big emotional moments: Splash · Welcome Burst · Celebration
-  // Font: DM Sans (sans-serif for modern impact on mobile)
+  // Font: Inter (sans-serif for modern impact on mobile)
   // ══════════════════════════════════════════════════════════════════════════
 
   /**
-   * displayHero — 28px 700 DM Sans · lineHeight 35px
+   * displayHero — 28px 700 Inter · lineHeight 35px
    * Splash headline ("Apne sector se zindagi mein rang bharo"),
    * Welcome Burst headline ("Welcome, {name}!"), any hero-level copy.
    * Blueprint ref: §3 [4.A] 28px 700 Display line-height 36px ·
@@ -306,7 +337,7 @@ export const typography = {
   },
 
   /**
-   * displayCelebration — 28px 700 DM Sans · tight leading
+   * displayCelebration — 28px 700 Inter · tight leading
    * Welcome Burst "Welcome, Bittu!" — tight leading maximises visual punch.
    * Blueprint ref: §8 [1.B] 28px 700 Display ink-950 centered
    */
@@ -319,7 +350,7 @@ export const typography = {
   },
 
   /**
-   * displaySm — 24px 700 DM Sans · lineHeight 30px
+   * displaySm — 24px 700 Inter · lineHeight 30px
    * Cashout success screen headline "Cashout successful!",
    * any mid-level celebratory copy.
    * Blueprint ref: §10 Cashout [6] headline 24px 700 ink-950 centered
@@ -333,28 +364,30 @@ export const typography = {
   },
 
   // ══════════════════════════════════════════════════════════════════════════
-  // B — CORMORANT GARAMOND HEADINGS (brand serif · premium moments)
-  // Use sparingly: CROWN Pass cards, streak widgets, premium numbers.
+  // B — SYNE HEADINGS (brand geometric sans · premium moments)
+  // Use sparingly: CROWN Pass cards, streak widgets, key brand titles.
   // ══════════════════════════════════════════════════════════════════════════
 
   /**
-   * h1 — 32px 800 Cormorant Garamond · lineHeight 40px
-   * Hero brand titles, large CROWN Pass name, high-impact serif moments.
+   * h1 — 32px 800 Syne · lineHeight 40px
+   * Hero brand titles, large CROWN Pass name, high-impact Syne display moments.
+   * PRD §19.3: Syne_800ExtraBold — headings/wordmark/display.
    */
   h1: {
-    fontFamily:    FONT_HEADING.bold,            // CormorantGaramond_700Bold (heaviest weight)
+    fontFamily:    FONT_HEADING.bold,            // Syne_800ExtraBold
     fontSize:      FONT_SIZE.h1,                // 32
-    fontWeight:    "700" as const,              // 700 — Cormorant max weight
+    fontWeight:    "800" as const,
     lineHeight:    lh(32, "snug"),              // 40
-    letterSpacing: LETTER_SPACING.wide,         // 0.3 — .app-title match
+    letterSpacing: LETTER_SPACING.wide,         // 0.3 — brand title tracking
   },
 
   /**
-   * h2 — 26px 700 Cormorant Garamond · lineHeight 33px
-   * Premium section headings, streak-days (.streak-days: 26px 700 exact match).
+   * h2 — 26px 700 Syne · lineHeight 33px
+   * Premium section headings, streak-days (.streak-days: 26px exact match).
+   * PRD §19.3: Syne_700Bold.
    */
   h2: {
-    fontFamily:    FONT_HEADING.bold,
+    fontFamily:    FONT_HEADING.semiBold,
     fontSize:      FONT_SIZE.h2,            // 26
     fontWeight:    "700" as const,
     lineHeight:    lh(26, "snug"),           // 33
@@ -362,11 +395,12 @@ export const typography = {
   },
 
   /**
-   * h3 — 22px 600 Cormorant Garamond · lineHeight 28px
-   * Card titles, modal headers, tertiary serif headings.
+   * h3 — 22px 600 Syne · lineHeight 28px
+   * Card titles, modal headers, tertiary Syne headings.
+   * PRD §19.3: Syne_600SemiBold.
    */
   h3: {
-    fontFamily:    FONT_HEADING.semiBold,
+    fontFamily:    FONT_HEADING.medium,
     fontSize:      FONT_SIZE.h3,            // 22
     fontWeight:    "600" as const,
     lineHeight:    lh(22, "snug"),           // 28
@@ -374,12 +408,12 @@ export const typography = {
   },
 
   // ══════════════════════════════════════════════════════════════════════════
-  // C — DM SANS SCREEN TITLES
-  // All primary screen-level headings — DM Sans for native mobile feel.
+  // C — INTER SCREEN TITLES
+  // All primary screen-level headings — Inter for native mobile feel.
   // ══════════════════════════════════════════════════════════════════════════
 
   /**
-   * titleLg — 22px 700 DM Sans · lineHeight 28px
+   * titleLg — 22px 700 Inter · lineHeight 28px
    * Primary onboarding screen headlines:
    *   "Apna phone number daalo" · "Verify karo" ·
    *   "Apne baare mein batao" · "Apna sector chuno"
@@ -394,7 +428,7 @@ export const typography = {
   },
 
   /**
-   * titleMd — 18px 700 DM Sans · lineHeight 23px
+   * titleMd — 18px 700 Inter · lineHeight 23px
    * Section headers ("Abhi Trending", "Recent", "Achievements"),
    * bottom-sheet titles ("City chuno"), sub-screen push titles ("Cashout",
    * "Edit Profile"), CROWN Pass card primary title.
@@ -409,7 +443,7 @@ export const typography = {
   },
 
   /**
-   * titleSm — 16px 700 DM Sans · lineHeight 20px
+   * titleSm — 16px 700 Inter · lineHeight 20px
    * Small sub-headings, minor card heading emphasis.
    * Blueprint ref: Various 16px 700 usages across screens
    */
@@ -422,7 +456,7 @@ export const typography = {
   },
 
   /**
-   * titleProfile — 22px 700 DM Sans · lineHeight 25px (tighter for names)
+   * titleProfile — 22px 700 Inter · lineHeight 25px (tighter for names)
    * Profile display name on Own Profile / Other User Profile.
    * Blueprint ref: §11 [2.B] "Bittu" 22px 700 ink-950 ·
    *                §12 [2.B] "Aman" 22px 700 ink-950
@@ -436,11 +470,11 @@ export const typography = {
   },
 
   // ══════════════════════════════════════════════════════════════════════════
-  // D — BODY TEXT (DM Sans · reading-optimised)
+  // D — BODY TEXT (Inter · reading-optimised)
   // ══════════════════════════════════════════════════════════════════════════
 
   /**
-   * bodyXl — 16px 400 DM Sans · lineHeight 24px
+   * bodyXl — 16px 400 Inter · lineHeight 24px
    * Large subheadlines: Splash subhead, Welcome subhead, section intros.
    * Blueprint ref: §3 [4.B] 16px 400 Body Large line-height 24px ·
    *                §8 [1.C] 16px 400 ink-600 max 2 lines
@@ -454,7 +488,7 @@ export const typography = {
   },
 
   /**
-   * bodyLg — 15px 400 DM Sans · lineHeight 23px
+   * bodyLg — 15px 400 Inter · lineHeight 23px
    * Settings row body, onboarding subhead ("OTP bhejenge verify karne ke liye"),
    * sector description text, auto-detect card subtitle.
    * Blueprint ref: §4 [2.B] 15px 400 line-height 22px ·
@@ -469,7 +503,7 @@ export const typography = {
   },
 
   /**
-   * bodyLgMedium — 15px 500 DM Sans · lineHeight 22px
+   * bodyLgMedium — 15px 500 Inter · lineHeight 22px
    * Featured card subtitle (meta) variant, inline row descriptions.
    * Blueprint ref: §9 [3.A] card subtitle 12px 500 → use for 15px weight variant
    */
@@ -482,7 +516,7 @@ export const typography = {
   },
 
   /**
-   * bodyLgBold — 15px 700 DM Sans · lineHeight 22px
+   * bodyLgBold — 15px 700 Inter · lineHeight 22px
    * Auto-detect card primary title ("Auto-detect karo"),
    * Featured/Trending card sector name, sheet row primary name variant.
    * Blueprint ref: §7 [3.A] auto-detect title 15px 700 ·
@@ -497,7 +531,7 @@ export const typography = {
   },
 
   /**
-   * body — 14px 400 DM Sans · lineHeight 20px
+   * body — 14px 400 Inter · lineHeight 20px
    * Default body text, profile bio, standard readable text blocks.
    * Legacy chat bubble size (v1 HTML prototype).
    * Blueprint ref: §11 [2.D] bio 14px 400 ink-600
@@ -511,7 +545,7 @@ export const typography = {
   },
 
   /**
-   * bodyMedium — 14px 500 DM Sans · lineHeight 20px
+   * bodyMedium — 14px 500 Inter · lineHeight 20px
    * Profile @username handle, card subtitles (medium weight),
    * input placeholder text, cashout quick chip labels.
    * Blueprint ref: §11 [2.B] "@bittu_42" 14px 500 ink-500
@@ -525,7 +559,7 @@ export const typography = {
   },
 
   /**
-   * bodyBold — 14px 700 DM Sans · lineHeight 20px
+   * bodyBold — 14px 700 Inter · lineHeight 20px
    * Transaction titles, earning display name, strong row text,
    * heat map sector names.
    * Blueprint ref: §10 [5] transaction title 14px 600/700 ·
@@ -540,7 +574,7 @@ export const typography = {
   },
 
   /**
-   * bodySm — 13px 400 DM Sans · lineHeight 20px
+   * bodySm — 13px 400 Inter · lineHeight 20px
    * Confirmation preview ("Tum Sector 17 mein hoge"), small descriptions,
    * message action sheet preview text (italic applied inline via fontStyle).
    * Blueprint ref: §7 [5.C] 13px 400 ink-600 centered · §18 [2] preview 13px
@@ -554,7 +588,7 @@ export const typography = {
   },
 
   /**
-   * bodySmMedium — 13px 500 DM Sans · lineHeight 20px
+   * bodySmMedium — 13px 500 Inter · lineHeight 20px
    * Earning text "1,250 Credits earned today!", featured card subtitle,
    * security strip text, settings row value.
    * Blueprint ref: §9 [3.H] earning 13px 500 amber-600 ·
@@ -569,7 +603,7 @@ export const typography = {
   },
 
   /**
-   * bodySmBold — 13px 600 DM Sans · lineHeight 19px
+   * bodySmBold — 13px 600 Inter · lineHeight 19px
    * Form field label (the most-used pattern in entire app: 13px 600 ink-600),
    * stat banner body "234 yahan abhi online · jaake hi karo!".
    * Blueprint ref: §4 [3.A] "Phone number" label 13px 600 ink-600 ·
@@ -584,12 +618,12 @@ export const typography = {
   },
 
   // ══════════════════════════════════════════════════════════════════════════
-  // E — CAPTION TEXT (12px · small support text · DM Sans)
+  // E — CAPTION TEXT (12px · small support text · Inter)
   // Form helpers · privacy notes · card subtitles · sheet section headers
   // ══════════════════════════════════════════════════════════════════════════
 
   /**
-   * caption — 12px 400 DM Sans · lineHeight 18px
+   * caption — 12px 400 Inter · lineHeight 18px
    * Helper text below inputs, privacy disclosure, "Optional" avatar label,
    * OTP error message, masked phone display, step context labels.
    * Blueprint ref: §4 [3.C] helper 12px 400 ink-500 ·
@@ -605,7 +639,7 @@ export const typography = {
   },
 
   /**
-   * captionMedium — 12px 500 DM Sans · lineHeight 18px
+   * captionMedium — 12px 500 Inter · lineHeight 18px
    * Card subtitles ("City Center · 234 online"), sector count in city picker
    * ("56 sectors"), colony tag, UPI helper text, transaction timestamp,
    * settings mini-card @username, masked phone in OTP screen.
@@ -622,7 +656,7 @@ export const typography = {
   },
 
   /**
-   * captionBold — 12px 600 DM Sans · lineHeight 17px · wide tracking
+   * captionBold — 12px 600 Inter · lineHeight 17px · wide tracking
    * Settings section category headers ("PRIVACY & SAFETY", "ACCOUNT"),
    * sheet alphabetical section headers ("A" "B" "C"),
    * step indicator "1 / 5" in onboarding header.
@@ -639,7 +673,7 @@ export const typography = {
   },
 
   /**
-   * captionStrong — 12px 700 DM Sans · lineHeight 14px (badge tight)
+   * captionStrong — 12px 700 Inter · lineHeight 14px (badge tight)
    * Profile badge chip text ("👑 Mayor of Sector 17", "Founder", "CROWN"),
    * heat pill text ("🔥 87" in gradient pill).
    * Blueprint ref: §11 [2.C] badge chip 12px 700 ·
@@ -654,11 +688,11 @@ export const typography = {
   },
 
   // ══════════════════════════════════════════════════════════════════════════
-  // F — MICRO / META TEXT (11px and 10px · DM Sans · smallest readable text)
+  // F — MICRO / META TEXT (11px and 10px · Inter · smallest readable text)
   // ══════════════════════════════════════════════════════════════════════════
 
   /**
-   * meta — 11px 600 DM Sans · lineHeight 17px · wide tracking
+   * meta — 11px 600 Inter · lineHeight 17px · wide tracking
    * Meta labels, pill tag labels, city status bar, quick action labels
    * (wallet 4-column quick actions: "Cashout" / "History" / "CROWN Pass" / "Earn"),
    * wallet min-cashout note ("Min 500 Credits = ₹50 cashout").
@@ -674,7 +708,7 @@ export const typography = {
   },
 
   /**
-   * metaMedium — 11px 500 DM Sans · lineHeight 17px
+   * metaMedium — 11px 500 Inter · lineHeight 17px
    * Status badge text ("Completed" / "Pending" / "Failed"),
    * stat labels below value ("Credits" · "Sparks" · "Days" · "Sectors"),
    * wallet min note, online count in heat-map rows ("234 online"),
@@ -690,7 +724,7 @@ export const typography = {
   },
 
   /**
-   * metaRegular — 11px 400 DM Sans · lineHeight 17px
+   * metaRegular — 11px 400 Inter · lineHeight 17px
    * Activity timestamps ("2 hours ago", "Yesterday"),
    * auto-redirect countdown ("Auto-redirect in 3s…"),
    * online count in raw text contexts,
@@ -707,7 +741,7 @@ export const typography = {
   },
 
   /**
-   * metaBold — 11px 700 DM Sans · tight leading · uppercase tracking
+   * metaBold — 11px 700 Inter · tight leading · uppercase tracking
    * LIVE badge text ("🔴 LIVE" inside amber pill),
    * Glass Island active tab label (when text is shown alongside icon).
    * Blueprint ref: §9 [3.A] LIVE badge "11px 600 white" → 700 for impact
@@ -721,7 +755,7 @@ export const typography = {
   },
 
   /**
-   * label — 11px 700 DM Sans · lineHeight 16px · wider tracking
+   * label — 11px 700 Inter · lineHeight 16px · wider tracking
    * Nav tab labels, city status bar text, uppercase nav labels.
    * ⚠️ LEGACY (v1.0) — kept for backward compatibility with existing components.
    *    Prefer metaBold (badges) or meta (labels) for new code.
@@ -736,7 +770,7 @@ export const typography = {
   },
 
   /**
-   * footerNote — 10px 400 DM Sans · lineHeight 16px
+   * footerNote — 10px 400 Inter · lineHeight 16px
    * Settings version footer ("CROWD WORLD v1.0.0 (build 123)"),
    * "Made with 💛 in Chandigarh" tagline.
    * Blueprint ref: §14 [4] app footer 11px → 10px for non-critical micro text
@@ -750,11 +784,11 @@ export const typography = {
   },
 
   // ══════════════════════════════════════════════════════════════════════════
-  // G — INPUT / FORM TEXT (DM Sans · form field optimised)
+  // G — INPUT / FORM TEXT (Inter · form field optimised)
   // ══════════════════════════════════════════════════════════════════════════
 
   /**
-   * inputXl — 18px 600 DM Sans · tight leading · phone letter-spacing
+   * inputXl — 18px 600 Inter · tight leading · phone letter-spacing
    * Phone number entry input (18px 600 ink-950, letterSpacing 0.5).
    * Blueprint ref: §4 [3.B] "font: 18px 600 ink-950 · letter-spacing 0.5"
    */
@@ -767,7 +801,7 @@ export const typography = {
   },
 
   /**
-   * inputXlName — 18px 600 DM Sans · tight leading · no extra tracking
+   * inputXlName — 18px 600 Inter · tight leading · no extra tracking
    * Display name input — same weight as phone but without phone tracking.
    * Bio textarea input.
    * Blueprint ref: §6 [4.B] 18px 600 ink-950 (no letter-spacing spec'd)
@@ -781,7 +815,7 @@ export const typography = {
   },
 
   /**
-   * inputOtp — 22px 700 DM Sans · tight leading
+   * inputOtp — 22px 700 Inter · tight leading
    * OTP digit boxes — 6 × 52×52 boxes, one digit each, centered.
    * Blueprint ref: §5 [3.A] "22px 700 ink-950 centered"
    */
@@ -794,12 +828,13 @@ export const typography = {
   },
 
   /**
-   * inputGiant — 36px 700 DM Sans · tight leading · tightest tracking
+   * inputGiant — 36px 700 Space Mono · tight leading · tightest tracking
    * Cashout amount input ("1000"), primary large number-pad entry.
+   * PRD §19.3: Space Mono for numeric inputs (credits/amounts).
    * Blueprint ref: §10 Cashout [2] "Input field: 36px 700 ink-950"
    */
   inputGiant: {
-    fontFamily:    FONT_BODY.bold,
+    fontFamily:    FONT_NUMERIC.bold,
     fontSize:      FONT_SIZE.inputGiant,    // 36
     fontWeight:    "700" as const,
     lineHeight:    lh(36, "tight"),          // 41
@@ -807,7 +842,7 @@ export const typography = {
   },
 
   /**
-   * inputPlaceholder — 15px 400 DM Sans · tight leading
+   * inputPlaceholder — 15px 400 Inter · tight leading
    * Most input placeholders ("98765 43210" in phone field).
    * NOTE: Name/bio field placeholder uses 18px 400 — apply inputXlName with
    *       reduced opacity instead for those.
@@ -822,7 +857,7 @@ export const typography = {
   },
 
   /**
-   * inputUpi — 16px 600 DM Sans · tight leading
+   * inputUpi — 16px 600 Inter · tight leading
    * UPI handle input ("yourname@upi"), username field in Edit Profile.
    * Blueprint ref: §10 Cashout [3] "16px 600 ink-950" UPI input
    */
@@ -835,7 +870,7 @@ export const typography = {
   },
 
   /**
-   * inputCounter — 11px 400 DM Sans · tight leading
+   * inputCounter — 11px 400 Inter · tight leading
    * In-field character counter "{N}/20", visible while typing,
    * turns gold-600 when approaching limit (18-20 chars).
    * Blueprint ref: §6 [4.B] "{N}/20" 11px 400 ink-500
@@ -849,11 +884,11 @@ export const typography = {
   },
 
   // ══════════════════════════════════════════════════════════════════════════
-  // H — CTA / BUTTON / INTERACTIVE TEXT (DM Sans)
+  // H — CTA / BUTTON / INTERACTIVE TEXT (Inter)
   // ══════════════════════════════════════════════════════════════════════════
 
   /**
-   * ctaPrimary — 16px 700 DM Sans · tight leading
+   * ctaPrimary — 16px 700 Inter · tight leading
    * Large Primary CTA label (54px-tall 100%-width buttons):
    *   "Shuru Karo" · "Continue" · "Chalo · Sector mein le chalo!" ·
    *   "Confirm Cashout · ₹{amount}" · "Wapas Wallet" · "Let's Go"
@@ -868,7 +903,7 @@ export const typography = {
   },
 
   /**
-   * ctaSecondary — 14px 600 DM Sans · tight leading
+   * ctaSecondary — 14px 600 Inter · tight leading
    * Secondary ghost CTA labels: "Account hai? Sign In karo",
    * medium secondary buttons (36px tall).
    * Blueprint ref: §3 [5.B] 14px 600 · §7 [3.A] "Use Location" variant
@@ -882,7 +917,7 @@ export const typography = {
   },
 
   /**
-   * ctaLink — 14px 600 DM Sans · tight leading
+   * ctaLink — 14px 600 Inter · tight leading
    * Gold inline links: "See All →", resend OTP (active state),
    * "See All Activity", "See All Sectors", Help link.
    * Blueprint ref: §9/10 "See All →" 14px 600 gold-700 ·
@@ -897,7 +932,7 @@ export const typography = {
   },
 
   /**
-   * ctaLinkLg — 15px 600 DM Sans · tight leading
+   * ctaLinkLg — 15px 600 Inter · tight leading
    * Header text-buttons: "Cancel" (left) · "Save" (right gold-700)
    * in Edit Profile sub-screen header.
    * Blueprint ref: §13 [1.A/C] "Cancel" / "Save" 15px 600 in header
@@ -911,7 +946,7 @@ export const typography = {
   },
 
   /**
-   * ctaLinkSm — 12px 500 DM Sans · lineHeight 18px
+   * ctaLinkSm — 12px 500 Inter · lineHeight 18px
    * Small inline links: "Pehle Chandigarh dekho · sign up baad mein" (peek),
    * privacy "Terms & Privacy" tappable within caption text.
    * Blueprint ref: §3 [5.C] 12px 500 ink-500 · §4 [5.B] privacy 12px 400
@@ -925,24 +960,25 @@ export const typography = {
   },
 
   // ══════════════════════════════════════════════════════════════════════════
-  // I — BADGE / PILL / CHIP TEXT (DM Sans · compact label styles)
+  // I — BADGE / PILL / CHIP TEXT (Inter · compact label styles)
   // ══════════════════════════════════════════════════════════════════════════
 
   /**
-   * badge — 9px 800 DM Sans · uppercase tracking
+   * badge — 9px 700 Inter · uppercase tracking
    * Tiny uppercase badges: tag-local, flash-badge, vd-badge (HTML 9px exact).
    * Blueprint ref: §2 badge pattern (.tag-local: 9px 800 .8px tracking)
+   * Note: Inter max in FONT_BODY is 700Bold — use bold for impact.
    */
   badge: {
-    fontFamily:    FONT_BODY.extraBold,
+    fontFamily:    FONT_BODY.bold,
     fontSize:      FONT_SIZE.xs,            // 9
-    fontWeight:    "800" as const,
+    fontWeight:    "700" as const,
     lineHeight:    lh(9, "relaxed"),         // 14
     letterSpacing: LETTER_SPACING.uppercase, // 0.8
   },
 
   /**
-   * badgeMd — 11px 700 DM Sans · tight leading · uppercase tracking
+   * badgeMd — 11px 700 Inter · tight leading · uppercase tracking
    * LIVE badge text ("🔴 LIVE" in amber pill),
    * Heat badge label ("🔥 87"),
    * active indicator badge text.
@@ -957,7 +993,7 @@ export const typography = {
   },
 
   /**
-   * badgeLg — 12px 700 DM Sans · tight leading
+   * badgeLg — 12px 700 Inter · tight leading
    * Transaction status badge text ("Completed" · "Pending" · "Failed"),
    * profile identity chip text ("👑 Mayor", "Founder", "CROWN").
    * Blueprint ref: §10 [5] status badge 11px 500 (at 11px use metaMedium) ·
@@ -972,7 +1008,7 @@ export const typography = {
   },
 
   /**
-   * heatBadge — 12px 700 DM Sans · tight (semantic alias for heat pill)
+   * heatBadge — 12px 700 Inter · tight (semantic alias for heat pill)
    * Heat Score pill text ("🔥 87"), rendered in white on gold→amber gradient pill.
    * Blueprint ref: §17 [5] heat pill "🔥 {N}" 12px 700 white
    */
@@ -985,30 +1021,48 @@ export const typography = {
   },
 
   // ══════════════════════════════════════════════════════════════════════════
-  // J — NUMBER / BALANCE / COUNTER DISPLAYS (DM Sans)
+  // J — NUMBER / BALANCE / COUNTER DISPLAYS (Space Mono — PRD §19.3)
+  // Credits · Ranks · Timers · Scores · Wallet amounts · Stat counts
+  // PRD §19.3: "Numbers (credits, ranks, timers, scores): Space Mono 700"
   // ══════════════════════════════════════════════════════════════════════════
 
   /**
-   * numbers — 18px 800 DM Sans · 1:1 line-height · tightest tracking
+   * wordmark — 22px 800 Syne · letter-spacing -0.5px (PRD §19.3 exact)
+   * CROWN logotype string: "CROWN" in headers, splash, Glass Island.
+   * Matches WORDMARK constant exported below the typography object.
+   * PRD §19.3: Syne_800ExtraBold · 22px · letter-spacing -0.5px
+   */
+  wordmark: {
+    fontFamily:    FONT_HEADING.bold,       // Syne_800ExtraBold
+    fontSize:      22,
+    fontWeight:    "800" as const,
+    lineHeight:    26,                      // Math.round(22 × 1.15 tight)
+    letterSpacing: LETTER_SPACING.tightest, // -0.5 — PRD §19.3 exact
+  },
+
+  /**
+   * numbers — 18px 700 Space Mono · 1:1 line-height · tightest tracking
    * Legacy live counts, credit amounts, scores, streak counters.
    * ⚠️ LEGACY (v1.0) — kept for backward compat with existing components.
    *    Prefer balanceHero for wallet, statValue for profile, numbers for misc counts.
+   * PRD §19.3: Space Mono 700 for all numeric displays.
    */
   numbers: {
-    fontFamily:    FONT_BODY.extraBold,
+    fontFamily:    FONT_NUMERIC.bold,
     fontSize:      FONT_SIZE.xl,            // 18
-    fontWeight:    "800" as const,
+    fontWeight:    "700" as const,
     lineHeight:    FONT_SIZE.xl,             // 18 — 1:1 for numeric displays
     letterSpacing: LETTER_SPACING.tightest,  // -0.5
   },
 
   /**
-   * balanceHero — 40px 700 DM Sans · tight leading · tightest tracking
+   * balanceHero — 40px 700 Space Mono · tight leading · tightest tracking
    * Wallet balance hero ("12,500") — count-up animation on screen mount.
+   * PRD §19.3: Space Mono 700 for credit/balance numbers.
    * Blueprint ref: §10 [2] "Balance: '12,500' (40px 700 white · counts up)"
    */
   balanceHero: {
-    fontFamily:    FONT_BODY.bold,
+    fontFamily:    FONT_NUMERIC.bold,
     fontSize:      FONT_SIZE.display,       // 40
     fontWeight:    "700" as const,
     lineHeight:    lh(40, "tight"),          // 46
@@ -1016,12 +1070,13 @@ export const typography = {
   },
 
   /**
-   * statValue — 20px 700 DM Sans · tight leading · tightest tracking
+   * statValue — 20px 700 Space Mono · tight leading · tightest tracking
    * Profile stats count-up values: Credits · Sparks · Days · Sectors.
+   * PRD §19.3: Space Mono 700 for ranks/scores/stat numbers.
    * Blueprint ref: §11 [3] "20px 700 ink-950 · count-up animation on mount"
    */
   statValue: {
-    fontFamily:    FONT_BODY.bold,
+    fontFamily:    FONT_NUMERIC.bold,
     fontSize:      FONT_SIZE.h4,            // 20
     fontWeight:    "700" as const,
     lineHeight:    lh(20, "tight"),          // 23
@@ -1029,7 +1084,7 @@ export const typography = {
   },
 
   /**
-   * statLabel — 11px 500 DM Sans · lineHeight 17px
+   * statLabel — 11px 500 Inter · lineHeight 17px
    * Stat label text below value: "Credits" · "Sparks" · "Days" · "Sectors".
    * Blueprint ref: §11 [3] stat label "11px 500 ink-600" below the value
    */
@@ -1042,7 +1097,7 @@ export const typography = {
   },
 
   /**
-   * walletRate — 14px 500 DM Sans · lineHeight 20px
+   * walletRate — 14px 500 Inter · lineHeight 20px
    * Wallet hero conversion rate ("100 Credits = ₹10 conversion"),
    * cashout conversion preview ("= ₹95 (after 5% fee)").
    * Blueprint ref: §10 [2] subtitle 14px 500 white opacity 0.85 ·
@@ -1057,12 +1112,13 @@ export const typography = {
   },
 
   /**
-   * walletCashoutInput — 36px 700 DM Sans (semantic alias of inputGiant)
+   * walletCashoutInput — 36px 700 Space Mono (PRD §19.3 — numeric input)
    * Explicit semantic name for the cashout amount input context.
+   * PRD §19.3: Space Mono 700 for credit/amount numbers.
    * Blueprint ref: §10 Cashout [2] "Input field: 36px 700 ink-950"
    */
   walletCashoutInput: {
-    fontFamily:    FONT_BODY.bold,
+    fontFamily:    FONT_NUMERIC.bold,
     fontSize:      FONT_SIZE.inputGiant,    // 36
     fontWeight:    "700" as const,
     lineHeight:    lh(36, "tight"),          // 41
@@ -1070,7 +1126,7 @@ export const typography = {
   },
 
   /**
-   * walletCashoutSuffix — 16px 500 DM Sans · tight leading
+   * walletCashoutSuffix — 16px 500 Inter · tight leading
    * "Credits" suffix next to cashout input, "₹{amount}" suffix.
    * Blueprint ref: §10 Cashout [2] "Suffix: 'Credits' 16px 500 ink-600"
    */
@@ -1083,14 +1139,13 @@ export const typography = {
   },
 
   // ══════════════════════════════════════════════════════════════════════════
-  // K — CHAT-SPECIFIC STYLES (DM Sans)
+  // K — CHAT-SPECIFIC STYLES (Inter)
   // ══════════════════════════════════════════════════════════════════════════
 
   /**
-   * chatBubble — 15px 400 DM Sans · relaxed leading (reading optimised)
-   * Chat message bubble text. v5.0 blueprint upgrades from 14px to 15px for
-   * improved legibility in dense sector chats.
-   * Blueprint ref: §11 Home Chat body text · DM Sans 400 reading optimisation
+   * chatBubble — 15px 400 Inter · relaxed leading (reading optimised)
+   * Chat message bubble text. PRD §19.3: Inter for chat messages.
+   * Blueprint ref: §11 Home Chat body text · Inter 400 reading optimisation
    * NOTE: Use body (14px) for legacy screens; chatBubble (15px) for new Home Chat.
    */
   chatBubble: {
@@ -1102,7 +1157,7 @@ export const typography = {
   },
 
   /**
-   * chatSender — 12px 700 DM Sans · tight leading (above bubble)
+   * chatSender — 12px 700 Inter · tight leading (above bubble)
    * Sender display name shown above message bubble in sector chat.
    * Blueprint ref: §11 chat sender name pattern 12px 700 above bubble
    */
@@ -1115,7 +1170,7 @@ export const typography = {
   },
 
   /**
-   * chatMeta — 11px 400 DM Sans · tight leading (below bubble)
+   * chatMeta — 11px 400 Inter · tight leading (below bubble)
    * Chat timestamp ("2 min ago", "14:32"), read receipt text ("✓✓"),
    * reaction count text.
    * Blueprint ref: §11 chat time/read-receipt 11px 400 ink-500
@@ -1129,7 +1184,7 @@ export const typography = {
   },
 
   /**
-   * chatAnnouncement — 15px 700 DM Sans · snug leading
+   * chatAnnouncement — 15px 700 Inter · snug leading
    * Mayor announcement bubble header / "📌 Mayor Announcement" label.
    * Blueprint ref: §9 Mayor announcement emphasis 15px 700 ink-950
    */
@@ -1142,11 +1197,11 @@ export const typography = {
   },
 
   // ══════════════════════════════════════════════════════════════════════════
-  // L — NAVIGATION / STEP INDICATORS (DM Sans)
+  // L — NAVIGATION / STEP INDICATORS (Inter)
   // ══════════════════════════════════════════════════════════════════════════
 
   /**
-   * stepIndicator — 12px 600 DM Sans · tight leading
+   * stepIndicator — 12px 600 Inter · tight leading
    * Onboarding step indicator "1 / 5" in top-right of onboarding headers.
    * Blueprint ref: §4 [1.C] "1 / 5" 12px 600 ink-600
    */
@@ -1159,7 +1214,7 @@ export const typography = {
   },
 
   /**
-   * subNavActive — 14px 700 DM Sans · tight leading
+   * subNavActive — 14px 700 Inter · tight leading
    * Discover sub-nav active tab label ("Featured" when selected).
    * Blueprint ref: §9 [2] active tab "text gold-700 · 2px gold-600 underline · light bold"
    */
@@ -1172,7 +1227,7 @@ export const typography = {
   },
 
   /**
-   * subNavInactive — 14px 400 DM Sans · tight leading
+   * subNavInactive — 14px 400 Inter · tight leading
    * Discover sub-nav inactive tab labels ("Trending" · "Nearby" · "Earning").
    * Blueprint ref: §9 [2] inactive tabs "text ink-600 · regular weight"
    */
@@ -1185,11 +1240,11 @@ export const typography = {
   },
 
   // ══════════════════════════════════════════════════════════════════════════
-  // M — PROFILE SCREEN STYLES (DM Sans)
+  // M — PROFILE SCREEN STYLES (Inter)
   // ══════════════════════════════════════════════════════════════════════════
 
   /**
-   * profileHandle — 14px 500 DM Sans · tight leading
+   * profileHandle — 14px 500 Inter · tight leading
    * @username handle below display name on all profile views.
    * Blueprint ref: §11 [2.B] "@bittu_42" 14px 500 ink-500
    */
@@ -1202,7 +1257,7 @@ export const typography = {
   },
 
   /**
-   * profileBio — 14px 400 DM Sans · relaxed leading
+   * profileBio — 14px 400 Inter · relaxed leading
    * Bio text on own/other profile (up to 200 chars, max 2-3 lines).
    * Blueprint ref: §11 [2.D] bio 14px 400 ink-600 · §12 [2.D] same
    */
@@ -1215,7 +1270,7 @@ export const typography = {
   },
 
   /**
-   * profileBioHint — 12px 500 DM Sans · italic · relaxed
+   * profileBioHint — 12px 500 Inter · italic · relaxed
    * Empty bio hint: "Bio add karo · apne sector ko batao kaun ho".
    * Blueprint ref: §11 [2.D] empty state "12px 500 ink-500 italic"
    */
@@ -1229,11 +1284,11 @@ export const typography = {
   },
 
   // ══════════════════════════════════════════════════════════════════════════
-  // N — SETTINGS SCREEN STYLES (DM Sans)
+  // N — SETTINGS SCREEN STYLES (Inter)
   // ══════════════════════════════════════════════════════════════════════════
 
   /**
-   * settingsRow — 15px 500 DM Sans · tight leading
+   * settingsRow — 15px 500 Inter · tight leading
    * Primary settings row label text: "Privacy Settings", "Push Notifications",
    * "Language", "Phone Number", "Logout".
    * Blueprint ref: §14 [3.A–F] row label "15px 500 ink-950"
@@ -1247,7 +1302,7 @@ export const typography = {
   },
 
   /**
-   * settingsRowValue — 13px 500 DM Sans · tight leading
+   * settingsRowValue — 13px 500 Inter · tight leading
    * Right-side row value text: "Hinglish", "+91 98XXX XX210", "@bittu_42".
    * Blueprint ref: §14 [3.A–F] row value "13px 500 ink-500"
    */
@@ -1260,7 +1315,7 @@ export const typography = {
   },
 
   /**
-   * settingsSectionHeader — 12px 600 DM Sans · uppercase tracking
+   * settingsSectionHeader — 12px 600 Inter · uppercase tracking
    * Settings section category headers (apply textTransform:"uppercase" inline):
    *   "PRIVACY & SAFETY" · "NOTIFICATIONS" · "ACCOUNT" · "DANGER ZONE"
    * Blueprint ref: §14 [3.A] section header "32px H · 12px 600 ink-600 uppercase"
@@ -1274,7 +1329,7 @@ export const typography = {
   },
 
   /**
-   * settingsDestructive — 15px 500 DM Sans · tight leading
+   * settingsDestructive — 15px 500 Inter · tight leading
    * Destructive action row labels: "Logout", "Account Delete karo".
    * Apply color: colors.fg.error (crimson-600) inline — style defines font only.
    * Blueprint ref: §14 [3.D] Logout "15px 500 crimson-600" · §15.D.4 delete
@@ -1288,7 +1343,7 @@ export const typography = {
   },
 
   /**
-   * settingsMiniCard — 15px 700 DM Sans · tight leading
+   * settingsMiniCard — 15px 700 Inter · tight leading
    * Settings hub user mini-card display name.
    * Blueprint ref: §14 [2] mini-card "Display name 15px 700 ink-950"
    */
@@ -1301,11 +1356,11 @@ export const typography = {
   },
 
   // ══════════════════════════════════════════════════════════════════════════
-  // O — BOTTOM SHEET STYLES (DM Sans)
+  // O — BOTTOM SHEET STYLES (Inter)
   // ══════════════════════════════════════════════════════════════════════════
 
   /**
-   * sheetTitle — 18px 700 DM Sans · snug leading · centered
+   * sheetTitle — 18px 700 Inter · snug leading · centered
    * Bottom-sheet title text: "City chuno", "Sector chuno · {City} mein".
    * Blueprint ref: §16 [2] "City chuno" 18px 700 ink-950 centered ·
    *                §17 [2] "Sector chuno" 18px 700 centered
@@ -1319,7 +1374,7 @@ export const typography = {
   },
 
   /**
-   * sheetSubtitle — 12px 500 DM Sans · relaxed leading
+   * sheetSubtitle — 12px 500 Inter · relaxed leading
    * Sheet subtitle below title: "{City} ke {N} sectors".
    * Blueprint ref: §17 [2] subtitle "12px 500 ink-500"
    */
@@ -1332,7 +1387,7 @@ export const typography = {
   },
 
   /**
-   * sheetRowPrimary — 15px 600 DM Sans · tight leading
+   * sheetRowPrimary — 15px 600 Inter · tight leading
    * City/sector row primary name in all pickers.
    * Blueprint ref: §16 [5] city name "15px 600 ink-950" ·
    *                §17 [5] sector name "15px 600 ink-950"
@@ -1346,7 +1401,7 @@ export const typography = {
   },
 
   /**
-   * sheetRowSecondary — 12px 500 DM Sans · relaxed leading
+   * sheetRowSecondary — 12px 500 Inter · relaxed leading
    * Secondary row info: "56 sectors", colony tag "City Center", online count.
    * Blueprint ref: §16 [5] count "12px 500 ink-500" ·
    *                §17 [5] colony tag "12px 500 ink-500"
@@ -1360,7 +1415,7 @@ export const typography = {
   },
 
   /**
-   * sheetSectionHeader — 12px 600 DM Sans · uppercase tracking
+   * sheetSectionHeader — 12px 600 Inter · uppercase tracking
    * Sheet alphabetical section separators "A" "B" "C" in city picker.
    * Apply textTransform:"uppercase" inline.
    * Blueprint ref: §16 [5] alphabetical headers "12px 600 ink-600 uppercase"
@@ -1374,7 +1429,7 @@ export const typography = {
   },
 
   /**
-   * sheetAction — 15px 500 DM Sans · tight leading
+   * sheetAction — 15px 500 Inter · tight leading
    * Message action sheet row labels:
    *   "React karo" · "Copy karo" · "WhatsApp pe Share" · "Delete karo" · "Report karo"
    * Blueprint ref: §18 [3] action row "15px 500 ink-950"
@@ -1388,7 +1443,7 @@ export const typography = {
   },
 
   /**
-   * sheetCancel — 15px 600 DM Sans · tight leading · centered
+   * sheetCancel — 15px 600 Inter · tight leading · centered
    * "Cancel karo" row at the bottom of all action sheets.
    * Blueprint ref: §18 [4] "15px 600 ink-950 centered"
    */
@@ -1409,41 +1464,41 @@ export const typography = {
 // without hunting through the full semantic set.
 //
 // Rules:
-//   • display32  → Cormorant Garamond (FONT_HEADING) — all others → DM Sans (FONT_BODY)
+//   • display32  → Syne (FONT_HEADING) — all others → Inter (FONT_BODY)
 //   • Zero hardcoded family strings — every fontFamily via FONT_BODY.* / FONT_HEADING.*
 //   • fontWeight references fontWeight.* map — no raw string literals
 //   • lineHeight computed via lh() — no magic numbers
 //
-// Blueprint Part 1 § 3: "Cormorant for CROWN wordmark and Wallet hero" → display32
+// Blueprint Part 1 § 3: "Syne for CROWN wordmark and hero display" → display32
 //
 // USAGE:
 //   import { scale } from '@/constants/typography';
 //   <Text style={[scale.body15, { color: colors.fg.primary }]}>Hello</Text>
-//   <Text style={[scale.display32, { color: colors.fg.brand }]}>CROWD</Text>
+//   <Text style={[scale.display32, { color: colors.fg.brand }]}>CROWN</Text>
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const scale = {
 
   /**
-   * display32 — 32px 800 Cormorant Garamond · snug leading · wide tracking
+   * display32 — 32px 800 Syne · snug leading · wide tracking
    *
-   * The ONLY Cormorant entry in the named scale.
-   * Use for: CROWN wordmark hero, Wallet balance hero card,
-   *          large branded serif moments (e.g. CROWN Pass title).
+   * The ONLY Syne entry in the named scale.
+   * Use for: CROWN wordmark hero, hero display titles,
+   *          large branded geometric moments (e.g. CROWN Pass title).
    *
-   * Blueprint Part 1 § 3: "Cormorant for CROWN wordmark and Wallet hero."
+   * PRD §19.3: "Syne_800ExtraBold — headings/wordmark/display."
    * Semantic equivalent: typography.h1
    */
   display32: {
-    fontFamily:    FONT_HEADING.bold,               // CormorantGaramond_700Bold (max weight)
+    fontFamily:    FONT_HEADING.bold,               // Syne_800ExtraBold
     fontSize:      FONT_SIZE.h1,                    // 32
-    fontWeight:    fontWeight.bold,                 // "700" — Cormorant tops out at 700
+    fontWeight:    fontWeight.extrabold,            // "800"
     lineHeight:    lh(32, "snug"),                  // 40
-    letterSpacing: LETTER_SPACING.wide,             // 0.3 — brand serif tracking
+    letterSpacing: LETTER_SPACING.wide,             // 0.3 — brand heading tracking
   },
 
   /**
-   * heading24 — 24px 700 DM Sans · snug leading
+   * heading24 — 24px 700 Inter · snug leading
    *
    * Use for: screen-level headings, cashout success headline ("Cashout successful!"),
    *          sub-screen push titles, prominent card headers.
@@ -1451,7 +1506,7 @@ export const scale = {
    * Semantic equivalent: typography.displaySm
    */
   heading24: {
-    fontFamily:    FONT_BODY.bold,                   // DMSans_700Bold
+    fontFamily:    FONT_BODY.bold,                   // Inter_700Bold
     fontSize:      FONT_SIZE.h2lg,                   // 24
     fontWeight:    fontWeight.bold,                  // "700"
     lineHeight:    lh(24, "snug"),                   // 30
@@ -1459,7 +1514,7 @@ export const scale = {
   },
 
   /**
-   * heading20 — 20px 700 DM Sans · tight leading
+   * heading20 — 20px 700 Inter · tight leading
    *
    * Use for: profile stat values (Credits · Sparks · Days · Sectors),
    *          section numeric heroes, sub-section strong headings.
@@ -1467,7 +1522,7 @@ export const scale = {
    * Semantic equivalent: typography.statValue
    */
   heading20: {
-    fontFamily:    FONT_BODY.bold,                   // DMSans_700Bold
+    fontFamily:    FONT_BODY.bold,                   // Inter_700Bold
     fontSize:      FONT_SIZE.h4,                     // 20
     fontWeight:    fontWeight.bold,                  // "700"
     lineHeight:    lh(20, "tight"),                  // 23
@@ -1475,14 +1530,14 @@ export const scale = {
   },
 
   /**
-   * subhead17 — 17px 600 DM Sans · snug leading
+   * subhead17 — 17px 600 Inter · snug leading
    *
    * Use for: intermediate subheadings, elevated section labels, step titles,
    *          any copy that sits between a heading and body text.
    * Size 17px is used 11× across app screens (blueprint size audit).
    */
   subhead17: {
-    fontFamily:    FONT_BODY.semiBold,               // DMSans_600SemiBold
+    fontFamily:    FONT_BODY.semiBold,               // Inter_600SemiBold
     fontSize:      FONT_SIZE.lgPlus,                 // 17
     fontWeight:    fontWeight.semibold,              // "600"
     lineHeight:    lh(17, "snug"),                   // 21
@@ -1490,7 +1545,7 @@ export const scale = {
   },
 
   /**
-   * body15 — 15px 400 DM Sans · relaxed leading (reading-optimised)
+   * body15 — 15px 400 Inter · relaxed leading (reading-optimised)
    *
    * Use for: chat bubbles, primary body copy, sector descriptions,
    *          card body text, onboarding paragraph text.
@@ -1499,7 +1554,7 @@ export const scale = {
    * Semantic equivalent: typography.chatBubble / typography.bodyLg
    */
   body15: {
-    fontFamily:    FONT_BODY.regular,                // DMSans_400Regular
+    fontFamily:    FONT_BODY.regular,                // Inter_400Regular
     fontSize:      FONT_SIZE.mdLg,                   // 15
     fontWeight:    fontWeight.regular,               // "400"
     lineHeight:    lh(15, "relaxed"),                // 23
@@ -1507,7 +1562,7 @@ export const scale = {
   },
 
   /**
-   * caption13 — 13px 400 DM Sans · relaxed leading
+   * caption13 — 13px 400 Inter · relaxed leading
    *
    * Use for: form context, confirmation previews, small body text,
    *          activity descriptions, card secondary copy.
@@ -1515,7 +1570,7 @@ export const scale = {
    * Semantic equivalent: typography.bodySm
    */
   caption13: {
-    fontFamily:    FONT_BODY.regular,                // DMSans_400Regular
+    fontFamily:    FONT_BODY.regular,                // Inter_400Regular
     fontSize:      FONT_SIZE.base,                   // 13
     fontWeight:    fontWeight.regular,               // "400"
     lineHeight:    lh(13, "relaxed"),                // 20
@@ -1523,7 +1578,7 @@ export const scale = {
   },
 
   /**
-   * micro11 — 11px 400 DM Sans · relaxed leading
+   * micro11 — 11px 400 Inter · relaxed leading
    *
    * Use for: timestamps, read-receipts, auto-redirect countdowns,
    *          Glass Island inactive tab labels, online counts in meta contexts.
@@ -1531,7 +1586,7 @@ export const scale = {
    * Semantic equivalent: typography.metaRegular
    */
   micro11: {
-    fontFamily:    FONT_BODY.regular,                // DMSans_400Regular
+    fontFamily:    FONT_BODY.regular,                // Inter_400Regular
     fontSize:      FONT_SIZE.sm,                     // 11
     fontWeight:    fontWeight.regular,               // "400"
     lineHeight:    lh(11, "relaxed"),                // 17
@@ -1546,7 +1601,7 @@ export type NamedScaleKey = keyof typeof scale;
 // ═══════════════════════════════════════════════════════════════════════════
 // § 6 — useCrowdFonts HOOK
 //
-// Loads both font families simultaneously.
+// Loads all three font families simultaneously (PRD §19.3: Syne + Inter + Space Mono).
 //
 // Usage in app/_layout.tsx:
 //   const [fontsLoaded, fontError] = useCrowdFonts();
@@ -1557,16 +1612,21 @@ export type NamedScaleKey = keyof typeof scale;
 
 export function useCrowdFonts() {
   return useExpoFonts({
-    // ── Cormorant Garamond (weights 600 + 700 — no 800 in this typeface) ──
-    CormorantGaramond_600SemiBold,
-    CormorantGaramond_700Bold,
+    // ── Syne (headings · wordmark · display) ─────────────────────────────
+    Syne_800ExtraBold,
+    Syne_700Bold,
+    Syne_600SemiBold,
+    Syne_400Regular,
 
-    // ── DM Sans ───────────────────────────────────────────────────────────
-    DMSans_400Regular,
-    DMSans_500Medium,
-    DMSans_600SemiBold,
-    DMSans_700Bold,
-    DMSans_800ExtraBold,
+    // ── Inter (body · UI · chat messages) ────────────────────────────────
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+
+    // ── Space Mono (credits · ranks · timers · scores) ───────────────────
+    SpaceMono_400Regular,
+    SpaceMono_700Bold,
   });
 }
 
@@ -1577,7 +1637,7 @@ export function useCrowdFonts() {
 /**
  * createTextStyle — build a one-off RN text style not in the semantic set.
  *
- * @param fontFamily          — use FONT_BODY.* or FONT_HEADING.*
+ * @param fontFamily          — use FONT_BODY.* / FONT_HEADING.* / FONT_NUMERIC.*
  * @param fontSize            — px number
  * @param fontWeight          — RN fontWeight string (default "400")
  * @param lineHeightMultiplier— multiply by fontSize (default 1.45 = "normal")
@@ -1617,22 +1677,23 @@ export function withSize<T extends { fontSize: number; lineHeight: number }>(
 }
 
 /**
- * withWeight — swap fontFamily + fontWeight on any semantic style.
- * Only works for DM Sans styles (heading serif not mapped here).
+ * withWeight — swap fontFamily + fontWeight on any Inter body style.
+ * Only works for Inter (FONT_BODY) styles — heading (Syne) and numeric
+ * (Space Mono) families are not mapped here; set fontFamily directly.
+ * Inter in FONT_BODY tops out at 700Bold — "800" falls back to bold.
  *
  * @example
  *   <Text style={withWeight(typography.body, "700")}>Bold body</Text>
  */
 export function withWeight<T extends { fontFamily: string; fontWeight: RNTextStyle["fontWeight"] }>(
   style: T,
-  weight: "400" | "500" | "600" | "700" | "800",
+  weight: "400" | "500" | "600" | "700",
 ): T {
   const map: Record<string, string> = {
     "400": FONT_BODY.regular,
     "500": FONT_BODY.medium,
     "600": FONT_BODY.semiBold,
     "700": FONT_BODY.bold,
-    "800": FONT_BODY.extraBold,
   };
   return { ...style, fontFamily: map[weight] ?? FONT_BODY.regular, fontWeight: weight };
 }
@@ -1770,9 +1831,10 @@ export type TextStyleDef = {
 export type TextStyle = (typeof typography)[TypographyKey];
 
 /** fontFamily string unions — type-safe fontFamily prop */
-export type HeadingFont = (typeof FONT_HEADING)[keyof typeof FONT_HEADING];
-export type BodyFont    = (typeof FONT_BODY)[keyof typeof FONT_BODY];
-export type AppFont     = HeadingFont | BodyFont;
+export type HeadingFont  = (typeof FONT_HEADING)[keyof typeof FONT_HEADING];
+export type BodyFont     = (typeof FONT_BODY)[keyof typeof FONT_BODY];
+export type NumericFont  = (typeof FONT_NUMERIC)[keyof typeof FONT_NUMERIC];
+export type AppFont      = HeadingFont | BodyFont | NumericFont;
 
 /** FONT_SIZE key union */
 export type FontSizeKey = keyof typeof FONT_SIZE;
@@ -1827,9 +1889,9 @@ export type ScaleMap = Record<NamedScaleKey, TypographyScale>;
 // Named exports from this file:
 //
 //   FONT CONFIG (Expo):
-//     useCrowdFonts()    — hook for app/_layout.tsx · loads both font families
-//     FONT_HEADING       — Cormorant Garamond family constant strings
-//     FONT_BODY          — DM Sans family constant strings
+//     useCrowdFonts()    — hook for app/_layout.tsx · loads all three font families
+//     FONT_HEADING       — Syne family constant strings
+//     FONT_BODY          — Inter family constant strings
 //
 //   PRIMITIVE SCALES:
 //     FONT_SIZE          — 18-step size scale (xs → display)
@@ -1842,7 +1904,7 @@ export type ScaleMap = Record<NamedScaleKey, TypographyScale>;
 //     lh()               — compute absolute lineHeight from fontSize + ratio key
 //     createTextStyle()  — build one-off style not in the semantic set
 //     withSize()         — override fontSize on any semantic style
-//     withWeight()       — swap fontFamily + fontWeight on any DM Sans style
+//     withWeight()       — swap fontFamily + fontWeight on any Inter style
 //
 //   SEMANTIC STYLES:
 //     typography / t     — full semantic style map (A–O groups, 60+ entries)
