@@ -1,24 +1,33 @@
 /**
  * CROWN — Home Screen (app/(tabs)/index.tsx)
  * PRD v3.2 FINAL · §9 App Architecture · §10 Home Screen · §19 Visual Design
- * Updated: PRD-compliant 3-row HomeHeader + Simple Fixed BottomNav
+ * Updated: §9.3.4 + §9.3.5 Swiggy-Style Scroll Coordination + Organism Components
  *
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  * LAYOUT STACK (top → bottom):
- *   [1]  HomeHeader — 3 rows (136px total):
- *          Row 1 (56px): "CROWN" wordmark + 🔔 bell + 💬 DM icon
+ *   [1]  HomeHeader (organism) — 3 rows (136px total):
+ *          Row 1 (56px): \"CROWN\" wordmark + 🔔 bell + 💬 DM icon
  *          Row 2 (48px): 4-Scope Switcher (World / Country / City / Sector)
  *                        → No track background (PRD v3.1 patch)
  *                        → Sliding gold capsule under active tab
+ *                        → NEVER hides when isInputFocused=true (§9.2)
  *          Row 3 (32px): Online strip — always names active scope geography
+ *          Hides on scroll-down · Reappears on scroll-up (§9.3.4)
  *   [2]  Offline Banner (conditional · 32px)
  *   [3]  Inverted FlatList — 6 message variants + 8-skeleton state
  *   [4]  ScrollFAB — new-message chip (conditional)
- *   [5]  ChatInput — sticky above bottom nav (z:935)
- *   [6]  SimpleBottomNav — fixed full-width bar (§9.3 PRD)
+ *   [5]  ChatInput — sticky; slides down to fill gap when nav hidden (§9.3.5)
+ *   [6]  CrownBottomNav (organism) — fixed full-width bar (§9.3 PRD)
  *          Tabs: Home · Explore · Crown · Profile
+ *          Hides on scroll-down (translateY 100%) · Reappears on scroll-up
  *          NO floating glass island · NO backdrop-filter
  *          bg: --bg-surface (white) · border-top: 1px --border-subtle
+ *
+ * SCROLL COORDINATION (§9.3.4 + §9.3.5 — Swiggy-Style):
+ *   navHidden=true  → header slides up, nav slides down, input fills gap
+ *   navHidden=false → all three snap back (200ms ease)
+ *   atBottom (y<10) → force navHidden=false always
+ *   isInputFocused  → Row 2 never hides regardless of navHidden
  *
  * SHEETS / MODALS:
  *   CityPickerSheet     — tap active City scope button
@@ -30,12 +39,15 @@
  * PRD LAWS ENFORCED:
  *   §9.2  — 3-row header · Row 2 no track bg (v3.1 patch)
  *   §9.3  — Simple fixed full-width bottom nav (not floating)
+ *   §9.3.3 — Tab switching: Home→scrollToBottom, others→router.push
+ *   §9.3.4 — Hide/show coordination on scroll delta
+ *   §9.3.5 — Input gap-fill trick (bottom shifts 56px → 0 when nav hidden)
  *   §10.1 — Home screen anatomy locked
- *   §19.1 — "CROWN" wordmark (uppercase, Syne 700)
+ *   §19.1 — \"CROWN\" wordmark (uppercase, Syne 700)
  *   §19.2 — Color tokens: bg-surface white, brand gold #D4A017
  *   Rule 03 — NO avatar in header (lives only in Profile tab)
  *
- * FIRESTORE:
+ * FIRESTORE (UNCHANGED — DO NOT MODIFY):
  *   subscribeToMessages() — real-time chat stream (50 messages)
  *   subscribeToRoom()     — room metadata (onlineCount, heatScore)
  *   sendMessage()         — optimistic write with status lifecycle
@@ -55,15 +67,14 @@ import {
   type AppStateStatus,
   Dimensions,
   FlatList,
+  Keyboard,
   KeyboardAvoidingView,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   Platform,
-  Pressable,
   StatusBar,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import { useSafeAreaInsets }     from 'react-native-safe-area-context';
@@ -79,19 +90,28 @@ import { colors, palette, zIndex, spacing } from '@/constants/colors';
 import { layout }                            from '@/constants/spacing';
 import { FONT_BODY, FONT_HEADING }           from '@/constants/typography';
 
-// ── Components ────────────────────────────────────────────────────────────
-import OnlineCountStrip           from '@/components/molecules/OnlineCountStrip';
+// ── Organisms (PRD §9.2 + §9.3) ───────────────────────────────────────────
+// HomeHeader: 3-row header organism (Row1 wordmark + Row2 scope + Row3 strip)
+// CrownBottomNav: Simple fixed full-width bottom nav organism (§9.3)
+import HomeHeader                from '@/components/organisms/HomeHeader';
+import CrownBottomNav            from '@/components/organisms/CrownBottomNav';
+
+// ── Molecules ─────────────────────────────────────────────────────────────
 import ChatInput                  from '@/components/molecules/ChatInput';
+
+// ── Atoms / Molecules ─────────────────────────────────────────────────────
 import MessageBubble              from '@/components/MessageBubble';
+import ScrollFAB                  from '@/components/atoms/ScrollFAB';
+import SkeletonBubble             from '@/components/atoms/SkeletonBubble';
+
+// ── Sheet / Modal organisms ───────────────────────────────────────────────
 import CityPickerSheet            from '@/components/organisms/CityPickerSheet';
 import SectorPickerSheet          from '@/components/organisms/SectorPickerSheet';
 import { MessageActionSheet }     from '@/components/organisms/MessageActionSheet';
 import { AuthGateSheet }          from '@/components/organisms/AuthGateSheet';
-import ScrollFAB                  from '@/components/atoms/ScrollFAB';
 import { SendFailedModal }         from '@/components/organisms/SendFailedModal';
-import SkeletonBubble             from '@/components/atoms/SkeletonBubble';
 
-// ── Firestore ─────────────────────────────────────────────────────────────
+// ── Firestore (UNCHANGED) ─────────────────────────────────────────────────
 import {
   subscribeToMessages,
   sendMessage,
@@ -121,16 +141,26 @@ const DEFAULT_SECTOR_ID    = 'sector-17'   as const;
 const DEFAULT_SECTOR_LABEL = 'Sector 17'   as const;
 
 // PRD §19.2 — Brand color tokens (light mode)
-const BRAND_GOLD   = '#D4A017' as const;   // --fg-brand
-const BRAND_GOLD_L = '#F5C842' as const;   // --fg-brand-light
-const TEXT_STRONG  = '#1A1A1A' as const;   // --fg-text-strong
-const TEXT_MUTED   = '#6B5B2E' as const;   // --fg-text-muted
-const BG_SURFACE   = '#FFFFFF' as const;   // --bg-surface
-const BG_CARD      = '#F5E6C8' as const;   // --bg-card (cream bubbles)
-const BORDER_SUBTLE = '#E8D5A0' as const;  // --border-subtle
+const BRAND_GOLD    = '#D4A017' as const;   // --fg-brand
+const TEXT_STRONG   = '#1A1A1A' as const;   // --fg-text-strong
+const TEXT_MUTED    = '#6B5B2E' as const;   // --fg-text-muted
+const BG_SURFACE    = '#FFFFFF' as const;   // --bg-surface
+const BORDER_SUBTLE = '#E8D5A0' as const;   // --border-subtle
 
-// PRD §9.3 — Bottom nav height
+// PRD §9.3 — Bottom nav height (content area, excluding safe-area)
 const BOTTOM_NAV_HEIGHT = 56 as const;
+
+// PRD §9.3.4 — Scroll delta threshold for hide/show (prevents jitter)
+const SCROLL_DELTA_THRESHOLD = 4 as const;
+
+// PRD §9.3.5 — Scroll y threshold for "at bottom" detection (inverted list)
+const AT_BOTTOM_Y_THRESHOLD = 10 as const;
+
+// PRD §10.6 — ScrollFAB appears after scrolling this many px up
+const SCROLL_FAB_THRESHOLD = 80 as const;
+
+// PRD §10.1 — Trust anchor hides after scrolling past this y
+const TRUST_ANCHOR_SCROLL_THRESHOLD = 20 as const;
 
 /** Derive scope-aware roomId */
 function buildRoomId(
@@ -301,275 +331,7 @@ function OfflineBanner({ visible }: { visible: boolean }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// § 5 — HOME HEADER (PRD §9.2 — 3-row architecture)
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * PRD §9.2 Row 2 — 4-scope switcher
- * - 4 equal-width buttons: 🌍 World | 🇮🇳 India | 🏙️ City | 🏘️ Sector
- * - Active: gold sliding capsule + bold gold label
- * - Inactive: transparent bg, muted label
- * - NO track background strip (PRD v3.1 patch — removed)
- * - Single tap non-active → switch scope
- * - Tap already-active → open picker sheet (Country/City/Sector)
- */
-interface ScopeSwitcherProps {
-  activeScope:  ScopeKey;
-  cityLabel:    string;
-  sectorLabel:  string;
-  onScopePress: (scope: ScopeKey) => void;
-}
-
-const SCOPE_TABS: Array<{ key: ScopeKey; icon: string; getLabel: (c: string, s: string) => string }> = [
-  { key: 'world',   icon: '🌍', getLabel: () => 'World' },
-  { key: 'country', icon: '🇮🇳', getLabel: () => 'India' },
-  { key: 'city',    icon: '🏙️',  getLabel: (c) => c },
-  { key: 'sector',  icon: '🏘️',  getLabel: (_, s) => s },
-];
-
-function ScopeSwitcher({
-  activeScope,
-  cityLabel,
-  sectorLabel,
-  onScopePress,
-}: ScopeSwitcherProps) {
-  const screenW    = Dimensions.get('window').width;
-  const tabW       = screenW / SCOPE_TABS.length;
-  const activeIdx  = SCOPE_TABS.findIndex((t) => t.key === activeScope);
-
-  // Animated capsule X position — slides between tab positions
-  const capsuleX   = useRef(new Animated.Value(activeIdx * tabW)).current;
-
-  useEffect(() => {
-    Animated.spring(capsuleX, {
-      toValue:       activeIdx * tabW,
-      useNativeDriver: true,
-      tension:       200,
-      friction:      22,
-    }).start();
-  }, [activeIdx, tabW, capsuleX]);
-
-  return (
-    <View
-      style={[S.scopeRow, { width: screenW }]}
-      accessibilityRole="tablist"
-      testID="home-scope-switcher"
-    >
-      {/* PRD v3.1 — NO track background. Capsule only. */}
-      <Animated.View
-        style={[
-          S.scopeCapsule,
-          { width: tabW - 12, transform: [{ translateX: capsuleX }] },
-        ]}
-        pointerEvents="none"
-      />
-
-      {SCOPE_TABS.map((tab) => {
-        const isActive = tab.key === activeScope;
-        const label    = tab.getLabel(cityLabel, sectorLabel);
-        return (
-          <Pressable
-            key={tab.key}
-            style={S.scopeTab}
-            onPress={() => onScopePress(tab.key)}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: isActive }}
-            accessibilityLabel={`${label} chat`}
-            hitSlop={{ top: 8, bottom: 8, left: 0, right: 0 }}
-            testID={`scope-tab-${tab.key}`}
-          >
-            <Text style={S.scopeIcon} numberOfLines={1}>{tab.icon}</Text>
-            <Text
-              style={[S.scopeLabel, isActive && S.scopeLabelActive]}
-              numberOfLines={1}
-            >
-              {label}
-            </Text>
-            {/* PRD v3.1 — gold ▾ chevron only on active tab */}
-            {isActive && (
-              <Feather name="chevron-down" size={10} color={BRAND_GOLD} style={S.scopeChevron} />
-            )}
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
-
-/**
- * PRD §9.2 Row 3 — Online count strip
- * Always names the geography of the currently-active scope.
- */
-interface HomeOnlineStripProps {
-  scope:          ScopeKey;
-  cityLabel:      string;
-  sectorLabel:    string;
-  onlineCount:    number | null;
-  heatScore:      number | null;
-  loading:        boolean;
-  showTrustAnchor: boolean;
-  onTrustAnchorDismiss: () => void;
-}
-
-function HomeOnlineStrip({
-  scope,
-  cityLabel,
-  sectorLabel,
-  onlineCount,
-  heatScore,
-  loading,
-  showTrustAnchor,
-  onTrustAnchorDismiss,
-}: HomeOnlineStripProps) {
-  const label = loading
-    ? '—'
-    : getScopeOnlineLabel(scope, cityLabel, sectorLabel, onlineCount);
-
-  return (
-    <View style={S.onlineStrip} testID="home-online-strip">
-      {/* Pulsing amber dot */}
-      <View style={S.onlineDot} />
-
-      {/* Scope-aware count text */}
-      <Text style={S.onlineText} numberOfLines={1} accessibilityLiveRegion="polite">
-        {label}
-      </Text>
-
-      {/* Heat score pill — PRD: visible when ≥ 30 */}
-      {!loading && heatScore !== null && heatScore >= 30 && (
-        <View style={S.heatPill}>
-          <Text style={S.heatText}>🔥 Heat {heatScore}</Text>
-        </View>
-      )}
-
-      {/* Trust anchor — PRD: visible first session, auto-hides after 60s */}
-      {showTrustAnchor && (
-        <TouchableOpacity
-          style={S.trustAnchor}
-          onPress={onTrustAnchorDismiss}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          accessibilityLabel="Dismiss trust anchor"
-        >
-          <Text style={S.trustText}>📍 1.2 Lakh+</Text>
-        </TouchableOpacity>
-      )}
-    </View>
-  );
-}
-
-/**
- * PRD §9.2 — 3-Row HomeHeader
- * Row 1 (56px): CROWN wordmark + notification bell + DM icon
- * Row 2 (48px): 4-scope switcher — PRD v3.1: no track background
- * Row 3 (32px): Online count strip — always names active scope
- *
- * Rule 03: NO avatar in this header (lives ONLY in Profile tab).
- */
-interface HomeHeaderProps {
-  activeScope:          ScopeKey;
-  cityLabel:            string;
-  sectorLabel:          string;
-  onlineCount:          number | null;
-  heatScore:            number | null;
-  roomLoading:          boolean;
-  unreadDmCount:        number;
-  showTrustAnchor:      boolean;
-  onScopePress:         (scope: ScopeKey) => void;
-  onPressBell:          () => void;
-  onPressDM:            () => void;
-  onTrustAnchorDismiss: () => void;
-}
-
-function HomeHeader({
-  activeScope,
-  cityLabel,
-  sectorLabel,
-  onlineCount,
-  heatScore,
-  roomLoading,
-  unreadDmCount,
-  showTrustAnchor,
-  onScopePress,
-  onPressBell,
-  onPressDM,
-  onTrustAnchorDismiss,
-}: HomeHeaderProps) {
-  return (
-    <View style={S.headerWrap} testID="home-header">
-      {/* ── Row 1 — CROWN wordmark + Bell + DM (56px) ───────────── */}
-      <View style={S.headerRow1}>
-        {/* PRD §19.1 — "CROWN" uppercase · Syne 700 · brand gold */}
-        <Text
-          style={S.wordmark}
-          accessibilityRole="header"
-          accessibilityLabel="CROWN app"
-        >
-          CROWN
-        </Text>
-
-        {/* Right actions — bell + DM */}
-        {/* Rule 03: NO user avatar here */}
-        <View style={S.headerActions}>
-          <TouchableOpacity
-            style={S.headerActionBtn}
-            onPress={onPressBell}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            accessibilityLabel="Notifications"
-            accessibilityRole="button"
-            testID="home-bell-btn"
-          >
-            <Feather name="bell" size={22} color={TEXT_STRONG} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={S.headerActionBtn}
-            onPress={onPressDM}
-            hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
-            accessibilityLabel={unreadDmCount > 0 ? `${unreadDmCount} unread DMs` : 'Direct messages'}
-            accessibilityRole="button"
-            testID="home-dm-btn"
-          >
-            <Feather name="message-circle" size={22} color={TEXT_STRONG} />
-            {unreadDmCount > 0 && (
-              <View style={S.dmBadge} accessibilityLabel={`${unreadDmCount} unread`}>
-                <Text style={S.dmBadgeText}>
-                  {unreadDmCount > 99 ? '99+' : unreadDmCount}
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* ── Row 2 — 4-Scope Switcher (48px) ────────────────────── */}
-      {/* PRD v3.1: NO track background — capsule only */}
-      <ScopeSwitcher
-        activeScope={activeScope}
-        cityLabel={cityLabel}
-        sectorLabel={sectorLabel}
-        onScopePress={onScopePress}
-      />
-
-      {/* ── Row 3 — Online Count Strip (32px) ───────────────────── */}
-      <HomeOnlineStrip
-        scope={activeScope}
-        cityLabel={cityLabel}
-        sectorLabel={sectorLabel}
-        onlineCount={onlineCount}
-        heatScore={heatScore}
-        loading={roomLoading}
-        showTrustAnchor={showTrustAnchor}
-        onTrustAnchorDismiss={onTrustAnchorDismiss}
-      />
-
-      {/* Hairline separator below header */}
-      <View style={S.headerDivider} />
-    </View>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// § 6 — MESSAGE ROW (renders one MessageBubble per CWMessage)
+// § 5 — MESSAGE ROW (renders one MessageBubble per CWMessage)
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface MessageRowProps {
@@ -622,7 +384,7 @@ const MessageRow = React.memo(function MessageRow({
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// § 7 — CHAT SKELETON (8 alternating shimmer bubbles)
+// § 6 — CHAT SKELETON (8 alternating shimmer bubbles)
 // ─────────────────────────────────────────────────────────────────────────────
 
 function ChatSkeleton() {
@@ -636,7 +398,7 @@ function ChatSkeleton() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// § 8 — EMPTY STATE
+// § 7 — EMPTY STATE
 // ─────────────────────────────────────────────────────────────────────────────
 
 function ChatEmptyState({ sectorLabel }: { sectorLabel: string }) {
@@ -652,97 +414,7 @@ function ChatEmptyState({ sectorLabel }: { sectorLabel: string }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// § 9 — SIMPLE BOTTOM NAV (PRD §9.3 — full-width, fixed, no glass)
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * PRD §9.3 — Simple Fixed Full-Width Bottom Navigation
- *
- * "No floating Glass Island. No 280px-wide pill hovering 20px above the safe area.
- *  The bottom nav is a simple, full-width, fixed bar — exactly like WhatsApp /
- *  Telegram / Instagram bottom nav. Predictable. Boring. Easy."
- *
- * - H: 56px + safe-area-inset-bottom
- * - W: 100% (full width, edge-to-edge)
- * - bg: --bg-surface (solid white)
- * - border-top: 1px --border-subtle
- * - border-radius: 0 (flush rectangle)
- * - No backdrop-filter, no transparency, no floating
- *
- * Tabs: Home · Explore · Crown · Profile
- * Active: gold icon + bold gold label
- * Inactive: muted icon + regular label
- */
-
-const BOTTOM_TABS: Array<{
-  key: BottomTab;
-  icon: React.ComponentProps<typeof Feather>['name'];
-  label: string;
-}> = [
-  { key: 'home',    icon: 'home',      label: 'Home'    },
-  { key: 'explore', icon: 'compass',   label: 'Explore' },
-  { key: 'crown',   icon: 'award',     label: 'Crown'   },
-  { key: 'profile', icon: 'user',      label: 'Profile' },
-];
-
-interface SimpleBottomNavProps {
-  activeTab:    BottomTab;
-  onTabPress:   (tab: BottomTab) => void;
-  bottomInset:  number;
-}
-
-function SimpleBottomNav({
-  activeTab,
-  onTabPress,
-  bottomInset,
-}: SimpleBottomNavProps) {
-  return (
-    <View
-      style={[
-        S.bottomNav,
-        { paddingBottom: bottomInset, height: BOTTOM_NAV_HEIGHT + bottomInset },
-      ]}
-      accessibilityRole="tablist"
-      testID="home-bottom-nav"
-    >
-      {BOTTOM_TABS.map((tab) => {
-        const isActive = tab.key === activeTab;
-
-        return (
-          <Pressable
-            key={tab.key}
-            style={({ pressed }) => [
-              S.bottomNavTab,
-              pressed && S.bottomNavTabPressed,
-            ]}
-            onPress={() => onTabPress(tab.key)}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: isActive }}
-            accessibilityLabel={`${tab.label} tab`}
-            testID={`bottom-tab-${tab.key}`}
-          >
-            <Feather
-              name={tab.icon}
-              size={24}
-              color={isActive ? BRAND_GOLD : TEXT_MUTED}
-            />
-            <Text
-              style={[
-                S.bottomNavLabel,
-                isActive ? S.bottomNavLabelActive : S.bottomNavLabelInactive,
-              ]}
-            >
-              {tab.label}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// § 10 — MAIN HOME SCREEN
+// § 8 — MAIN HOME SCREEN
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function HomeScreen() {
@@ -778,6 +450,19 @@ export default function HomeScreen() {
   const [newMsgCount,  setNewMsgCount]  = useState(0);
   const [isScrolledUp, setIsScrolledUp] = useState(false);
 
+  // ── Scroll Coordination — Swiggy-Style (PRD §9.3.4 + §9.3.5) ────────────
+  // navHidden=true  → header up, nav down, input fills 56px gap
+  // navHidden=false → all three visible, coordinated 200ms ease
+  const [navHidden, setNavHidden] = useState(false);
+
+  // ── isInputFocused — PRD §9.2 Row 2 Exception ────────────────────────────
+  // When composing, Row 2 scope switcher NEVER hides so user can retarget scope
+  const [isInputFocused, setIsInputFocused] = useState(false);
+
+  // ── lastScrollY ref — scroll delta tracking (PRD §9.3.4) ─────────────────
+  // useRef avoids re-renders on every scroll event (perf-critical path)
+  const lastScrollY = useRef(0);
+
   // ── Sheets ────────────────────────────────────────────────────────────────
   const [citySheetOpen,   setCitySheetOpen]   = useState(false);
   const [sectorSheetOpen, setSectorSheetOpen] = useState(false);
@@ -806,7 +491,28 @@ export default function HomeScreen() {
   const [unreadDmCount, setUnreadDmCount] = useState(0);
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // § 10.1 — FIRESTORE SUBSCRIPTIONS
+  // § 8.1 — KEYBOARD LISTENER (isInputFocused tracking)
+  // PRD §9.2: Row 2 scope switcher never hides when composing a message.
+  // Track keyboard show/hide to set isInputFocused state.
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => setIsInputFocused(true),
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setIsInputFocused(false),
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // § 8.2 — FIRESTORE SUBSCRIPTIONS (UNCHANGED)
   // ═══════════════════════════════════════════════════════════════════════════
 
   useEffect(() => {
@@ -894,7 +600,7 @@ export default function HomeScreen() {
   }, [user?.uid]);
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // § 10.2 — SEND MESSAGE (optimistic)
+  // § 8.3 — SEND MESSAGE (optimistic — UNCHANGED)
   // ═══════════════════════════════════════════════════════════════════════════
 
   const handleSend = useCallback(async (text: string) => {
@@ -937,7 +643,7 @@ export default function HomeScreen() {
   }, [user?.uid, roomId]);
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // § 10.3 — FAILED MESSAGE RETRY
+  // § 8.4 — FAILED MESSAGE RETRY (UNCHANGED)
   // ═══════════════════════════════════════════════════════════════════════════
 
   const handleRetryFailed = useCallback(async () => {
@@ -950,7 +656,7 @@ export default function HomeScreen() {
   }, [failedMsg, handleSend]);
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // § 10.4 — AUTH GATE (LAW 4 — Peek-Before-Join)
+  // § 8.5 — AUTH GATE (LAW 4 — Peek-Before-Join — UNCHANGED)
   // ═══════════════════════════════════════════════════════════════════════════
 
   const handleAuthGate = useCallback(() => {
@@ -958,7 +664,7 @@ export default function HomeScreen() {
   }, []);
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // § 10.5 — LONG PRESS → MESSAGE ACTION SHEET
+  // § 8.6 — LONG PRESS → MESSAGE ACTION SHEET (UNCHANGED)
   // ═══════════════════════════════════════════════════════════════════════════
 
   const handleLongPress = useCallback((msg: CWMessage) => {
@@ -968,14 +674,49 @@ export default function HomeScreen() {
   }, [user?.uid, cityId, sectorId]);
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // § 10.6 — SCROLL (ScrollFAB + hide trust anchor)
+  // § 8.7 — SCROLL HANDLER (PRD §9.3.4 + §9.3.5 — Swiggy-Style Coordination)
+  //
+  // This replaces the old handleScroll. It now:
+  //   1. Computes scroll delta against lastScrollY ref (no re-render on every frame)
+  //   2. delta > 4px DOWN → reading mode: navHidden=true (header+nav hide, input fills gap)
+  //   3. delta < -4px UP  → controls mode: navHidden=false (all three snap back)
+  //   4. atBottom (y < 10) → force navHidden=false (always show when at latest message)
+  //   5. Continues to drive ScrollFAB + trust anchor (existing logic preserved)
+  //
+  // PERF: lastScrollY is a ref (not state) so scroll events never trigger re-renders
+  //       for the delta tracking. Only setNavHidden/setIsScrolledUp/setShowTrustAnchor
+  //       trigger re-renders, and those are gated behind comparisons.
   // ═══════════════════════════════════════════════════════════════════════════
 
   const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const y = event.nativeEvent.contentOffset.y;
-    const scrolledUp = y > 80;
+    const currentY = event.nativeEvent.contentOffset.y;
+    const delta    = currentY - lastScrollY.current;
+    lastScrollY.current = currentY;
+
+    // ── PRD §9.3.4 — Swiggy-style hide/show ─────────────────────────────
+    if (delta > SCROLL_DELTA_THRESHOLD) {
+      // Scrolling DOWN → reading mode: hide header + nav, input fills gap
+      setNavHidden(true);
+    } else if (delta < -SCROLL_DELTA_THRESHOLD) {
+      // Scrolling UP → controls mode: show all three back
+      setNavHidden(false);
+    }
+
+    // ── PRD §9.3.4 — atBottom edge case ──────────────────────────────────
+    // Inverted list: y=0 is the bottom (latest messages). When user reaches
+    // the latest message, always force show controls so they can compose.
+    if (currentY < AT_BOTTOM_Y_THRESHOLD) {
+      setNavHidden(false);
+    }
+
+    // ── ScrollFAB threshold (existing logic) ─────────────────────────────
+    const scrolledUp = currentY > SCROLL_FAB_THRESHOLD;
     if (scrolledUp !== isScrolledUp) setIsScrolledUp(scrolledUp);
-    if (y > 20 && showTrustAnchor) setShowTrustAnchor(false);
+
+    // ── Trust anchor: hide on first scroll (existing logic) ──────────────
+    if (currentY > TRUST_ANCHOR_SCROLL_THRESHOLD && showTrustAnchor) {
+      setShowTrustAnchor(false);
+    }
   }, [isScrolledUp, showTrustAnchor]);
 
   const handleScrollToBottom = useCallback(() => {
@@ -985,7 +726,7 @@ export default function HomeScreen() {
   }, []);
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // § 10.7 — SCOPE PRESS (PRD §10.8 — single tap vs tap-when-active)
+  // § 8.8 — SCOPE PRESS (PRD §10.8 — single tap vs tap-when-active)
   //
   //   Single tap on non-active scope → switch scope
   //   Tap already-active 'city'    → open CityPickerSheet
@@ -996,18 +737,16 @@ export default function HomeScreen() {
 
   const handleScopePress = useCallback((scope: ScopeKey) => {
     if (scope !== activeScope) {
-      // Switch to this scope
       setActiveScope(scope);
       return;
     }
-    // Tap on already-active scope → open picker
     if (scope === 'city')    { setCitySheetOpen(true);   return; }
     if (scope === 'sector')  { setSectorSheetOpen(true); return; }
     // 'world' and 'country' — no picker in v1.0
   }, [activeScope]);
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // § 10.8 — CITY / SECTOR SELECTION
+  // § 8.9 — CITY / SECTOR SELECTION (UNCHANGED)
   // ═══════════════════════════════════════════════════════════════════════════
 
   const handleCitySelect = useCallback((selectedCityId: string) => {
@@ -1025,26 +764,31 @@ export default function HomeScreen() {
   }, []);
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // § 10.9 — BOTTOM TAB PRESS (PRD §9.3.3)
+  // § 8.10 — BOTTOM TAB PRESS (PRD §9.3.3)
+  //
+  //   'home'    → scroll to bottom (latest messages) — no route push
+  //   'explore' → router.push('/(tabs)/discover')
+  //   'crown'   → router.push('/(tabs)/ranks')
+  //   'profile' → router.push('/(tabs)/profile')
   // ═══════════════════════════════════════════════════════════════════════════
 
   const handleTabPress = useCallback((tab: BottomTab) => {
     setActiveTab(tab);
+
     if (tab === 'home') {
-      // Tapping Home while on Home → scroll to latest message
+      // PRD §9.3.3: Tapping Home while on Home → scroll to latest message (bottom)
       flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
       return;
     }
-    const routes: Record<string, string> = {
-      explore: '/(tabs)/discover',
-      crown:   '/(tabs)/ranks',
-      profile: '/(tabs)/profile',
-    };
-    if (routes[tab]) router.push(routes[tab] as never);
+
+    // PRD §9.3.3: Other tabs push to their respective routes
+    if (tab === 'explore') { router.push('/(tabs)/discover' as never); return; }
+    if (tab === 'crown')   { router.push('/(tabs)/ranks'    as never); return; }
+    if (tab === 'profile') { router.push('/(tabs)/profile'  as never); return; }
   }, [router]);
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // § 10.10 — FLATLIST DATA (newest-first for inverted list)
+  // § 8.11 — FLATLIST DATA (newest-first for inverted list — UNCHANGED)
   // ═══════════════════════════════════════════════════════════════════════════
 
   const invertedMessages = useMemo(() => [...messages].reverse(), [messages]);
@@ -1060,14 +804,14 @@ export default function HomeScreen() {
   const keyExtractor = useCallback((item: CWMessage) => item.id, []);
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // § 10.11 — KAV OFFSET
-  // PRD §9.2: Row1(56) + Row2(48) + Row3(32) = 136px + safeAreaTop
+  // § 8.12 — KAV OFFSET (PRD §9.2)
+  // Row1(56) + Row2(48) + Row3(32) = 136px + safeAreaTop
   // ═══════════════════════════════════════════════════════════════════════════
 
-  const kavOffset = insets.top + 56 + 48 + 32;   // 136px header stack
+  const kavOffset = insets.top + 56 + 48 + 32; // = insets.top + 136px
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // § 10.12 — RENDER
+  // § 8.13 — RENDER
   // ═══════════════════════════════════════════════════════════════════════════
 
   return (
@@ -1075,14 +819,18 @@ export default function HomeScreen() {
       <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
 
       {/*
-       * ── [1] THREE-ROW HOME HEADER (PRD §9.2) ─────────────────────────────
+       * ── [1] THREE-ROW HOME HEADER — organisms/HomeHeader (PRD §9.2) ──────
        *
-       * Row 1 (56px): "CROWN" wordmark (Syne 700, brand gold) + Bell + DM
+       * Organism receives navHidden + isInputFocused props:
+       *   navHidden:      slide header up (translateY -100%) when true
+       *   isInputFocused: Row 2 NEVER hides when user is composing (§9.2)
+       *
+       * Row 1 (56px): "CROWN" wordmark + Bell + DM
        * Row 2 (48px): 4-Scope Switcher (World / India / City / Sector)
        *               PRD v3.1: NO track background — sliding capsule only
        * Row 3 (32px): Online count strip — names the active scope geography
        *
-       * Rule 03: NO avatar here. Avatar is ONLY in Profile tab of bottom nav.
+       * Rule 03: NO avatar here. Avatar is ONLY in Profile tab of CrownBottomNav.
        */}
       <View style={{ paddingTop: insets.top, backgroundColor: BG_SURFACE }}>
         <HomeHeader
@@ -1098,6 +846,9 @@ export default function HomeScreen() {
           onPressBell={() => router.push('/notifications/index' as never)}
           onPressDM={() => router.push('/(tabs)/inbox' as never)}
           onTrustAnchorDismiss={() => setShowTrustAnchor(false)}
+          // ── PRD §9.3.4 + §9.2 — Scroll Coordination props ──────────────
+          navHidden={navHidden}
+          isInputFocused={isInputFocused}
         />
       </View>
 
@@ -1127,7 +878,8 @@ export default function HomeScreen() {
          *   'system' — System event (centered chip)
          *   'date'   — Date separator (hairline chip)
          *
-         * paddingBottom accounts for SimpleBottomNav (56px + insets.bottom)
+         * paddingBottom: BOTTOM_NAV_HEIGHT(56) + insets.bottom + 72(input bar)
+         * PRD §9.3.5: 72px accounts for ChatInput bar above the nav.
          */}
         {isLoading ? (
           <ChatSkeleton />
@@ -1161,7 +913,7 @@ export default function HomeScreen() {
 
         {/*
          * ── [4] SCROLL FAB (new messages chip) ────────────────────────────
-         * Positioned above ChatInput and SimpleBottomNav.
+         * Positioned above ChatInput and CrownBottomNav.
          */}
         <ScrollFAB
           visible={isScrolledUp && newMsgCount > 0}
@@ -1170,7 +922,15 @@ export default function HomeScreen() {
         />
 
         {/*
-         * ── [5] STICKY CHAT INPUT (z:935 · flush above SimpleBottomNav) ──
+         * ── [5] STICKY CHAT INPUT (PRD §9.3.5 — Gap-Fill Trick) ──────────
+         *
+         * navHidden prop:   When true, ChatInput slides down by 56px to fill
+         *                   the vacated space of the hidden CrownBottomNav.
+         *                   Both the nav (translateY 100%) and input (bottom shift)
+         *                   animate at 200ms ease — zero visual gap, zero jump.
+         *
+         * navVisible prop:  Inverse of navHidden — provided for components that
+         *                   prefer the affirmative form.
          *
          * Placeholder reflects active scope (PRD §10.1 note).
          * Rule 03: NO user avatar in this composer.
@@ -1182,20 +942,29 @@ export default function HomeScreen() {
           onAuthGate={handleAuthGate}
           placeholder={getScopePlaceholder(activeScope, cityLabel, sectorLabel)}
           disabled={isOffline}
+          // ── PRD §9.3.5 — Scroll Coordination props ─────────────────────
+          navHidden={navHidden}
+          navVisible={!navHidden}
         />
       </KeyboardAvoidingView>
 
       {/*
-       * ── [6] SIMPLE BOTTOM NAV (PRD §9.3) ─────────────────────────────────
+       * ── [6] CROWN BOTTOM NAV — organisms/CrownBottomNav (PRD §9.3) ───────
+       *
+       * Replaces internal SimpleBottomNav. Organism version receives navHidden
+       * prop and handles its own translateY(100%) slide animation (200ms ease).
        *
        * PRD Founder mandate: "No floating Glass Island. The bottom nav is a
        * simple, full-width, fixed bar — exactly like WhatsApp / Telegram."
        *
-       * - Full-width edge-to-edge
-       * - 56px + safe-area-inset-bottom
+       * - Full-width edge-to-edge (left: 0, right: 0)
+       * - Height: 56px + safe-area-inset-bottom
        * - Solid white bg (--bg-surface)
        * - border-top: 1px --border-subtle
        * - NO backdrop-filter · NO transparency · NO border-radius
+       *
+       * navHidden=true  → translateY(100%) — slides fully off-screen (200ms)
+       * navHidden=false → translateY(0%)   — slides back in (200ms)
        *
        * Tabs: Home · Explore · Crown · Profile
        * Active: var(--fg-brand) gold icon + bold label
@@ -1203,10 +972,11 @@ export default function HomeScreen() {
        *
        * Rule 03: Profile tab shows avatar ONLY here (not in header)
        */}
-      <SimpleBottomNav
+      <CrownBottomNav
         activeTab={activeTab}
         onTabPress={handleTabPress}
         bottomInset={insets.bottom}
+        navHidden={navHidden}
       />
 
       {/* ═══════════════════════════════════════════════════════════════════
@@ -1286,12 +1056,11 @@ export default function HomeScreen() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// § 11 — STYLES
+// § 9 — STYLES
 // PRD §19.2 color tokens. Zero hardcoded hex outside token constants above.
+// Header styles removed — now managed by organisms/HomeHeader.
+// BottomNav styles removed — now managed by organisms/CrownBottomNav.
 // ─────────────────────────────────────────────────────────────────────────────
-
-const { width: SCREEN_W } = Dimensions.get('window');
-const SCOPE_TAB_W = SCREEN_W / 4;
 
 const S = StyleSheet.create({
 
@@ -1299,17 +1068,17 @@ const S = StyleSheet.create({
   // PRD §19.2: --bg-surface = #FFFFFF (white)
   screen: {
     flex:            1,
-    backgroundColor: BG_SURFACE,           // #FFFFFF — PRD §19.2
+    backgroundColor: BG_SURFACE,            // #FFFFFF — PRD §19.2
   },
 
   // ── Offline Banner ────────────────────────────────────────────────────────
   offlineBanner: {
     height:            32,
-    backgroundColor:   palette.ink[950],   // warm ink — dark bg
+    backgroundColor:   palette.ink[950],    // warm ink — dark bg
     flexDirection:     'row',
     alignItems:        'center',
-    paddingHorizontal: spacing.base,       // 16px
-    zIndex:            zIndex.fixedHeader, // 900
+    paddingHorizontal: spacing.base,        // 16px
+    zIndex:            zIndex.fixedHeader,  // 900
   },
   offlineIcon: {
     marginRight: 6,
@@ -1330,10 +1099,10 @@ const S = StyleSheet.create({
   // ── Chat FlatList ─────────────────────────────────────────────────────────
   chatList: {
     flex:            1,
-    backgroundColor: BG_SURFACE,          // white
+    backgroundColor: BG_SURFACE,           // white
   },
   chatContent: {
-    paddingHorizontal: spacing.sm,        // 8px
+    paddingHorizontal: spacing.sm,         // 8px
     paddingTop:        8,
     paddingBottom:     16,
   },
@@ -1365,251 +1134,5 @@ const S = StyleSheet.create({
     color:      TEXT_MUTED,
     textAlign:  'center',
     lineHeight: 22,
-  },
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // HOME HEADER
-  // ══════════════════════════════════════════════════════════════════════════
-
-  headerWrap: {
-    backgroundColor: BG_SURFACE,          // white
-    width:           '100%',
-  },
-
-  // ── Row 1 — CROWN wordmark + Bell + DM (56px) ────────────────────────────
-  headerRow1: {
-    height:            56,
-    flexDirection:     'row',
-    alignItems:        'center',
-    justifyContent:    'space-between',
-    paddingHorizontal: 16,
-    backgroundColor:   BG_SURFACE,
-  },
-
-  // PRD §19.1 — CROWN wordmark: Syne 700 · brand gold · uppercase · -0.4px tracking
-  wordmark: {
-    fontFamily:    FONT_HEADING?.bold ?? 'System',
-    fontSize:      24,
-    fontWeight:    '700',
-    color:         BRAND_GOLD,             // --fg-brand #D4A017
-    letterSpacing: -0.4,
-    textTransform: 'uppercase',
-  },
-
-  headerActions: {
-    flexDirection:  'row',
-    alignItems:     'center',
-    gap:            4,
-  },
-  headerActionBtn: {
-    width:          44,                   // Apple HIG min 44pt touch target
-    height:         44,
-    alignItems:     'center',
-    justifyContent: 'center',
-    position:       'relative',
-  },
-
-  // DM badge (unread count)
-  dmBadge: {
-    position:        'absolute',
-    top:             6,
-    right:           4,
-    minWidth:        16,
-    height:          16,
-    borderRadius:    8,
-    backgroundColor: palette.crimson[600], // #C4294F
-    alignItems:      'center',
-    justifyContent:  'center',
-    paddingHorizontal: 3,
-  },
-  dmBadgeText: {
-    fontFamily: FONT_BODY.medium,
-    fontSize:   10,
-    fontWeight: '600',
-    color:      palette.white,
-    lineHeight: 12,
-  },
-
-  // ── Row 2 — Scope Switcher (48px) ─────────────────────────────────────────
-  // PRD v3.1: NO background track — capsule only over white surface
-  scopeRow: {
-    height:          48,
-    flexDirection:   'row',
-    alignItems:      'center',
-    backgroundColor: BG_SURFACE,          // transparent over white — PRD v3.1
-    position:        'relative',
-    overflow:        'hidden',
-  },
-
-  // Gold sliding capsule — active tab indicator
-  // PRD v3.1: "sirf sliding capsule (active indicator) hi bacha"
-  // box-shadow: 0 1px 8px rgba(24,15,4,0.12), 0 0 0 1px rgba(200,144,10,0.15)
-  scopeCapsule: {
-    position:        'absolute',
-    top:             6,
-    height:          36,
-    marginLeft:      6,
-    borderRadius:    18,                  // pill shape
-    backgroundColor: palette.gold[50],   // very light gold tint (#FCF7E5)
-    borderWidth:     1,
-    borderColor:     `rgba(200, 144, 10, 0.20)`, // subtle gold ring (PRD spec)
-    // Shadow approximation in RN:
-    shadowColor:     '#18100C',
-    shadowOffset:    { width: 0, height: 1 },
-    shadowOpacity:   0.12,
-    shadowRadius:    4,
-    elevation:       2,
-  },
-
-  scopeTab: {
-    flex:           1,
-    height:         48,
-    alignItems:     'center',
-    justifyContent: 'center',
-    paddingHorizontal: 4,
-    gap:            1,
-  },
-
-  scopeIcon: {
-    fontSize:   14,
-    lineHeight: 18,
-  },
-
-  scopeLabel: {
-    fontFamily:  FONT_BODY.medium,
-    fontSize:    11,
-    fontWeight:  '500',
-    color:       TEXT_MUTED,             // inactive: muted
-    lineHeight:  14,
-  },
-  scopeLabelActive: {
-    color:       BRAND_GOLD,             // active: brand gold
-    fontWeight:  '600',
-  },
-  scopeChevron: {
-    marginTop: -1,
-    opacity:   0.7,
-  },
-
-  // ── Row 3 — Online Strip (32px) ───────────────────────────────────────────
-  onlineStrip: {
-    height:            32,
-    flexDirection:     'row',
-    alignItems:        'center',
-    paddingHorizontal: 16,
-    gap:               8,
-    backgroundColor:   BG_SURFACE,
-  },
-
-  // Amber pulsing dot (presence indicator)
-  onlineDot: {
-    width:           8,
-    height:          8,
-    borderRadius:    4,
-    backgroundColor: palette.amber[600],  // #D4651A — burnished amber
-  },
-
-  onlineText: {
-    fontFamily: FONT_BODY.medium,
-    fontSize:   12,
-    fontWeight: '500',
-    color:      TEXT_MUTED,
-    flex:       1,
-  },
-
-  // Heat score pill (visible when score ≥ 30)
-  heatPill: {
-    paddingHorizontal: 8,
-    paddingVertical:   2,
-    borderRadius:      10,
-    backgroundColor:   palette.amber[50], // light amber tint
-  },
-  heatText: {
-    fontFamily: FONT_BODY.medium,
-    fontSize:   11,
-    fontWeight: '600',
-    color:      palette.amber[700],
-  },
-
-  // Trust anchor chip (first session · auto-hides 60s)
-  trustAnchor: {
-    paddingHorizontal: 8,
-    paddingVertical:   2,
-    borderRadius:      10,
-    backgroundColor:   palette.gold[50],  // FCF7E5
-  },
-  trustText: {
-    fontFamily: FONT_BODY.medium,
-    fontSize:   11,
-    fontWeight: '600',
-    color:      TEXT_MUTED,
-  },
-
-  // Hairline below header
-  headerDivider: {
-    height:          1,
-    backgroundColor: BORDER_SUBTLE,      // #E8D5A0
-  },
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // SIMPLE BOTTOM NAV (PRD §9.3)
-  // ══════════════════════════════════════════════════════════════════════════
-
-  // PRD §9.3.1 spec:
-  //   position: fixed · bottom: 0 · left/right: 0 (full width)
-  //   height: 56px + safe-area
-  //   bg: --bg-surface solid (white)
-  //   border-top: 1px --border-subtle
-  //   border-radius: 0 (flush rectangle)
-  //   NO backdrop-filter, NO transparency, NO floating
-  bottomNav: {
-    position:          'absolute',
-    bottom:            0,
-    left:              0,
-    right:             0,
-    flexDirection:     'row',
-    alignItems:        'stretch',
-    backgroundColor:   BG_SURFACE,       // solid white — PRD §19.2
-    borderTopWidth:    1,
-    borderTopColor:    BORDER_SUBTLE,    // 1px --border-subtle
-    borderRadius:      0,                // PRD §9.3: flush rectangle
-    zIndex:            950,
-    // Very subtle elevation — PRD §9.3.1: "0 -1px 0 rgba(0,0,0,0.04)"
-    shadowColor:       '#000',
-    shadowOffset:      { width: 0, height: -1 },
-    shadowOpacity:     0.04,
-    shadowRadius:      0,
-    elevation:         8,
-  },
-
-  // PRD §9.3.2 — each tab = 25% width, column flex, icon + label centered
-  bottomNavTab: {
-    flex:              1,
-    alignItems:        'center',
-    justifyContent:    'center',
-    paddingTop:        8,
-    paddingBottom:     4,
-    paddingHorizontal: 4,
-    gap:               2,
-    minHeight:         44,               // Apple HIG touch target minimum
-  },
-  bottomNavTabPressed: {
-    opacity: 0.7,
-  },
-
-  // PRD §9.3.2 — 11px Inter 500
-  bottomNavLabel: {
-    fontSize:   11,
-    lineHeight: 14,
-  },
-  bottomNavLabelActive: {
-    fontFamily: FONT_BODY.semibold,
-    fontWeight: '600',
-    color:      BRAND_GOLD,             // --fg-brand active
-  },
-  bottomNavLabelInactive: {
-    fontFamily: FONT_BODY.regular,
-    fontWeight: '400',
-    color:      TEXT_MUTED,             // --fg-text-muted inactive
   },
 });
