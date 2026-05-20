@@ -1,16 +1,34 @@
 /**
- * CROWD WORLD — Design Tokens: Spacing · Radius · Shadows · Layout  v2.0
+ * CROWN — Design Tokens: Spacing · Radius · Shadows · Layout  v2.1
  * ─────────────────────────────────────────────────────────────────────────────
  * Single source of truth for every numeric dimension in the app.
  * NO hardcoded values outside this file — always import and reference tokens.
  *
  * Grid base  : 4 px
- * Brand color: Gold #C9A227  ·  Warm Ivory #FFF9EC  ·  Warm Ink #1A1208
+ * Brand palette : palette.gold (--color-gold)  ·  palette.warmIvory (--color-warm-ivory)  ·  palette.warmInk (--color-warm-ink)
  *
  * Architecture constraints honoured here:
- *   Rule 04   → inputAreaHeight + glassIslandHeight are NON-NEGOTIABLE (flush, zero gap)
- *   LAW 13    → glassIslandHeight drives hide/show translateY offset
- *   LAW 15    → headerHeight is the two-row header anchor
+ *   Rule 04   → inputAreaHeight (64px) sits at bottom: bottomNavHeight (56px); zero gap between input and nav top
+ *   LAW 13    → bottomNavHeight (56px) drives the translateY hide/show animation target
+ *   LAW 15    → headerHeight (136px) is the three-row header anchor (Row 1 + Row 2 + Row 3)
+ *
+ * ── v2.1 Changes (PRD v5.1-rev2 compliance) ─────────────────────────────────
+ *   FIX 01 — headerRow2Height: 44 → 48  (Row 2 = 4-Scope Chat Switcher, PRD §9.2)
+ *   FIX 02 — headerHeight: 100 → 136    (56+48+32 = 136px total, PRD §9.2)
+ *   FIX 03 — headerRow3Height: 32 added (Row 3 = Online Count Strip, PRD §9.2)
+ *   FIX 04 — glassIslandWidth removed   (Glass Island dead, PRD v5.1-rev2)
+ *   FIX 05 — glassIslandHeight renamed → bottomNavHeight (simple fixed full-width nav, PRD §9.3)
+ *   FIX 06 — glassIslandBottomGap removed (bottom nav sits at bottom: 0, not floating, PRD §9.3)
+ *   FIX 07 — radius.sm: 6 → 8          (button, PRD §19.4)
+ *   FIX 08 — radius.md: 10 → 12        (card,   PRD §19.4)
+ *   FIX 09 — radius.lg: 14 → 16        (modal,  PRD §19.4)
+ *   FIX 10 — radius.xl: 20 → 18        (full pill ≤ 36px H, PRD §19.4)
+ *   FIX 11 — radius.xxl: 28 removed    ("28px Glass Island" entry deleted, PRD §19.4 + v5.1-rev2)
+ *   FIX 12 — spacing.screenH: 18 → 16  (off 4px grid → lg = 16px, PRD §19.4)
+ *   FIX 13 — spacing.card: 14 → 12     (off 4px grid → md = 12px, PRD §19.4)
+ *   FIX 14 — spacing.chip: 13 → 12     (off 4px grid → md = 12px, PRD §19.4)
+ *   FIX 15 — spacing.xxxxl: 40 added   (PRD §19.4 standard scale: .../32/40/56)
+ *   FIX 16 — spacing.xxxxxl: 56 added  (PRD §19.4 standard scale: .../32/40/56)
  *
  * ── Usage ────────────────────────────────────────────────────────────────────
  *   import { spacing, radius, shadows, layout } from '@/constants/spacing';
@@ -20,17 +38,22 @@
  */
 
 import { Platform, type ViewStyle } from 'react-native';
+import { palette } from '@/constants/colors';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 1. SPACING  —  strict 4-pt grid
+// 1. SPACING  —  strict 4-pt grid  (PRD §19.4 base unit: 4px)
 //
-//   xs  :  4px  →  icon gap, micro padding, tight badge inner space
-//   sm  :  8px  →  chip padding, default gap, list item margin
-//   md  : 12px  →  card inner padding, button vertical, input padding
-//   lg  : 16px  →  section padding, screen horizontal inset
-//   xl  : 20px  →  large card padding, modal inner padding
-//   xxl : 24px  →  nav island padding, bottom-sheet top, hero sections
-//   xxxl: 32px  →  screen-level section gap, large modal top padding
+//   xs    :  4px  →  icon gap, micro padding, tight badge inner space
+//   sm    :  8px  →  chip padding, default gap, list item margin
+//   md    : 12px  →  card inner padding, button vertical, input padding
+//   lg    : 16px  →  section padding, screen horizontal inset
+//   xl    : 20px  →  large card padding, modal inner padding
+//   xxl   : 24px  →  nav padding, bottom-sheet top, hero sections
+//   xxxl  : 32px  →  screen-level section gap, large modal top padding
+//   xxxxl : 40px  →  extra-large section gap
+//   xxxxxl: 56px  →  matches bottomNavHeight / headerRow1Height
+//
+//   Standard scale from PRD §19.4: 4 / 8 / 12 / 16 / 20 / 24 / 32 / 40 / 56
 //
 //   Derived helpers remain for backward compatibility; they do NOT appear in
 //   SpacingScale — use named tokens in new code whenever possible.
@@ -38,33 +61,46 @@ import { Platform, type ViewStyle } from 'react-native';
 
 export const spacing = {
   /** 4px  — micro gap, badge inner, icon spacing */
-  xs:   4,
+  xs:     4,
   /** 8px  — chip H-padding, list gap, default gutter */
-  sm:   8,
+  sm:     8,
   /** 12px — card inner, button V-padding, input padding */
-  md:   12,
+  md:     12,
   /** 16px — screen H-inset, section padding, card gap */
-  lg:   16,
+  lg:     16,
   /** 20px — large card, modal inner, screen V-padding */
-  xl:   20,
-  /** 24px — nav island, bottom-sheet top, hero section gap */
-  xxl:  24,
+  xl:     20,
+  /** 24px — nav padding, bottom-sheet top, hero section gap */
+  xxl:    24,
   /** 32px — screen-level section separation, large modal top */
-  xxxl: 32,
+  xxxl:   32,
+  /** 40px — extra-large section gap (PRD §19.4 standard scale) */
+  xxxxl:  40,
+  /** 56px — matches bottomNavHeight / headerRow1Height (PRD §19.4 standard scale) */
+  xxxxxl: 56,
 
   // ── Derived helpers (not part of the strict scale) ─────────────────────
-  /** 18px — screen horizontal inset (matches HTML 18px padding pattern) */
-  screenH: 18,
+  /** 16px — screen horizontal inset (4px-grid aligned; PRD §19.4 base unit: 4px) */
+  screenH: 16,
   /** 16px — screen vertical inset (alias for lg, explicit intent) */
   screenV: 16,
-  /** 14px — standard card inner padding */
-  card:    14,
-  /** 13px — chip/pill horizontal padding ("6px 13px" pattern from design HTML) */
-  chip:    13,
+  /** 12px — standard card inner padding (4px-grid aligned) */
+  card:    12,
+  /** 12px — chip/pill horizontal padding (4px-grid aligned) */
+  chip:    12,
 } as const;
 
 /** Strict 4-pt scale keys — excludes derived helpers */
-export type SpacingScaleKey = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'xxl' | 'xxxl';
+export type SpacingScaleKey =
+  | 'xs'
+  | 'sm'
+  | 'md'
+  | 'lg'
+  | 'xl'
+  | 'xxl'
+  | 'xxxl'
+  | 'xxxxl'
+  | 'xxxxxl';
 
 /** All exported spacing keys (includes derived helpers) */
 export type SpacingKey = keyof typeof spacing;
@@ -74,52 +110,62 @@ export type SpacingValue = (typeof spacing)[SpacingKey];
 
 /** Typed interface for the strict spacing scale */
 export interface SpacingScale {
-  readonly xs:   4;
-  readonly sm:   8;
-  readonly md:   12;
-  readonly lg:   16;
-  readonly xl:   20;
-  readonly xxl:  24;
-  readonly xxxl: 32;
+  readonly xs:     4;
+  readonly sm:     8;
+  readonly md:     12;
+  readonly lg:     16;
+  readonly xl:     20;
+  readonly xxl:    24;
+  readonly xxxl:   32;
+  /** 40px — extra-large section gap (PRD §19.4 standard scale) */
+  readonly xxxxl:  40;
+  /** 56px — matches bottomNavHeight / headerRow1Height (PRD §19.4 standard scale) */
+  readonly xxxxxl: 56;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 2. RADIUS  —  component-semantic scale
+// 2. RADIUS  —  component-semantic scale  (PRD §19.4)
 //
-//   xs   :   4px  →  message bubble corner, tiny badge
-//   sm   :   6px  →  chips, filter pills, small tags
-//   md   :  10px  →  buttons, input fields
-//   lg   :  14px  →  standard cards
-//   xl   :  20px  →  major cards, bottom-sheet tops, Flash Blast cards
+//   PRD §19.4 mandates: 4 (chip) · 8 (button) · 12 (card) · 16 (modal) · 18 (full pill ≤ 36px H) · 999 (avatar)
+//   Bottom nav radius: 0 — flush rectangle (PRD §9.3 · §19.4)
+//
+//   xs   :   4px  →  chip, tiny badge
+//   sm   :   8px  →  buttons, input fields
+//   md   :  12px  →  standard cards
+//   lg   :  16px  →  modals, bottom sheets, large cards
+//   xl   :  18px  →  full pill for components ≤ 36px tall (scope switcher buttons, chips)
 //   pill : 999px  →  avatars, online dots, circular buttons
-//                    (9999 is unnecessarily large; 999 is safe on all RN versions
-//                     and avoids the occasional clipping artifact on old Android)
+//
+//   NOTE: The 28px "Glass Island" radius entry has been deleted (PRD v5.1-rev2 §19.4).
+//         Bottom nav has border-radius: 0 — flush rectangle (PRD §9.3).
 //
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const radius = {
-  /** 4px  — message bubble corner, tiny badge radius */
+  /** 4px  — chip, tiny badge, hairline corner (PRD §19.4: "4 (chip)") */
   xs:   4,
-  /** 6px  — chips, filter pills, small tags */
-  sm:   6,
-  /** 10px — buttons, input fields */
-  md:   10,
-  /** 14px — standard cards, discover post cards */
-  lg:   14,
-  /** 20px — major cards, bottom-sheet tops, Flash Blast cards */
-  xl:   20,
+  /** 8px  — buttons, input fields (PRD §19.4: "8 (button)") */
+  sm:   8,
+  /** 12px — standard cards, discover post cards (PRD §19.4: "12 (card)") */
+  md:   12,
   /**
-   * 28px — Glass Island nav bar (exact capsule: glassIslandHeight 56px ÷ 2 = 28px).
-   * Math: border-radius must equal exactly half the height to produce a true
-   * capsule. Any value below 28 renders a rounded rectangle — the premium
-   * floating-pill silhouette is lost. Any value above is redundant.
-   * Blueprint ref: § Glass Island — "Border Radius : 28px (full pill)"
+   * 16px — modals, bottom sheets, large cards (PRD §19.4: "16 (modal)").
+   * Use on any surface that overlays the main content layer.
    */
-  xxl:  28,
+  lg:   16,
+  /**
+   * 18px — full pill for components ≤ 36px tall (PRD §19.4: "18 (full pill ≤ 36px H)").
+   * Use on scope-switcher buttons, filter chips, and any row-like element whose
+   * height is ≤ 36px. Value equals half of 36px — produces a true capsule end-cap.
+   * For dynamic or taller components use pill (999) instead.
+   */
+  xl:   18,
   /**
    * 999px — fully rounded pill / circular.
-   * Use on any view where width/height differ or are dynamic — it always resolves
-   * to a perfect pill/circle. (React Native: 50% only works on square views.)
+   * Use on avatars, online-status dots, and any view where width/height differ
+   * or are dynamic — it always resolves to a perfect pill/circle.
+   * (React Native: 50% only works on square views. 999 is universally safe.)
+   * PRD §19.4: "999 (avatar)"
    */
   pill: 999,
 } as const;
@@ -130,15 +176,19 @@ export type RadiusKey = keyof typeof radius;
 /** Numeric radius value */
 export type RadiusValue = (typeof radius)[RadiusKey];
 
-/** Typed interface for the radius scale */
+/** Typed interface for the radius scale (PRD §19.4) */
 export interface RadiusScale {
+  /** 4px  — chip, tiny badge (PRD §19.4: "4 (chip)") */
   readonly xs:   4;
-  readonly sm:   6;
-  readonly md:   10;
-  readonly lg:   14;
-  readonly xl:   20;
-  /** 28px — Glass Island capsule (glassIslandHeight 56 ÷ 2) */
-  readonly xxl:  28;
+  /** 8px  — buttons, input fields (PRD §19.4: "8 (button)") */
+  readonly sm:   8;
+  /** 12px — standard cards (PRD §19.4: "12 (card)") */
+  readonly md:   12;
+  /** 16px — modals, bottom sheets, large cards (PRD §19.4: "16 (modal)") */
+  readonly lg:   16;
+  /** 18px — full pill for components ≤ 36px tall (PRD §19.4: "18 (full pill ≤ 36px H)") */
+  readonly xl:   18;
+  /** 999px — avatars, fully circular elements (PRD §19.4: "999 (avatar)") */
   readonly pill: 999;
 }
 
@@ -163,9 +213,9 @@ export interface RadiusScale {
 //     Transparent or overflow:hidden views will clip/drop the shadow.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Reusable shadow color constants (keep aligned with colors.ts) */
-const SHADOW_BLACK = '#000000';
-const SHADOW_GOLD  = '#C9A227'; // --gold — matches colors.accent
+/** Reusable shadow color constants — sourced from palette (keep aligned with colors.ts) */
+const SHADOW_BLACK = palette.black;           // pure black  — neutral shadows
+const SHADOW_GOLD  = palette.gold;            // brand gold  — matches --color-gold
 
 /**
  * Shadow style subset — only the properties that RN shadow APIs accept.
@@ -198,7 +248,8 @@ function makeShadow(
       shadowRadius:  blur,
     },
     android: {
-      elevation: elev,
+      elevation:   elev,
+      shadowColor: color,  // honoured on RN 0.76+ / React Native New Architecture
     },
     default: {
       shadowColor:   color,
@@ -244,26 +295,23 @@ export const shadows = {
   gold: makeShadow(SHADOW_GOLD, 4, 0.40, 16, 16),
 
   /**
-   * glass — 0px 8px 32px rgba(20,16,12,0.40)
-   * Exclusive to the Glass Island nav bar.
+   * navDivider — box-shadow: 0 -1px 0 rgba(0,0,0,0.04)
+   * Exclusive to the full-width bottom navigation bar (PRD §9.3.1).
    *
-   * Color: #14100C (warm-tinted navy · Part 3 palette update from original
-   *   rgba(13,16,24) → rgba(20,16,12) to harmonise with Warm Ink #1A1208).
-   * Opacity 0.40 → stronger than lg (0.08) to lift the island distinctly above
-   *   both the chat content AND the 64px input area below it.
+   * A hair-thin upward shadow that separates the nav bar from the chat
+   * content during scroll-up reveal. Works in tandem with the component's
+   * `borderTopWidth: 1` / `borderTopColor: colors.border.subtle`.
    *
-   * Blueprint refs:
-   *   § Glass Island Shadow : "0px 8px 32px rgba(13,16,24,0.35)"
-   *   § Part 3 color update : rgba(13,16,24) → rgba(20,16,12) (warm-tinted)
-   *   § Design token map    : glass_island_shadow = rgba(13,16,24,0.35)
+   * iOS:     shadowOffset { height: -1 } casts the shadow above the nav bar.
+   * Android: elevation: 0 — the `borderTopWidth` in the component handles
+   *          separation visually (Android elevation only casts downward).
    *
-   * Android elevation 20 → highest elevation in the app, matching z-index 950.
+   * Blueprint ref: §9.3.1 `box-shadow: 0 -1px 0 rgba(0,0,0,.04)` (the only divider)
+   * Bottom nav: simple, full-width, fixed. No backdrop-filter. No transparency. No floating.
    *
-   * Usage: style={{ ...shadows.glass }}
-   * ⚠️  Only spread onto views with an opaque/translucent background —
-   *     the Glass Island uses rgba(20,16,12,0.85) so this renders correctly.
+   * Usage: style={{ ...shadows.navDivider }}
    */
-  glass: makeShadow('#14100C', 8, 0.40, 32, 20),
+  navDivider: makeShadow(SHADOW_BLACK, -1, 0.04, 0, 0),
 } as const;
 
 /** All shadow keys */
@@ -273,117 +321,124 @@ export type ShadowKey = keyof typeof shadows;
 // 4. LAYOUT CONSTANTS  —  safe-area-aware structural heights
 //
 // NON-NEGOTIABLE values per:
-//   LAW 15   → TWO-ROW sticky header (Row 1 brand 56px + Row 2 location 44px)
-//              headerHeight is the TOTAL (100px) used for scroll insets.
-//              Never use headerRow1Height alone as a content offset — content
-//              will hide behind the location pills row.
-//   Rule 04  → inputAreaHeight (64px) flush above glassIslandHeight (56px) · ZERO gap
-//   LAW 13   → glassIslandHeight (56px) is the translateY target for hide animation
+//   LAW 15   → THREE-ROW sticky header (Row 1 brand 56px + Row 2 scope-switcher 48px + Row 3 online strip 32px)
+//              headerHeight is the TOTAL (136px) used for scroll insets.
+//              Never use headerRow1Height (56) or headerRow2Height (48) alone as a content
+//              offset — content will hide behind one or more of the remaining rows.
+//   Rule 04  → inputAreaHeight (64px) flush above bottomNavHeight (56px) · ZERO gap
+//   LAW 13   → bottomNavHeight (56px) is the translateY(100%) target for the hide animation
+//
+// NOTE: Glass Island has been removed from the design (PRD v5.1-rev2, Founder-locked).
+//       The bottom nav is now a simple, full-width, fixed bar at bottom: 0.
+//       No floating offset. No rounded corners. No backdrop-filter.
+//       See PRD §9.3 — §9.3.7 for the full spec and rationale.
 //
 // These are BASE heights (content zone only — safe-area NOT included).
 // Add useSafeAreaInsets() values at runtime:
 //
 //   Top inset for scroll content  = layout.headerHeight + insets.top
-//                                 = 100 + 47  = 147px  (iPhone 14 with safe-area)
+//                                 = 136 + 47  = 183px  (iPhone 14 with safe-area)
 //   Input full on-screen height   = layout.inputAreaHeight + insets.bottom
 //                                 = 64  + 34  = 98px   (iPhone 14)
-//   Glass Island footprint        = layout.glassIslandHeight + layout.glassIslandBottomGap + insets.bottom
-//                                 = 56  + 16  + 34     = 106px (iPhone 14)
-//   Glass Island bottom position  = layout.glassIslandBottomGap + insets.bottom
-//                                 = 16  + 34  = 50px   from screen bottom (iPhone 14)
+//   Bottom nav full height        = layout.bottomNavHeight + insets.bottom
+//                                 = 56  + 34  = 90px   (iPhone 14, via padding-bottom)
+//   Input bottom (nav visible)    = layout.bottomNavHeight + insets.bottom
+//                                 = 56  + 34  = 90px   (chat input sits above nav)
+//   Input bottom (nav hidden)     = insets.bottom
+//                                 = 34px      (input fills vacated nav space, PRD §9.3.5)
 //
 // ─── Full screen stack (6.1" iPhone 14 · 390pt · safe-area-top 47px) ────────
 //
-//    [0–47px]         safe-area-top (status bar · device-reported)
+//    [0–47px]          safe-area-top (status bar · device-reported)
 //    ─────────────────────────────────────────────────────────────────────────
-//    [47–103px]       headerRow1Height 56  │ CROWN wordmark · 🔔 · Avatar
-//                                         │ z-index 900
-//    [103–147px]      headerRow2Height 44  │ 📍 City pill · Sector pill  (LAW 15)
-//                                         │ z-index 900  (same sticky layer)
+//    [47–103px]        headerRow1Height 56  │ CROWN wordmark · 🔔 Bell · 💬 DM
+//                                          │ z-index 900
+//    [103–151px]       headerRow2Height 48  │ 4-scope switcher (🌍 World · 🇮🇳 India · 🏙️ City · 🏘️ Sector)
+//                                          │ z-index 900  (same sticky layer)
+//    [151–183px]       headerRow3Height 32  │ Online count strip (PRD §9.2 Row 3)
+//                                          │ z-index 900  (same sticky layer)
 //    ─────────────────────────────────────────────────────────────────────────
-//                     ← headerHeight: 100 covers both rows above ────────────
+//                      ← headerHeight: 136 covers all three rows above ───────
 //    ─────────────────────────────────────────────────────────────────────────
-//    [147–579px]      Scrollable content  (~400px · 8–10 messages visible)
+//    [183–690px]       Scrollable content  (~507px · 10–13 messages visible)
 //    ─────────────────────────────────────────────────────────────────────────
-//    [579–643px]      inputAreaHeight 64  │ Chat input · send button
+//    [690–754px]       inputAreaHeight 64  │ Chat input · send button
 //                                         │ z-index 935  (Rule 04)
-//    [643–699px]      glassIslandHeight 56 │ Glass Island (glassIslandWidth 280px · centered)
+//    [754–810px]       bottomNavHeight 56  │ Bottom nav (full-width, edge-to-edge)
 //                                         │ z-index 950  ← flush above input (Rule 04)
-//    [699–715px]      glassIslandBottomGap │ 16px · gap above safe-area-bottom
-//    [715–751px]      safe-area-bottom (~34px · home indicator)
+//    [810–844px]       safe-area-bottom (~34px · home indicator via padding-bottom)
 //    ─────────────────────────────────────────────────────────────────────────
+//    Total: 47 + 136 + 507 + 64 + 56 + 34 = 844px ✓ (iPhone 14 screen height)
 //
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const layout = {
   /**
-   * 56px — Row 1: Brand Header (LAW 15).
-   * Contains CROWN wordmark (left) + Notifications + Profile avatar (right).
+   * 56px — Row 1: Brand Header (LAW 15 · PRD §9.2 "Row 1 — Brand & Quick Actions (56px H)").
+   * Contains CROWN wordmark (left) + Notification bell + DM icon (right).
+   * ⚠️  PRD Rule 03: User avatar is NEVER in the header — it lives exclusively in the
+   *     bottom nav's Profile tab (rightmost cell). Placing avatar here is a
+   *     constitutional violation.
    * Add useSafeAreaInsets().top for the full on-screen footprint.
    *
-   * ⚠️  Do NOT use this alone as a scroll content inset — use headerHeight (100)
-   *     which accounts for both sticky rows.
+   * ⚠️  Do NOT use this alone as a scroll content inset — use headerHeight (136)
+   *     which accounts for all three sticky rows.
    */
   headerRow1Height: 56,
 
   /**
-   * 44px — Row 2: Location Row (LAW 15).
-   * Contains City picker pill + Sector picker pill.
-   * Sticky directly below Row 1 · same z-index 900 · hairline divider below.
+   * 48px — Row 2: 4-Scope Chat Switcher (LAW 15 · PRD §9.2 "Row 2 — The 4-Scope Chat Switcher (48px H)").
+   * Contains four equal-width segmented buttons: 🌍 World · 🇮🇳 India · 🏙️ City · 🏘️ Sector.
+   * Sticky directly below Row 1 · same z-index 900 · moves as one block with Row 1 and Row 3.
+   *
+   * Exception (PRD §9.2): Row 2 NEVER hides when the user is composing a message (input
+   * focused) — so users can re-target their message scope without scrolling up.
    */
-  headerRow2Height: 44,
+  headerRow2Height: 48,
 
   /**
-   * 100px — Total two-row sticky header height (56 + 44 · LAW 15).
+   * 32px — Row 3: Online Count Strip (LAW 15 · PRD §9.2 "Row 3 — Online Count Strip (32px H)").
+   * Displays live online count for the currently-active scope, e.g. "🟡 12.4M India mein online".
+   * Always names the active scope's geography (PRD §9.2 Founder mandate).
+   * Sticky directly below Row 2 · same z-index 900 · part of the unified three-row header block.
+   */
+  headerRow3Height: 32,
+
+  /**
+   * 136px — Total three-row sticky header height (56 + 48 + 32 · LAW 15 · PRD §9.2).
    *
    * USE THIS value everywhere a content offset is needed:
    *   scrollIndicatorInsets={{ top: layout.headerHeight }}
    *   contentInset={{ top: layout.headerHeight }}
    *   paddingTop: layout.headerHeight + insets.top
    *
-   * Using headerRow1Height (56) alone causes content to be obscured
-   * behind the location pills row — a critical layout violation.
+   * Using headerRow1Height (56) or headerRow2Height (48) alone causes content to be
+   * obscured behind one or more of the remaining sticky rows — a critical layout violation.
    */
-  headerHeight: 100,
+  headerHeight: 136,
 
   /**
-   * 280px — Glass Island exact fixed width (LAW 13).
-   * Blueprint: "W: 280px (centered) · H: 56px" / "280×56px · 28px radius"
+   * 56px — Bottom navigation bar height (LAW 13 · PRD §9.3.1).
    *
-   * This is NOT full-width — the island is a centered floating pill.
-   * Without this token, the component stretches to screen width and loses its
-   * capsule silhouette, or a developer hardcodes 280 inline (token violation).
+   * The bottom nav is a SIMPLE, FULL-WIDTH, FIXED BAR (PRD v5.1-rev2, Founder-locked).
+   * - position: fixed · bottom: 0 · left: 0 · right: 0 · width: 100vw
+   * - border-radius: 0 (flush rectangle — no rounded corners)
+   * - No backdrop-filter. No transparency. No floating.
+   * - Safe-area handled via padding-bottom: env(safe-area-inset-bottom)
+   *   (total visible height = 56px + ~34px = 90px on iPhone 14)
    *
-   * Usage:
-   *   style={{ width: layout.glassIslandWidth, alignSelf: 'center' }}
+   * This is the translateY(100%) target for the LAW 13 hide animation:
+   *   Animated.timing(slideY, { toValue: layout.bottomNavHeight, ... })
+   *
+   * Chat input positioning (PRD §9.3.5 gap-fill trick):
+   *   Nav visible  → input bottom: layout.bottomNavHeight + insets.bottom
+   *   Nav hidden   → input bottom: insets.bottom   (fills the vacated space)
    */
-  glassIslandWidth: 280,
-
-  /**
-   * 56px — Glass Island nav bar height (LAW 13).
-   * NON-NEGOTIABLE per Rule 04: sits flush directly below inputAreaHeight.
-   * This is the translateY target for the LAW 13 hide animation:
-   *   Animated.timing(slideY, { toValue: layout.glassIslandHeight, ... })
-   */
-  glassIslandHeight: 56,
-
-  /**
-   * 16px — Gap between the Glass Island and the device safe-area-bottom (LAW 13).
-   * Blueprint: "16px above device bottom safe-area" / "16px above safe-area"
-   *
-   * Positions the island above the iOS home indicator and Android gesture bar.
-   * NON-NEGOTIABLE: removing this gap causes the island to overlap the
-   * system gesture area and fail tap-target HIG requirements.
-   *
-   * Usage (absolute bottom positioning):
-   *   bottom: layout.glassIslandBottomGap + insets.bottom
-   *         = 16 + 34 = 50px from screen bottom (iPhone 14)
-   */
-  glassIslandBottomGap: 16,
+  bottomNavHeight: 56,
 
   /**
    * 64px — Sticky chat input area height (Rule 04).
-   * NON-NEGOTIABLE: flush above glassIslandHeight with ZERO gap.
+   * NON-NEGOTIABLE: flush above bottomNavHeight with ZERO gap.
    * Absorb useSafeAreaInsets().bottom inside paddingBottom of the input
    * so the text field clears the home indicator.
    */
@@ -398,22 +453,30 @@ export type LayoutValue = (typeof layout)[LayoutKey];
 
 /** Typed interface for structural layout constants */
 export interface LayoutConstants {
-  /** 56px — Row 1 brand header: CROWN wordmark · notifications · avatar */
-  readonly headerRow1Height: 56;
-  /** 44px — Row 2 location row: city pill · sector pill (LAW 15) */
-  readonly headerRow2Height: 44;
   /**
-   * 100px — Combined two-row sticky header (56 + 44).
-   * Use for all scroll content insets and padding calculations.
-   * ⚠️  Never substitute headerRow1Height — content will hide under Row 2.
+   * 56px — Row 1 brand header: CROWN wordmark · bell · DM icon.
+   * Avatar lives in the bottom nav Profile tab — NEVER in the header (PRD Rule 03).
    */
-  readonly headerHeight: 100;
-  /** 280px — Glass Island fixed width; floating centered pill (not full-width) */
-  readonly glassIslandWidth: 280;
-  /** 56px — Glass Island height; LAW 13 translateY hide target */
-  readonly glassIslandHeight: 56;
-  /** 16px — gap between Glass Island bottom and safe-area-bottom (LAW 13) */
-  readonly glassIslandBottomGap: 16;
-  /** 64px — sticky chat input height; flush above Glass Island per Rule 04 */
+  readonly headerRow1Height: 56;
+  /**
+   * 48px — Row 2 four-scope chat switcher: World · India · City · Sector (PRD §9.2).
+   * Never hidden when input is focused (PRD §9.2 exception).
+   */
+  readonly headerRow2Height: 48;
+  /** 32px — Row 3 online count strip; always names the active scope's geography (PRD §9.2) */
+  readonly headerRow3Height: 32;
+  /**
+   * 136px — Combined three-row sticky header (56 + 48 + 32).
+   * Use for all scroll content insets and padding calculations.
+   * ⚠️  Never substitute any individual row height — content will hide under the remaining rows.
+   */
+  readonly headerHeight: 136;
+  /**
+   * 56px — Simple fixed full-width bottom nav height (PRD §9.3.1).
+   * LAW 13 translateY(100%) hide target.
+   * Chat input sits at bottom: bottomNavHeight (nav visible) or bottom: 0 (nav hidden).
+   */
+  readonly bottomNavHeight: 56;
+  /** 64px — sticky chat input height; flush above bottom nav per Rule 04 */
   readonly inputAreaHeight: 64;
 }
