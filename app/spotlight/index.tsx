@@ -1355,10 +1355,10 @@ export default function BoliScreen() {
   const myUsername = user?.username ?? 'You';
   const myCredits = user?.credits ?? 0;
 
-  // City shard — default to user's registered city, fall back to 'chandigarh'
-  const cityId = user?.cityId ?? 'chandigarh';
+  // City shard — UserDoc stores city as `region` (see lib/firestore-users.ts)
+  const cityId = user?.region ?? 'chandigarh';
   /** Display label for the user's home city — drives BoliDoc.scopeLabel */
-  const cityLabel = user?.cityLabel ?? 'Chandigarh';
+  const cityLabel = cityId.charAt(0).toUpperCase() + cityId.slice(1);
 
   // Title tier — default CITY for the spotlight/boli screen
   const tier: TitleTier = 'CITY';
