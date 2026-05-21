@@ -93,8 +93,14 @@ import { FONT_BODY, FONT_HEADING }           from '@/constants/typography';
 // ── Organisms (PRD §9.2 + §9.3) ───────────────────────────────────────────
 // HomeHeader: 3-row header organism (Row1 wordmark + Row2 scope + Row3 strip)
 // CrownBottomNav: Simple fixed full-width bottom nav organism (§9.3)
-import HomeHeader                from '@/components/organisms/HomeHeader';
-import CrownBottomNav            from '@/components/organisms/CrownBottomNav';
+import HomeHeader, {
+  hideHeader,
+  showHeader,
+} from '@/components/organisms/HomeHeader';
+import CrownBottomNav, {
+  hideNav,
+  showNav,
+} from '@/components/organisms/CrownBottomNav';
 
 // ── Molecules ─────────────────────────────────────────────────────────────
 import ChatInput                  from '@/components/molecules/ChatInput';
@@ -278,6 +284,7 @@ function getScopeOnlineLabel(
   cityLabel: string,
   sectorLabel: string,
   count: number | null,
+  countryLabel: string = 'India',
 ): string {
   const n = count !== null
     ? count >= 100_000
@@ -289,7 +296,7 @@ function getScopeOnlineLabel(
 
   switch (scope) {
     case 'world':   return `${n} duniya bhar mein online`;
-    case 'country': return `${n} India mein online`;
+    case 'country': return `${n} ${countryLabel} mein online`;
     case 'city':    return `${n} ${cityLabel} mein online`;
     case 'sector':  return `${n} ${sectorLabel} mein online`;
   }
@@ -300,10 +307,11 @@ function getScopePlaceholder(
   scope: ScopeKey,
   cityLabel: string,
   sectorLabel: string,
+  countryLabel: string = 'India',
 ): string {
   switch (scope) {
     case 'world':   return 'World ki chat mein message likho...';
-    case 'country': return 'India ki chat mein message likho...';
+    case 'country': return `${countryLabel} ki chat mein message likho...`;
     case 'city':    return `${cityLabel} ki chat mein message likho...`;
     case 'sector':  return `${sectorLabel} mein message likho...`;
   }
@@ -512,6 +520,21 @@ export default function HomeScreen() {
   }, []);
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // § 8.1b — SCROLL-TO-BOTTOM SIGNAL (PRD §9.3.3)
+  // CrownBottomNav fires 'crown:scrollToBottom' via DeviceEventEmitter when
+  // the user re-taps the already-active HOME tab. This handler receives it and
+  // scrolls the FlatList to offset 0 (= latest messages, because inverted).
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  useEffect(() => {
+    const { DeviceEventEmitter } = require('react-native');
+    const sub = DeviceEventEmitter.addListener('crown:scrollToBottom', () => {
+      flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+    });
+    return () => sub.remove();
+  }, []);
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // § 8.2 — FIRESTORE SUBSCRIPTIONS (UNCHANGED)
   // ═══════════════════════════════════════════════════════════════════════════
 
@@ -676,16 +699,18 @@ export default function HomeScreen() {
   // ═══════════════════════════════════════════════════════════════════════════
   // § 8.7 — SCROLL HANDLER (PRD §9.3.4 + §9.3.5 — Swiggy-Style Coordination)
   //
-  // This replaces the old handleScroll. It now:
-  //   1. Computes scroll delta against lastScrollY ref (no re-render on every frame)
-  //   2. delta > 4px DOWN → reading mode: navHidden=true (header+nav hide, input fills gap)
-  //   3. delta < -4px UP  → controls mode: navHidden=false (all three snap back)
-  //   4. atBottom (y < 10) → force navHidden=false (always show when at latest message)
-  //   5. Continues to drive ScrollFAB + trust anchor (existing logic preserved)
+  // Three-element coordination on every scroll frame (no re-render overhead):
+  //   1. delta > 4px DOWN → reading mode
+  //      hideHeader() — header slides up (-translateY 100%, 220ms easeInQuad)
+  //      hideNav()    — nav slides down (+translateY 100%, 200ms ease)
+  //      setNavHidden(true) — ChatInput bottom drops to insets.bottom (gap-fill)
+  //   2. delta < -4px UP → controls mode — all three snap back
+  //      showHeader() / showNav() / setNavHidden(false)
+  //   3. atBottom (y < 10 on inverted list) → always force controls visible
   //
-  // PERF: lastScrollY is a ref (not state) so scroll events never trigger re-renders
-  //       for the delta tracking. Only setNavHidden/setIsScrolledUp/setShowTrustAnchor
-  //       trigger re-renders, and those are gated behind comparisons.
+  // PERF: lastScrollY is a ref — zero re-renders per scroll frame.
+  //       Only setNavHidden / setIsScrolledUp / setShowTrustAnchor cause renders
+  //       and those are gated behind equality checks.
   // ═══════════════════════════════════════════════════════════════════════════
 
   const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -694,26 +719,25 @@ export default function HomeScreen() {
     lastScrollY.current = currentY;
 
     // ── PRD §9.3.4 — Swiggy-style hide/show ─────────────────────────────
-    if (delta > SCROLL_DELTA_THRESHOLD) {
+    const atBottom = currentY < AT_BOTTOM_Y_THRESHOLD;
+
+    if (atBottom || delta < -SCROLL_DELTA_THRESHOLD) {
+      // Scrolling UP or at latest message → show all controls
+      showHeader();        // HomeHeader slides back (headerScrollAnim → 0)
+      showNav();           // CrownBottomNav slides back (navScrollAnim → 0)
+      setNavHidden(false); // ChatInput: bottom returns to 56 + insets.bottom
+    } else if (delta > SCROLL_DELTA_THRESHOLD) {
       // Scrolling DOWN → reading mode: hide header + nav, input fills gap
-      setNavHidden(true);
-    } else if (delta < -SCROLL_DELTA_THRESHOLD) {
-      // Scrolling UP → controls mode: show all three back
-      setNavHidden(false);
+      hideHeader();        // HomeHeader slides up (headerScrollAnim → 1)
+      hideNav();           // CrownBottomNav slides down (navScrollAnim → 1)
+      setNavHidden(true);  // ChatInput: bottom falls to insets.bottom only
     }
 
-    // ── PRD §9.3.4 — atBottom edge case ──────────────────────────────────
-    // Inverted list: y=0 is the bottom (latest messages). When user reaches
-    // the latest message, always force show controls so they can compose.
-    if (currentY < AT_BOTTOM_Y_THRESHOLD) {
-      setNavHidden(false);
-    }
-
-    // ── ScrollFAB threshold (existing logic) ─────────────────────────────
+    // ── ScrollFAB threshold ───────────────────────────────────────────────
     const scrolledUp = currentY > SCROLL_FAB_THRESHOLD;
     if (scrolledUp !== isScrolledUp) setIsScrolledUp(scrolledUp);
 
-    // ── Trust anchor: hide on first scroll (existing logic) ──────────────
+    // ── Trust anchor: hide on first scroll ───────────────────────────────
     if (currentY > TRUST_ANCHOR_SCROLL_THRESHOLD && showTrustAnchor) {
       setShowTrustAnchor(false);
     }
@@ -735,15 +759,17 @@ export default function HomeScreen() {
   //   Tap already-active 'world'   → no action (only one world room)
   // ═══════════════════════════════════════════════════════════════════════════
 
-  const handleScopePress = useCallback((scope: ScopeKey) => {
-    if (scope !== activeScope) {
-      setActiveScope(scope);
-      return;
-    }
-    if (scope === 'city')    { setCitySheetOpen(true);   return; }
-    if (scope === 'sector')  { setSectorSheetOpen(true); return; }
-    // 'world' and 'country' — no picker in v1.0
-  }, [activeScope]);
+  // PRD §9.2 — Single tap = switch scope; re-tap active = open picker
+  // Split into two callbacks matching HomeHeader's onScopeChange / onPickerOpen API
+  const handleScopeChange = useCallback((scope: ScopeKey) => {
+    setActiveScope(scope);
+  }, []);
+
+  const handlePickerOpen = useCallback((scope: ScopeKey) => {
+    if (scope === 'city')   { setCitySheetOpen(true);   return; }
+    if (scope === 'sector') { setSectorSheetOpen(true); return; }
+    // 'world' and 'country' — no picker in v1.0 (single global / country room)
+  }, []);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // § 8.9 — CITY / SECTOR SELECTION (UNCHANGED)
@@ -821,34 +847,44 @@ export default function HomeScreen() {
       {/*
        * ── [1] THREE-ROW HOME HEADER — organisms/HomeHeader (PRD §9.2) ──────
        *
-       * Organism receives navHidden + isInputFocused props:
-       *   navHidden:      slide header up (translateY -100%) when true
-       *   isInputFocused: Row 2 NEVER hides when user is composing (§9.2)
-       *
-       * Row 1 (56px): "CROWN" wordmark + Bell + DM
-       * Row 2 (48px): 4-Scope Switcher (World / India / City / Sector)
+       * Row 1 (56px): "CROWN" wordmark + 🔔 Bell + 💬 DM
+       * Row 2 (48px): 4-Scope Switcher (World / Country / City / Sector)
        *               PRD v3.1: NO track background — sliding capsule only
-       * Row 3 (32px): Online count strip — names the active scope geography
+       *               PRD §9.2: Row 2 NEVER hides when composerFocused=true
+       * Row 3 (32px): Online count strip — always names the active geography
        *
-       * Rule 03: NO avatar here. Avatar is ONLY in Profile tab of CrownBottomNav.
+       * Rule 03: NO avatar here. Avatar ONLY in Profile tab (CrownBottomNav).
+       * Scroll coordination: hideHeader() / showHeader() called from scroll
+       * handler below — HomeHeader animates internally via headerScrollAnim.
        */}
       <View style={{ paddingTop: insets.top, backgroundColor: BG_SURFACE }}>
         <HomeHeader
+          // ── Scope switcher state ─────────────────────────────────────────
           activeScope={activeScope}
-          cityLabel={cityLabel}
-          sectorLabel={sectorLabel}
-          onlineCount={room?.onlineCount ?? null}
-          heatScore={room?.heatScore ?? null}
-          roomLoading={roomLoading}
-          unreadDmCount={unreadDmCount}
+          scopeLabels={{
+            country:      'India',        // v1.0 India-first; make dynamic when multi-country ships
+            city:         cityLabel,
+            sector:       sectorLabel,
+            countryEmoji: '🇮🇳',
+          }}
+          // ── Scope change vs picker open (separated per FourScopeSwitcher API)
+          // onScopeChange: called when switching to a DIFFERENT scope (single tap)
+          onScopeChange={handleScopeChange}
+          // onPickerOpen: called when re-tapping the ALREADY-ACTIVE scope (opens picker)
+          onPickerOpen={handlePickerOpen}
+          // ── Room live data — number required (not null) ──────────────────
+          onlineCount={room?.onlineCount ?? 0}
+          heatScore={room?.heatScore ?? 0}
+          // ── Notification + DM badges ─────────────────────────────────────
+          unreadNotifications={0}
+          unreadDms={unreadDmCount}
+          // ── Trust anchor chip (auto-hides after 60s / first scroll) ──────
           showTrustAnchor={showTrustAnchor}
-          onScopePress={handleScopePress}
-          onPressBell={() => router.push('/notifications/index' as never)}
-          onPressDM={() => router.push('/(tabs)/inbox' as never)}
-          onTrustAnchorDismiss={() => setShowTrustAnchor(false)}
-          // ── PRD §9.3.4 + §9.2 — Scroll Coordination props ──────────────
-          navHidden={navHidden}
-          isInputFocused={isInputFocused}
+          // ── Navigation actions ───────────────────────────────────────────
+          onNotificationPress={() => router.push('/notifications/index' as never)}
+          onDmPress={() => router.push('/(tabs)/inbox' as never)}
+          // ── Composer focus — PRD §9.2 Row 2 exception ───────────────────
+          composerFocused={isInputFocused}
         />
       </View>
 
@@ -940,7 +976,7 @@ export default function HomeScreen() {
           onSend={handleSend}
           isAuthenticated={!!user}
           onAuthGate={handleAuthGate}
-          placeholder={getScopePlaceholder(activeScope, cityLabel, sectorLabel)}
+          placeholder={getScopePlaceholder(activeScope, cityLabel, sectorLabel, 'India')}
           disabled={isOffline}
           // ── PRD §9.3.5 — Scroll Coordination props ─────────────────────
           navHidden={navHidden}
