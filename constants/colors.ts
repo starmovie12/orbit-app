@@ -745,6 +745,25 @@ const orbitLight = orbitGold;
 
 export const orbit = orbitGold;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// § 11.1 — CROWN token alias (used by app/pro/index.tsx)
+// Maps orbitGold property names → the semantic names expected by the Crown Pass
+// screen. Add new aliases here if the screen references additional tokens.
+// ─────────────────────────────────────────────────────────────────────────────
+export const crown = {
+  ...orbitGold,
+  /** PRIMARY brand gold — CTA fill, active states (#D4A017) */
+  brand:        orbitGold.fgBrand,
+  /** Light brand gold — celebration / goldLight (#D4A017 tint) */
+  brandLight:   orbitGold.goldLight,
+  /** Strong text — headings, high-emphasis labels */
+  textStrong:   orbitGold.textPrimary,
+  /** Muted text — secondary labels, captions */
+  textMuted:    orbitGold.textTertiary,
+  /** Default card surface (alias for surface1) */
+  surface:      orbitGold.surface1,
+} as const;
+
 // ═══════════════════════════════════════════════════════════════════════════
 // § 12 — makePalette (React Navigation / useColors hook)
 // ═══════════════════════════════════════════════════════════════════════════
