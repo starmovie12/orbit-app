@@ -76,11 +76,47 @@ import {
   TitleBadge,
   WalletDrawer,
 } from '@/components/shared';
-// CROWN design tokens — PRD §1.4.2
+// CROWN design tokens — PRD §1.4.2 (inlined; no separate crown.ts required)
 // t  = color tokens  (fgBrand, bgSurface, bgCard, fgSuccess, fgDanger …)
 // r  = radius scale  (chip 4 · button 8 · card 12 · modal 16 · pill 999)
 // sp = spacing scale (xs 4 · sm 8 · md 12 · lg 16 · xl 20 · xxl 24)
-import { t, r, sp } from '@/constants/crown';
+import { orbitGold, colors as _colors } from '@/constants/colors';
+import { spacing as _spacing, radius as _radius, shadows as _shadows } from '@/constants/spacing';
+
+const t = {
+  bgSurface:       orbitGold.bg,
+  bgCard:          orbitGold.surface1,
+  bgCardElevated:  orbitGold.surface2,
+  bgBrandSubtle:   orbitGold.accentSoftSolid,
+  bgSuccessSubtle: orbitGold.successSoft,
+  fgTextStrong:    orbitGold.textPrimary,
+  fgTextSubtle:    orbitGold.textSecond,
+  fgTextMuted:     orbitGold.textTertiary,
+  fgBrand:         orbitGold.fgBrand,
+  fgSuccess:       orbitGold.success,
+  fgDanger:        orbitGold.danger,
+  borderSubtle:    orbitGold.borderSubtle,
+  borderStrong:    orbitGold.borderStrong,
+  scrim:           _colors.bg.scrim,
+  shadow:          { md: _shadows.md, lg: _shadows.lg },
+  white:           orbitGold.white,
+} as const;
+
+const r = {
+  chip:   _radius.xs,
+  button: _radius.sm,
+  modal:  _radius.lg,
+  pill:   _radius.pill,
+} as const;
+
+const sp = {
+  xs:  _spacing.xs,
+  sm:  _spacing.sm,
+  md:  _spacing.md,
+  lg:  _spacing.lg,
+  xl:  _spacing.xl,
+  xxl: _spacing.xxl,
+} as const;
 // TITLES.CITY = 'Mayor (VICEROY)' · TITLES.SECTOR = 'BARON' · etc — PRD §1.4.9
 import { CYCLE, TITLES, TITLE_COLORS, type TitleTier } from '@/constants/titles';
 import { useAuth } from '@/contexts/AuthContext';
