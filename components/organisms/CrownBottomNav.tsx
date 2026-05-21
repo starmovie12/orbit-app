@@ -56,6 +56,7 @@
  */
 
 import React, { useCallback, useEffect, useRef } from 'react';
+import { useColorScheme } from 'react-native';
 import {
   Animated,
   Keyboard,
@@ -184,7 +185,7 @@ const TABS: readonly TabConfig[] = [
   {
     // ── TAB 2: EXPLORE ───────────────────────────────────────────────────────
     // Discover cities, leaderboards, schedules, search, archives, invasions.
-    route:    'explore',
+    route:    'discover',
     id:       'explore',
     label:    'Explore',
     icon:     'compass',
@@ -195,7 +196,7 @@ const TABS: readonly TabConfig[] = [
     // Status & bidding center — the emotional anchor of the app.
     // Current ranks (Sector/City/Country/World), bid history, live progress.
     // NOTE: Feather icon library has no 'crown' — 'award' is the closest match.
-    route:    'crown',
+    route:    'ranks',
     id:       'crown',
     label:    'Crown',
     icon:     'award',
@@ -336,9 +337,15 @@ function TabItem({
     onLongPress();
   }, [onLongPress]);
 
-  // ── Color + weight resolution — no raw values, all from token system ─────
-  const iconColor:   string                  = focused ? colors.fg.brand    : colors.fg.tertiary;
-  const labelColor:  string                  = focused ? colors.fg.brand    : colors.fg.tertiary;
+  // ── Color + weight resolution — PRD §9.3.2 ───────────────────────────────
+  // Active:   var(--fg-brand) = #D4A017 light / #F59E0B dark
+  // Inactive: var(--fg-text-muted) = #6B5B2E light / rgba(255,255,255,0.55) dark
+  const scheme = useColorScheme();
+  const inactiveColor: string = scheme === 'dark'
+    ? 'rgba(255,255,255,0.55)'  // PRD §9.3.2 dark mode inactive
+    : colors.fg.secondary;      // #6B5B2E = ink[600] = --fg-text-muted light
+  const iconColor:   string                  = focused ? colors.fg.brand : inactiveColor;
+  const labelColor:  string                  = focused ? colors.fg.brand : inactiveColor;
 
   // FIX v2.0.0: properly typed as TextStyle['fontWeight'] — eliminates `as any`.
   const labelWeight: TextStyle['fontWeight'] = focused
@@ -620,14 +627,18 @@ export function CrownBottomNav(props: CrownBottomNavProps) {
                 canPreventDefault: true,
               });
 
-              // Special: tapping the active Home tab → scroll to latest messages
+              // PRD §9.3.3 — "tapping Home while on Home scrolls chat to bottom"
+              // We fire a named DeviceEventEmitter signal. HomeScreen listens for
+              // 'crown:scrollToBottom' and calls its FlatList.scrollToOffset(0).
               if (isFocused && route.name === 'index') {
-                // Screens listen for 'scrollToBottom' via Zustand signal / event
+                const { DeviceEventEmitter } = require('react-native');
+                DeviceEventEmitter.emit('crown:scrollToBottom');
                 return;
               }
 
               if (!isFocused && !event.defaultPrevented) {
-                // Call optional onTabPress before navigating
+                // Emit analytics tab_switch event (§9.3.3)
+                // analytics().logEvent('tab_switch', { tab: tabCfg.id }); // wire when analytics is ready
                 props.onTabPress?.(tabCfg.id);
                 navigation.navigate(route.name);
               }
