@@ -57,7 +57,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { colors, typography, spacing, radii, zIndex, dimensions } from '@/constants/colors';
 import { FourScopeSwitcher, type ChatScope } from '@/components/molecules/FourScopeSwitcher';
-import { HeatPulseDot } from '@/components/atoms/HeatPulseDot';
+import HeatPulseDot from '@/components/atoms/HeatPulseDot';
 import { BRAND } from '@/constants/branding';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -394,7 +394,7 @@ export function HomeHeader({
         {/* LEFT: Pulsing dot + count + scope name */}
         <View style={styles.row3Left}>
           {/* 🟡 Animated pulsing dot — §1.3.3 "1.5s ease-in-out infinite" */}
-          <HeatPulseDot size={8} color={colors.fg.warning} />
+          <HeatPulseDot size={8} score={heatScore} />
 
           <Text
             style={styles.onlineText}
