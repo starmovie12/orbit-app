@@ -857,36 +857,32 @@ export default function HomeScreen() {
        * Scroll coordination: hideHeader() / showHeader() called from scroll
        * handler below — HomeHeader animates internally via headerScrollAnim.
        */}
-      <View style={{ paddingTop: insets.top, backgroundColor: BG_SURFACE }}>
-        <HomeHeader
-          // ── Scope switcher state ─────────────────────────────────────────
-          activeScope={activeScope}
-          scopeLabels={{
-            country:      'India',        // v1.0 India-first; make dynamic when multi-country ships
-            city:         cityLabel,
-            sector:       sectorLabel,
-            countryEmoji: '🇮🇳',
-          }}
-          // ── Scope change vs picker open (separated per FourScopeSwitcher API)
-          // onScopeChange: called when switching to a DIFFERENT scope (single tap)
-          onScopeChange={handleScopeChange}
-          // onPickerOpen: called when re-tapping the ALREADY-ACTIVE scope (opens picker)
-          onPickerOpen={handlePickerOpen}
-          // ── Room live data — number required (not null) ──────────────────
-          onlineCount={room?.onlineCount ?? 0}
-          heatScore={room?.heatScore ?? 0}
-          // ── Notification + DM badges ─────────────────────────────────────
-          unreadNotifications={0}
-          unreadDms={unreadDmCount}
-          // ── Trust anchor chip (auto-hides after 60s / first scroll) ──────
-          showTrustAnchor={showTrustAnchor}
-          // ── Navigation actions ───────────────────────────────────────────
-          onNotificationPress={() => router.push('/notifications/index' as never)}
-          onDmPress={() => router.push('/(tabs)/inbox' as never)}
-          // ── Composer focus — PRD §9.2 Row 2 exception ───────────────────
-          composerFocused={isInputFocused}
-        />
-      </View>
+      {/*
+       * FIX #1 — Wrapper View hata diya.
+       * Pehle <View style={{ paddingTop: insets.top }}> ke andar HomeHeader tha.
+       * React Native Web ka default overflow:hidden us wrapper ko 0-height
+       * collapse kar ke header ko clip kar raha tha.
+       * HomeHeader apna paddingTop:insets.top khud handle karta hai.
+       */}
+      <HomeHeader
+        activeScope={activeScope}
+        scopeLabels={{
+          country:      'India',
+          city:         cityLabel,
+          sector:       sectorLabel,
+          countryEmoji: '🇮🇳',
+        }}
+        onScopeChange={handleScopeChange}
+        onPickerOpen={handlePickerOpen}
+        onlineCount={room?.onlineCount ?? 0}
+        heatScore={room?.heatScore ?? 0}
+        unreadNotifications={0}
+        unreadDms={unreadDmCount}
+        showTrustAnchor={showTrustAnchor}
+        onNotificationPress={() => router.push('/notifications/index' as never)}
+        onDmPress={() => router.push('/(tabs)/inbox' as never)}
+        composerFocused={isInputFocused}
+      />
 
       {/*
        * ── [2] OFFLINE BANNER (conditional · 32px) ───────────────────────────
@@ -929,7 +925,15 @@ export default function HomeScreen() {
             style={S.chatList}
             contentContainerStyle={[
               S.chatContent,
-              { paddingBottom: BOTTOM_NAV_HEIGHT + insets.bottom + 72 },
+              {
+                // FIX #2 — Inverted FlatList mein padding direction ulta hota hai:
+                //   paddingTop    = visual BOTTOM → newest message ke neeche
+                //                   ChatInput (72px) + CrownBottomNav (56px) + safe-area
+                //   paddingBottom = visual TOP    → oldest message ke upar
+                //                   HomeHeader (136px) + safe-area
+                paddingTop:    BOTTOM_NAV_HEIGHT + insets.bottom + 72,
+                paddingBottom: insets.top + 136 + 8,
+              },
             ]}
             showsVerticalScrollIndicator={false}
             initialNumToRender={12}
@@ -943,7 +947,20 @@ export default function HomeScreen() {
             scrollEventThrottle={16}
             maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
             testID="home-chat-list"
-            ListEmptyComponent={<ChatEmptyState sectorLabel={sectorLabel} />}
+            ListEmptyComponent={
+              // FIX #3 — ListEmptyComponent ko inverted FlatList ka
+              // container-level transform milta hai (scale:-1 / scaleY:-1) lekin
+              // individual item jaisa counter-transform NAHI milta. Isliye empty
+              // state 180° rotate dikhta tha. Yeh wrapper cancel karta hai.
+              <View style={{
+                transform: Platform.select({
+                  android: [{ scaleY: -1 as number }],
+                  default: [{ scale: -1 as number }],
+                }),
+              }}>
+                <ChatEmptyState sectorLabel={sectorLabel} />
+              </View>
+            }
           />
         )}
 
