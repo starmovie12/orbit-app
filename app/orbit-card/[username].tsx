@@ -106,7 +106,6 @@ import Animated, {
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
-import { captureRef } from 'react-native-view-shot';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -991,17 +990,10 @@ export default function CrownCardScreen() {
         shareUrl;
 
       // Step 1: capture card as JPEG for WhatsApp Status export
-      let imageUri: string | undefined;
-      try {
-        if (cardShotRef.current) {
-          imageUri = await captureRef(cardShotRef, {
-            format:  'jpg',
-            quality: 0.95,
-          });
-        }
-      } catch {
-        // Snapshot failed — fall back to text+URL share gracefully
-      }
+      // NOTE: react-native-view-shot removed — falls back to URL share on all platforms.
+      // To re-enable image capture: `npx expo install react-native-view-shot`
+      // and restore: import { captureRef } from 'react-native-view-shot';
+      const imageUri: string | undefined = undefined;
 
       // Step 2: share — image URI on iOS, URL-in-message on Android
       if (imageUri && Platform.OS === 'ios') {
