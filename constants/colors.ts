@@ -982,6 +982,29 @@ export const lightTheme = makePalette(orbitLight);
 export const darkTheme  = makePalette(orbitDark);
 
 // ═══════════════════════════════════════════════════════════════════════════
+// § 13.7 — GRADIENT CARD OVERLAYS (FIX-22 — PRD §1.4.2)
+// Alpha-composite overlays for the gradient hero card surface.
+// Valid ONLY on tier-accent gradient backgrounds — not general UI tokens.
+// Imported in app/orbit-card/[username].tsx as GRADIENT_CARD_OVERLAYS.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Contextual alpha-composite overlays for the gradient hero card surface.
+ * Valid ONLY on tier-accent gradient backgrounds. Not general UI tokens.
+ * Pending tokens.css v2 formalization alongside colors.bg.scrim / overlay.
+ * Naming follows PRD §1.4.2 token naming convention.
+ */
+export const gradientCardOverlays = Object.freeze({
+  watermark: 'rgba(255,255,255,0.08)' as const,  // CROWN watermark — decorative
+  handle:    'rgba(255,255,255,0.75)' as const,  // @handle on accent gradient
+  bio:       'rgba(255,255,255,0.82)' as const,  // Hero bio on accent gradient
+  badgeText: 'rgba(255,255,255,0.88)' as const,  // Rank pill label
+  rankBg:    'rgba(0,0,0,0.25)'       as const,  // Rank pill background
+  titleBg:   'rgba(0,0,0,0.28)'       as const,  // Title pill background
+});
+export type GradientCardOverlays = typeof gradientCardOverlays;
+
+// ═══════════════════════════════════════════════════════════════════════════
 // § 14 — EXPORTS
 // ═══════════════════════════════════════════════════════════════════════════
 
