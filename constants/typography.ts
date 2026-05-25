@@ -69,6 +69,15 @@ import {
   SpaceMono_700Bold,
 } from '@expo-google-fonts/space-mono';
 
+// ── Cormorant Garamond imports (profile bio · quotes · decorative text) ───────
+// PRD §1.4.3: "Profile bio, quotes, decorative text → Cormorant Garamond 500/600 · 18/16px"
+import {
+  CormorantGaramond_400Regular,
+  CormorantGaramond_500Medium,
+  CormorantGaramond_600SemiBold,
+  CormorantGaramond_700Bold,
+} from '@expo-google-fonts/cormorant-garamond';
+
 // ═══════════════════════════════════════════════════════════════════════════
 // § 1 — FONT FAMILY CONSTANTS
 // fontFamily = exact loaded Google Font identifier string.
@@ -101,6 +110,20 @@ export const FONT_BODY = {
 export const FONT_NUMERIC = {
   regular: "SpaceMono_400Regular", // weight 400 — numeric body
   bold:    "SpaceMono_700Bold",    // weight 700 — wallet balance, stats, cashout amounts
+} as const;
+
+/** Cormorant Garamond — profile bio, quotes, decorative text (PRD §1.4.3 exact)
+ *
+ *  regular  → CormorantGaramond_400Regular — decorative body
+ *  medium   → CormorantGaramond_500Medium  — profile bio, 16/18px (FIX-18)
+ *  semiBold → CormorantGaramond_600SemiBold — emphasized decorative
+ *  bold     → CormorantGaramond_700Bold    — decorative headings
+ */
+export const FONT_CORMORANT = {
+  regular:  "CormorantGaramond_400Regular",   // weight 400
+  medium:   "CormorantGaramond_500Medium",    // weight 500 — profile bio (FIX-18)
+  semiBold: "CormorantGaramond_600SemiBold",  // weight 600
+  bold:     "CormorantGaramond_700Bold",      // weight 700
 } as const;
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1627,6 +1650,13 @@ export function useCrowdFonts() {
     // ── Space Mono (credits · ranks · timers · scores) ───────────────────
     SpaceMono_400Regular,
     SpaceMono_700Bold,
+
+    // ── Cormorant Garamond (profile bio · quotes · decorative text) ───────
+    // PRD §1.4.3: bio, quotes, decorative text
+    CormorantGaramond_400Regular,
+    CormorantGaramond_500Medium,
+    CormorantGaramond_600SemiBold,
+    CormorantGaramond_700Bold,
   });
 }
 
