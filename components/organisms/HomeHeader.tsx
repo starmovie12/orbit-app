@@ -5,43 +5,38 @@
  * ║  Phase 1.3 · App Architecture                                            ║
  * ║  Owner: Ail Noor Alam (Founder) · Chandigarh · May 2026                 ║
  * ╠══════════════════════════════════════════════════════════════════════════╣
- * ║  3 ROWS (total: 136px):                                                  ║
- * ║    Row 1 — Brand & Quick Actions (56px)                                  ║
- * ║    Row 2 — 4-Scope Switcher (48px)                                       ║
- * ║    Row 3 — Online Count Strip (32px)                                     ║
+ * ║  3 ROWS (total: 120px):                                                  ║
+ * ║    Row 1 — Brand & Quick Actions (48px)   ← was 56px, −8px              ║
+ * ║    Row 2 — 4-Scope Switcher     (44px)   ← was 48px, −4px              ║
+ * ║    Row 3 — Online Count Strip   (28px)   ← was 32px, −4px              ║
+ * ╠══════════════════════════════════════════════════════════════════════════╣
+ * ║  CHANGELOG v4.0:                                                         ║
+ * ║    [1] Row heights compacted: 56+48+32=136px → 48+44+28=120px (−16px)  ║
+ * ║    [2] CROWN wordmark upgraded:                                          ║
+ * ║        • FontAwesome5 "crown" icon (13px, gold) prefix                  ║
+ * ║        • Font size bumped 22px → 24px for stronger presence             ║
+ * ║        • Letter-spacing tightened −0.5px → −1px for luxury feel        ║
+ * ║    [3] Notification icon: Feather "bell" → Ionicons "notifications"     ║
+ * ║        • Filled bell with notification bumps — premium, recognisable    ║
+ * ║    [4] DM icon: Feather "message-circle" → Ionicons "paper-plane"       ║
+ * ║        • Crisp send/DM metaphor — cleaner, more intentional             ║
+ * ║    [5] Action icons enlarged 22px → 24px for clearer tap affordance     ║
  * ╠══════════════════════════════════════════════════════════════════════════╣
  * ║  ROW 1 SPEC:                                                             ║
- * ║    Left: "CROWN" wordmark — Syne 800, 22px, gold, letter-spacing -0.5px  ║
- * ║    Right: 🔔 notification bell (44×44 touch) + 💬 DM icon (44×44 touch)  ║
- * ║    NO AVATAR IN ROW 1 — avatar lives in Profile tab (§1.3.3 mandate)     ║
+ * ║    Left: ♛ crown icon + "CROWN" wordmark — Syne 800, 24px, gold        ║
+ * ║    Right: 🔔 notifications (44×44) + ✉ paper-plane DM (44×44)          ║
+ * ║    NO AVATAR IN ROW 1 — avatar lives in Profile tab (§1.3.3 mandate)    ║
  * ╠══════════════════════════════════════════════════════════════════════════╣
- * ║  ROW 3 SPEC (§1.3.3):                                                    ║
+ * ║  ROW 3 SPEC (§1.3.3):                                                   ║
  * ║    Left:  🟡 Pulsing dot + live count + scope name                       ║
- * ║    Right: 🔥 Heat score (≥30) + Trust anchor "📍 1.2 Lakh+"              ║
+ * ║    Right: 🔥 Heat score (≥30) + Trust anchor "📍 1.2 Lakh+"             ║
  * ║    CRITICAL: Row 3 ALWAYS names the active geography.                    ║
- * ║             Never "234K online" without context.                          ║
  * ╠══════════════════════════════════════════════════════════════════════════╣
  * ║  SCROLL BEHAVIOR:                                                         ║
- * ║    Full header (136px + safe-area) hides on scroll-down as ONE BLOCK     ║
+ * ║    Full header (120px + safe-area) hides on scroll-down as ONE BLOCK     ║
  * ║    Reappears on scroll-up (280ms spring(160, 20))                         ║
  * ║    Exception: Row 2 NEVER hides when composer focused (keyboard open)     ║
- * ║    → showHeader() is called immediately on composerFocused = true         ║
  * ╚══════════════════════════════════════════════════════════════════════════╝
- *
- * FIX LOG (v3.2):
- *   [1] Removed dead refs: row12Anim, row3Anim (created but never used)
- *   [2] Fixed animation target: translateY now applied to the ENTIRE
- *       Animated.View container (all 3 rows move as one block per PRD §9.2)
- *       Previously only Row 1 had translateY — Row 2 & Row 3 never animated.
- *   [3] containerTranslateY uses -(TOTAL_H + insets.top) so the full block
- *       (including safe-area padding) slides off-screen on hide.
- *   [4] composerFocused prop is now wired: useEffect calls showHeader()
- *       whenever the composer receives focus, ensuring Row 2 is always visible
- *       while the user is composing (PRD §9.2 "Row 2 never hides" exception).
- *   [5] Notification and DM badges now render the unread COUNT as text, not
- *       just a coloured dot (PRD §9.2: "badged with unread count").
- *   [6] Row 1 is now a plain View (the old inner Animated.View was the only
- *       thing that animated before; it is no longer needed).
  */
 
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
@@ -53,7 +48,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Feather } from '@expo/vector-icons';
+import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { colors, typography, spacing, radii, zIndex, dimensions } from '@/constants/colors';
 import { FourScopeSwitcher, type ChatScope } from '@/components/molecules/FourScopeSwitcher';
@@ -65,25 +60,62 @@ import { BRAND } from '@/constants/branding';
 // ─────────────────────────────────────────────────────────────────────────────
 
 const HDR = {
-  /** §1.3.3 Row 1 — "56px H" */
-  ROW1_H: 56 as const,
+  /**
+   * [v4.0 CHANGE] Row 1 compressed 56px → 48px.
+   * Saves 8px of vertical space. Wordmark is still fully legible.
+   */
+  ROW1_H: 48 as const,
 
-  /** §1.3.3 Row 2 — "48px H" */
-  ROW2_H: 48 as const,
+  /**
+   * [v4.0 CHANGE] Row 2 compressed 48px → 44px.
+   * Saves 4px. Matches FourScopeSwitcher v3.3 HEIGHT token.
+   */
+  ROW2_H: 44 as const,
 
-  /** §1.3.3 Row 3 — "32px H" */
-  ROW3_H: 32 as const,
+  /**
+   * [v4.0 CHANGE] Row 3 compressed 32px → 28px.
+   * Saves 4px. Online strip still legible at 12px text.
+   */
+  ROW3_H: 28 as const,
 
-  /** Total header content height: 56 + 48 + 32 = 136px (safe-area added at runtime) */
-  TOTAL_H: 136 as const,
+  /**
+   * [v4.0 CHANGE] Total header content height: 48 + 44 + 28 = 120px.
+   * Was 136px (−16px overall). Safe-area added at runtime.
+   */
+  TOTAL_H: 120 as const,
 
-  /** §1.3.3 Row 1 wordmark: "Syne 800, 22px, letter-spacing -0.5px" */
-  WORDMARK_SIZE: 22 as const,
-  WORDMARK_LETTER_SPACING: -0.5 as const,
+  /**
+   * [v4.0 CHANGE] Wordmark font size bumped 22px → 24px.
+   * §1.3.3 wordmark: "Syne 800, 24px, gold, letter-spacing −1px"
+   */
+  WORDMARK_SIZE: 24 as const,
+
+  /**
+   * [v4.0 CHANGE] Letter-spacing tightened −0.5px → −1px.
+   * Tighter tracking on display-weight Syne 800 reads as more premium.
+   */
+  WORDMARK_LETTER_SPACING: -1 as const,
+
+  /**
+   * [v4.0 NEW] Crown icon size — FontAwesome5 "crown" prefix to wordmark.
+   * 13px keeps it as a subtle mark, not competing with the wordmark.
+   */
+  CROWN_ICON_SIZE: 13 as const,
+
+  /**
+   * [v4.0 NEW] Gap between crown icon and CROWN wordmark text.
+   */
+  CROWN_ICON_GAP: 5 as const,
 
   /** §1.3.3 Row 1 action icons: "44×44 touch target" */
   ACTION_TOUCH: 44 as const,
-  ACTION_ICON: 22 as const,
+
+  /**
+   * [v4.0 CHANGE] Action icon size bumped 22px → 24px.
+   * Ionicons at 24px have cleaner strokes and better proportions
+   * than Feather at 22px at this touch target size.
+   */
+  ACTION_ICON: 24 as const,
 
   /** §1.3.3 Row 3 Heat: "visible when ≥ 30" */
   HEAT_VISIBLE_THRESHOLD: 30 as const,
@@ -95,9 +127,9 @@ const HDR = {
   HIDE_DURATION: 220 as const,
 
   /** §1.3.3 Scroll coordination: "reappears on scroll-up (280ms spring(160, 20))" */
-  SHOW_DURATION: 280 as const,
-  SHOW_SPRING_TENSION: 160 as const,
-  SHOW_SPRING_FRICTION: 20 as const,
+  SHOW_DURATION:        280 as const,
+  SHOW_SPRING_TENSION:  160 as const,
+  SHOW_SPRING_FRICTION: 20  as const,
 
   /** §1.3.3 Row 3 count update: "<200ms animated count-up" */
   COUNT_UPDATE_MS: 200 as const,
@@ -111,11 +143,7 @@ const HDR = {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SCROLL ANIMATION — shared with CrownBottomNav
-//
 // headerScrollAnim: 0 = visible, 1 = hidden
-//
-// FIX [2]: This value now drives the ENTIRE header container translateY,
-// not just Row 1. All three rows move as one block (PRD §9.2).
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const headerScrollAnim = new Animated.Value(0);
@@ -139,7 +167,6 @@ export function showHeader(): void {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ONLINE COUNT — formatted with Indian number convention
-// "12,847" → "12.8K" | "1,20,000" → "1.2 Lakh" | "1,00,00,000" → "1 Cr"
 // ─────────────────────────────────────────────────────────────────────────────
 
 function formatOnlineCount(count: number): string {
@@ -150,7 +177,7 @@ function formatOnlineCount(count: number): string {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SCOPE LABEL BUILDER — §1.3.3 "phrasing follows the language of active scope"
+// SCOPE LABEL BUILDER
 // ─────────────────────────────────────────────────────────────────────────────
 
 function buildScopePhrase(scope: ChatScope, geoName: string): string {
@@ -163,7 +190,7 @@ function buildScopePhrase(scope: ChatScope, geoName: string): string {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// BADGE COUNT LABEL — "99+" when over HDR.BADGE_MAX
+// BADGE COUNT LABEL
 // ─────────────────────────────────────────────────────────────────────────────
 
 function badgeLabel(count: number): string {
@@ -197,7 +224,6 @@ interface HomeHeaderProps {
   readonly onDmPress:           () => void;
 
   // ── Trust anchor visibility ───────────────────────────────────────────────
-  /** Auto-hides after 60s from first session or first scroll */
   readonly showTrustAnchor: boolean;
 
   // ── Notification / DM badges ─────────────────────────────────────────────
@@ -229,11 +255,7 @@ export function HomeHeader({
 
   const insets = useSafeAreaInsets();
 
-  // ── FIX [2] + [3]: containerTranslateY drives ALL THREE ROWS as one block ─
-  //
-  // outputRange upper bound = -(content height + safe area top) so the entire
-  // header (including the status-bar padding) slides fully off screen.
-  // useMemo re-derives when insets.top changes (orientation / device change).
+  // ── containerTranslateY drives ALL THREE ROWS as one block ─────────────────
   const containerTranslateY = useMemo(
     () =>
       headerScrollAnim.interpolate({
@@ -244,12 +266,7 @@ export function HomeHeader({
     [insets.top],
   );
 
-  // ── FIX [4]: composerFocused → always show header ────────────────────────
-  //
-  // PRD §9.2: "Row 2 (the 4-scope switcher) NEVER hides when the user is
-  // composing a message (input focused)."
-  // Calling showHeader() when the composer receives focus guarantees Row 2
-  // is on screen regardless of prior scroll position.
+  // ── composerFocused → always show header ─────────────────────────────────
   useEffect(() => {
     if (composerFocused) {
       showHeader();
@@ -270,10 +287,6 @@ export function HomeHeader({
   const showHeat    = heatScore >= HDR.HEAT_VISIBLE_THRESHOLD;
 
   return (
-    // ── FIX [2]: translateY applied to the entire container (one block) ────
-    //    Previously only Row 1 had translateY; Rows 2 & 3 were plain Views
-    //    and therefore stayed visible when the header "hid". Now all three
-    //    rows are children of this single Animated.View and move together.
     <Animated.View
       style={[
         styles.headerContainer,
@@ -283,27 +296,37 @@ export function HomeHeader({
       pointerEvents="box-none"
     >
 
-      {/* ── ROW 1: Brand + Actions (56px) ─────────────────────────────────── */}
-      {/* FIX [6]: plain View — the old inner Animated.View is no longer needed
-           since the outer container handles the translateY for the whole block */}
-      <View
-        style={styles.row1}
-        pointerEvents="box-none"
-      >
-        {/* LEFT: CROWN wordmark */}
-        <Text
-          style={styles.wordmark}
-          accessibilityRole="header"
-          accessibilityLabel="CROWN"
-          allowFontScaling={false}
-        >
-          {BRAND.NAME}
-        </Text>
+      {/* ── ROW 1: Brand + Actions (48px) ──────────────────────────────────── */}
+      <View style={styles.row1} pointerEvents="box-none">
+
+        {/* LEFT: Crown icon + CROWN wordmark */}
+        {/* [v4.0] FontAwesome5 crown prefix gives the wordmark an iconic mark
+             without resorting to emoji. Sized at 13px to feel like a badge,
+             not a competing element. Gold matches the wordmark color exactly. */}
+        <View style={styles.wordmarkRow} accessibilityRole="header" accessibilityLabel="CROWN">
+          <FontAwesome5
+            name="crown"
+            size={HDR.CROWN_ICON_SIZE}    // 13px
+            color={colors.fg.brand}       // gold-600 — matches wordmark
+            solid
+            accessibilityElementsHidden
+            importantForAccessibility="no"
+          />
+          <Text
+            style={styles.wordmark}
+            allowFontScaling={false}
+          >
+            {BRAND.NAME}
+          </Text>
+        </View>
 
         {/* RIGHT: Action icons (NO AVATAR — §1.3.3 mandate) */}
         <View style={styles.actions}>
 
-          {/* 🔔 Notification bell */}
+          {/* 🔔 Notifications — [v4.0] Ionicons "notifications" */}
+          {/* Reason: Ionicons "notifications" has a filled bell with a bottom
+               bump that reads as "new alerts". More universally recognised
+               than Feather "bell" which is outline-only and can read as muted. */}
           <TouchableOpacity
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -319,9 +342,12 @@ export function HomeHeader({
             }
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Feather name="bell" size={HDR.ACTION_ICON} color={colors.fg.primary} />
+            <Ionicons
+              name={unreadNotifications > 0 ? 'notifications' : 'notifications-outline'}
+              size={HDR.ACTION_ICON}        // 24px
+              color={colors.fg.primary}
+            />
 
-            {/* FIX [5]: badge now shows the unread COUNT, not just a dot */}
             {unreadNotifications > 0 ? (
               <View
                 style={[
@@ -337,7 +363,11 @@ export function HomeHeader({
             ) : null}
           </TouchableOpacity>
 
-          {/* 💬 DM inbox */}
+          {/* ✈ DM inbox — [v4.0] Ionicons "paper-plane" */}
+          {/* Reason: "paper-plane" is the universal send/message icon (Telegram,
+               Instagram DM, WhatsApp share). More intentional than a generic
+               message-circle which can be confused with comments/replies.
+               Switches to filled variant when there are unread DMs. */}
           <TouchableOpacity
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -353,9 +383,12 @@ export function HomeHeader({
             }
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Feather name="message-circle" size={HDR.ACTION_ICON} color={colors.fg.primary} />
+            <Ionicons
+              name={unreadDms > 0 ? 'paper-plane' : 'paper-plane-outline'}
+              size={HDR.ACTION_ICON}        // 24px
+              color={colors.fg.primary}
+            />
 
-            {/* FIX [5]: badge now shows the unread COUNT, not just a dot */}
             {unreadDms > 0 ? (
               <View
                 style={[
@@ -374,10 +407,7 @@ export function HomeHeader({
         </View>
       </View>
 
-      {/* ── ROW 2: 4-Scope Switcher (48px) ─────────────────────────────────── */}
-      {/* FIX [4]: Row 2 participates in the one-block animation but is always
-           brought back into view via showHeader() when composerFocused = true,
-           satisfying §1.3.3 "Row 2 NEVER hides when composer focused". */}
+      {/* ── ROW 2: 4-Scope Switcher (44px) ─────────────────────────────────── */}
       <View style={styles.row2}>
         <FourScopeSwitcher
           activeScope={activeScope}
@@ -387,15 +417,12 @@ export function HomeHeader({
         />
       </View>
 
-      {/* ── ROW 3: Online Count Strip (32px) ───────────────────────────────── */}
-      {/* §1.3.3: "ALWAYS names the active geography" */}
+      {/* ── ROW 3: Online Count Strip (28px) ────────────────────────────────── */}
       <View style={styles.row3} accessibilityLiveRegion="polite">
 
         {/* LEFT: Pulsing dot + count + scope name */}
         <View style={styles.row3Left}>
-          {/* 🟡 Animated pulsing dot — §1.3.3 "1.5s ease-in-out infinite" */}
           <HeatPulseDot size={8} score={heatScore} />
-
           <Text
             style={styles.onlineText}
             numberOfLines={1}
@@ -409,7 +436,6 @@ export function HomeHeader({
         {/* RIGHT: Heat score + Trust anchor */}
         <View style={styles.row3Right}>
 
-          {/* 🔥 Heat score — visible when ≥ 30 */}
           {showHeat ? (
             <View style={styles.heatPill}>
               <Text style={styles.heatText} allowFontScaling={false}>
@@ -418,7 +444,6 @@ export function HomeHeader({
             </View>
           ) : null}
 
-          {/* 📍 Trust anchor — visible only on first session of day, auto-hides 60s */}
           {showTrustAnchor ? (
             <View style={styles.trustPill}>
               <Text style={styles.trustText} allowFontScaling={false}>
@@ -440,10 +465,7 @@ export function HomeHeader({
 
 const styles = StyleSheet.create({
 
-  // ── Header wrapper — sticks above chat body ────────────────────────────────
-  // z-index: 100 per §1.3.4 Z-Index Stack
-  // FIX [2]: This is now the Animated.View that receives translateY for the
-  //          ENTIRE block (rows 1 + 2 + 3 move together per PRD §9.2).
+  // ── Header wrapper ─────────────────────────────────────────────────────────
   headerContainer: {
     position:        'absolute',
     top:             0,
@@ -453,23 +475,28 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg.surface,
   },
 
-  // ── ROW 1 — 56px (§1.3.3) ─────────────────────────────────────────────────
-  // FIX [6]: plain View, not Animated.View (outer container handles animation)
+  // ── ROW 1 — 48px (v4.0: was 56px) ─────────────────────────────────────────
   row1: {
-    height:             HDR.ROW1_H,             // 56px
-    flexDirection:      'row',
-    alignItems:         'center',
-    justifyContent:     'space-between',
-    paddingHorizontal:  HDR.PAD_H,              // 16px
+    height:            HDR.ROW1_H,             // 48px
+    flexDirection:     'row',
+    alignItems:        'center',
+    justifyContent:    'space-between',
+    paddingHorizontal: HDR.PAD_H,              // 16px
   },
 
-  // ── CROWN wordmark — Syne 800, 22px, gold, -0.5px letter-spacing ─────────
-  // §1.3.3: "CROWN in Syne 800, 22px, gold #D4A017 (light) / #F59E0B (dark)"
+  // ── [v4.0 NEW] Wordmark row — crown icon + CROWN text inline ──────────────
+  wordmarkRow: {
+    flexDirection: 'row',
+    alignItems:    'center',
+    gap:           HDR.CROWN_ICON_GAP,         // 5px
+  },
+
+  // ── CROWN wordmark — Syne 800, 24px (v4.0: was 22px), −1px spacing ────────
   wordmark: {
     fontFamily:    'Syne_800ExtraBold',
-    fontSize:      HDR.WORDMARK_SIZE,           // 22px
-    letterSpacing: HDR.WORDMARK_LETTER_SPACING, // -0.5px
-    color:         colors.fg.brand,             // gold[600]
+    fontSize:      HDR.WORDMARK_SIZE,          // 24px
+    letterSpacing: HDR.WORDMARK_LETTER_SPACING, // −1px
+    color:         colors.fg.brand,             // gold-600
     lineHeight:    28,
   },
 
@@ -477,7 +504,7 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: 'row',
     alignItems:    'center',
-    gap:           8,
+    gap:           4,
   },
 
   // ── Each action button — 44×44 touch target ───────────────────────────────
@@ -489,30 +516,28 @@ const styles = StyleSheet.create({
     position:       'relative',
   },
 
-  // ── Action badge — count badge (single digit) ────────────────────────────
-  // FIX [5]: badge now shows count text. Minimum 16×16 pill.
+  // ── Action badge (count badge — single digit) ─────────────────────────────
   actionBadge: {
-    position:         'absolute',
-    top:              6,
-    right:            4,
-    minWidth:         16,
-    height:           16,
-    borderRadius:     8,
-    backgroundColor:  colors.fg.error,
-    borderWidth:      1.5,
-    borderColor:      colors.bg.surface,
-    alignItems:       'center',
-    justifyContent:   'center',
+    position:          'absolute',
+    top:               6,
+    right:             4,
+    minWidth:          16,
+    height:            16,
+    borderRadius:      8,
+    backgroundColor:   colors.fg.error,
+    borderWidth:       1.5,
+    borderColor:       colors.bg.surface,
+    alignItems:        'center',
+    justifyContent:    'center',
     paddingHorizontal: 3,
   },
 
-  // ── Wider badge for two-digit counts (10–99+) ─────────────────────────────
+  // ── Wider badge for two-digit counts (10–99+) ────────────────────────────
   actionBadgeWide: {
     minWidth: 20,
   },
 
   // ── Badge count text ──────────────────────────────────────────────────────
-  // FIX [5]: new style for count label inside badge
   badgeText: {
     fontSize:   9,
     fontWeight: '700',
@@ -520,16 +545,16 @@ const styles = StyleSheet.create({
     lineHeight: 11,
   },
 
-  // ── ROW 2 — 48px (§1.3.3) — scope switcher ────────────────────────────────
+  // ── ROW 2 — 44px (v4.0: was 48px) ─────────────────────────────────────────
   row2: {
-    height:            HDR.ROW2_H,              // 48px
-    paddingHorizontal: HDR.PAD_H,              // 16px horizontal
-    backgroundColor:   'transparent',           // Transparent track — §1.3.3 v3.1
+    height:            HDR.ROW2_H,              // 44px
+    paddingHorizontal: HDR.PAD_H,              // 16px
+    backgroundColor:   'transparent',
   },
 
-  // ── ROW 3 — 32px (§1.3.3) — online count strip ────────────────────────────
+  // ── ROW 3 — 28px (v4.0: was 32px) ─────────────────────────────────────────
   row3: {
-    height:            HDR.ROW3_H,              // 32px
+    height:            HDR.ROW3_H,              // 28px
     flexDirection:     'row',
     alignItems:        'center',
     justifyContent:    'space-between',
@@ -544,8 +569,7 @@ const styles = StyleSheet.create({
     flex:          1,
   },
 
-  // ── Online count text ─────────────────────────────────────────────────────
-  // §1.3.3: "12px Inter 600"
+  // ── Online count text — §1.3.3 "12px Inter 600" ──────────────────────────
   onlineText: {
     fontSize:   12,
     fontWeight: '600',
@@ -553,7 +577,7 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
 
-  // ── Scope name inside online text (slightly lighter) ─────────────────────
+  // ── Scope name (slightly lighter) ────────────────────────────────────────
   scopeNameText: {
     fontWeight: '400',
     color:      colors.fg.tertiary,
@@ -566,7 +590,6 @@ const styles = StyleSheet.create({
     gap:           6,
   },
 
-  // ── Heat pill ─────────────────────────────────────────────────────────────
   heatPill: {
     flexDirection: 'row',
     alignItems:    'center',
@@ -576,14 +599,14 @@ const styles = StyleSheet.create({
   heatText: {
     fontSize:   12,
     fontWeight: '700',
-    color:      colors.fg.warning,              // amber[600]
+    color:      colors.fg.warning,             // amber-600
     lineHeight: 16,
   },
 
   // ── Trust anchor chip ─────────────────────────────────────────────────────
   trustPill: {
     backgroundColor:   colors.bg.goldSoft,
-    borderRadius:      radii.xs,                // 4px
+    borderRadius:      radii.xs,               // 4px
     paddingHorizontal: 6,
     paddingVertical:   2,
   },
@@ -591,7 +614,7 @@ const styles = StyleSheet.create({
   trustText: {
     fontSize:   11,
     fontWeight: '500',
-    color:      colors.fg.brandText,            // gold[700]
+    color:      colors.fg.brandText,           // gold-700
     lineHeight: 15,
   },
 
