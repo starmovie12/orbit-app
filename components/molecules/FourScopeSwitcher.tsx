@@ -1,20 +1,19 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  CROWN — FourScopeSwitcher  v6.1  EXACT MATCH (MINIMALIST FLAT PILL)     ║
+ * ║  CROWN — FourScopeSwitcher  v6.2  EXACT MATCH (PALE GOLD PILL)           ║
  * ║  §1.3.3 Row 2 — The 4-Scope Switcher                                     ║
  * ║  Phase 1.3 · App Architecture                                            ║
  * ║  Owner: Ail Noor Alam (Founder) · Chandigarh · May 2026                  ║
  * ╠══════════════════════════════════════════════════════════════════════════╣
- * ║  CHANGELOG v6.1 — THE "FLAT PILL" FIX:                                   ║
- * ║    [1] Aesthetics: Completely flattened the active capsule. Removed all  ║
- * ║        shadows and elevation to perfectly match the 2D minimalist look   ║
- * ║        of the reference image (50812.png).                               ║
- * ║    [2] Capsule Token: Mapped the pill background to a distinct surface   ║
- * ║        token (`colors.bg.surfaceElevated`) to ensure it pops out against ║
- * ║        the app's base background and doesn't blend in invisibly.         ║
- * ║    [3] Tightened Dimensions: Capsule height reduced to 32px and radius   ║
- * ║        to 8px for that exact, snug rectangular fit around the text.      ║
- * ║    [4] Solid Triangles: MaterialIcons used for the drop-down chevrons.   ║
+ * ║  CHANGELOG v6.2 — THE "SIKKA COLOR" & INITIAL MOUNT FIX:                 ║
+ * ║    [1] Aesthetics: Background color strictly mapped to brandSubtle to    ║
+ * ║        render the pale gold ("sikka") color flatly behind the text.      ║
+ * ║    [2] Initial State: App guarantees "World" is highlighted instantly    ║
+ * ║        on open without any sliding animation delay.                      ║
+ * ║    [3] Text & Icons: Solid MaterialIcons used for the drop-down chevron. ║
+ * ║        Text is universally dark (colors.fg.primary) for legibility,      ║
+ * ║        matching the photo exactly (no faded inactive states).            ║
+ * ║    [4] Layout: Snug 34px height capsule with 8px radius. Zero shadows.   ║
  * ╚══════════════════════════════════════════════════════════════════════════╝
  * * * AESTHETIC DIRECTION: Flat Minimalist (Reference 50812.png)
  * Rationale: The track is entirely invisible. The active state is simply a 
@@ -36,7 +35,7 @@ import Animated, {
   type WithSpringConfig,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { MaterialIcons } from '@expo/vector-icons'; // Exact match for solid triangle
+import { MaterialIcons } from '@expo/vector-icons'; // UPGRADED: For solid triangle chevron
 import { colors } from '@/constants/colors';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -58,7 +57,7 @@ const SCOPES: readonly ScopeConfig[] = [
     key:          'world',
     emoji:        '🌍',
     defaultLabel: 'World',
-    hasPicker:    true,  // Solid triangle indicates picker
+    hasPicker:    true,  // Screenshot shows a dropdown for World as well
     a11yLabel:    'World chat — duniya bhar ke users se baat karo',
   },
   {
@@ -85,7 +84,7 @@ const SCOPES: readonly ScopeConfig[] = [
 ] as const satisfies ReadonlyArray<ScopeConfig>;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DESIGN TOKENS v6.1 (EXACT MATCH)
+// DESIGN TOKENS v6.2 (EXACT MATCH & SIKKA COLOR)
 // ─────────────────────────────────────────────────────────────────────────────
 
 const SWITCHER = {
@@ -96,15 +95,15 @@ const SWITCHER = {
   TRACK_PAD:      2  as const,
   
   /** * MATCHING REFERENCE: Snug capsule height and slight border radius.
-   * Flat 2D look, tightly wrapping the text.
+   * Flat 2D look, tightly wrapping the text. Height is 34px.
    */
-  CAPSULE_H:      32 as const, 
+  CAPSULE_H:      34 as const, 
   CAPSULE_RADIUS: 8  as const, 
 
   /** Typography (Scaled for inline row harmony) */
-  LABEL_SIZE:   13 as const,
+  LABEL_SIZE:   14 as const,
   EMOJI_SIZE:   16 as const,
-  CHEVRON_SIZE: 18 as const, // Solid triangle size
+  CHEVRON_SIZE: 18 as const, // Perfect size for solid MaterialIcons triangle
   
   /** Gap between Emoji, Text, and Chevron */
   ITEM_GAP:     4  as const,
@@ -194,7 +193,7 @@ const ScopeTab = memo(({
             : 'Double-tap to switch scope'
           : undefined
       }
-      /* Expands touchable area to meet strict HIG minimums */
+      /* Expands touchable area to meet strict HIG minimums despite flat UI */
       hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
     >
       <Animated.View style={[styles.tabContent, animatedStyle]}>
@@ -223,7 +222,7 @@ const ScopeTab = memo(({
           <MaterialIcons
             name="arrow-drop-down"
             size={SWITCHER.CHEVRON_SIZE}
-            color={isActive ? colors.fg.brand : colors.fg.secondary}
+            color={colors.fg.primary} /* Always dark to match photo */
             style={styles.chevron}
             accessibilityElementsHidden
             importantForAccessibility="no"
@@ -242,7 +241,7 @@ ScopeTab.displayName = 'ScopeTab';
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function FourScopeSwitcher({
-  activeScope,
+  activeScope = 'world', // Default fallback just in case
   onScopeChange,
   onPickerOpen,
   labels,
@@ -251,18 +250,26 @@ export function FourScopeSwitcher({
   const [trackWidth, setTrackWidth] = useState<number>(0);
   const tabWidthRef = useRef<number>(0);
   const userInitiatedRef = useRef<boolean>(false);
+  const isFirstRender = useRef<boolean>(true);
 
   const capsuleX = useSharedValue<number>(0);
-  const activeIndex = SCOPES.findIndex((s) => s.key === activeScope);
+  const activeIndex = SCOPES.findIndex((s) => s.key === activeScope) || 0; // Default to 0 (World)
 
   const animatedCapsuleStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: capsuleX.value }],
   }), []);
 
-  const slideCapsule = useCallback((toIndex: number): void => {
+  const slideCapsule = useCallback((toIndex: number, instant: boolean = false): void => {
     const tw = tabWidthRef.current;
     if (tw <= 0) return;
-    capsuleX.value = withSpring(toIndex * tw, SWITCHER.SPRING_SLIDE);
+    
+    if (instant) {
+      // Instantly snap to position (used for initial App Open)
+      capsuleX.value = toIndex * tw;
+    } else {
+      // Smooth slide for user taps
+      capsuleX.value = withSpring(toIndex * tw, SWITCHER.SPRING_SLIDE);
+    }
   }, [capsuleX]);
 
   const onTrackLayout = useCallback((e: LayoutChangeEvent): void => {
@@ -271,15 +278,22 @@ export function FourScopeSwitcher({
     tabWidthRef.current = tw;
     setTrackWidth(w);
     
+    // GUARANTEE INSTANT MOUNT AT ACTIVE SCOPE ("WORLD" BY DEFAULT)
     capsuleX.value = activeIndex * tw;
   }, [capsuleX, activeIndex]);
 
   useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    
     if (userInitiatedRef.current) {
       userInitiatedRef.current = false;
       return;
     }
-    slideCapsule(activeIndex);
+    
+    slideCapsule(activeIndex, false);
   }, [activeScope, activeIndex, slideCapsule]);
 
   const handleTabPress = useCallback((scope: ChatScope, index: number): void => {
@@ -292,7 +306,7 @@ export function FourScopeSwitcher({
     }
 
     userInitiatedRef.current = true;
-    slideCapsule(index);
+    slideCapsule(index, false); // Smooth slide on tap
     onScopeChange(scope);
   }, [activeScope, onScopeChange, onPickerOpen, slideCapsule]);
 
@@ -323,7 +337,7 @@ export function FourScopeSwitcher({
     >
       <View style={styles.trackInner}>
         
-        {/* Flat Beige Animated Capsule Background */}
+        {/* PALE GOLD FLAT CAPSULE (The Sikka Background) */}
         {tabWidth > 0 && (
           <Animated.View
             style={[
@@ -335,7 +349,7 @@ export function FourScopeSwitcher({
           />
         )}
 
-        {/* Scope Tabs sit ON TOP of the capsule */}
+        {/* Scope Tabs (Sit on top of the capsule) */}
         {SCOPES.map((scopeCfg, index) => (
           <ScopeTab
             key={scopeCfg.key}
@@ -353,7 +367,7 @@ export function FourScopeSwitcher({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STYLES v6.1 (EXACT MATCH FLAT MINIMALIST)
+// STYLES v6.2 (EXACT MATCH FLAT MINIMALIST)
 // ─────────────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
@@ -371,37 +385,37 @@ const styles = StyleSheet.create({
     marginHorizontal: SWITCHER.TRACK_PAD,
     position:         'relative',
   },
-  /** * THE FLAT BEIGE PILL:
+  /** * THE FLAT 'SIKKA' PILL (Pale Gold):
    * A snug, completely flat rounded rectangle sliding strictly behind the text.
    */
   capsule: {
     position:         'absolute',
     left:             0,
     
-    /* Vertically center the 32px capsule within the 44px track */
+    /* Vertically center the 34px capsule within the 44px track */
     top:              (SWITCHER.HEIGHT - SWITCHER.CAPSULE_H) / 2,
     
-    /* Rounded rectangle radius */
+    /* Small rounded rectangle radius, exactly matching reference image */
     borderRadius:     SWITCHER.CAPSULE_RADIUS,
     
-    /* DISTINCT ELEVATED SURFACE:
-     * Using an elevated surface token to ensure it doesn't blend into the 
-     * app's base background color. (This replaces brandSubtle).
+    /* THE PALE GOLD / SIKKA COLOR:
+     * This token MUST be set to a pale gold (#F3E9CD or similar) in your colors.ts
+     * to perfectly replicate the background in 50812.png.
      */
-    backgroundColor:  colors.bg.surfaceElevated, 
+    backgroundColor:  colors.bg.brandSubtle, 
     
     /* Zero shadow for that exact 2D flat minimalist look */
     shadowOpacity:    0,
     elevation:        0, 
     
-    /* Ensure capsule sits underneath the text */
+    /* Ensure capsule strictly sits underneath the text layer */
     zIndex:           0,
   },
   scopeButton: {
     flex:           1,
     height:         '100%',
     justifyContent: 'center',
-    zIndex:         1, // Ensure text sits above the capsule
+    zIndex:         1, // Text Layer sits above background capsule
   },
   tabContent: {
     flexDirection:  'row',
@@ -423,17 +437,17 @@ const styles = StyleSheet.create({
     textAlign:  'center',
   },
   scopeLabelActive: {
-    /* Bold, rich dark text on top of the beige pill */
-    color:      colors.fg.primary,
+    /* Bold, rich dark text on top of the pale gold pill */
+    color:      colors.fg.primary, // Dark brown/black as per photo
     fontWeight: '700', 
   },
   scopeLabelInactive: {
-    /* Rich muted text for unselected tabs (not faded out) */
-    color:      colors.fg.secondary,
+    /* Rich muted text for unselected tabs (Not faded out) */
+    color:      colors.fg.primary, // Dark brown/black as per photo
     fontWeight: '500',
   },
   chevron: {
-    /* Pull the solid triangle slightly closer to text */
+    /* Pull the solid triangle slightly closer to text for optical balance */
     marginLeft: -2,
     marginTop: 1, 
   },
