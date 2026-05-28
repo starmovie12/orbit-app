@@ -1,18 +1,17 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  CROWN — FourScopeSwitcher  v7.1  SPACIOUS & AUTO-SCALING                ║
+ * ║  CROWN — FourScopeSwitcher  v7.2  SPACIOUS & AUTO-SCALING FIX            ║
  * ║  §1.3.3 Row 2 — The 4-Scope Switcher                                     ║
  * ║  Phase 1.3 · App Architecture                                            ║
  * ║  Owner: Ail Noor Alam (Founder) · Chandigarh · May 2026                  ║
  * ╠══════════════════════════════════════════════════════════════════════════╣
- * ║  CHANGELOG v7.1 — USER FEEDBACK APPLIED:                                 ║
- * ║    [1] Background: Entire track background removed (transparent).        ║
- * ║    [2] Typography: Added adjustsFontSizeToFit. Long names auto-scale     ║
- * ║        down gracefully so they are fully visible.                        ║
- * ║    [3] Spacious Layout: Adjusted padding and flex bounds so the tabs     ║
- * ║        feel open and spacious ("Khule dhule").                           ║
- * ║    [4] Maintained: Selected pill color, font weights, and chevron exact  ║
- * ║        colors remain unchanged from the approved v7.0.                   ║
+ * ║  CHANGELOG v7.2 — LONG NAME TRUNCATION FIX ("CHANDIGARH"):               ║
+ * ║    [1] Spacing Optimization: Reduced track padding and internal gaps to  ║
+ * ║        give the text container maximum horizontal breathing room.        ║
+ * ║    [2] Auto-Scaling: Dropped minimumFontScale to 0.5 and applied         ║
+ * ║        flexShrink strictly so long names (e.g., Chandigarh) scale down   ║
+ * ║        gracefully instead of clipping to "Chand...".                     ║
+ * ║    [3] Background: Confirmed main track background is transparent.       ║
  * ╚══════════════════════════════════════════════════════════════════════════╝
  */
 
@@ -34,13 +33,13 @@ import * as Haptics from 'expo-haptics';
 import { MaterialIcons } from '@expo/vector-icons';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HTML EXACT COLORS (Keeping only the approved ones)
+// HTML EXACT COLORS 
 // ─────────────────────────────────────────────────────────────────────────────
 const HTML_TOKENS = {
-  bgSelected:   'rgba(200,150,12,0.18)', // Approved Selected Pill Color
-  textStrong:   '#1A1208',               // Active Text (Deep Onyx)
-  textMuted:    '#7A5C2E',               // Inactive Text (Antique Bronze)
-  brandGold:    '#C8960C',               // Active Arrow (Royal Saffron Gold)
+  bgSelected:   'rgba(200,150,12,0.18)', // Selected Pill Color
+  textStrong:   '#1A1208',               // Active Text 
+  textMuted:    '#7A5C2E',               // Inactive Text 
+  brandGold:    '#C8960C',               // Active Arrow 
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -75,14 +74,14 @@ const SCOPES: readonly ScopeConfig[] = [
   {
     key:          'city',
     emoji:        '🏙️',
-    defaultLabel: 'Mumbai',
+    defaultLabel: 'Chandigarh', // Testing with long name
     hasPicker:    true,
     a11yLabel:    'City chat',
   },
   {
     key:          'sector',
     emoji:        '📍',
-    defaultLabel: 'Bandra W',
+    defaultLabel: 'Sector 17',
     hasPicker:    true,
     a11yLabel:    'Sector chat',
   },
@@ -94,16 +93,20 @@ const SCOPES: readonly ScopeConfig[] = [
 
 const SWITCHER = {
   HEIGHT:         40 as const, 
-  TRACK_PAD:      8  as const, // Reduced padding for a more spacious layout
+  
+  // Reduced from 8 to 4 to give tabs more horizontal width for long names
+  TRACK_PAD:      4  as const, 
   
   CAPSULE_H:      28 as const, 
   CAPSULE_RADIUS: 6  as const, 
   
-  LABEL_SIZE:     13 as const, 
-  EMOJI_SIZE:     14 as const, 
+  // Base text size (will auto-shrink if name is too long like Chandigarh)
+  LABEL_SIZE:     12.5 as const, 
+  EMOJI_SIZE:     13 as const, 
   CHEVRON_SIZE:   16 as const, 
   
-  ITEM_GAP:       4  as const, 
+  // Reduced item gap to save horizontal pixels for text
+  ITEM_GAP:       2  as const, 
   TAB_COUNT:      4  as const,
 
   SPRING_SLIDE: { mass: 1, stiffness: 280, damping: 28 } as const satisfies WithSpringConfig,
@@ -192,7 +195,7 @@ const ScopeTab = memo(({
           {emoji}
         </Text>
 
-        {/* Text Container with Auto-Scaling */}
+        {/* Text Container with Auto-Scaling (Allows full width for Chandigarh) */}
         <View style={styles.textContainer}>
           <Text
             style={[
@@ -200,8 +203,8 @@ const ScopeTab = memo(({
               { color: textColor, fontWeight: textWeight }
             ]}
             numberOfLines={1}
-            adjustsFontSizeToFit={true} // MAGIC: Automatically shrinks font to fit container
-            minimumFontScale={0.65} // Prevents shrinking too much, up to 65% of original size
+            adjustsFontSizeToFit={true} 
+            minimumFontScale={0.5} // Allow 50% shrinking so 10-letter words fit perfectly
             allowFontScaling={false}
           >
             {label}
@@ -324,7 +327,7 @@ export function FourScopeSwitcher({
     >
       <View style={styles.trackInner}>
         
-        {/* THE PILL */}
+        {/* THE PILL (Active Background) */}
         {tabWidth > 0 && (
           <Animated.View
             style={[
@@ -360,13 +363,12 @@ export function FourScopeSwitcher({
 const styles = StyleSheet.create({
   trackOuter: {
     height:           SWITCHER.HEIGHT,
-    backgroundColor:  'transparent', // <-- FIXED: Golden background completely removed
+    backgroundColor:  'transparent', // Entire background is completely transparent
   },
   trackInner: {
     flex:             1,
     flexDirection:    'row',
     alignItems:       'center',
-    justifyContent:   'space-evenly', // Ensures tabs are well-spaced and not clumped
     marginHorizontal: SWITCHER.TRACK_PAD,
     position:         'relative',
   },
@@ -381,7 +383,7 @@ const styles = StyleSheet.create({
     zIndex:           0,
   },
   scopeButton: {
-    flex:           1,
+    flex:           1, // 4 tabs exactly divide the space 25% each
     height:         '100%',
     justifyContent: 'center',
     zIndex:         1, 
@@ -391,15 +393,15 @@ const styles = StyleSheet.create({
     alignItems:     'center',
     justifyContent: 'center',
     gap:            SWITCHER.ITEM_GAP,
-    paddingHorizontal: 2,
+    paddingHorizontal: 0, // Set to 0 so text utilizes the full 25% width box
   },
   scopeEmoji: {
     fontSize:   SWITCHER.EMOJI_SIZE,
     lineHeight: 18, 
   },
   textContainer: {
-    flexShrink: 1,
-    justifyContent: 'center', // Helps with vertical centering for text scaling
+    flexShrink: 1, // MAGIC FIX: Ensures Android lets the text squeeze instead of clipping
+    justifyContent: 'center', 
   },
   scopeLabel: {
     fontSize:   SWITCHER.LABEL_SIZE, 
