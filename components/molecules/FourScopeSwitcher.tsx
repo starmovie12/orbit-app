@@ -1,24 +1,24 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  CROWN — FourScopeSwitcher  v6.0  INVISIBLE TRACK (FLOATING PILL)        ║
+ * ║  CROWN — FourScopeSwitcher  v6.1  EXACT MATCH (MINIMALIST FLAT PILL)     ║
  * ║  §1.3.3 Row 2 — The 4-Scope Switcher                                     ║
  * ║  Phase 1.3 · App Architecture                                            ║
  * ║  Owner: Ail Noor Alam (Founder) · Chandigarh · May 2026                  ║
  * ╠══════════════════════════════════════════════════════════════════════════╣
- * ║  CHANGELOG v6.0 — THE "FLOATING MINIMALIST" UPGRADE:                     ║
- * ║    [1] Aesthetics: Completely removed the outer track background and     ║
- * ║        borders. Tabs now float cleanly on the app's native background.   ║
- * ║    [2] Capsule Shape: Changed from a full pill (50% radius) to a refined ║
- * ║        rounded rectangle (10px radius) to perfectly match the reference. ║
- * ║    [3] Iconography: Replaced line-based chevrons with solid triangles    ║
- * ║        (MaterialIcons arrow-drop-down) for that exact premium look.      ║
- * ║    [4] Typography & Color: Replaced faded greys with rich, dark solid    ║
- * ║        colors for all labels, active or inactive, ensuring legibility.   ║
+ * ║  CHANGELOG v6.1 — THE "FLAT PILL" FIX:                                   ║
+ * ║    [1] Aesthetics: Completely flattened the active capsule. Removed all  ║
+ * ║        shadows and elevation to perfectly match the 2D minimalist look   ║
+ * ║        of the reference image (50812.png).                               ║
+ * ║    [2] Capsule Token: Mapped the pill background to a distinct surface   ║
+ * ║        token (`colors.bg.surfaceElevated`) to ensure it pops out against ║
+ * ║        the app's base background and doesn't blend in invisibly.         ║
+ * ║    [3] Tightened Dimensions: Capsule height reduced to 32px and radius   ║
+ * ║        to 8px for that exact, snug rectangular fit around the text.      ║
+ * ║    [4] Solid Triangles: MaterialIcons used for the drop-down chevrons.   ║
  * ╚══════════════════════════════════════════════════════════════════════════╝
- * * * AESTHETIC DIRECTION: Floating Minimalist (Reference 50812.png)
- * Rationale: The cleanest, most modern approach. No unnecessary boxes or 
- * lines. The selected state is indicated solely by a soft pale-gold rounded 
- * rectangle sliding behind the text.
+ * * * AESTHETIC DIRECTION: Flat Minimalist (Reference 50812.png)
+ * Rationale: The track is entirely invisible. The active state is simply a 
+ * flat, colored rounded-rectangle sliding behind the text.
  */
 
 import React, { useCallback, useEffect, useRef, useState, memo } from 'react';
@@ -36,7 +36,7 @@ import Animated, {
   type WithSpringConfig,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { MaterialIcons } from '@expo/vector-icons'; // UPGRADED: For solid triangle chevron
+import { MaterialIcons } from '@expo/vector-icons'; // Exact match for solid triangle
 import { colors } from '@/constants/colors';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -58,7 +58,7 @@ const SCOPES: readonly ScopeConfig[] = [
     key:          'world',
     emoji:        '🌍',
     defaultLabel: 'World',
-    hasPicker:    true,  // Assuming world has a dropdown based on screenshot
+    hasPicker:    true,  // Solid triangle indicates picker
     a11yLabel:    'World chat — duniya bhar ke users se baat karo',
   },
   {
@@ -85,7 +85,7 @@ const SCOPES: readonly ScopeConfig[] = [
 ] as const satisfies ReadonlyArray<ScopeConfig>;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DESIGN TOKENS v6.0 (FLOATING MINIMALIST)
+// DESIGN TOKENS v6.1 (EXACT MATCH)
 // ─────────────────────────────────────────────────────────────────────────────
 
 const SWITCHER = {
@@ -93,20 +93,18 @@ const SWITCHER = {
   HEIGHT: 44 as const,
 
   /** Padding around the entire track */
-  TRACK_PAD:      4  as const,
+  TRACK_PAD:      2  as const,
   
-  /** Capsule Height (slightly smaller than track to float nicely) */
-  CAPSULE_H:      36 as const, 
-  
-  /** * MATCHING REFERENCE: This is no longer a full pill. 
-   * It is a rounded rectangle with a 10px radius.
+  /** * MATCHING REFERENCE: Snug capsule height and slight border radius.
+   * Flat 2D look, tightly wrapping the text.
    */
-  CAPSULE_RADIUS: 10 as const, 
+  CAPSULE_H:      32 as const, 
+  CAPSULE_RADIUS: 8  as const, 
 
   /** Typography (Scaled for inline row harmony) */
-  LABEL_SIZE:   14 as const,
+  LABEL_SIZE:   13 as const,
   EMOJI_SIZE:   16 as const,
-  CHEVRON_SIZE: 18 as const, // Larger size for the solid triangle
+  CHEVRON_SIZE: 18 as const, // Solid triangle size
   
   /** Gap between Emoji, Text, and Chevron */
   ITEM_GAP:     4  as const,
@@ -225,8 +223,7 @@ const ScopeTab = memo(({
           <MaterialIcons
             name="arrow-drop-down"
             size={SWITCHER.CHEVRON_SIZE}
-            /* Chevron color matches text color for uniform look */
-            color={isActive ? colors.fg.brand : colors.fg.primary}
+            color={isActive ? colors.fg.brand : colors.fg.secondary}
             style={styles.chevron}
             accessibilityElementsHidden
             importantForAccessibility="no"
@@ -326,7 +323,7 @@ export function FourScopeSwitcher({
     >
       <View style={styles.trackInner}>
         
-        {/* Animated Pale Gold Capsule Background */}
+        {/* Flat Beige Animated Capsule Background */}
         {tabWidth > 0 && (
           <Animated.View
             style={[
@@ -338,6 +335,7 @@ export function FourScopeSwitcher({
           />
         )}
 
+        {/* Scope Tabs sit ON TOP of the capsule */}
         {SCOPES.map((scopeCfg, index) => (
           <ScopeTab
             key={scopeCfg.key}
@@ -355,15 +353,14 @@ export function FourScopeSwitcher({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STYLES v6.0 (FLOATING MINIMALIST)
+// STYLES v6.1 (EXACT MATCH FLAT MINIMALIST)
 // ─────────────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   trackOuter: {
     height:           SWITCHER.HEIGHT,
     /* * INVISIBLE TRACK: 
-     * No background color. No borders. No shadow.
-     * The track completely blends into the app's native background.
+     * Matches screenshot perfectly. No background, no outline.
      */
     backgroundColor:  'transparent', 
   },
@@ -374,34 +371,37 @@ const styles = StyleSheet.create({
     marginHorizontal: SWITCHER.TRACK_PAD,
     position:         'relative',
   },
-  /** * THE FLOATING PILL:
-   * A soft pale-gold rounded rectangle sliding behind the active text.
+  /** * THE FLAT BEIGE PILL:
+   * A snug, completely flat rounded rectangle sliding strictly behind the text.
    */
   capsule: {
     position:         'absolute',
     left:             0,
     
-    /* Center the 36px capsule vertically within the 44px track */
+    /* Vertically center the 32px capsule within the 44px track */
     top:              (SWITCHER.HEIGHT - SWITCHER.CAPSULE_H) / 2,
     
-    /* Rounded rectangle radius, exactly matching reference image */
+    /* Rounded rectangle radius */
     borderRadius:     SWITCHER.CAPSULE_RADIUS,
     
-    /* Pale Gold matching the badge */
-    backgroundColor:  colors.bg.brandSubtle, 
+    /* DISTINCT ELEVATED SURFACE:
+     * Using an elevated surface token to ensure it doesn't blend into the 
+     * app's base background color. (This replaces brandSubtle).
+     */
+    backgroundColor:  colors.bg.surfaceElevated, 
     
-    /* Subtle depth to lift it slightly off the page */
-    shadowColor:      colors.shadow.gold, 
-    shadowOffset:     { width: 0, height: 2 },
-    shadowOpacity:    0.05,
-    shadowRadius:     2,
-    elevation:        1, 
+    /* Zero shadow for that exact 2D flat minimalist look */
+    shadowOpacity:    0,
+    elevation:        0, 
+    
+    /* Ensure capsule sits underneath the text */
+    zIndex:           0,
   },
   scopeButton: {
     flex:           1,
     height:         '100%',
     justifyContent: 'center',
-    zIndex:         1,
+    zIndex:         1, // Ensure text sits above the capsule
   },
   tabContent: {
     flexDirection:  'row',
@@ -412,7 +412,7 @@ const styles = StyleSheet.create({
   },
   scopeEmoji: {
     fontSize:   SWITCHER.EMOJI_SIZE,
-    lineHeight: 18, // Adjusted for larger emojis
+    lineHeight: 18, 
   },
   textContainer: {
     flexShrink: 1,
@@ -423,19 +423,17 @@ const styles = StyleSheet.create({
     textAlign:  'center',
   },
   scopeLabelActive: {
-    /* Bold, rich dark text on top of the pale gold pill */
-    color:      colors.fg.brand,
+    /* Bold, rich dark text on top of the beige pill */
+    color:      colors.fg.primary,
     fontWeight: '700', 
   },
   scopeLabelInactive: {
-    /* * NO FADED TEXT. 
-     * Inactive tabs use solid dark text to match the reference exactly. 
-     */
-    color:      colors.fg.primary,
+    /* Rich muted text for unselected tabs (not faded out) */
+    color:      colors.fg.secondary,
     fontWeight: '500',
   },
   chevron: {
-    /* Slight negative margin to pull the solid triangle closer to text */
+    /* Pull the solid triangle slightly closer to text */
     marginLeft: -2,
     marginTop: 1, 
   },
