@@ -1,26 +1,24 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  CROWN — FourScopeSwitcher  v8.0  HTML-MATCHED UNDERLINE DESIGN          ║
+ * ║  CROWN — FourScopeSwitcher  v6.4  EXACT MATCH (WIDE VIEW)                ║
  * ║  §1.3.3 Row 2 — The 4-Scope Switcher                                     ║
  * ║  Phase 1.3 · App Architecture                                            ║
  * ║  Owner: Ail Noor Alam (Founder) · Chandigarh · May 2026                  ║
  * ╠══════════════════════════════════════════════════════════════════════════╣
- * ║  CHANGELOG v8.0 — HTML BLUEPRINT MATCH:                                  ║
- * ║    [1] Removed sliding pill capsule & pill-track background.             ║
- * ║    [2] Now uses per-tab UNDERLINE indicator — exact match to HTML.       ║
- * ║    [3] Active tab: fontWeight 600 + colors.fg.primary (deep onyx).       ║
- * ║    [4] Inactive tab: fontWeight 400 + colors.fg.muted (antique bronze).  ║
- * ║    [5] Underline: 2.5px height, colors.bg.brand gold, scaleX spring.     ║
- * ║    [6] Underline origin: left (matches HTML transform-origin: left).     ║
- * ║    [7] Row height 48px, tab height 28px — blueprint-exact.               ║
- * ║    [8] Chevron ▼ removed — HTML design has no chevron in Row 2.          ║
- * ║    [9] Emoji + label in single Text node, gap handled via space char.    ║
- * ║   [10] Pressed state: fg.brandSubtle bg overlay (matches hover in HTML). ║
+ * ║  CHANGELOG v6.4 — PERFECT MATCH WITH FULL SCREENSHOT:                    ║
+ * ║    [1] Typography: All labels (active & inactive) share the same dark    ║
+ * ║        color. Active is slightly bolder (600) than inactive (500).       ║
+ * ║    [2] Chevrons: Solid triangles for ALL scopes, perfectly centered.     ║
+ * ║    [3] Backgrounds: Added note for the parent off-white background       ║
+ * ║        while keeping the active capsule perfectly shaped (Pale Gold).    ║
+ * ║    [4] Spacing: Optimized horizontal padding to match the exact gaps     ║
+ * ║        between World, India, Mumbai, and Bandra W.                       ║
  * ╚══════════════════════════════════════════════════════════════════════════╝
  */
 
-import React, { useCallback, useRef, memo } from 'react';
+import React, { useCallback, useEffect, useRef, useState, memo } from 'react';
 import {
+  LayoutChangeEvent,
   Pressable,
   StyleSheet,
   Text,
@@ -33,6 +31,7 @@ import Animated, {
   type WithSpringConfig,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
+import { MaterialIcons } from '@expo/vector-icons';
 import { colors } from '@/constants/colors';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -55,71 +54,52 @@ const SCOPES: readonly ScopeConfig[] = [
     emoji:        '🌍',
     defaultLabel: 'World',
     hasPicker:    true,
-    a11yLabel:    'World chat — duniya bhar ke users se baat karo',
+    a11yLabel:    'World chat',
   },
   {
     key:          'country',
     emoji:        '🇮🇳',
     defaultLabel: 'India',
     hasPicker:    true,
-    a11yLabel:    'Country chat. Tap to change country.',
+    a11yLabel:    'Country chat',
   },
   {
     key:          'city',
     emoji:        '🏙️',
-    defaultLabel: 'City',
+    defaultLabel: 'Mumbai',
     hasPicker:    true,
-    a11yLabel:    'City chat. Tap to change city.',
+    a11yLabel:    'City chat',
   },
   {
     key:          'sector',
     emoji:        '📍',
-    defaultLabel: 'Sector',
+    defaultLabel: 'Bandra W',
     hasPicker:    true,
-    a11yLabel:    'Sector chat. Tap to change sector.',
+    a11yLabel:    'Sector chat',
   },
 ] as const satisfies ReadonlyArray<ScopeConfig>;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DESIGN TOKENS — MATCHED TO HTML BLUEPRINT
-//
-//  HTML Row 2 analysis:
-//  ┌─────────────────────────────────────────────────────────────────┐
-//  │  Row height   : 48px  (--height-row2)                           │
-//  │  Row bg       : var(--bg-surface) = #FFF8F0 (transparent)       │
-//  │  Tab height   : 28px, flex:1, radius 6px                        │
-//  │  Active label : font-weight 600 + fg-text-strong (#1A1208)      │
-//  │  Inactive lbl : font-weight 400 + fg-text-muted  (#7A5C2E)      │
-//  │  Underline    : 2.5px, brand gold, left 12%, right 12%          │
-//  │                 scaleX 0→1 spring, transform-origin: left       │
-//  │  Pressed bg   : fg-brand-subtle  rgba(200,150,12,0.10)          │
-//  │  No chevron   : HTML design does not show ▼ in Row 2            │
-//  │  Emoji+label  : single span "🌍 World" — no separate nodes      │
-//  └─────────────────────────────────────────────────────────────────┘
+// DESIGN TOKENS (MATCHED STRICTLY TO FULL SCREENSHOT)
 // ─────────────────────────────────────────────────────────────────────────────
 
 const SWITCHER = {
-  // ── Row dimensions ───────────────────────────────────────────
-  ROW_HEIGHT:   48 as const,   // --height-row2
-  TAB_HEIGHT:   28 as const,   // .scope-tab height
-  TAB_RADIUS:    6 as const,   // --radius-md
+  HEIGHT: 46 as const, 
+  TRACK_PAD:      4  as const,
+  
+  // Capsule perfectly hugging the content
+  CAPSULE_H:      32 as const, 
+  CAPSULE_RADIUS: 8  as const, 
 
-  // ── Row padding ──────────────────────────────────────────────
-  ROW_PAD_H:   16 as const,   // --sp-4 (0 var(--sp-4))
-  ROW_GAP:      4 as const,   // --sp-1 gap between tabs
+  LABEL_SIZE:   13 as const,
+  EMOJI_SIZE:   14 as const,
+  CHEVRON_SIZE: 16 as const, 
+  
+  ITEM_GAP:     4  as const,
+  TAB_COUNT:    4  as const,
 
-  // ── Underline ────────────────────────────────────────────────
-  UNDERLINE_H:    2.5 as const,  // height: 2.5px
-  UNDERLINE_INSET: 0.12 as const, // left: 12%, right: 12%
-
-  // ── Typography ───────────────────────────────────────────────
-  LABEL_SIZE: 13 as const,     // .scope-tab-label font-size
-
-  // ── Spring configs ────────────────────────────────────────────
-  //   Underline scale: snappy ease-out feel (matches CSS ease-out)
-  SPRING_UNDERLINE: { mass: 1, stiffness: 320, damping: 26 } as const satisfies WithSpringConfig,
-  //   Press scale feedback
-  SPRING_PRESS:     { mass: 1, stiffness: 450, damping: 30 } as const satisfies WithSpringConfig,
+  SPRING_SLIDE: { mass: 1, stiffness: 280, damping: 28 } as const satisfies WithSpringConfig,
+  SPRING_PRESS: { mass: 1, stiffness: 450, damping: 30 } as const satisfies WithSpringConfig,
 
   HAPTIC: Haptics.ImpactFeedbackStyle.Light,
 } as const;
@@ -139,19 +119,20 @@ export interface FourScopeSwitcherProps {
   readonly activeScope:   ChatScope;
   readonly onScopeChange: (scope: ChatScope) => void;
   readonly onPickerOpen:  (scope: ChatScope) => void;
-  readonly labels:        ScopeLabel;
+  readonly labels?:       Partial<ScopeLabel>; // Made optional for easy testing
 }
 
 interface ScopeTabProps {
-  readonly scopeCfg: ScopeConfig;
-  readonly index:    number;
-  readonly isActive: boolean;
-  readonly label:    string;   // full display string e.g. "🏙️ Mumbai"
-  readonly onPress:  (scope: ChatScope, index: number) => void;
+  readonly scopeCfg:    ScopeConfig;
+  readonly index:       number;
+  readonly isActive:    boolean;
+  readonly label:       string;
+  readonly emoji:       string;
+  readonly onPress:     (scope: ChatScope, index: number) => void;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SUB-COMPONENT — ScopeTab
+// SUB-COMPONENTS
 // ─────────────────────────────────────────────────────────────────────────────
 
 const ScopeTab = memo(({
@@ -159,37 +140,18 @@ const ScopeTab = memo(({
   index,
   isActive,
   label,
+  emoji,
   onPress,
 }: ScopeTabProps): React.JSX.Element => {
 
-  // ── Press scale animation (subtle bounce on tap) ──────────────
   const scale = useSharedValue<number>(1);
 
-  const tabAnimStyle = useAnimatedStyle(() => ({
+  const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
   }), []);
 
-  // ── Underline scaleX animation ────────────────────────────────
-  // Starts at 0 (hidden) or 1 (active on mount).
-  // On tab switch the new tab animates 0→1, old tab 1→0.
-  const underlineScale = useSharedValue<number>(isActive ? 1 : 0);
-
-  // Sync underlineScale whenever isActive changes from parent
-  const prevActive = useRef<boolean>(isActive);
-  if (prevActive.current !== isActive) {
-    prevActive.current = isActive;
-    underlineScale.value = withSpring(
-      isActive ? 1 : 0,
-      SWITCHER.SPRING_UNDERLINE,
-    );
-  }
-
-  const underlineAnimStyle = useAnimatedStyle(() => ({
-    transform: [{ scaleX: underlineScale.value }],
-  }), []);
-
   const handlePressIn = useCallback(() => {
-    scale.value = withSpring(0.94, SWITCHER.SPRING_PRESS);
+    scale.value = withSpring(0.95, SWITCHER.SPRING_PRESS);
   }, [scale]);
 
   const handlePressOut = useCallback(() => {
@@ -205,61 +167,46 @@ const ScopeTab = memo(({
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       onPress={handlePress}
-      style={({ pressed }) => [
-        styles.scopeButton,
-        pressed && styles.scopeButtonPressed,
-      ]}
+      style={styles.scopeButton}
       accessibilityRole="tab"
       accessibilityLabel={scopeCfg.a11yLabel}
       accessibilityState={{ selected: isActive }}
-      hitSlop={{ top: 10, bottom: 10, left: 4, right: 4 }}
+      hitSlop={{ top: 10, bottom: 10, left: 5, right: 5 }}
     >
-      {/* ── Animated row: emoji + label ──────────────────────── */}
-      <Animated.View style={[styles.tabContent, tabAnimStyle]}>
-
-        {/*
-         * HTML equivalent:
-         *   <span class="scope-tab-label">🏙️ Mumbai</span>
-         *
-         * Emoji and label are a single Text node (like HTML's single span),
-         * separated by a space character. No separate icon component.
-         */}
-        <Text
-          style={[
-            styles.scopeLabel,
-            isActive ? styles.scopeLabelActive : styles.scopeLabelInactive,
-          ]}
-          numberOfLines={1}
-          allowFontScaling={false}
-        >
-          {label}
+      <Animated.View style={[styles.tabContent, animatedStyle]}>
+        
+        {/* Emoji */}
+        <Text style={styles.scopeEmoji} allowFontScaling={false}>
+          {emoji}
         </Text>
 
+        {/* Text Label */}
+        <View style={styles.textContainer}>
+          <Text
+            style={[
+              styles.scopeLabel,
+              isActive ? styles.scopeLabelActive : styles.scopeLabelInactive,
+            ]}
+            numberOfLines={1}
+            allowFontScaling={false}
+          >
+            {label}
+          </Text>
+        </View>
+
+        {/* Solid Triangle Chevron (Visible for all items as per image) */}
+        {scopeCfg.hasPicker && (
+          <MaterialIcons
+            name="arrow-drop-down"
+            size={SWITCHER.CHEVRON_SIZE}
+            color={colors.fg.primary} // Same dark color for all
+            style={styles.chevron}
+            accessibilityElementsHidden
+            importantForAccessibility="no"
+          />
+        )}
+        
       </Animated.View>
-
-      {/*
-       * ── UNDERLINE ──────────────────────────────────────────────
-       *  HTML:  .scope-underline
-       *         bottom: 2px; left: 12%; right: 12%; height: 2.5px;
-       *         background: var(--fg-brand);
-       *         transform: scaleX(0)  → scaleX(1) when active
-       *         transform-origin: left  (grows left→right)
-       *
-       *  RN equivalent: absolute, scaleX useSharedValue 0→1 spring,
-       *  transformOrigin emulated via left-offset + width calc.
-       *
-       *  Note: React Native's transform scaleX shrinks around the
-       *  element's own center. To mimic transform-origin:left we
-       *  position the underline at the LEFT edge and scale around
-       *  its own center — the visual effect is the same "grow from
-       *  left" behaviour because the element is flush-left.
-       * ──────────────────────────────────────────────────────────── */}
-      <Animated.View
-        style={[styles.underline, underlineAnimStyle]}
-        pointerEvents="none"
-        aria-hidden
-      />
-
     </Pressable>
   );
 });
@@ -267,171 +214,203 @@ const ScopeTab = memo(({
 ScopeTab.displayName = 'ScopeTab';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MAIN COMPONENT — FourScopeSwitcher
+// MAIN COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function FourScopeSwitcher({
-  activeScope = 'world',
+  activeScope = 'city', // Defaulting to 'city' (Mumbai) as per your screenshot
   onScopeChange,
   onPickerOpen,
-  labels,
+  labels = {},
 }: FourScopeSwitcherProps): React.JSX.Element {
 
-  const handleTabPress = useCallback((scope: ChatScope): void => {
+  const [trackWidth, setTrackWidth] = useState<number>(0);
+  const tabWidthRef = useRef<number>(0);
+  const userInitiatedRef = useRef<boolean>(false);
+  const isFirstRender = useRef<boolean>(true);
+
+  const activeIndex = SCOPES.findIndex((s) => s.key === activeScope) || 0;
+  const capsuleX = useSharedValue<number>(0);
+
+  const animatedCapsuleStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: capsuleX.value }],
+  }), []);
+
+  const slideCapsule = useCallback((toIndex: number, instant: boolean = false): void => {
+    const tw = tabWidthRef.current;
+    if (tw <= 0) return;
+    
+    if (instant) {
+      capsuleX.value = toIndex * tw;
+    } else {
+      capsuleX.value = withSpring(toIndex * tw, SWITCHER.SPRING_SLIDE);
+    }
+  }, [capsuleX]);
+
+  const onTrackLayout = useCallback((e: LayoutChangeEvent): void => {
+    const w  = e.nativeEvent.layout.width;
+    const tw = (w - SWITCHER.TRACK_PAD * 2) / SWITCHER.TAB_COUNT;
+    tabWidthRef.current = tw;
+    setTrackWidth(w);
+    
+    capsuleX.value = activeIndex * tw;
+  }, [capsuleX, activeIndex]);
+
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    
+    if (userInitiatedRef.current) {
+      userInitiatedRef.current = false;
+      return;
+    }
+    
+    slideCapsule(activeIndex, false);
+  }, [activeScope, activeIndex, slideCapsule]);
+
+  const handleTabPress = useCallback((scope: ChatScope, index: number): void => {
     void Haptics.impactAsync(SWITCHER.HAPTIC);
 
     if (scope === activeScope) {
-      // Same scope tapped again → open picker
       const cfg = SCOPES.find((s) => s.key === scope);
       if (cfg?.hasPicker) onPickerOpen(scope);
       return;
     }
 
+    userInitiatedRef.current = true;
+    slideCapsule(index, false);
     onScopeChange(scope);
-  }, [activeScope, onScopeChange, onPickerOpen]);
+  }, [activeScope, onScopeChange, onPickerOpen, slideCapsule]);
 
-  /** Compose the full display string: "🌍 World", "🏙️ Mumbai" etc. */
-  const getDisplayLabel = useCallback((scope: ChatScope, defaultEmoji: string, defaultLabel: string): string => {
-    const emoji =
-      scope === 'country'
-        ? (labels.countryEmoji || defaultEmoji)
-        : defaultEmoji;
-
-    const text =
-      scope === 'country' ? (labels.country || defaultLabel) :
-      scope === 'city'    ? (labels.city    || defaultLabel) :
-      scope === 'sector'  ? (labels.sector  || defaultLabel) :
-      defaultLabel;
-
-    return `${emoji} ${text}`;
+  const getLabel = useCallback((scope: ChatScope, defaultLabel: string): string => {
+    switch (scope) {
+      case 'country': return labels.country || defaultLabel;
+      case 'city':    return labels.city    || defaultLabel;
+      case 'sector':  return labels.sector  || defaultLabel;
+      default:        return defaultLabel;
+    }
   }, [labels]);
 
+  const getEmoji = useCallback((scope: ChatScope, defaultEmoji: string): string => {
+    if (scope === 'country') return labels.countryEmoji || defaultEmoji;
+    return defaultEmoji;
+  }, [labels]);
+
+  const tabWidth = trackWidth > 0
+    ? (trackWidth - SWITCHER.TRACK_PAD * 2) / SWITCHER.TAB_COUNT
+    : 0;
+
   return (
-    /**
-     * HTML equivalent:
-     *   <div id="row2" role="tablist" ...>
-     *     <!-- 4× .scope-tab buttons -->
-     *   </div>
-     *
-     * Background is var(--bg-surface) which is the page surface —
-     * effectively the same as no fill (inherits from parent screen).
-     */
     <View
-      style={styles.row}
+      style={styles.trackOuter}
+      onLayout={onTrackLayout}
       accessibilityRole="tablist"
-      accessibilityLabel="Chat scope switcher"
     >
-      {SCOPES.map((scopeCfg, index) => (
-        <ScopeTab
-          key={scopeCfg.key}
-          scopeCfg={scopeCfg}
-          index={index}
-          isActive={scopeCfg.key === activeScope}
-          label={getDisplayLabel(scopeCfg.key, scopeCfg.emoji, scopeCfg.defaultLabel)}
-          onPress={handleTabPress}
-        />
-      ))}
+      <View style={styles.trackInner}>
+        
+        {/* THE PALE GOLD CAPSULE */}
+        {tabWidth > 0 && (
+          <Animated.View
+            style={[
+              styles.capsule,
+              { width: tabWidth, height: SWITCHER.CAPSULE_H },
+              animatedCapsuleStyle,
+            ]}
+            pointerEvents="none"
+          />
+        )}
+
+        {/* SCOPE TABS */}
+        {SCOPES.map((scopeCfg, index) => (
+          <ScopeTab
+            key={scopeCfg.key}
+            scopeCfg={scopeCfg}
+            index={index}
+            isActive={scopeCfg.key === activeScope}
+            label={getLabel(scopeCfg.key, scopeCfg.defaultLabel)}
+            emoji={getEmoji(scopeCfg.key, scopeCfg.emoji)}
+            onPress={handleTabPress}
+          />
+        ))}
+      </View>
     </View>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STYLES
+// STYLES 
 // ─────────────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-
-  // ── Row container ────────────────────────────────────────────────────────
-  // HTML: #row2 { height:48px; padding:0 16px; display:flex; align-items:center;
-  //               background:var(--bg-surface); gap:4px; }
-  row: {
-    height:          SWITCHER.ROW_HEIGHT,
-    flexDirection:   'row',
-    alignItems:      'center',
-    paddingHorizontal: SWITCHER.ROW_PAD_H,
-    gap:             SWITCHER.ROW_GAP,
-    // No background color — inherits from parent screen (bg-surface)
+  trackOuter: {
+    height:           SWITCHER.HEIGHT,
+    // IMPORTANT: Make sure your parent container (App Header) has the off-white/cream 
+    // background color (#FAF7F2 or similar) so this transparent track blends perfectly.
+    backgroundColor:  'transparent', 
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.03)', // Very subtle separator if needed
   },
-
-  // ── Individual tab pressable ─────────────────────────────────────────────
-  // HTML: .scope-tab { flex:1; height:28px; border:none; background:transparent;
-  //                    display:flex; align-items:center; justify-content:center;
-  //                    border-radius:6px; position:relative; }
+  trackInner: {
+    flex:             1,
+    flexDirection:    'row',
+    alignItems:       'center',
+    marginHorizontal: SWITCHER.TRACK_PAD,
+    position:         'relative',
+  },
+  capsule: {
+    position:         'absolute',
+    left:             0,
+    top:              (SWITCHER.HEIGHT - SWITCHER.CAPSULE_H) / 2,
+    borderRadius:     SWITCHER.CAPSULE_RADIUS,
+    
+    // The exact Pale Gold / Sikka Color for the active state
+    backgroundColor:  colors.bg.brandSubtle, // Suggestion: Use Hex #F1E5CC in your theme
+    
+    shadowOpacity:    0,
+    elevation:        0, 
+    zIndex:           0,
+  },
   scopeButton: {
     flex:           1,
-    height:         SWITCHER.TAB_HEIGHT,
-    alignItems:     'center',
+    height:         '100%',
     justifyContent: 'center',
-    borderRadius:   SWITCHER.TAB_RADIUS,
-    position:       'relative',
-    overflow:       'hidden',   // clips the pressed bg to the rounded rect
+    zIndex:         1, 
   },
-
-  // HTML: .scope-tab:hover { background: var(--fg-brand-subtle); }
-  // → rgba(200, 150, 12, 0.10) — warm gold tint on press
-  scopeButtonPressed: {
-    backgroundColor: colors.fg.brandSubtle,   // rgba(200,150,12,0.10)
-  },
-
-  // ── Inner animated row (for press-scale) ────────────────────────────────
   tabContent: {
     flexDirection:  'row',
     alignItems:     'center',
     justifyContent: 'center',
-    paddingHorizontal: 4,
+    gap:            SWITCHER.ITEM_GAP,
+    paddingHorizontal: 2,
   },
-
-  // ── Emoji + label — single Text node ────────────────────────────────────
-  // HTML: .scope-tab-label { font-size:13px; font-weight:400; color:fg-text-muted; }
+  scopeEmoji: {
+    fontSize:   SWITCHER.EMOJI_SIZE,
+    lineHeight: 18, 
+  },
+  textContainer: {
+    flexShrink: 1,
+  },
   scopeLabel: {
-    fontSize:  SWITCHER.LABEL_SIZE,
-    lineHeight: 17,
-    textAlign: 'center',
+    fontSize:   SWITCHER.LABEL_SIZE,
+    lineHeight: 16,
+    textAlign:  'center',
   },
-
-  // HTML: .scope-tab[aria-selected="true"] .scope-tab-label
-  //       { font-weight:600; color:var(--fg-text-strong); }
-  // colors.fg.primary should map to --fg-text-strong (#1A1208 Deep Onyx)
   scopeLabelActive: {
-    fontWeight: '600',
-    color:      colors.fg.primary,
+    color:      colors.fg.primary, // Dark Brown/Black
+    fontWeight: '600', // Crisp and bold
   },
-
-  // HTML: .scope-tab-label { color:var(--fg-text-muted); font-weight:400; }
-  // colors.fg.muted should map to --fg-text-muted (#7A5C2E Antique Bronze)
   scopeLabelInactive: {
-    fontWeight: '400',
-    color:      colors.fg.muted,   // ← update token if needed; see note below
-    // NOTE: If your colors object doesn't have `fg.muted`, use:
-    //   color: '#7A5C2E'  (--fg-text-muted from the HTML design system)
-    // or add `muted: '#7A5C2E'` to your colors.fg token map.
+    color:      colors.fg.primary, // Exact same dark color as active
+    fontWeight: '500', // Just slightly less bold than active
+    opacity:    0.9,   // Extremely subtle optical blending
   },
-
-  // ── Underline indicator ──────────────────────────────────────────────────
-  // HTML: .scope-underline {
-  //   position:absolute; bottom:2px; left:12%; right:12%;
-  //   height:2.5px; background:var(--fg-brand); border-radius:9999px;
-  //   transform:scaleX(0); transform-origin:left;
-  //   transition: transform 120ms ease-out;
-  // }
-  // RN: position absolute, left/right via percentage inset,
-  //     scaleX driven by Animated.View via useAnimatedStyle.
-  underline: {
-    position:        'absolute',
-    bottom:          2,
-    // 12% inset on each side — approximated as flex-relative by using
-    // left/right with percentage strings (RN supports % in layout).
-    left:            '12%',
-    right:           '12%',
-    height:          SWITCHER.UNDERLINE_H,
-    backgroundColor: colors.bg.brand,   // --fg-brand (#C8960C Royal Saffron Gold)
-    borderRadius:    9999,
-    // scaleX starts at 0 (invisible) for inactive tabs,
-    // animated to 1 for active tab via underlineAnimStyle.
-    // transformOrigin emulated: underline is flush-left so
-    // center-scale and left-origin produce identical visual result.
+  chevron: {
+    marginLeft: -2,
+    marginTop: 1, 
+    opacity: 0.8, // Slightly softer drop-down arrow as per photo
   },
-
 });
 
 export default FourScopeSwitcher;
