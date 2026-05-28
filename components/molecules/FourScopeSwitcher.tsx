@@ -1,58 +1,34 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  CROWN — FourScopeSwitcher  v5.2  OMEGA-COHESIVE (ULTRA-PREMIUM)          ║
+ * ║  CROWN — FourScopeSwitcher  v5.3  ROYAL GLOW EDITION (ULTRA-PREMIUM)     ║
  * ║  §1.3.3 Row 2 — The 4-Scope Switcher                                     ║
  * ║  Phase 1.3 · App Architecture                                            ║
  * ║  Owner: Ail Noor Alam (Founder) · Chandigarh · May 2026                  ║
  * ╠══════════════════════════════════════════════════════════════════════════╣
- * ║  CHANGELOG v5.2 — GOD-MIND AUDIT & COHESION UPGRADE:                     ║
- * ║    [1] Aesthetics: Completely redesigned selected state to remove harsh  ║
- * ║        white clashing background. NOW uses cohesive brand gold ring      ║
- * ║        and soft gold glow matching the app's native gold tones.          ║
- * ║    [2] Continuity: Chevron colors aligned to brand gold for active tabs, ║
- * ║        ensuring perfect visual flow.                                     ║
- * ║    [3] Tactile Feedback: Individual press-scale micro-interactions       ║
- * ║        added to each tab, optimized for JSI worklets on the UI thread.   ║
- * ║    [4] Precision Sizing: Compacted visual container to 38px height;      ║
- * ║        padding, item gap, and radii refined for inline horizontal look. ║
- * ║    [5] Font weights enhanced (800 Active, 500 Inactive) for dominance.   ║
+ * ║  CHANGELOG v5.3 — THE PREMIUM ROYAL GLOW UPGRADE:                        ║
+ * ║    [1] Aesthetics: Harsh white clashing background REMOVED. The active   ║
+ * ║        capsule now perfectly matches the "1.2 Lakh+" badge aesthetic     ║
+ * ║        using a cohesive soft gold (`colors.bg.brandSubtle`).             ║
+ * ║    [2] Iconography: Replaced thin 'Feather' icons with bolder, native-   ║
+ * ║        feeling 'Ionicons' for a much more substantial, premium click.    ║
+ * ║    [3] Contrast Fix: Inactive tabs opacity increased (0.65 -> 0.85) and  ║
+ * ║        weight bumped to '600'. They no longer look disabled or dead.     ║
+ * ║    [4] Depth over Lines: Zero harsh borders. The royal look is achieved  ║
+ * ║        purely through color blocking and soft, diffused shadows.         ║
  * ╚══════════════════════════════════════════════════════════════════════════╝
- * * * AESTHETIC DIRECTION: Glass Island / Elevated Material 3
- * Rationale: The previous design had harsh clashing white pills. True cohesion 
- * requires aligning selection states with brand-gold tones, moving away from 
- * wireframe aesthetic. Depth is achieved via soft shadows, not strokes.
- * * * STATE MATRIX — FourScopeSwitcher Tab
+ * * * AESTHETIC DIRECTION: Translucent Royal Glow
+ * Rationale: To fix the "cheap/generic" feel, we align the selection state 
+ * perfectly with the app's core brand identity (Gold). A pale gold pill 
+ * with rich gold text provides a royal, cohesive, and ultra-premium native feel.
+ * * * * STATE MATRIX — FourScopeSwitcher Tab
  * ┌──────────────────────┬─────────────────────────┬─────────────────┬─────────────────────────────┐
  * │ State                │ Visual Change           │ Haptic          │ Animation                   │
  * ├──────────────────────┼─────────────────────────┼─────────────────┼─────────────────────────────┤
- * │ 01 Default / Idle    │ transparent bg, 0.7 opac│ none            │ none                        │
- * │ 02 Hover (web)       │ N/A (Mobile Native)     │ N/A             │ N/A                         │
- * │ 03 Focus (keyboard)  │ a11y focus outline      │ none            │ none                        │
+ * │ 01 Default / Idle    │ transparent bg, 0.85 opc│ none            │ none                        │
  * │ 04 Press-in          │ tab scales down 0.94    │ none            │ spring(mass:1, stiff:450)   │
  * │ 05 Press-release     │ capsule slides to tab   │ Haptic.Light    │ spring(mass:1, stiff:220)   │
- * │ 11 Success           │ gold text, 1.0 opacity  │ none            │ none                        │
- * │ 15 Banned (V5)       │ disabled, opacity 0.3   │ none            │ none                        │
- * │ 16 Disabled          │ opacity 0.3             │ none            │ none                        │
+ * │ 11 Selected (Active) │ pale gold bg, gold text │ none            │ none                        │
  * └──────────────────────┴─────────────────────────┴─────────────────┴─────────────────────────────┘
- * * * INTERACTION: Tap on Tab
- * ─────────────────────────────────────────────────────────────────────
- * 1. TRIGGER
- * Type: tap
- * Touch target: 44x44px minimum (iOS HIG enforced via invisible padding)
- * 2. HAPTIC
- * Type: Haptic.Light
- * Fire timing: at gesture start (onPress evaluation)
- * 3. ANIMATION PHASES
- * Phase 1 (scale): transform down [1.0 → 0.94], spring: {mass:1 stiffness:450 damping:30}
- * Phase 2 (release): transform up [0.94 → 1.0], spring: {mass:1 stiffness:450 damping:30}
- * Phase 3 (slide): translateX [prev → new], spring: {mass:1 stiffness:220 damping:24}
- * 4. VISUAL FEEDBACK
- * Token before: colors.fg.tertiary
- * Token after: colors.fg.brand (aligned brand gold)
- * 5. PERFORMANCE PATH
- * Render thread: UI thread via JSI (Reanimated worklet)
- * Annotation: /* PERF: compositor only, zero layout/paint cost *\/
- * ─────────────────────────────────────────────────────────────────────
  */
 
 import React, { useCallback, useEffect, useRef, useState, memo } from 'react';
@@ -70,7 +46,7 @@ import Animated, {
   type WithSpringConfig,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { Feather } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons'; // UPGRADED: Bolder, premium chevron
 import { colors } from '@/constants/colors';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -119,43 +95,43 @@ const SCOPES: readonly ScopeConfig[] = [
 ] as const satisfies ReadonlyArray<ScopeConfig>;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DESIGN TOKENS v5.2 (ULTRA-COHESIVE PREMIUM)
+// DESIGN TOKENS v5.3 (ROYAL GLOW EDITION)
 // ─────────────────────────────────────────────────────────────────────────────
 
 const SWITCHER = {
-  /** Perfect inline compact height for maximum premium look */
-  HEIGHT: 38 as const,
+  /** Visual compact height for sleek inline layout */
+  HEIGHT: 40 as const,
 
-  /** Inset padding tightens beaker look */
+  /** Inset padding for the track */
   TRACK_PAD:      2  as const,
-  TRACK_RADIUS:   19 as const, // 38 / 2
-  CAPSULE_H:      34 as const, // 38 - (2 * 2)
-  CAPSULE_RADIUS: 17 as const, // 34 / 2
+  TRACK_RADIUS:   20 as const, // 40 / 2
+  CAPSULE_H:      36 as const, // 40 - (2 * 2)
+  CAPSULE_RADIUS: 18 as const, // 36 / 2
 
-  /** Typography (Scaled for inline row harmony) */
-  LABEL_SIZE:   11 as const,
-  EMOJI_SIZE:   12 as const,
-  CHEVRON_SIZE: 10 as const,
+  /** Typography (Balanced for visual hierarchy) */
+  LABEL_SIZE:   12 as const,
+  EMOJI_SIZE:   13 as const,
+  CHEVRON_SIZE: 12 as const, // Slightly larger for the new Ionicons chevron
   
-  /** Gap between visual elements for premium breathing room */
+  /** Gap between Emoji and Text */
   ITEM_GAP:     4  as const,
 
   TAB_COUNT: 4 as const,
 
-  /** Cohesive Premium fluid springs */
+  /** Premium fluid springs */
   SPRING_SLIDE: { mass: 1, stiffness: 220, damping: 24 } as const satisfies WithSpringConfig,
   SPRING_PRESS: { mass: 1, stiffness: 450, damping: 30 } as const satisfies WithSpringConfig,
 
   HAPTIC: Haptics.ImpactFeedbackStyle.Light,
 
-  /** Perfected Inactive Contrast Opacities */
-  OPACITY_EMOJI_INACTIVE:   0.60 as const,
-  OPACITY_LABEL_INACTIVE:   0.65 as const,
-  OPACITY_CHEVRON_INACTIVE: 0.40 as const,
+  /** Fixed Contrast Opacities (No longer looks faded/dead) */
+  OPACITY_EMOJI_INACTIVE:   0.90 as const,
+  OPACITY_LABEL_INACTIVE:   0.85 as const,
+  OPACITY_CHEVRON_INACTIVE: 0.70 as const,
 
-  /** Premium diffused cohesive gold shadows (Zero Clashing White) */
-  SHADOW_CAPSULE_OPACITY: 0.10 as const, // Diffused shadow depth
-  SHADOW_CAPSULE_RADIUS:  6    as const,
+  /** Soft diffused depth */
+  SHADOW_CAPSULE_OPACITY: 0.08 as const,
+  SHADOW_CAPSULE_RADIUS:  4    as const,
   SHADOW_CAPSULE_OFFSET:  { width: 0, height: 2 } as const,
 } as const;
 
@@ -235,7 +211,8 @@ const ScopeTab = memo(({
             : 'Double-tap to switch scope'
           : undefined
       }
-      hitSlop={{ top: 8, bottom: 8, left: 0, right: 0 }} // Accessibility minimums met
+      /* Expands touchable area to meet strict 44px HIG minimums */
+      hitSlop={{ top: 8, bottom: 8, left: 2, right: 2 }}
     >
       <Animated.View style={[styles.tabContent, animatedStyle]}>
         
@@ -247,7 +224,7 @@ const ScopeTab = memo(({
           {emoji}
         </Text>
 
-        {/* Text Container ( flexShrink handles long city names) */}
+        {/* Text Area (Flex-shrink protects against overflow) */}
         <View style={styles.textContainer}>
           <Text
             style={[
@@ -261,12 +238,12 @@ const ScopeTab = memo(({
           </Text>
         </View>
 
-        {/* Cohesive Chevron (Active gold, Inactive grey) */}
+        {/* Premium Chevron Upgrade */}
         {showChevron && (
-          <Feather
+          <Ionicons
             name="chevron-down"
             size={SWITCHER.CHEVRON_SIZE}
-            color={isActive ? colors.fg.brand : colors.fg.tertiary}
+            color={isActive ? colors.fg.brand : colors.fg.secondary}
             style={[styles.chevron, !isActive && styles.chevronInactive]}
             accessibilityElementsHidden
             importantForAccessibility="no"
@@ -393,16 +370,16 @@ export function FourScopeSwitcher({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STYLES v5.2 (ULTRA-COHESIVE & SLEEK)
+// STYLES v5.3 (ROYAL GLOW EDITION)
 // ─────────────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   trackOuter: {
     height:           SWITCHER.HEIGHT,
     borderRadius:     SWITCHER.TRACK_RADIUS,
-    backgroundColor:  colors.bg.surfaceMuted,
+    backgroundColor:  colors.bg.surfaceMuted, // A very subtle off-white/cream
     overflow:         'hidden',
-    /* Constitutional Change: harsh wireframe borders are deleted permanently */
+    /* Zero borders for an ultra-clean, modern aesthetic */
   },
   trackInner: {
     flex:             1,
@@ -412,28 +389,26 @@ const styles = StyleSheet.create({
     marginVertical:   SWITCHER.TRACK_PAD,
     position:         'relative',
   },
-  /** * Elevated Capsule Design:
-   * Removes Clashing White Pill look. Cohesive gold glow aligns the selection 
-   * color perfectly with the Brand Gold seen on the '1.2 Lakh+' pill. Depth 
-   * is achieved purely through diffused shadows and surface color contrast, 
-   * not wireframe strokes.
+  /** * * ROYAL GOLD PILL (The Premium Fix):
+   * This is where the magic happens. We replaced the generic clashing white 
+   * with `brandSubtle` (a soft pale gold), which perfectly mirrors the 
+   * aesthetic of the '1.2 Lakh+' badge.
    */
   capsule: {
     position:         'absolute',
     left:             0,
     top:              0,
     borderRadius:     SWITCHER.CAPSULE_RADIUS,
-    backgroundColor:  colors.bg.surface, // Pure white surface base
     
-    /* V5 Cohesive Premium execution: Gold border and Gold shadow depth */
-    borderWidth:      1,
-    borderColor:      colors.border.gold, // Subtle gold ring matching brand tones
+    /* The soft gold background (matches the badge) */
+    backgroundColor:  colors.bg.brandSubtle, 
     
-    shadowColor:      colors.shadow.gold, // Shadow color changed to brand gold tone
+    /* Soft, diffused depth */
+    shadowColor:      colors.shadow.gold, 
     shadowOffset:     SWITCHER.SHADOW_CAPSULE_OFFSET,
-    shadowOpacity:    SWITCHER.SHADOW_CAPSULE_OPACITY, // diffused soft depth
+    shadowOpacity:    SWITCHER.SHADOW_CAPSULE_OPACITY,
     shadowRadius:     SWITCHER.SHADOW_CAPSULE_RADIUS,
-    elevation:        4, 
+    elevation:        2, 
   },
   scopeButton: {
     flex:           1,
@@ -442,7 +417,6 @@ const styles = StyleSheet.create({
     zIndex:         1,
   },
   tabContent: {
-    /* ULTRA-PREMIUM COMPACT INLINE LAYOUT */
     flexDirection:  'row',
     alignItems:     'center',
     justifyContent: 'center',
@@ -451,32 +425,34 @@ const styles = StyleSheet.create({
   },
   scopeEmoji: {
     fontSize:   SWITCHER.EMOJI_SIZE,
-    lineHeight: 14,
+    lineHeight: 16,
     opacity:    1.0,
   },
   scopeEmojiInactive: {
     opacity: SWITCHER.OPACITY_EMOJI_INACTIVE,
   },
   textContainer: {
-    flexShrink: 1, // Prevents long text from overflowing the tab bounds
+    flexShrink: 1,
   },
   scopeLabel: {
     fontSize:   SWITCHER.LABEL_SIZE,
-    lineHeight: 14,
+    lineHeight: 15,
     textAlign:  'center',
-    letterSpacing: -0.2, // Premium tracking tightens look
+    letterSpacing: -0.2,
   },
   scopeLabelActive: {
+    /* Rich, dark brand gold text sits perfectly on top of the pale gold pill */
     color:      colors.fg.brand,
-    fontWeight: '800', // Maximum dominance for brand gold text
+    fontWeight: '800', 
   },
   scopeLabelInactive: {
-    color:      colors.fg.tertiary,
-    fontWeight: '500',
+    /* Upgraded contrast (colors.fg.secondary + weight 600) so it doesn't look dead */
+    color:      colors.fg.secondary,
+    fontWeight: '600',
     opacity:    SWITCHER.OPACITY_LABEL_INACTIVE,
   },
   chevron: {
-    marginTop: 1, // Optical vertical alignment
+    marginTop: 1, 
   },
   chevronInactive: {
     opacity: SWITCHER.OPACITY_CHEVRON_INACTIVE,
