@@ -1,18 +1,20 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  CROWN — FourScopeSwitcher  v7.2  HTML EXACT VISUAL REPLICATION          ║
+ * ║  CROWN — FourScopeSwitcher  v7.1  PRD & PHOTO EXACT COMBINATION          ║
  * ║  §1.3.3 Row 2 — The 4-Scope Switcher                                     ║
  * ║  Phase 1.3 · App Architecture                                            ║
- * ║  Owner: Noor Aalam (Founder) · Chandigarh · May 2026                     ║
+ * ║  Owner: Ail Noor Alam (Founder) · Chandigarh · May 2026                  ║
  * ╠══════════════════════════════════════════════════════════════════════════╣
- * ║  CHANGELOG v7.2 — EXACT HTML/CSS INTEGRATION:                            ║
- * ║    [1] Dimensions Matched: Tabs exactly 26px high, centered inside 38px  ║
- * ║        row, perfectly matching the HTML layout.                          ║
- * ║    [2] Tab Gap & Sliding Math: Calculated 4px (SP_1) gap between tabs    ║
- * ║        with updated Reanimated spring logic for seamless sliding.        ║
- * ║    [3] Premium Borders: Radius set strictly to 6px (var(--radius-md)).   ║
- * ║    [4] Semantic Colors Maintained: No hardcoded hex values; relying on   ║
- * ║        the dynamic `colors` palette for an elite, themeable UI.          ║
+ * ║  CHANGELOG v7.1 — EXACT VISUAL & STRUCTURAL INTEGRATION:                 ║
+ * ║    [1] Background Isolation: Outer track background locked to pure white  ║
+ * ║        (`colors.bg.surface`), matching explicit request.                 ║
+ * ║    [2] Capsule Aesthetics: Active indicator rendered as a flat, shadowless║
+ * ║        biscuit/gold pill (`colors.bg.brandSubtle`) with 8px radius.      ║
+ * ║    [3] Default Anchor: Active state strictly defaults to 'world' on       ║
+ * ║        initial render, snapping position instantly with zero animation.  ║
+ * ║    [4] CSS Triangle: Zero icon font footprints. Arrow drawn natively via  ║
+ * ║        React Native boundary interpolation (border matrix layout).        ║
+ * ║    [5] Typography: Complies with PRD weights (Active: 600, Inactive: 400).║
  * ╚══════════════════════════════════════════════════════════════════════════╝
  */
 
@@ -79,20 +81,31 @@ const SCOPES: readonly ScopeConfig[] = [
 ] as const satisfies ReadonlyArray<ScopeConfig>;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DESIGN TOKENS (HTML STRICT MATCH)
+// DESIGN TOKENS (PRD STRICT)
 // ─────────────────────────────────────────────────────────────────────────────
 
 const PRD_TOKENS = {
+  /** PRD Section 1: var(--height-row2) locked strictly to 38px */
   HEIGHT_ROW2: 38 as const,
-  TAB_HEIGHT:  26 as const, // Exactly as per HTML
-  TAB_COUNT:   4 as const,
-  SP_3:        12 as const, // Padding
-  SP_1:        4 as const,  // Gap between tabs
-  RADIUS_MD:   6 as const,  // Exact border radius from HTML
-  FONT_SIZE:   12 as const,
-  WEIGHT_REG:  '400' as const,
-  WEIGHT_BLD:  '600' as const,
 
+  /** PRD Section 1: left/right layout bounds padding var(--sp-3) (12px) */
+  SP_3: 12 as const,
+
+  /** PRD Section 1: Tabs spacing gap var(--sp-1) (4px) */
+  SP_1: 4 as const,
+
+  /** PRD Section 2: Medium border radius var(--radius-md) (8px) */
+  RADIUS_MD: 8 as const,
+
+  /** PRD Section 3 Typography parameters */
+  FONT_SIZE:  12 as const,
+  WEIGHT_REG: '400' as const,
+  WEIGHT_BLD: '600' as const,
+
+  /** Total number of scope tabs */
+  TAB_COUNT: 4 as const,
+
+  /** Spring response constraints */
   SPRING_SLIDE: { mass: 1, stiffness: 240, damping: 26 } as const satisfies WithSpringConfig,
   SPRING_PRESS: { mass: 1, stiffness: 450, damping: 30 } as const satisfies WithSpringConfig,
 
@@ -130,12 +143,17 @@ interface ScopeTabProps {
 // PURE NATIVE CSS-TRIANGLE ARROW COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * PRD Section 3 Compliance: Draws a strict CSS Triangle trick natively via
+ * bounding layout borders. Zero vector graphic or icon font footprints.
+ */
 const CssTriangleChevron = memo(({ isActive }: { isActive: boolean }) => {
   return (
     <View
       style={[
         styles.cssTriangle,
         {
+          // PRD Section 4: Selected chevron turns brand color, unselected is muted text token
           borderTopColor: isActive ? colors.fg.brand : colors.fg.tertiary,
         },
       ]}
@@ -190,7 +208,8 @@ const ScopeTab = memo(({
       hitSlop={{ top: 8, bottom: 8, left: 2, right: 2 }}
     >
       <Animated.View style={[styles.tabContent, animatedStyle]}>
-        
+
+        {/* Emoji + Label Text */}
         <Text style={styles.scopeEmoji} allowFontScaling={false}>
           {emoji}
         </Text>
@@ -208,8 +227,9 @@ const ScopeTab = memo(({
           </Text>
         </View>
 
+        {/* Triangle Chevron Element */}
         {showChevron && <CssTriangleChevron isActive={isActive} />}
-        
+
       </Animated.View>
     </Pressable>
   );
@@ -218,25 +238,27 @@ const ScopeTab = memo(({
 ScopeTab.displayName = 'ScopeTab';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CORE MAIN LAYER
+// CORE MAIN COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function FourScopeSwitcher({
-  activeScope = 'world', 
+  activeScope = 'world', // Strict execution rule: Default directly to World chat context
   onScopeChange,
   onPickerOpen,
   labels,
 }: FourScopeSwitcherProps): React.JSX.Element {
 
-  const [tabWidthState, setTabWidthState] = useState<number>(0);
+  const [trackWidth, setTrackWidth] = useState<number>(0);
   const tabWidthRef = useRef<number>(0);
   const userInitiatedRef = useRef<boolean>(false);
   const isFirstRender = useRef<boolean>(true);
 
   const capsuleX = useSharedValue<number>(0);
-  const activeIndex = SCOPES.findIndex((s) => s.key === activeScope) !== -1 
-    ? SCOPES.findIndex((s) => s.key === activeScope) 
-    : 0;
+
+  const activeIndex =
+    SCOPES.findIndex((s) => s.key === activeScope) !== -1
+      ? SCOPES.findIndex((s) => s.key === activeScope)
+      : 0;
 
   const animatedCapsuleStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: capsuleX.value }],
@@ -245,29 +267,24 @@ export function FourScopeSwitcher({
   const slideCapsule = useCallback((toIndex: number, instant: boolean = false): void => {
     const tw = tabWidthRef.current;
     if (tw <= 0) return;
-    
-    // Position includes the width of the tabs PLUS the gaps between them
-    const targetX = toIndex * (tw + PRD_TOKENS.SP_1);
-    
+
     if (instant) {
-      capsuleX.value = targetX;
+      capsuleX.value = toIndex * tw;
     } else {
-      capsuleX.value = withSpring(targetX, PRD_TOKENS.SPRING_SLIDE);
+      capsuleX.value = withSpring(toIndex * tw, PRD_TOKENS.SPRING_SLIDE);
     }
   }, [capsuleX]);
 
   const onTrackLayout = useCallback((e: LayoutChangeEvent): void => {
     const w = e.nativeEvent.layout.width;
     const usableSpace = w - (PRD_TOKENS.SP_3 * 2);
-    
-    // Calculate tab width accounting for the 4px gaps
-    const totalGapSpace = (PRD_TOKENS.TAB_COUNT - 1) * PRD_TOKENS.SP_1;
-    const computedTabWidth = (usableSpace - totalGapSpace) / PRD_TOKENS.TAB_COUNT;
-    
+    const computedTabWidth = usableSpace / PRD_TOKENS.TAB_COUNT;
+
     tabWidthRef.current = computedTabWidth;
-    setTabWidthState(computedTabWidth);
-    
-    capsuleX.value = activeIndex * (computedTabWidth + PRD_TOKENS.SP_1);
+    setTrackWidth(usableSpace);
+
+    // Exact structural load: Instant alignment baseline execution
+    capsuleX.value = activeIndex * computedTabWidth;
   }, [capsuleX, activeIndex]);
 
   useEffect(() => {
@@ -310,6 +327,8 @@ export function FourScopeSwitcher({
     return defaultEmoji;
   }, [labels]);
 
+  const tabWidth = trackWidth > 0 ? trackWidth / PRD_TOKENS.TAB_COUNT : 0;
+
   return (
     <View
       style={styles.trackOuter}
@@ -318,18 +337,20 @@ export function FourScopeSwitcher({
       accessibilityLabel="Chat scope selector"
     >
       <View style={styles.trackInner}>
-        
-        {tabWidthState > 0 && (
+
+        {/* FLAT SIKKA-GOLD PILL CAPSULE INDICATOR */}
+        {tabWidth > 0 && (
           <Animated.View
             style={[
               styles.capsule,
-              { width: tabWidthState },
+              { width: tabWidth },
               animatedCapsuleStyle,
             ]}
             pointerEvents="none"
           />
         )}
 
+        {/* MAPPED NAVIGATION INTERACTION ELEMENTS */}
         {SCOPES.map((scopeCfg, index) => (
           <ScopeTab
             key={scopeCfg.key}
@@ -347,67 +368,89 @@ export function FourScopeSwitcher({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STYLES MATRIX (EXACT HTML/CSS REPLICATION)
+// STYLES MATRIX (PRD METICULOUS COMPLIANCE)
 // ─────────────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   trackOuter: {
+    /* PRD Section 1: Fixed height set karni hai (var(--height-row2) jo lagbhag 38px hoti hai) */
     height: PRD_TOKENS.HEIGHT_ROW2,
-    backgroundColor: colors.bg.surface, 
+
+    /* PRD Section 1: Background: Container ka background base surface color (var(--bg-surface)) - Pure White Request Verified */
+    backgroundColor: colors.bg.surface,
+
+    /* PRD Section 1: container ke left/right mein padding (var(--sp-3)) */
     paddingHorizontal: PRD_TOKENS.SP_3,
+
     justifyContent: 'center',
     overflow: 'hidden',
   },
   trackInner: {
     flex: 1,
     flexDirection: 'row',
-    alignItems: 'center', // Vertically centers the 26px tabs inside 38px
-    gap: PRD_TOKENS.SP_1, // The 4px gap exactly as in HTML
+    /* PRD Section 1: Items ko vertically center (align-items: center) aur horizontally evenly distribute */
+    alignItems: 'center',
+    justifyContent: 'space-between',
     position: 'relative',
   },
   capsule: {
     position: 'absolute',
     left: 0,
-    top: (PRD_TOKENS.HEIGHT_ROW2 - PRD_TOKENS.TAB_HEIGHT) / 2, // Centering math: (38 - 26) / 2 = 6px
-    height: PRD_TOKENS.TAB_HEIGHT, // 26px
-    borderRadius: PRD_TOKENS.RADIUS_MD, // 6px
-    backgroundColor: colors.bg.brandSubtle, 
+    height: '100%',
+
+    /* PRD Section 2: Border radius medium (var(--radius-md)) */
+    borderRadius: PRD_TOKENS.RADIUS_MD,
+
+    /* PRD Section 4: Active State: Ek light tinted biscuit/gold background pill dikhna chahiye (Flat execution, no shadows) */
+    backgroundColor: colors.bg.brandSubtle,
+
     zIndex: 0,
   },
   scopeButton: {
+    /* PRD Section 2: Sizing: Har tab ko equal width milni chahiye (flex: 1) */
     flex: 1,
-    height: PRD_TOKENS.TAB_HEIGHT, // 26px
+    height: '100%',
     justifyContent: 'center',
-    alignItems: 'center',
+    zIndex: 1,
+    /* PRD Section 2: Button ka default background transparent hona chahiye */
     backgroundColor: 'transparent',
-    zIndex: 1, 
-    padding: 0,
   },
   tabContent: {
     flexDirection: 'row',
+    /* PRD Section 2: Content Layout: Har tab ke andar text ko horizontally aur vertically center align karna hai */
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 3, // HTML specifically uses 3px gap for text content and arrow
+    /* PRD Section 1: Tabs ke beech mein thoda gap (var(--sp-1)) */
+    gap: PRD_TOKENS.SP_1,
   },
   scopeEmoji: {
-    fontSize: 12,
+    fontSize: 13,
   },
   textContainer: {
     flexShrink: 1,
   },
   scopeLabel: {
+    /* PRD Section 3: Text Style: Font size chhota (approx 12px) */
     fontSize: PRD_TOKENS.FONT_SIZE,
     textAlign: 'center',
-    letterSpacing: 0.01,
+    letterSpacing: -0.1,
   },
   scopeLabelInactive: {
-    color: colors.fg.tertiary, 
+    /* PRD Section 3: Default Color: Unselected text ka color muted hona chahiye (var(--fg-text-muted)) */
+    color: colors.fg.tertiary,
+    /* PRD Section 3: font weight regular (400) */
     fontWeight: PRD_TOKENS.WEIGHT_REG,
   },
   scopeLabelActive: {
-    color: colors.fg.primary, 
+    /* PRD Section 4: Active State Text: Font weight bold (600) aur color strong (var(--fg-text-strong)) */
+    color: colors.fg.primary,
     fontWeight: PRD_TOKENS.WEIGHT_BLD,
   },
+
+  /**
+   * PRD Section 3 Structural Layout Requirement:
+   * CSS Trick: border-left: 4px solid transparent, border-right: 4px solid transparent, border-top: 5px solid ...
+   */
   cssTriangle: {
     width: 0,
     height: 0,
@@ -418,8 +461,9 @@ const styles = StyleSheet.create({
     borderTopWidth: 5,
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
-    marginTop: 1, // Matched from HTML margin-top
-    marginLeft: 0, 
+    // borderTopColor interpolates contextually through state evaluations above
+    marginLeft: 2,
+    marginTop: 3, // Optical text baseline adjustment
   },
 });
 
