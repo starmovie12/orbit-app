@@ -1,169 +1,444 @@
 /**
- * CROWN — FourScopeSwitcher v7.1
- * React Native (Reanimated v3 / RN 0.73+)
+ * ╔══════════════════════════════════════════════════════════════════════════╗
+ * ║  CROWN — FourScopeSwitcher  v7.1  FINAL MASTER                          ║
+ * ║  §1.3.3 Row 2 — The 4-Scope Switcher                                    ║
+ * ║  Phase 1.3 · App Architecture                                           ║
+ * ║  Owner: Ail Noor Alam (Founder) · Chandigarh · May 2026                 ║
+ * ╠══════════════════════════════════════════════════════════════════════════╣
+ * ║  SOURCES RECONCILED (3-file synthesis):                                 ║
+ * ║    [A] crown-scope-switcher.html   — Ground-truth visual reference      ║
+ * ║    [B] FourScopeSwitcher (2).tsx   — Prod interface, haptics, types     ║
+ * ║    [C] FourScopeSwitcher (3).tsx   — Mobile-calibrated optical tokens   ║
+ * ╠══════════════════════════════════════════════════════════════════════════╣
+ * ║  VISUAL-MATCH PRD  (Phase 1)                                            ║
+ * ║                                                                         ║
+ * ║  1. OPTICAL LAYOUT                                                      ║
+ * ║     • Track: warm off-white (#FFF8F0) pill, 44dp tall.                  ║
+ * ║       Web is 38px — 44dp is the mobile touch-target correction.         ║
+ * ║       Visually identical at mobile DPI due to sub-pixel sharpness.      ║
+ * ║     • H_PAD: 12dp (mirrors HTML var(--sp-3) = 12px exactly).           ║
+ * ║     • Capsule: 3dp top/bottom inset (HTML: top:3px / bottom:3px).       ║
+ * ║       Slides via translateX — left anchor never moves.                  ║
+ * ║     • Tabs: flex:1, centered row — emoji · label · chevron — gap 3dp.   ║
+ * ║                                                                         ║
+ * ║  2. TYPOGRAPHY & EMOJI                                                  ║
+ * ║     • Label: 12sp (matches HTML 12px), weight 400/600.                  ║
+ * ║     • Letter-spacing: 0.15 ≈ HTML letter-spacing: 0.01em @ 12px.       ║
+ * ║     • Emoji: isolated Text node, fontSize 13sp, lineHeight 16dp.        ║
+ * ║       Prevents Android balloon + iOS clip. No letter-spacing bleed.     ║
+ * ║     • includeFontPadding:false (Android) collapses phantom ascenders.   ║
+ * ║     • lineHeight 16 on label matches emoji — exact baseline parity.     ║
+ * ║                                                                         ║
+ * ║  3. COMPONENT HIERARCHY                                                 ║
+ * ║     FourScopeSwitcher (View, flexRow, paddingH=12, overflow:hidden)     ║
+ * ║       ├── Capsule (Animated.View, position:absolute, left=H_PAD)        ║
+ * ║       └── ScopeTab × 4 (Pressable → Animated.View → emoji+label+▼)     ║
+ * ║                                                                         ║
+ * ║  4. ANIMATION                                                           ║
+ * ║     • Slide spring: { damping:18, stiffness:185, mass:0.6 }             ║
+ * ║       ≈ CSS cubic-bezier(0.25,0.46,0.45,0.94) / 320ms.                 ║
+ * ║       ~300-340ms settle, zero overshoot — visually identical.           ║
+ * ║     • Press spring: { stiffness:450, damping:30 } → scale 0.95.        ║
+ * ║     • Mount / orientation change: instant snap (no spring travel).      ║
+ * ║                                                                         ║
+ * ║  5. DESIGN TOKENS                                                       ║
+ * ║     Zero hardcoded hex. All colours via `colors` from @/constants/colors║
+ * ║     Required shape documented in REQUIRED_COLORS below.                 ║
+ * ║                                                                         ║
+ * ║  6. CAPSULE GEOMETRY (why it aligns perfectly)                          ║
+ * ║     • Track total width = W                                             ║
+ * ║     • Usable tab area = W − 2 × H_PAD                                  ║
+ * ║     • tabWidth = usable / 4                                             ║
+ * ║     • Capsule left anchor = H_PAD (matches padding edge exactly)        ║
+ * ║     • Capsule translateX @ index i = i × tabWidth                       ║
+ * ║     • At i=0: occupies [H_PAD .. H_PAD+tabWidth] ✓                      ║
+ * ║     • At i=3: right edge = H_PAD + 4×tabWidth = W − H_PAD ✓            ║
+ * ╚══════════════════════════════════════════════════════════════════════════╝
  *
- * ─────────────────────────────────────────────
- *  VISUAL-MATCH PRD  (Phase 1)
- * ─────────────────────────────────────────────
+ * REQUIRED peer deps:
+ *   react-native-reanimated  >= 3.0
+ *   expo-haptics             >= any
  *
- *  1. OPTICAL LAYOUT
- *     • Track: warm off-white pill, 44 dp tall (up from 38 px web — mobile
- *       touch-target correction). 10 dp horizontal padding gives the same
- *       visual "breathing room" as web's 12 px at mobile DPI.
- *     • Capsule: 4 dp vertical inset (web: 3 px) — appears identical to eye
- *       because mobile sub-pixel rendering is sharper. Slides via translateX
- *       so the anchor `left` never changes.
- *     • Tabs: flex:1, centered row — emoji · label · chevron — with 3 dp gap.
- *       No explicit padding inside the tab; centering does the work.
- *
- *  2. TYPOGRAPHY & EMOJI ALIGNMENT
- *     • Label: 11.5 sp rounds to 12 in practice; use 12 sp to keep parity
- *       with web. iOS/Android add phantom ascender padding around Text nodes.
- *       Fix: `includeFontPadding: false` (Android) + explicit `lineHeight`
- *       matching fontSize so baselines collapse to a predictable value.
- *     • Emoji: fontSize 13 sp, lineHeight 16 — prevents the emoji from
- *       ballooning on Android and from clipping on iOS. Wrapping in its own
- *       Text node with no letter-spacing isolates OS emoji metrics from the
- *       label.
- *     • Letter-spacing: web uses 0.01em ≈ 0.12 px at 12 px. React Native
- *       `letterSpacing` is in logical pixels. Use 0.15 for optical parity.
- *
- *  3. COMPONENT BOUNDARIES
- *     • FourScopeSwitcher (function component)
- *       └─ Track  (View, overflow:'hidden', position:'relative')
- *          ├─ Capsule  (Animated.View, position:'absolute')
- *          └─ [Tab × 4]  (Pressable → row: Emoji · Label · Chevron)
- *
- *  4. ANIMATION
- *     • Web: cubic-bezier(0.25, 0.46, 0.45, 0.94) / 320 ms = ease-out spring
- *     • RN approximation: withSpring({ damping: 18, stiffness: 185, mass: 0.6 })
- *       This produces ~300-340 ms settle with zero overshoot — visually
- *       identical to the CSS cubic-bezier.
- *
- *  5. DESIGN TOKENS  (zero hardcoded hex in the component)
- *     All colours reference the `CROWN` token map below. Swap
- *     `import { CROWN } from '@/tokens/crown'` in your project.
- * ─────────────────────────────────────────────
+ * REQUIRED_COLORS — your @/constants/colors must export:
+ *   colors.bg.surface       → #FFF8F0  (warm off-white track background)
+ *   colors.bg.brandSubtle   → rgba(200,150,12,0.18) (translucent gold capsule)
+ *   colors.fg.brand         → #C8960C  (active chevron gold)
+ *   colors.fg.primary       → #1A1208  (active label — near-black warm)
+ *   colors.fg.tertiary      → #7A5C2E  (inactive label + chevron — warm brown)
  */
 
 import React, {
-  useState,
-  useRef,
+  memo,
   useCallback,
   useEffect,
+  useRef,
+  useState,
 } from 'react';
 import {
-  View,
-  Text,
+  LayoutChangeEvent,
+  Platform,
   Pressable,
   StyleSheet,
-  Platform,
-  LayoutChangeEvent,
+  Text,
+  View,
 } from 'react-native';
 import Animated, {
-  useSharedValue,
   useAnimatedStyle,
+  useSharedValue,
   withSpring,
+  type WithSpringConfig,
 } from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
+import { colors } from '@/constants/colors';
 
-// ─── CROWN Design Token Map ──────────────────────────────────────────────────
-// Replace with `import { CROWN } from '@/tokens/crown'` in your project.
-const CROWN = {
-  bg: {
-    surface:     '#FFF8F0',           // warm off-white track background
-    brandSubtle: 'rgba(200,150,12,0.18)', // translucent gold capsule fill
-    tabPressed:  'rgba(200,150,12,0.09)', // hover/press tint on inactive tab
+// ─────────────────────────────────────────────────────────────────────────────
+// TYPES
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ChatScope = 'world' | 'country' | 'city' | 'sector';
+
+interface ScopeConfig {
+  readonly key:          ChatScope;
+  readonly emoji:        string;
+  readonly defaultLabel: string;
+  readonly hasPicker:    boolean;
+  readonly a11yLabel:    string;
+}
+
+export interface ScopeLabel {
+  readonly country:      string;
+  readonly city:         string;
+  readonly sector:       string;
+  readonly countryEmoji: string;
+}
+
+export interface FourScopeSwitcherProps {
+  readonly activeScope:   ChatScope;
+  readonly onScopeChange: (scope: ChatScope) => void;
+  readonly onPickerOpen:  (scope: ChatScope) => void;
+  readonly labels:        ScopeLabel;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SCOPE DEFINITIONS
+// ─────────────────────────────────────────────────────────────────────────────
+
+const SCOPES: readonly ScopeConfig[] = [
+  {
+    key:          'world',
+    emoji:        '🌍',
+    defaultLabel: 'World',
+    hasPicker:    true,
+    a11yLabel:    'World chat — duniya bhar ke users se baat karo',
   },
-  fg: {
-    brand:       '#C8960C',           // active chevron gold
-    textStrong:  '#1A1208',           // active label — near-black warm
-    textMuted:   '#7A5C2E',           // inactive label — warm brown
+  {
+    key:          'country',
+    emoji:        '🇮🇳',
+    defaultLabel: 'India',
+    hasPicker:    true,
+    a11yLabel:    'Country chat. Tap to change country.',
   },
-  radius: {
-    track:   8,   // outer track corners
-    capsule: 6,   // inner capsule corners
-    tab:     6,   // tab press highlight corners
+  {
+    key:          'city',
+    emoji:        '🏙️',
+    defaultLabel: 'Mumbai',
+    hasPicker:    true,
+    a11yLabel:    'City chat. Tap to change city.',
   },
-};
+  {
+    key:          'sector',
+    emoji:        '📍',
+    defaultLabel: 'Bandra W',
+    hasPicker:    true,
+    a11yLabel:    'Sector chat. Tap to change sector.',
+  },
+] as const satisfies ReadonlyArray<ScopeConfig>;
 
-// ─── Tab Definitions ─────────────────────────────────────────────────────────
-const TABS = [
-  { key: 'world',  emoji: '🌍', label: 'World'   },
-  { key: 'india',  emoji: '🇮🇳', label: 'India'   },
-  { key: 'mumbai', emoji: '🏙️',  label: 'Mumbai'  },
-  { key: 'bandra', emoji: '📍',  label: 'Bandra W' },
-] as const;
+const N_TABS = SCOPES.length; // 4
 
-// ─── Layout Constants ─────────────────────────────────────────────────────────
-const TRACK_HEIGHT  = 44;   // dp — mobile touch-target corrected from web 38 px
-const H_PAD         = 10;   // dp — horizontal breathing room (web: 12 px)
-const CAPSULE_INSET =  4;   // dp vertical inset (web: 3 px)
-const N_TABS        = TABS.length;
+// ─────────────────────────────────────────────────────────────────────────────
+// LAYOUT CONSTANTS  (optically matched to HTML, not pixel-copied)
+// ─────────────────────────────────────────────────────────────────────────────
 
-// ─── Spring Config (matches web cubic-bezier(0.25,0.46,0.45,0.94) / 320ms) ───
-const SPRING = {
+/**
+ * 44dp — mobile touch-target correction from HTML's 38px.
+ * At typical mobile DPI the extra height is sub-pixel-invisible to the eye
+ * but is critical for comfortable thumb interaction.
+ */
+const TRACK_HEIGHT = 44 as const;
+
+/**
+ * 12dp — mirrors HTML var(--sp-3) = 12px exactly.
+ * Both the capsule left-anchor and the tab usable-area start here.
+ */
+const H_PAD = 12 as const;
+
+/**
+ * 3dp — mirrors HTML top:3px / bottom:3px on the capsule.
+ * (File C used 4dp to compensate for sharper mobile sub-pixel rendering;
+ *  this value stays at 3 to remain true to the HTML visual.)
+ */
+const CAPSULE_INSET = 3 as const;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SPRING CONFIGS
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Slide spring — matches HTML cubic-bezier(0.25, 0.46, 0.45, 0.94) / 320ms.
+ * Produces ~310ms settle, zero overshoot. (Source: File C PRD §4)
+ */
+const SPRING_SLIDE: WithSpringConfig = {
   damping:   18,
   stiffness: 185,
   mass:      0.6,
-};
+} as const;
+
+/**
+ * Press scale spring — quick, snappy squish feedback.
+ * Resolves in ~80ms; user perceives it as instant.
+ */
+const SPRING_PRESS: WithSpringConfig = {
+  damping:   30,
+  stiffness: 450,
+  mass:      1,
+} as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
-export default function FourScopeSwitcher() {
-  // Active tab index (default: Mumbai = 2, per PRD)
-  const [activeIdx, setActiveIdx]   = useState(2);
+// CHEVRON  (CSS border-triangle, zero icon font footprint)
+// ─────────────────────────────────────────────────────────────────────────────
 
-  // Tab pixel width resolved after first layout
-  const [tabWidth, setTabWidth]     = useState(0);
+/**
+ * Optical tweak vs HTML (4/4/5px → 3.5/3.5/4.5dp):
+ * Mobile pixel density makes the border triangle appear larger than on web.
+ * Reducing by ~12% restores the correct visual weight relative to 12sp text.
+ */
+const Chevron = memo(({ isActive }: { isActive: boolean }) => (
+  <View
+    style={[
+      styles.chevron,
+      { borderTopColor: isActive ? colors.fg.brand : colors.fg.tertiary },
+    ]}
+  />
+));
+Chevron.displayName = 'Chevron';
 
-  // Refs avoid stale-closure issues inside layout/animation callbacks
-  const activeIdxRef = useRef(2);
-  const tabWidthRef  = useRef(0);
-  const didInit      = useRef(false);
+// ─────────────────────────────────────────────────────────────────────────────
+// SCOPE TAB  (single button — memo-wrapped to prevent cascade re-renders)
+// ─────────────────────────────────────────────────────────────────────────────
 
-  // Shared value drives the capsule's translateX
-  const capsuleX = useSharedValue(0);
+interface ScopeTabProps {
+  readonly scopeCfg: ScopeConfig;
+  readonly index:    number;
+  readonly isActive: boolean;
+  readonly label:    string;
+  readonly emoji:    string;
+  readonly onPress:  (scope: ChatScope, index: number) => void;
+}
 
-  // ── Layout handler: fires on mount + on window resize ─────────────────────
-  const handleTrackLayout = useCallback((e: LayoutChangeEvent) => {
-    const totalW = e.nativeEvent.layout.width;
-    const tw     = (totalW - H_PAD * 2) / N_TABS;
+const ScopeTab = memo(({
+  scopeCfg,
+  index,
+  isActive,
+  label,
+  emoji,
+  onPress,
+}: ScopeTabProps): React.JSX.Element => {
+
+  // ── Press-squish animation (mirrors HTML .scope-tab:active transform:scale(0.95)) ──
+  const scale = useSharedValue<number>(1);
+
+  const pressAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }), []);
+
+  const handlePressIn = useCallback(() => {
+    scale.value = withSpring(0.95, SPRING_PRESS);
+  }, [scale]);
+
+  const handlePressOut = useCallback(() => {
+    scale.value = withSpring(1, SPRING_PRESS);
+  }, [scale]);
+
+  const handlePress = useCallback(() => {
+    onPress(scopeCfg.key, index);
+  }, [onPress, scopeCfg.key, index]);
+
+  return (
+    <Pressable
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      onPress={handlePress}
+      style={styles.tab}
+      accessibilityRole="tab"
+      accessibilityState={{ selected: isActive }}
+      accessibilityLabel={scopeCfg.a11yLabel}
+      hitSlop={{ top: 8, bottom: 8, left: 2, right: 2 }}
+    >
+      {/* Animated inner row — carries the press-scale transform */}
+      <Animated.View style={[styles.tabContent, pressAnimStyle]}>
+
+        {/*
+         * Emoji — deliberately wrapped in its own Text node.
+         * Reason: OS emoji metrics (especially on Android) balloon into the
+         * surrounding text's line-height if they share a Text context.
+         * Isolation keeps them from affecting the label's vertical baseline.
+         */}
+        <Text
+          style={styles.emoji}
+          allowFontScaling={false}
+          selectable={false}
+        >
+          {emoji}
+        </Text>
+
+        {/* Label — active/inactive state only changes weight and color */}
+        <Text
+          style={[
+            styles.label,
+            isActive ? styles.labelActive : styles.labelInactive,
+          ]}
+          numberOfLines={1}
+          allowFontScaling={false}
+          selectable={false}
+        >
+          {label}
+        </Text>
+
+        {/* Dropdown chevron — rendered for every tab that has a picker */}
+        {scopeCfg.hasPicker && <Chevron isActive={isActive} />}
+
+      </Animated.View>
+    </Pressable>
+  );
+});
+
+ScopeTab.displayName = 'ScopeTab';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MAIN COMPONENT
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function FourScopeSwitcher({
+  activeScope,
+  onScopeChange,
+  onPickerOpen,
+  labels,
+}: FourScopeSwitcherProps): React.JSX.Element {
+
+  // Resolved pixel width of one tab — 0 until first layout measurement
+  const [tabWidth, setTabWidth] = useState<number>(0);
+
+  // Ref mirrors tabWidth for access inside Reanimated worklets (avoids stale closures)
+  const tabWidthRef = useRef<number>(0);
+
+  // Guards to prevent double-animating on user-initiated vs prop-driven changes
+  const isFirstRender    = useRef<boolean>(true);
+  const userInitiatedRef = useRef<boolean>(false);
+
+  // Single shared value drives the capsule's horizontal position
+  const capsuleX = useSharedValue<number>(0);
+
+  // ── Derive active index, safe against unknown scope keys ──────────────────
+  const activeIndex = Math.max(
+    0,
+    SCOPES.findIndex((s) => s.key === activeScope),
+  );
+
+  // ── Capsule animated style ─────────────────────────────────────────────────
+  // width lives here (layout-derived); only translateX animates.
+  // Reading tabWidthRef.current from a worklet is safe — refs are global.
+  const capsuleAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: capsuleX.value }],
+    width:     tabWidthRef.current,
+  }), []);
+
+  // ── Track layout handler ───────────────────────────────────────────────────
+  // Fires on mount and on every orientation/size change.
+  const handleLayout = useCallback((e: LayoutChangeEvent): void => {
+    const totalW  = e.nativeEvent.layout.width;
+    // Subtract both horizontal paddings then divide by 4 tabs
+    const tw      = (totalW - H_PAD * 2) / N_TABS;
 
     tabWidthRef.current = tw;
     setTabWidth(tw);
 
-    // First mount: snap instantly (no spring, no visible travel)
-    if (!didInit.current) {
-      didInit.current   = true;
-      capsuleX.value    = activeIdxRef.current * tw;
-    } else {
-      // Re-layout (e.g. orientation change): re-snap to correct position
-      capsuleX.value = activeIdxRef.current * tw;
+    // Always snap instantly — no spring on layout events.
+    // A spring here would cause a visible "catch-up" slide on screen rotation.
+    capsuleX.value = activeIndex * tw;
+  }, [capsuleX, activeIndex]);
+
+  // ── React to external activeScope prop changes (e.g. deep-link, back-nav) ─
+  useEffect(() => {
+    // Skip the very first render — layout handler handles initial position.
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    // Skip if this render was triggered by a user press — capsule already moved.
+    if (userInitiatedRef.current) {
+      userInitiatedRef.current = false;
+      return;
+    }
+    // Programmatic change → spring-animate to new position.
+    const tw = tabWidthRef.current;
+    if (tw > 0) {
+      capsuleX.value = withSpring(activeIndex * tw, SPRING_SLIDE);
+    }
+  }, [activeScope, activeIndex, capsuleX]);
 
   // ── Tab press handler ──────────────────────────────────────────────────────
-  const handleSelect = useCallback((idx: number) => {
-    activeIdxRef.current = idx;
-    setActiveIdx(idx);
-    capsuleX.value = withSpring(idx * tabWidthRef.current, SPRING);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const handleTabPress = useCallback((
+    scope: ChatScope,
+    index: number,
+  ): void => {
+    // Tactile feedback — light impact, mirrors mobile convention for tab switches
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-  // ── Capsule animated style ─────────────────────────────────────────────────
-  //  • `width` lives here (not in static styles) because it's layout-derived.
-  //  • Only translateX animates; width snaps instantly to avoid stretch artifacts.
-  const capsuleAnimStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: capsuleX.value }],
-    width:     tabWidthRef.current,  // worklet read: no JS-thread hop needed
-  }));
+    if (scope === activeScope) {
+      // Already active → re-tap opens the picker (city / country / sector sheet)
+      const cfg = SCOPES.find((s) => s.key === scope);
+      if (cfg?.hasPicker) onPickerOpen(scope);
+      return;
+    }
 
-  // ─────────────────────────────────────────────────────────────────────────
+    // Mark as user-initiated so the useEffect above doesn't double-animate
+    userInitiatedRef.current = true;
+
+    // Animate capsule immediately — don't wait for state update to propagate
+    capsuleX.value = withSpring(index * tabWidthRef.current, SPRING_SLIDE);
+
+    // Notify parent — will update activeScope prop on next render
+    onScopeChange(scope);
+  }, [activeScope, onScopeChange, onPickerOpen, capsuleX]);
+
+  // ── Dynamic label / emoji resolution ──────────────────────────────────────
+  const getLabel = useCallback((scope: ChatScope, fallback: string): string => {
+    switch (scope) {
+      case 'country': return labels.country || fallback;
+      case 'city':    return labels.city    || fallback;
+      case 'sector':  return labels.sector  || fallback;
+      default:        return fallback;
+    }
+  }, [labels]);
+
+  const getEmoji = useCallback((scope: ChatScope, fallback: string): string =>
+    scope === 'country' ? (labels.countryEmoji || fallback) : fallback,
+  [labels]);
+
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <View
       style={styles.track}
-      onLayout={handleTrackLayout}
+      onLayout={handleLayout}
       accessibilityRole="tablist"
+      accessibilityLabel="Chat scope selector"
     >
-      {/* ── Sliding gold capsule (behind all tabs via z-order) ── */}
+      {/*
+       * Gold capsule indicator.
+       * Rendered before the tabs so it sits below them in z-order (z-index:0).
+       * Hidden until tabWidth is measured to avoid a visible width-0 flash.
+       */}
       {tabWidth > 0 && (
         <Animated.View
           style={[styles.capsule, capsuleAnimStyle]}
@@ -171,137 +446,118 @@ export default function FourScopeSwitcher() {
         />
       )}
 
-      {/* ── Four scope tabs ── */}
-      {TABS.map((tab, idx) => {
-        const isActive = idx === activeIdx;
-        return (
-          <Pressable
-            key={tab.key}
-            style={({ pressed }) => [
-              styles.tab,
-              pressed && !isActive && styles.tabPressed,
-            ]}
-            onPress={() => handleSelect(idx)}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: isActive }}
-            accessibilityLabel={tab.label}
-          >
-            {/* Emoji — isolated Text to contain OS emoji metrics */}
-            <Text style={styles.emoji} selectable={false}>
-              {tab.emoji}
-            </Text>
-
-            {/* Label */}
-            <Text
-              style={[styles.label, isActive && styles.labelActive]}
-              selectable={false}
-              numberOfLines={1}
-            >
-              {tab.label}
-            </Text>
-
-            {/* CSS-triangle chevron (border trick, no icon library) */}
-            <View
-              style={[styles.chevron, isActive && styles.chevronActive]}
-            />
-          </Pressable>
-        );
-      })}
+      {/* Four scope tabs — rendered above the capsule (z-index:1) */}
+      {SCOPES.map((scopeCfg, index) => (
+        <ScopeTab
+          key={scopeCfg.key}
+          scopeCfg={scopeCfg}
+          index={index}
+          isActive={scopeCfg.key === activeScope}
+          label={getLabel(scopeCfg.key, scopeCfg.defaultLabel)}
+          emoji={getEmoji(scopeCfg.key, scopeCfg.emoji)}
+          onPress={handleTabPress}
+        />
+      ))}
     </View>
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// STYLES
+// ─────────────────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
 
-  // ── Outer track ────────────────────────────────────────────────────────────
+  // ── Track (outer pill) ─────────────────────────────────────────────────────
   track: {
-    height:           TRACK_HEIGHT,
-    backgroundColor:  CROWN.bg.surface,
-    borderRadius:     CROWN.radius.track,
-    flexDirection:    'row',
-    alignItems:       'center',
-    paddingHorizontal: H_PAD,
-    overflow:         'hidden',    // clips the capsule at container edges
-    // Shadow is optional — remove if not in PRD
-    // shadowColor:   '#C8960C',
-    // shadowOpacity: 0.08,
-    // shadowRadius:  8,
-    // elevation:     2,
+    height:             TRACK_HEIGHT,       // 44dp (touch-target; web ref: 38px)
+    backgroundColor:    colors.bg.surface,  // #FFF8F0 — warm off-white
+    borderRadius:       8,                  // slightly more rounded than HTML 6px
+                                            // for mobile visual premium; pill feel
+    flexDirection:      'row',
+    alignItems:         'center',
+    paddingHorizontal:  H_PAD,              // 12dp — mirrors HTML var(--sp-3)
+    overflow:           'hidden',           // clips capsule at container edges
   },
 
-  // ── Sliding capsule ────────────────────────────────────────────────────────
+  // ── Sliding gold capsule indicator ────────────────────────────────────────
   capsule: {
     position:        'absolute',
-    left:            H_PAD,        // anchored to start of tab area
-    top:             CAPSULE_INSET,
-    bottom:          CAPSULE_INSET,
-    backgroundColor: CROWN.bg.brandSubtle,
-    borderRadius:    CROWN.radius.capsule,
-    // width is injected via capsuleAnimStyle (layout-derived)
+    left:            H_PAD,            // 12dp — anchors at padding edge (same as HTML left:12px)
+    top:             CAPSULE_INSET,    // 3dp — mirrors HTML top:3px
+    bottom:          CAPSULE_INSET,    // 3dp — mirrors HTML bottom:3px
+    backgroundColor: colors.bg.brandSubtle,  // rgba(200,150,12,0.18) — flat translucent gold
+    borderRadius:    6,                // var(--radius-md) = 6px — direct port
+    zIndex:          0,
+    // width is injected dynamically via capsuleAnimStyle (cannot be pre-known)
   },
 
   // ── Individual tab button ──────────────────────────────────────────────────
   tab: {
     flex:            1,
     height:          '100%',
-    flexDirection:   'row',
-    alignItems:      'center',
     justifyContent:  'center',
-    gap:             3,            // RN 0.71+ — use marginRight on emoji/label for older
-    borderRadius:    CROWN.radius.tab,
-    zIndex:          1,            // sits above the capsule layer
+    alignItems:      'center',
+    zIndex:          1,                // sits above capsule layer
+    backgroundColor: 'transparent',
   },
 
-  tabPressed: {
-    backgroundColor: CROWN.bg.tabPressed,
+  // ── Tab inner content row (receives press-scale animation) ─────────────────
+  tabContent: {
+    flexDirection:  'row',
+    alignItems:     'center',
+    justifyContent: 'center',
+    gap:            3,                 // 3dp — matches HTML gap: 3px  (RN ≥ 0.71)
   },
 
-  // ── Emoji ──────────────────────────────────────────────────────────────────
+  // ── Emoji — isolated Text node ─────────────────────────────────────────────
   emoji: {
-    fontSize:    13,
-    lineHeight:  16,   // prevent emoji ballooning on Android / clipping on iOS
-    flexShrink:  0,
-    // Kill phantom OS ascender padding on Android:
+    fontSize:   13,
+    lineHeight: 16,    // prevents emoji ballooning (Android) / clipping (iOS)
+    flexShrink: 0,
+    // Android only: kill phantom ascender padding that shifts emoji upward
     ...(Platform.OS === 'android' && { includeFontPadding: false }),
   },
 
-  // ── Label (inactive) ───────────────────────────────────────────────────────
+  // ── Label — base (shared) ──────────────────────────────────────────────────
   label: {
-    fontSize:    12,
-    lineHeight:  16,   // must match emoji lineHeight for optical baseline alignment
-    fontWeight:  '400',
-    color:       CROWN.fg.textMuted,
-    letterSpacing: 0.15,    // optical match for web's `letter-spacing: 0.01em`
-    flexShrink:  1,
-    // Android font-padding removal for consistent cross-platform centering:
+    fontSize:      12,
+    lineHeight:    16,    // matches emoji lineHeight — baselines collapse to same value
+    letterSpacing: 0.15,  // optical ≈ HTML letter-spacing: 0.01em @ 12px (0.01×12=0.12px → 0.15dp)
+    flexShrink:    1,
+    // Android only: same phantom-padding fix as emoji
     ...(Platform.OS === 'android' && { includeFontPadding: false }),
   },
 
-  // ── Label (active override) ────────────────────────────────────────────────
+  // ── Label — inactive state ─────────────────────────────────────────────────
+  labelInactive: {
+    fontWeight: '400',
+    color:      colors.fg.tertiary,  // #7A5C2E — warm muted brown
+  },
+
+  // ── Label — active state ───────────────────────────────────────────────────
   labelActive: {
     fontWeight: '600',
-    color:      CROWN.fg.textStrong,
+    color:      colors.fg.primary,  // #1A1208 — near-black warm
   },
 
-  // ── CSS border-trick chevron (▼) — inactive ────────────────────────────────
-  // Optical tweak: web uses 4/4/5 px borders. Reduce to 3.5/3.5/4.5 on
-  // mobile so the triangle doesn't visually overpower the small text.
+  // ── CSS border-triangle chevron ▼ ──────────────────────────────────────────
+  // HTML values: border-left/right: 4px, border-top: 5px.
+  // Mobile optical correction: scaled down by ~12% (3.5/3.5/4.5) so the
+  // triangle doesn't visually overpower 12sp text at mobile pixel density.
   chevron: {
-    width:              0,
-    height:             0,
-    borderLeftWidth:    3.5,
-    borderRightWidth:   3.5,
-    borderTopWidth:     4.5,
-    borderLeftColor:    'transparent',
-    borderRightColor:   'transparent',
-    borderTopColor:     CROWN.fg.textMuted,
-    flexShrink:         0,
-    marginTop:          1,  // 1 dp push-down to optically center with text cap-height
-  },
-
-  // ── Chevron (active override) ──────────────────────────────────────────────
-  chevronActive: {
-    borderTopColor: CROWN.fg.brand,
+    width:            0,
+    height:           0,
+    borderStyle:      'solid',
+    borderLeftWidth:  3.5,
+    borderRightWidth: 3.5,
+    borderTopWidth:   4.5,
+    borderLeftColor:  'transparent',
+    borderRightColor: 'transparent',
+    // borderTopColor is injected per instance based on isActive
+    flexShrink:       0,
+    marginTop:        1,   // 1dp push-down: optically centers triangle with text cap-height
   },
 });
+
+export default FourScopeSwitcher;
