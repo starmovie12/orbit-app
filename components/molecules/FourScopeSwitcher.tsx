@@ -1,34 +1,24 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  CROWN — FourScopeSwitcher  v5.3  ROYAL GLOW EDITION (ULTRA-PREMIUM)     ║
+ * ║  CROWN — FourScopeSwitcher  v6.0  INVISIBLE TRACK (FLOATING PILL)        ║
  * ║  §1.3.3 Row 2 — The 4-Scope Switcher                                     ║
  * ║  Phase 1.3 · App Architecture                                            ║
  * ║  Owner: Ail Noor Alam (Founder) · Chandigarh · May 2026                  ║
  * ╠══════════════════════════════════════════════════════════════════════════╣
- * ║  CHANGELOG v5.3 — THE PREMIUM ROYAL GLOW UPGRADE:                        ║
- * ║    [1] Aesthetics: Harsh white clashing background REMOVED. The active   ║
- * ║        capsule now perfectly matches the "1.2 Lakh+" badge aesthetic     ║
- * ║        using a cohesive soft gold (`colors.bg.brandSubtle`).             ║
- * ║    [2] Iconography: Replaced thin 'Feather' icons with bolder, native-   ║
- * ║        feeling 'Ionicons' for a much more substantial, premium click.    ║
- * ║    [3] Contrast Fix: Inactive tabs opacity increased (0.65 -> 0.85) and  ║
- * ║        weight bumped to '600'. They no longer look disabled or dead.     ║
- * ║    [4] Depth over Lines: Zero harsh borders. The royal look is achieved  ║
- * ║        purely through color blocking and soft, diffused shadows.         ║
+ * ║  CHANGELOG v6.0 — THE "FLOATING MINIMALIST" UPGRADE:                     ║
+ * ║    [1] Aesthetics: Completely removed the outer track background and     ║
+ * ║        borders. Tabs now float cleanly on the app's native background.   ║
+ * ║    [2] Capsule Shape: Changed from a full pill (50% radius) to a refined ║
+ * ║        rounded rectangle (10px radius) to perfectly match the reference. ║
+ * ║    [3] Iconography: Replaced line-based chevrons with solid triangles    ║
+ * ║        (MaterialIcons arrow-drop-down) for that exact premium look.      ║
+ * ║    [4] Typography & Color: Replaced faded greys with rich, dark solid    ║
+ * ║        colors for all labels, active or inactive, ensuring legibility.   ║
  * ╚══════════════════════════════════════════════════════════════════════════╝
- * * * AESTHETIC DIRECTION: Translucent Royal Glow
- * Rationale: To fix the "cheap/generic" feel, we align the selection state 
- * perfectly with the app's core brand identity (Gold). A pale gold pill 
- * with rich gold text provides a royal, cohesive, and ultra-premium native feel.
- * * * * STATE MATRIX — FourScopeSwitcher Tab
- * ┌──────────────────────┬─────────────────────────┬─────────────────┬─────────────────────────────┐
- * │ State                │ Visual Change           │ Haptic          │ Animation                   │
- * ├──────────────────────┼─────────────────────────┼─────────────────┼─────────────────────────────┤
- * │ 01 Default / Idle    │ transparent bg, 0.85 opc│ none            │ none                        │
- * │ 04 Press-in          │ tab scales down 0.94    │ none            │ spring(mass:1, stiff:450)   │
- * │ 05 Press-release     │ capsule slides to tab   │ Haptic.Light    │ spring(mass:1, stiff:220)   │
- * │ 11 Selected (Active) │ pale gold bg, gold text │ none            │ none                        │
- * └──────────────────────┴─────────────────────────┴─────────────────┴─────────────────────────────┘
+ * * * AESTHETIC DIRECTION: Floating Minimalist (Reference 50812.png)
+ * Rationale: The cleanest, most modern approach. No unnecessary boxes or 
+ * lines. The selected state is indicated solely by a soft pale-gold rounded 
+ * rectangle sliding behind the text.
  */
 
 import React, { useCallback, useEffect, useRef, useState, memo } from 'react';
@@ -46,7 +36,7 @@ import Animated, {
   type WithSpringConfig,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { Ionicons } from '@expo/vector-icons'; // UPGRADED: Bolder, premium chevron
+import { MaterialIcons } from '@expo/vector-icons'; // UPGRADED: For solid triangle chevron
 import { colors } from '@/constants/colors';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -68,7 +58,7 @@ const SCOPES: readonly ScopeConfig[] = [
     key:          'world',
     emoji:        '🌍',
     defaultLabel: 'World',
-    hasPicker:    false,
+    hasPicker:    true,  // Assuming world has a dropdown based on screenshot
     a11yLabel:    'World chat — duniya bhar ke users se baat karo',
   },
   {
@@ -87,7 +77,7 @@ const SCOPES: readonly ScopeConfig[] = [
   },
   {
     key:          'sector',
-    emoji:        '🏘️',
+    emoji:        '📍',
     defaultLabel: 'Sector',
     hasPicker:    true,
     a11yLabel:    'Sector chat. Tap to change sector.',
@@ -95,44 +85,39 @@ const SCOPES: readonly ScopeConfig[] = [
 ] as const satisfies ReadonlyArray<ScopeConfig>;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DESIGN TOKENS v5.3 (ROYAL GLOW EDITION)
+// DESIGN TOKENS v6.0 (FLOATING MINIMALIST)
 // ─────────────────────────────────────────────────────────────────────────────
 
 const SWITCHER = {
-  /** Visual compact height for sleek inline layout */
-  HEIGHT: 40 as const,
+  /** Overall container height */
+  HEIGHT: 44 as const,
 
-  /** Inset padding for the track */
-  TRACK_PAD:      2  as const,
-  TRACK_RADIUS:   20 as const, // 40 / 2
-  CAPSULE_H:      36 as const, // 40 - (2 * 2)
-  CAPSULE_RADIUS: 18 as const, // 36 / 2
-
-  /** Typography (Balanced for visual hierarchy) */
-  LABEL_SIZE:   12 as const,
-  EMOJI_SIZE:   13 as const,
-  CHEVRON_SIZE: 12 as const, // Slightly larger for the new Ionicons chevron
+  /** Padding around the entire track */
+  TRACK_PAD:      4  as const,
   
-  /** Gap between Emoji and Text */
+  /** Capsule Height (slightly smaller than track to float nicely) */
+  CAPSULE_H:      36 as const, 
+  
+  /** * MATCHING REFERENCE: This is no longer a full pill. 
+   * It is a rounded rectangle with a 10px radius.
+   */
+  CAPSULE_RADIUS: 10 as const, 
+
+  /** Typography (Scaled for inline row harmony) */
+  LABEL_SIZE:   14 as const,
+  EMOJI_SIZE:   16 as const,
+  CHEVRON_SIZE: 18 as const, // Larger size for the solid triangle
+  
+  /** Gap between Emoji, Text, and Chevron */
   ITEM_GAP:     4  as const,
 
   TAB_COUNT: 4 as const,
 
   /** Premium fluid springs */
-  SPRING_SLIDE: { mass: 1, stiffness: 220, damping: 24 } as const satisfies WithSpringConfig,
+  SPRING_SLIDE: { mass: 1, stiffness: 240, damping: 26 } as const satisfies WithSpringConfig,
   SPRING_PRESS: { mass: 1, stiffness: 450, damping: 30 } as const satisfies WithSpringConfig,
 
   HAPTIC: Haptics.ImpactFeedbackStyle.Light,
-
-  /** Fixed Contrast Opacities (No longer looks faded/dead) */
-  OPACITY_EMOJI_INACTIVE:   0.90 as const,
-  OPACITY_LABEL_INACTIVE:   0.85 as const,
-  OPACITY_CHEVRON_INACTIVE: 0.70 as const,
-
-  /** Soft diffused depth */
-  SHADOW_CAPSULE_OPACITY: 0.08 as const,
-  SHADOW_CAPSULE_RADIUS:  4    as const,
-  SHADOW_CAPSULE_OFFSET:  { width: 0, height: 2 } as const,
 } as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -211,20 +196,17 @@ const ScopeTab = memo(({
             : 'Double-tap to switch scope'
           : undefined
       }
-      /* Expands touchable area to meet strict 44px HIG minimums */
-      hitSlop={{ top: 8, bottom: 8, left: 2, right: 2 }}
+      /* Expands touchable area to meet strict HIG minimums */
+      hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
     >
       <Animated.View style={[styles.tabContent, animatedStyle]}>
         
         {/* Emoji */}
-        <Text
-          style={[styles.scopeEmoji, !isActive && styles.scopeEmojiInactive]}
-          allowFontScaling={false}
-        >
+        <Text style={styles.scopeEmoji} allowFontScaling={false}>
           {emoji}
         </Text>
 
-        {/* Text Area (Flex-shrink protects against overflow) */}
+        {/* Text Container */}
         <View style={styles.textContainer}>
           <Text
             style={[
@@ -238,13 +220,14 @@ const ScopeTab = memo(({
           </Text>
         </View>
 
-        {/* Premium Chevron Upgrade */}
+        {/* Solid Triangle Chevron (Matches reference exactly) */}
         {showChevron && (
-          <Ionicons
-            name="chevron-down"
+          <MaterialIcons
+            name="arrow-drop-down"
             size={SWITCHER.CHEVRON_SIZE}
-            color={isActive ? colors.fg.brand : colors.fg.secondary}
-            style={[styles.chevron, !isActive && styles.chevronInactive]}
+            /* Chevron color matches text color for uniform look */
+            color={isActive ? colors.fg.brand : colors.fg.primary}
+            style={styles.chevron}
             accessibilityElementsHidden
             importantForAccessibility="no"
           />
@@ -342,6 +325,8 @@ export function FourScopeSwitcher({
       accessibilityLabel="Chat scope switcher"
     >
       <View style={styles.trackInner}>
+        
+        {/* Animated Pale Gold Capsule Background */}
         {tabWidth > 0 && (
           <Animated.View
             style={[
@@ -370,45 +355,47 @@ export function FourScopeSwitcher({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STYLES v5.3 (ROYAL GLOW EDITION)
+// STYLES v6.0 (FLOATING MINIMALIST)
 // ─────────────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   trackOuter: {
     height:           SWITCHER.HEIGHT,
-    borderRadius:     SWITCHER.TRACK_RADIUS,
-    backgroundColor:  colors.bg.surfaceMuted, // A very subtle off-white/cream
-    overflow:         'hidden',
-    /* Zero borders for an ultra-clean, modern aesthetic */
+    /* * INVISIBLE TRACK: 
+     * No background color. No borders. No shadow.
+     * The track completely blends into the app's native background.
+     */
+    backgroundColor:  'transparent', 
   },
   trackInner: {
     flex:             1,
     flexDirection:    'row',
     alignItems:       'center',
     marginHorizontal: SWITCHER.TRACK_PAD,
-    marginVertical:   SWITCHER.TRACK_PAD,
     position:         'relative',
   },
-  /** * * ROYAL GOLD PILL (The Premium Fix):
-   * This is where the magic happens. We replaced the generic clashing white 
-   * with `brandSubtle` (a soft pale gold), which perfectly mirrors the 
-   * aesthetic of the '1.2 Lakh+' badge.
+  /** * THE FLOATING PILL:
+   * A soft pale-gold rounded rectangle sliding behind the active text.
    */
   capsule: {
     position:         'absolute',
     left:             0,
-    top:              0,
+    
+    /* Center the 36px capsule vertically within the 44px track */
+    top:              (SWITCHER.HEIGHT - SWITCHER.CAPSULE_H) / 2,
+    
+    /* Rounded rectangle radius, exactly matching reference image */
     borderRadius:     SWITCHER.CAPSULE_RADIUS,
     
-    /* The soft gold background (matches the badge) */
+    /* Pale Gold matching the badge */
     backgroundColor:  colors.bg.brandSubtle, 
     
-    /* Soft, diffused depth */
+    /* Subtle depth to lift it slightly off the page */
     shadowColor:      colors.shadow.gold, 
-    shadowOffset:     SWITCHER.SHADOW_CAPSULE_OFFSET,
-    shadowOpacity:    SWITCHER.SHADOW_CAPSULE_OPACITY,
-    shadowRadius:     SWITCHER.SHADOW_CAPSULE_RADIUS,
-    elevation:        2, 
+    shadowOffset:     { width: 0, height: 2 },
+    shadowOpacity:    0.05,
+    shadowRadius:     2,
+    elevation:        1, 
   },
   scopeButton: {
     flex:           1,
@@ -421,41 +408,36 @@ const styles = StyleSheet.create({
     alignItems:     'center',
     justifyContent: 'center',
     gap:            SWITCHER.ITEM_GAP,
-    paddingHorizontal: 4,
+    paddingHorizontal: 2,
   },
   scopeEmoji: {
     fontSize:   SWITCHER.EMOJI_SIZE,
-    lineHeight: 16,
-    opacity:    1.0,
-  },
-  scopeEmojiInactive: {
-    opacity: SWITCHER.OPACITY_EMOJI_INACTIVE,
+    lineHeight: 18, // Adjusted for larger emojis
   },
   textContainer: {
     flexShrink: 1,
   },
   scopeLabel: {
     fontSize:   SWITCHER.LABEL_SIZE,
-    lineHeight: 15,
+    lineHeight: 16,
     textAlign:  'center',
-    letterSpacing: -0.2,
   },
   scopeLabelActive: {
-    /* Rich, dark brand gold text sits perfectly on top of the pale gold pill */
+    /* Bold, rich dark text on top of the pale gold pill */
     color:      colors.fg.brand,
-    fontWeight: '800', 
+    fontWeight: '700', 
   },
   scopeLabelInactive: {
-    /* Upgraded contrast (colors.fg.secondary + weight 600) so it doesn't look dead */
-    color:      colors.fg.secondary,
-    fontWeight: '600',
-    opacity:    SWITCHER.OPACITY_LABEL_INACTIVE,
+    /* * NO FADED TEXT. 
+     * Inactive tabs use solid dark text to match the reference exactly. 
+     */
+    color:      colors.fg.primary,
+    fontWeight: '500',
   },
   chevron: {
+    /* Slight negative margin to pull the solid triangle closer to text */
+    marginLeft: -2,
     marginTop: 1, 
-  },
-  chevronInactive: {
-    opacity: SWITCHER.OPACITY_CHEVRON_INACTIVE,
   },
 });
 
