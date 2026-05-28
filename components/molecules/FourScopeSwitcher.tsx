@@ -1,20 +1,29 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  CROWN — FourScopeSwitcher  v7.0  MINI-PRD COMPLIANT EDITION             ║
+ * ║  CROWN — FourScopeSwitcher  v7.0  MINI-PRD STRICT EDITION                ║
  * ║  §1.3.3 Row 2 — The 4-Scope Switcher                                     ║
  * ║  Phase 1.3 · App Architecture                                            ║
- * ║  Owner: Noor Aalam (Founder) · Chandigarh · May 2026                     ║
+ * ║  Owner: Ail Noor Alam (Founder) · Chandigarh · May 2026                  ║
  * ╠══════════════════════════════════════════════════════════════════════════╣
- * ║  CHANGELOG v7.0 — STRICT PRD IMPLEMENTATION:                             ║
- * ║    [1] Layout: 38px fixed height, specific left/right padding,           ║
- * ║        and evenly distributed tabs per PRD section 1.                    ║
- * ║    [2] Icons Removed: Dropped external icon libraries. Chevron is now    ║
- * ║        purely rendered using the CSS triangle border trick.              ║
- * ║    [3] Typography: 12px base size. Weight 400 (muted) for inactive,      ║
- * ║        Weight 600 (strong) for active per PRD section 3.                 ║
- * ║    [4] Accessibility: Strict role="tablist", role="tab", and             ║
- * ║        aria-selected mapping to match the provided DOM structure.        ║
+ * ║  CHANGELOG v7.0 — MINI-PRD COMPLIANCE UPGRADE:                           ║
+ * ║    [1] Layout: Track height locked to 38px. Horizontal padding set to    ║
+ * ║        var(--sp-3) eqv. Item gap set to var(--sp-1) eqv.                 ║
+ * ║    [2] Background: Container uses base surface color (colors.bg.surface) ║
+ * ║    [3] Chevron: Icon fonts REMOVED. Implemented PRD CSS Triangle trick   ║
+ * ║        using transparent borders (borderTopWidth: 5, borderLeft: 4).     ║
+ * ║    [4] Typography: Exact PRD weights applied -> Inactive 400, Active 600.║
+ * ║    [5] Accessibility: Mapped pure HTML roles (tablist, tab, aria-select) ║
+ * ║        to React Native accessibility props strictly.                     ║
  * ╚══════════════════════════════════════════════════════════════════════════╝
+ * * * STATE MATRIX — FourScopeSwitcher Tab
+ * ┌──────────────────────┬─────────────────────────┬─────────────────┬─────────────────────────────┐
+ * │ State                │ Visual Change           │ Haptic          │ Animation                   │
+ * ├──────────────────────┼─────────────────────────┼─────────────────┼─────────────────────────────┤
+ * │ 01 Default / Idle    │ transparent bg, 400 wght│ none            │ none                        │
+ * │ 04 Press-in          │ tab scales down 0.94    │ none            │ spring(mass:1, stiff:450)   │
+ * │ 05 Press-release     │ capsule slides to tab   │ Haptic.Light    │ spring(mass:1, stiff:220)   │
+ * │ 11 Selected (Active) │ light tinted pill, 600 w│ none            │ none                        │
+ * └──────────────────────┴─────────────────────────┴─────────────────┴─────────────────────────────┘
  */
 
 import React, { useCallback, useEffect, useRef, useState, memo } from 'react';
@@ -32,11 +41,10 @@ import Animated, {
   type WithSpringConfig,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-// NOTE: No external icon libraries imported. Chevron uses CSS trick.
 import { colors } from '@/constants/colors';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SCOPE TYPES
+// SCOPE TYPES & CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type ChatScope = 'world' | 'country' | 'city' | 'sector';
@@ -55,48 +63,57 @@ const SCOPES: readonly ScopeConfig[] = [
     emoji:        '🌍',
     defaultLabel: 'World',
     hasPicker:    false, 
-    a11yLabel:    'World chat — duniya bhar ke users se baat karo',
+    a11yLabel:    'World chat',
   },
   {
     key:          'country',
     emoji:        '🇮🇳',
     defaultLabel: 'India',
     hasPicker:    true,
-    a11yLabel:    'Country chat. Tap to change country.',
+    a11yLabel:    'Country chat',
   },
   {
     key:          'city',
     emoji:        '🏙️',
     defaultLabel: 'City',
     hasPicker:    true,
-    a11yLabel:    'City chat. Tap to change city.',
+    a11yLabel:    'City chat',
   },
   {
     key:          'sector',
     emoji:        '📍',
     defaultLabel: 'Sector',
     hasPicker:    true,
-    a11yLabel:    'Sector chat. Tap to change sector.',
+    a11yLabel:    'Sector chat',
   },
 ] as const satisfies ReadonlyArray<ScopeConfig>;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DESIGN TOKENS (Mapped exactly to Mini-PRD semantics)
+// DESIGN TOKENS v7.0 (PRD MAPPED)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const PRD = {
-  HEIGHT:     38 as const,
-  RADIUS_MD:  8  as const, // Standard medium border radius
-  SPACING_1:  4  as const, // Gap between elements
-  SPACING_3:  12 as const, // Padding for container
+const PRD_TOKENS = {
+  /** PRD: Fixed height set karni hai (e.g., var(--height-row2) jo lagbhag 38px hoti hai) */
+  HEIGHT_ROW2: 38 as const,
 
+  /** PRD: left/right padding var(--sp-3), approx 12px */
+  SP_3: 12 as const,
+  
+  /** PRD: Tabs ke beech mein gap var(--sp-1), approx 4px */
+  SP_1: 4 as const,
+
+  /** PRD: Border radius medium var(--radius-md), approx 6-8px */
+  RADIUS_MD: 8 as const,
+
+  /** Typography from PRD */
   FONT_SIZE:  12 as const,
   WEIGHT_REG: '400' as const,
   WEIGHT_BLD: '600' as const,
 
-  TAB_COUNT:  4 as const,
-
+  /** Premium fluid springs for sliding and pressing */
   SPRING_SLIDE: { mass: 1, stiffness: 240, damping: 26 } as const satisfies WithSpringConfig,
+  SPRING_PRESS: { mass: 1, stiffness: 450, damping: 30 } as const satisfies WithSpringConfig,
+
   HAPTIC: Haptics.ImpactFeedbackStyle.Light,
 } as const;
 
@@ -128,7 +145,30 @@ interface ScopeTabProps {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SUB-COMPONENTS
+// CSS TRIANGLE CHEVRON (PRD Strict)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * PRD: Chevron (Arrow): Iske liye koi alag se icon use nahi karna hai. 
+ * CSS ke ::after pseudo-element ka use karke ek chhota sa CSS triangle banana hai.
+ */
+const CssChevron = memo(({ isActive }: { isActive: boolean }) => {
+  return (
+    <View
+      style={[
+        styles.cssTriangle,
+        {
+          // PRD: Active chevron color = var(--fg-brand), Inactive = var(--fg-text-muted)
+          borderTopColor: isActive ? colors.fg.brand : colors.fg.tertiary,
+        },
+      ]}
+    />
+  );
+});
+CssChevron.displayName = 'CssChevron';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SUB-COMPONENT: SCOPE TAB
 // ─────────────────────────────────────────────────────────────────────────────
 
 const ScopeTab = memo(({
@@ -140,6 +180,20 @@ const ScopeTab = memo(({
   onPress,
 }: ScopeTabProps): React.JSX.Element => {
 
+  const scale = useSharedValue<number>(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }), []);
+
+  const handlePressIn = useCallback(() => {
+    scale.value = withSpring(0.94, PRD_TOKENS.SPRING_PRESS);
+  }, [scale]);
+
+  const handlePressOut = useCallback(() => {
+    scale.value = withSpring(1, PRD_TOKENS.SPRING_PRESS);
+  }, [scale]);
+
   const handlePress = useCallback(() => {
     onPress(scopeCfg.key, index);
   }, [onPress, scopeCfg.key, index]);
@@ -148,42 +202,41 @@ const ScopeTab = memo(({
 
   return (
     <Pressable
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
       onPress={handlePress}
-      style={({ pressed }) => [
-        styles.scopeButton,
-        // PRD State: Subtle highlight on hover/press
-        pressed && !isActive && { backgroundColor: colors.bg.surfaceMuted },
-      ]}
-      role="tab"
-      aria-selected={isActive} // Mapped directly from PRD HTML structure
-      aria-label={scopeCfg.a11yLabel}
+      style={styles.scopeButton}
+      // PRD: Screen readers ke liye tab roles aur aria-selected attribute
+      accessibilityRole="tab"
+      accessibilityState={{ selected: isActive }}
+      accessibilityLabel={scopeCfg.a11yLabel}
+      hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
     >
-      <View style={styles.tabContent}>
+      <Animated.View style={[styles.tabContent, animatedStyle]}>
+        
+        {/* Emoji */}
         <Text style={styles.scopeEmoji} allowFontScaling={false}>
           {emoji}
         </Text>
 
-        <Text
-          style={[
-            styles.scopeLabel,
-            isActive ? styles.scopeLabelActive : styles.scopeLabelInactive,
-          ]}
-          numberOfLines={1}
-          allowFontScaling={false}
-        >
-          {label}
-        </Text>
-
-        {/* CSS TRIANGLE TRICK: Replaces Icon library */}
-        {showChevron && (
-          <View 
+        {/* Text Label */}
+        <View style={styles.textContainer}>
+          <Text
             style={[
-              styles.cssTriangle, 
-              isActive ? styles.cssTriangleActive : styles.cssTriangleInactive
-            ]} 
-          />
-        )}
-      </View>
+              styles.scopeLabel,
+              isActive ? styles.scopeLabelActive : styles.scopeLabelInactive,
+            ]}
+            numberOfLines={1}
+            allowFontScaling={false}
+          >
+            {label}
+          </Text>
+        </View>
+
+        {/* CSS Triangle Chevron */}
+        {showChevron && <CssChevron isActive={isActive} />}
+        
+      </Animated.View>
     </Pressable>
   );
 });
@@ -203,6 +256,7 @@ export function FourScopeSwitcher({
 
   const [trackWidth, setTrackWidth] = useState<number>(0);
   const tabWidthRef = useRef<number>(0);
+  const userInitiatedRef = useRef<boolean>(false);
   const isFirstRender = useRef<boolean>(true);
 
   const capsuleX = useSharedValue<number>(0);
@@ -219,19 +273,20 @@ export function FourScopeSwitcher({
     if (instant) {
       capsuleX.value = toIndex * tw;
     } else {
-      capsuleX.value = withSpring(toIndex * tw, PRD.SPRING_SLIDE);
+      capsuleX.value = withSpring(toIndex * tw, PRD_TOKENS.SPRING_SLIDE);
     }
   }, [capsuleX]);
 
   const onTrackLayout = useCallback((e: LayoutChangeEvent): void => {
     const w  = e.nativeEvent.layout.width;
-    // Account for padding left/right (SPACING_3 * 2)
-    const availableWidth = w - (PRD.SPACING_3 * 2);
-    const tw = availableWidth / PRD.TAB_COUNT;
+    // Track width minus total horizontal padding
+    const activeSpace = w - (PRD_TOKENS.SP_3 * 2);
+    const tw = activeSpace / PRD_TOKENS.TAB_COUNT;
     
     tabWidthRef.current = tw;
-    setTrackWidth(availableWidth);
+    setTrackWidth(activeSpace);
     
+    // Mount instantly at correct position
     capsuleX.value = activeIndex * tw;
   }, [capsuleX, activeIndex]);
 
@@ -240,11 +295,15 @@ export function FourScopeSwitcher({
       isFirstRender.current = false;
       return;
     }
+    if (userInitiatedRef.current) {
+      userInitiatedRef.current = false;
+      return;
+    }
     slideCapsule(activeIndex, false);
   }, [activeScope, activeIndex, slideCapsule]);
 
   const handleTabPress = useCallback((scope: ChatScope, index: number): void => {
-    void Haptics.impactAsync(PRD.HAPTIC);
+    void Haptics.impactAsync(PRD_TOKENS.HAPTIC);
 
     if (scope === activeScope) {
       const cfg = SCOPES.find((s) => s.key === scope);
@@ -252,6 +311,7 @@ export function FourScopeSwitcher({
       return;
     }
 
+    userInitiatedRef.current = true;
     slideCapsule(index, false);
     onScopeChange(scope);
   }, [activeScope, onScopeChange, onPickerOpen, slideCapsule]);
@@ -270,100 +330,126 @@ export function FourScopeSwitcher({
     return defaultEmoji;
   }, [labels]);
 
-  const tabWidth = trackWidth > 0 ? trackWidth / PRD.TAB_COUNT : 0;
+  const tabWidth = trackWidth > 0 ? trackWidth / PRD_TOKENS.TAB_COUNT : 0;
 
   return (
     <View
-      id="row2"
-      style={styles.container}
+      style={styles.trackOuter}
       onLayout={onTrackLayout}
-      role="tablist"
-      aria-label="Chat scope selector"
+      accessibilityRole="tablist"
+      accessibilityLabel="Chat scope selector"
     >
-      {/* Sliding Active Pill (Maintains premium feel while adhering to DOM structure) */}
-      {tabWidth > 0 && (
-        <Animated.View
-          style={[
-            styles.activeBackgroundPill,
-            { width: tabWidth },
-            animatedCapsuleStyle,
-          ]}
-          pointerEvents="none"
-        />
-      )}
+      <View style={styles.trackInner}>
+        
+        {/* ACTIVE PILL (Background Indicator) */}
+        {tabWidth > 0 && (
+          <Animated.View
+            style={[
+              styles.capsule,
+              { width: tabWidth },
+              animatedCapsuleStyle,
+            ]}
+            pointerEvents="none"
+          />
+        )}
 
-      {SCOPES.map((scopeCfg, index) => (
-        <ScopeTab
-          key={scopeCfg.key}
-          scopeCfg={scopeCfg}
-          index={index}
-          isActive={scopeCfg.key === activeScope}
-          label={getLabel(scopeCfg.key, scopeCfg.defaultLabel)}
-          emoji={getEmoji(scopeCfg.key, scopeCfg.emoji)}
-          onPress={handleTabPress}
-        />
-      ))}
+        {/* TABS */}
+        {SCOPES.map((scopeCfg, index) => (
+          <ScopeTab
+            key={scopeCfg.key}
+            scopeCfg={scopeCfg}
+            index={index}
+            isActive={scopeCfg.key === activeScope}
+            label={getLabel(scopeCfg.key, scopeCfg.defaultLabel)}
+            emoji={getEmoji(scopeCfg.key, scopeCfg.emoji)}
+            onPress={handleTabPress}
+          />
+        ))}
+      </View>
     </View>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STYLES (Strictly using semantic mapping)
+// STYLES v7.0 (PRD MAPPED VARIABLES)
 // ─────────────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: {
-    flexDirection:    'row',
-    alignItems:       'center',
-    height:           PRD.HEIGHT,
-    paddingHorizontal: PRD.SPACING_3, // var(--sp-3)
-    backgroundColor:  colors.bg.surface, // var(--bg-surface)
-    position:         'relative',
+  trackOuter: {
+    /* PRD: Height: Fixed height set karni hai (var(--height-row2) ~ 38px) */
+    height: PRD_TOKENS.HEIGHT_ROW2,
+    
+    /* PRD: Background: Container ka background base surface color (var(--bg-surface)) hona chahiye. */
+    backgroundColor: colors.bg.surface,
+    
+    /* PRD: Container ke left/right mein padding (var(--sp-3)) */
+    paddingHorizontal: PRD_TOKENS.SP_3,
+    
+    justifyContent: 'center',
+    overflow: 'hidden',
   },
-  activeBackgroundPill: {
-    position:         'absolute',
-    left:             PRD.SPACING_3, // Offset by container padding
-    height:           PRD.HEIGHT - 4, // Slightly smaller than container for padding illusion
-    borderRadius:     PRD.RADIUS_MD, // var(--radius-md)
-    backgroundColor:  colors.bg.brandSubtle, // var(--fg-brand-subtle) tinted background
-    zIndex:           0,
+  trackInner: {
+    flex: 1,
+    flexDirection: 'row',
+    /* PRD: Alignment: Items ko vertically center aur horizontally evenly distribute */
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    position: 'relative',
+  },
+  capsule: {
+    position: 'absolute',
+    left: 0,
+    height: '100%',
+    
+    /* PRD: Border radius medium (var(--radius-md)) */
+    borderRadius: PRD_TOKENS.RADIUS_MD,
+    
+    /* PRD: Active State Background: Ek light tinted background pill dikhna chahiye */
+    backgroundColor: colors.bg.brandSubtle, 
+    
+    zIndex: 0,
   },
   scopeButton: {
-    flex:           1,
-    height:         '100%',
+    /* PRD: Sizing: Har tab ko equal width milni chahiye (flex: 1). */
+    flex: 1,
+    height: '100%',
     justifyContent: 'center',
-    alignItems:     'center',
-    borderRadius:   PRD.RADIUS_MD,
-    backgroundColor: 'transparent',
-    zIndex:         1,
+    zIndex: 1, 
   },
   tabContent: {
-    flexDirection:  'row',
-    alignItems:     'center',
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
-    gap:            PRD.SPACING_1, // var(--sp-1)
+    /* PRD: Spacing: Tabs ke beech mein thoda gap (var(--sp-1)) */
+    gap: PRD_TOKENS.SP_1,
   },
   scopeEmoji: {
-    fontSize:       PRD.FONT_SIZE,
+    fontSize: 14,
+  },
+  textContainer: {
+    flexShrink: 1,
   },
   scopeLabel: {
-    fontSize:       PRD.FONT_SIZE,
-    textAlign:      'center',
+    /* PRD: Text Style: Font size chhota (approx 12px) */
+    fontSize: PRD_TOKENS.FONT_SIZE,
+    textAlign: 'center',
   },
   scopeLabelInactive: {
-    fontWeight:     PRD.WEIGHT_REG as any,
-    color:          colors.fg.tertiary, // var(--fg-text-muted)
+    /* PRD: Default Color: Unselected text ka color muted hona chahiye */
+    color: colors.fg.tertiary, // Maps to --fg-text-muted
+    
+    /* PRD: font weight regular (400) */
+    fontWeight: PRD_TOKENS.WEIGHT_REG,
   },
   scopeLabelActive: {
-    fontWeight:     PRD.WEIGHT_BLD as any,
-    color:          colors.fg.primary, // var(--fg-text-strong)
+    /* PRD: Active Text: Font weight bold (600) aur color strong */
+    color: colors.fg.primary, // Maps to --fg-text-strong
+    fontWeight: PRD_TOKENS.WEIGHT_BLD,
   },
   
-  /* * THE CSS TRIANGLE TRICK
-   * Mapped directly from: 
-   * border-left: 4px solid transparent, 
-   * border-right: 4px solid transparent, 
-   * border-top: 5px solid color 
+  /**
+   * PRD: CSS Trick: border-left: 4px solid transparent, 
+   * border-right: 4px solid transparent, border-top: 5px solid var(--fg-text-muted).
    */
   cssTriangle: {
     width: 0,
@@ -372,18 +458,11 @@ const styles = StyleSheet.create({
     borderStyle: 'solid',
     borderLeftWidth: 4,
     borderRightWidth: 4,
-    borderBottomWidth: 0,
     borderTopWidth: 5,
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
-    borderBottomColor: 'transparent',
+    // borderTopColor is set dynamically in the component based on isActive
     marginTop: 2, // Optical alignment
-  },
-  cssTriangleInactive: {
-    borderTopColor: colors.fg.tertiary, // var(--fg-text-muted)
-  },
-  cssTriangleActive: {
-    borderTopColor: colors.fg.brand, // var(--fg-brand)
   },
 });
 
