@@ -1,17 +1,17 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  CROWN — FourScopeSwitcher  v7.2  PRD & HTML EXACT COMBINATION           ║
+ * ║  CROWN — FourScopeSwitcher  v7.3  PRD & HTML EXACT COMBINATION           ║
  * ║  §1.3.3 Row 2 — The 4-Scope Switcher                                     ║
  * ║  Phase 1.3 · App Architecture                                            ║
  * ║  Owner: Noor Aalam (Founder) · May 2026                                  ║
  * ╠══════════════════════════════════════════════════════════════════════════╣
- * ║  CHANGELOG v7.2 — PIXEL-PERFECT VISUAL ALIGNMENT:                        ║
- * ║    [1] Capsule Aesthetics: Height strictly set to 32px with 3px top gap   ║
- * ║        inside the 38px container for a sleeker, premium look.             ║
- * ║    [2] Border Radius: Adjusted to 6px matching the HTML specification.    ║
- * ║    [3] Inner Gap: Emoji and text spacing tightened to 3px.                ║
- * ║    [4] Mathematical Snap: Maintained React Native's flawess layout math   ║
- * ║        to prevent the HTML edge-offset logic bug.                         ║
+ * ║  CHANGELOG v7.3 — MICRO-TYPOGRAPHY & ALIGNMENT FIXES:                    ║
+ * ║    [1] Line Height: Explicit lineHeight: 13 applied to emoji for perfect ║
+ * ║        vertical centering, overriding OS defaults.                       ║
+ * ║    [2] Letter Spacing: Relaxed to 0.12 (matching HTML's 0.01em) to       ║
+ * ║        prevent squeezed text rendering.                                  ║
+ * ║    [3] Chevron Alignment: Margins reset to (ml: 0, mt: 1) for pixel-     ║
+ * ║        perfect visual parity with the HTML structure.                    ║
  * ╚══════════════════════════════════════════════════════════════════════════╝
  */
 
@@ -427,6 +427,8 @@ const styles = StyleSheet.create({
   },
   scopeEmoji: {
     fontSize: 13,
+    // FIX 1: HTML ki tarah strictly 1 ka line-height (font size ke barabar) override OS defaults
+    lineHeight: 13, 
   },
   textContainer: {
     flexShrink: 1,
@@ -435,7 +437,8 @@ const styles = StyleSheet.create({
     /* PRD Section 3: Text Style: Font size chhota (approx 12px) */
     fontSize: PRD_TOKENS.FONT_SIZE,
     textAlign: 'center',
-    letterSpacing: -0.1,
+    // FIX 2: HTML ka 0.01em ab RN mein positive 0.12 ho gaya hai taaki text squeezed na lage
+    letterSpacing: 0.12, 
   },
   scopeLabelInactive: {
     /* PRD Section 3: Default Color: Unselected text ka color muted hona chahiye (var(--fg-text-muted)) */
@@ -464,8 +467,9 @@ const styles = StyleSheet.create({
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
     // borderTopColor interpolates contextually through state evaluations above
-    marginLeft: 2,
-    marginTop: 3, // Optical text baseline adjustment
+    // FIX 3: HTML metrics se exact match
+    marginLeft: 0, 
+    marginTop: 1,  
   },
 });
 
