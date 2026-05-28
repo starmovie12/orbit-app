@@ -1,16 +1,17 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  CROWN — FourScopeSwitcher  v7.2  OMEGA-V5 ASCENDED                     ║
+ * ║  CROWN — FourScopeSwitcher  v7.3  OMEGA-V5 ASCENDED                     ║
  * ║  §1.3.3 Row 2 — The 4-Scope Switcher                                    ║
  * ║  Phase 1.3 · App Architecture                                           ║
  * ╠══════════════════════════════════════════════════════════════════════════╣
- * ║  OMEGA V5 UPGRADES:                                                     ║
- * ║  1. Motion: Replaced linear/stiff springs with Apple HIG standard       ║
- * ║     liquid spring physics (mass: 1, stiffness: 250, damping: 24).       ║
- * ║  2. Haptics: Upgraded to Haptics.selectionAsync() for native UX.        ║
- * ║  3. Elevation: Added premium Glass-Era drop shadow to active capsule.   ║
- * ║  4. Touch Target: Strictly enforced 44dp minimums everywhere.           ║
- * ║  5. Memoization: Absolute zero wasted renders on inactive tabs.         ║
+ * ║  OMEGA V5 UPGRADES (User Directives Applied):                           ║
+ * ║  1. Tab Spacing: Introduced `TAB_GAP` (4dp) between tabs.               ║
+ * ║  2. Fill Parent: Maintained `flex: 1` so tabs stretch to fill available ║
+ * ║     horizontal space evenly.                                            ║
+ * ║  3. Exact Math: Re-calculated capsule width & translation to account    ║
+ * ║     for inter-tab gaps.                                                 ║
+ * ║  4. Golden Fika Background: Active capsule strictly uses                ║
+ * ║     `colors.bg.brandSubtle` (subtle gold) with zero white interference. ║
  * ╚══════════════════════════════════════════════════════════════════════════╝
  */
 
@@ -37,8 +38,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 
-// ── V5 SEMANTIC TOKENS (Mapped from @/constants/colors) ────────────────────
-// Ensure your colors object exports these exact semantic values.
+// ── V5 SEMANTIC TOKENS ───────────────────────────────────────────────────────
 import { colors } from '@/constants/colors';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -110,11 +110,12 @@ const N_TABS = SCOPES.length;
 // V5 CONSTANTS (Optical & Physics)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const TRACK_HEIGHT = 44 as const; // Apple HIG exact minimum
-const H_PAD = 12 as const;        // var(--sp-3)
+const TRACK_HEIGHT = 44 as const; // Apple HIG minimum
+const H_PAD = 12 as const;        // Track horizontal padding
+const TAB_GAP = 4 as const;       // Space between each tab (fill parent distribution)
 const CAPSULE_INSET = 3 as const; 
 
-// Apple HIG Standard Spring (Snappy, settling, premium)
+// Liquid Spring for Capsule Sliding
 const SPRING_SLIDE: WithSpringConfig = {
   mass: 1,
   stiffness: 250,
@@ -148,7 +149,6 @@ Chevron.displayName = 'Chevron';
 
 /**
  * Individual Scope Tab Button
- * V5 Memoized to prevent re-renders of all 4 tabs when only 1 changes.
  */
 interface ScopeTabProps {
   readonly scopeCfg: ScopeConfig;
@@ -170,7 +170,6 @@ const ScopeTab = memo(({
   
   const scale = useSharedValue<number>(1);
 
-  // PERF: UI thread via JSI — zero bridge cost
   const pressAnimStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
   }), []);
@@ -245,7 +244,6 @@ export function FourScopeSwitcher({
     SCOPES.findIndex((s) => s.key === activeScope),
   );
 
-  // PERF: Width is derived locally, only translateX is animated over the bridge.
   const capsuleAnimStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: capsuleX.value }],
     width: tabWidthRef.current,
@@ -253,11 +251,16 @@ export function FourScopeSwitcher({
 
   const handleLayout = useCallback((e: LayoutChangeEvent): void => {
     const totalW = e.nativeEvent.layout.width;
-    const tw = (totalW - H_PAD * 2) / N_TABS;
+    
+    // NEW MATH: Account for horizontal padding AND the gaps between tabs
+    const availableWidth = totalW - (H_PAD * 2) - (TAB_GAP * (N_TABS - 1));
+    const tw = availableWidth / N_TABS;
 
     tabWidthRef.current = tw;
     setTabWidth(tw);
-    capsuleX.value = activeIndex * tw; // Instant snap on layout
+    
+    // Position includes the tab width plus the gap for each previous tab
+    capsuleX.value = activeIndex * (tw + TAB_GAP); 
   }, [capsuleX, activeIndex]);
 
   useEffect(() => {
@@ -272,12 +275,11 @@ export function FourScopeSwitcher({
     
     const tw = tabWidthRef.current;
     if (tw > 0) {
-      capsuleX.value = withSpring(activeIndex * tw, SPRING_SLIDE);
+      capsuleX.value = withSpring(activeIndex * (tw + TAB_GAP), SPRING_SLIDE);
     }
   }, [activeScope, activeIndex, capsuleX]);
 
   const handleTabPress = useCallback((scope: ChatScope, index: number): void => {
-    // V5 UPGRADE: Native Selection Haptic (Premium tactile feel)
     void Haptics.selectionAsync();
 
     if (scope === activeScope) {
@@ -287,7 +289,7 @@ export function FourScopeSwitcher({
     }
 
     userInitiatedRef.current = true;
-    capsuleX.value = withSpring(index * tabWidthRef.current, SPRING_SLIDE);
+    capsuleX.value = withSpring(index * (tabWidthRef.current + TAB_GAP), SPRING_SLIDE);
     onScopeChange(scope);
   }, [activeScope, onScopeChange, onPickerOpen, capsuleX]);
 
@@ -340,11 +342,12 @@ export function FourScopeSwitcher({
 const styles = StyleSheet.create({
   track: {
     height: TRACK_HEIGHT,
-    backgroundColor: colors.bg.surface,
-    borderRadius: 12, // V5: Slightly rounded pill aesthetic
+    backgroundColor: colors.bg.surface, // Container outer background
+    borderRadius: 12,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: H_PAD,
+    gap: TAB_GAP, // Creates the distinct spaces beside each tab
     overflow: 'hidden',
   },
   capsule: {
@@ -352,11 +355,13 @@ const styles = StyleSheet.create({
     left: H_PAD,
     top: CAPSULE_INSET,
     bottom: CAPSULE_INSET,
-    backgroundColor: colors.bg.brandSubtle,
+    
+    // PURE GOLDEN FIKA COLOUR — No white background interference
+    backgroundColor: colors.bg.brandSubtle, 
+    
     borderRadius: 8,
     zIndex: 0,
     
-    // V5 UPGRADE: Glass-Era subtle elevation for the active state
     shadowColor: colors.fg.brand,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.12,
@@ -364,7 +369,7 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   tab: {
-    flex: 1,
+    flex: 1, // Ensures every tab fills the available parent space equally
     height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
