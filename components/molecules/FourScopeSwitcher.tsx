@@ -1,37 +1,16 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  CROWN — FourScopeSwitcher  v7.2  FINAL MASTER                           ║
- * ║  §1.3.3 Row 2 — The 4-Scope Switcher (Dabba/Box Update)                  ║
+ * ║  CROWN — FourScopeSwitcher  v7.3  FINAL MASTER (Cross-Platform Fix)      ║
+ * ║  §1.3.3 Row 2 — The 4-Scope Switcher                                     ║
  * ║  Phase 1.3 · App Architecture                                            ║
  * ║  Owner: Noor Aalam (Founder) · Chandigarh · May 2026                     ║
  * ╠══════════════════════════════════════════════════════════════════════════╣
- * ║  VISUAL-MATCH PRD  (Phase 1.3 Update)                                    ║
+ * ║  FIX APPLIED:                                                            ║
+ * ║  Resolved the Web/Browser stacking context issue where absolute Dabba    ║
+ * ║  was hiding behind the track background. Removed zIndex dependency.      ║
  * ║                                                                          ║
- * ║  1. OPTICAL LAYOUT                                                       ║
- * ║     • Track: warm off-white pill, 44dp tall.                             ║
- * ║     • H_PAD: 12dp (mirrors HTML var(--sp-3) = 12px exactly).             ║
- * ║     • Dabba (Active Box): Har tab ke paas apna independent background    ║
- * ║       box hai jo active hone par theme color ke sath fade/scale hota hai.║
- * ║     • Tabs: flex:1, centered row — emoji · label · chevron — gap 3dp.    ║
- * ║                                                                          ║
- * ║  2. TYPOGRAPHY & EMOJI                                                   ║
- * ║     • Label: 12sp, weight 400/600.                                       ║
- * ║     • Letter-spacing: 0.15 ≈ HTML letter-spacing: 0.01em @ 12px.         ║
- * ║     • Emoji: isolated Text node, fontSize 13sp, lineHeight 16dp.         ║
- * ║                                                                          ║
- * ║  3. COMPONENT HIERARCHY                                                  ║
- * ║     FourScopeSwitcher (View, flexRow, paddingH=12, overflow:hidden)      ║
- * ║       └── ScopeTab × 4 (Pressable)                                       ║
- * ║             ├── Dabba (Animated.View - Active Background Box)            ║
- * ║             └── Content (Animated.View → emoji+label+▼)                  ║
- * ║                                                                          ║
- * ║  4. ANIMATION                                                            ║
- * ║     • Dabba (Box) spring: { damping: 20, stiffness: 300, mass: 0.8 }     ║
- * ║       Premium fade and scale-in effect when a tab becomes active.        ║
- * ║     • Press spring: { stiffness:450, damping:30 } → scale 0.95.          ║
- * ║                                                                          ║
- * ║  5. DESIGN TOKENS                                                        ║
- * ║     Zero hardcoded hex. All colours via `colors` from @/constants/colors ║
+ * ║  DESIGN TOKENS                                                           ║
+ * ║  Zero hardcoded hex. All colours via `colors` from @/constants/colors    ║
  * ╚══════════════════════════════════════════════════════════════════════════╝
  */
 
@@ -47,6 +26,7 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSpring,
+  withTiming,
   type WithSpringConfig,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -128,16 +108,6 @@ const CAPSULE_INSET = 3 as const;
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Dabba (Active Box) spring — Smooth, premium fade-in and subtle scale-up 
- * that gives the CROWN app its elite feel when switching scopes.
- */
-const SPRING_DABBA: WithSpringConfig = {
-  damping:   20,
-  stiffness: 300,
-  mass:      0.8,
-} as const;
-
-/**
  * Press scale spring — quick, snappy squish feedback on tap.
  */
 const SPRING_PRESS: WithSpringConfig = {
@@ -146,8 +116,17 @@ const SPRING_PRESS: WithSpringConfig = {
   mass:      1,
 } as const;
 
+/**
+ * Scale spring for the Dabba (Box) to give it a slight pop-in effect.
+ */
+const SPRING_DABBA_SCALE: WithSpringConfig = {
+  damping:   20,
+  stiffness: 300,
+  mass:      0.8,
+} as const;
+
 // ─────────────────────────────────────────────────────────────────────────────
-// CHEVRON  (CSS border-triangle, zero icon font footprint)
+// CHEVRON 
 // ─────────────────────────────────────────────────────────────────────────────
 
 const Chevron = memo(({ isActive }: { isActive: boolean }) => (
@@ -166,7 +145,6 @@ Chevron.displayName = 'Chevron';
 
 interface ScopeTabProps {
   readonly scopeCfg: ScopeConfig;
-  readonly index:    number;
   readonly isActive: boolean;
   readonly label:    string;
   readonly emoji:    string;
@@ -189,10 +167,10 @@ const ScopeTab = memo(({
   }), []);
 
   // ── Dabba (Active Box) animation state ──
-  // Jab tab active hoga, dabba smoothly visible aur properly scaled ho jayega.
+  // Using withTiming for opacity as it's much more stable on Web/Browsers.
   const dabbaAnimStyle = useAnimatedStyle(() => ({
-    opacity: withSpring(isActive ? 1 : 0, SPRING_DABBA),
-    transform: [{ scale: withSpring(isActive ? 1 : 0.85, SPRING_DABBA) }]
+    opacity: withTiming(isActive ? 1 : 0, { duration: 150 }),
+    transform: [{ scale: withSpring(isActive ? 1 : 0.85, SPRING_DABBA_SCALE) }]
   }), [isActive]);
 
   const handlePressIn = useCallback(() => {
@@ -219,15 +197,15 @@ const ScopeTab = memo(({
       hitSlop={{ top: 8, bottom: 8, left: 2, right: 2 }}
     >
       {/* * THE DABBA (Active Box)
-        * Ye dedicated dabba hai jo us specific tab ke click hone par ban jata hai
-        * aur hamari theme (brandSubtle) ke color se match karta hai.
+        * Rendered FIRST so it naturally sits behind the text. 
+        * No zIndex used to prevent web/browser stacking context bugs.
       */}
       <Animated.View style={[styles.dabba, dabbaAnimStyle]} pointerEvents="none" />
 
-      {/* Animated inner row — carries the press-scale transform */}
+      {/* Animated inner row (Content) — Rendered SECOND so it sits on top */}
       <Animated.View style={[styles.tabContent, pressAnimStyle]}>
         
-        {/* Emoji - Isolated Text node prevents OS line-height ballooning */}
+        {/* Emoji */}
         <Text
           style={styles.emoji}
           allowFontScaling={false}
@@ -236,7 +214,7 @@ const ScopeTab = memo(({
           {emoji}
         </Text>
 
-        {/* Label - active/inactive color shifting */}
+        {/* Label */}
         <Text
           style={[
             styles.label,
@@ -271,8 +249,10 @@ export function FourScopeSwitcher({
 
   // ── Tab press handler ──────────────────────────────────────────────────────
   const handleTabPress = useCallback((scope: ChatScope): void => {
-    // Tactile feedback — light impact
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    // Tactile feedback
+    if (Platform.OS !== 'web') {
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
 
     if (scope === activeScope) {
       // Already active → re-tap opens the picker sheet
@@ -306,12 +286,10 @@ export function FourScopeSwitcher({
       accessibilityRole="tablist"
       accessibilityLabel="Chat scope selector"
     >
-      {/* Four scope tabs — Dabba logic is now encapsulated inside each tab */}
-      {SCOPES.map((scopeCfg, index) => (
+      {SCOPES.map((scopeCfg) => (
         <ScopeTab
           key={scopeCfg.key}
           scopeCfg={scopeCfg}
-          index={index}
           isActive={scopeCfg.key === activeScope}
           label={getLabel(scopeCfg.key, scopeCfg.defaultLabel)}
           emoji={getEmoji(scopeCfg.key, scopeCfg.emoji)}
@@ -323,7 +301,7 @@ export function FourScopeSwitcher({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STYLES (Zero Hardcoded Hex - Fully Theme Tokenized)
+// STYLES 
 // ─────────────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
@@ -346,19 +324,17 @@ const styles = StyleSheet.create({
     justifyContent:  'center',
     alignItems:      'center',
     backgroundColor: 'transparent',
-    position:        'relative', // Required for absolute positioning of Dabba
+    // position: 'relative' is omitted to allow natural flex rendering.
   },
 
   // ── THE DABBA (New Theme-Matched Active Box) ───────────────────────────────
   dabba: {
-    position:        'absolute',
-    top:             CAPSULE_INSET,
-    bottom:          CAPSULE_INSET,
-    left:            2,
-    right:           2,
+    ...StyleSheet.absoluteFillObject,
+    marginVertical:  CAPSULE_INSET, // Top and bottom spacing
+    marginHorizontal: 3,            // Slight side padding to keep tabs separate
     backgroundColor: colors.bg.brandSubtle, // CROWN Theme matched color
     borderRadius:    6,
-    zIndex:          0, // Sits behind the text content
+    // Removed zIndex entirely. It sits behind the text naturally because of JSX order.
   },
 
   // ── Tab inner content row ──────────────────────────────────────────────────
@@ -367,7 +343,7 @@ const styles = StyleSheet.create({
     alignItems:     'center',
     justifyContent: 'center',
     gap:            3,
-    zIndex:         1, // Ensures text is above the dabba
+    // Removed zIndex here as well.
   },
 
   // ── Emoji — isolated Text node ─────────────────────────────────────────────
