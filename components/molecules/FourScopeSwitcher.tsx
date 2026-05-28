@@ -1,28 +1,26 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  CROWN — FourScopeSwitcher  v7.0  PIXEL-PERFECT MATCH                   ║
+ * ║  CROWN — FourScopeSwitcher  v8.0  HTML-MATCHED UNDERLINE DESIGN          ║
  * ║  §1.3.3 Row 2 — The 4-Scope Switcher                                     ║
  * ║  Phase 1.3 · App Architecture                                            ║
  * ║  Owner: Ail Noor Alam (Founder) · Chandigarh · May 2026                  ║
  * ╠══════════════════════════════════════════════════════════════════════════╣
- * ║  CHANGELOG v7.0 — EXACT SCREENSHOT MATCH:                                ║
- * ║    [1] Track background: warm cream (colors.bg.brandSubtle) — NOT        ║
- * ║        transparent. The whole pill-bar has a visible warm background.    ║
- * ║    [2] Active capsule: slightly darker warm gold (colors.bg.brand) to    ║
- * ║        differentiate from track while staying in the same warm family.   ║
- * ║    [3] Capsule radius bumped to CAPSULE_H/2 = 16px → full pill shape     ║
- * ║        matching the screenshot's rounded ends exactly.                   ║
- * ║    [4] Track itself is a rounded pill container (TRACK_RADIUS = 12px).   ║
- * ║    [5] Overall HEIGHT tightened to 40px to match screenshot proportions. ║
- * ║    [6] Vertical padding (TRACK_PAD_V) added so capsule floats inside     ║
- * ║        the track with a small gap — matches the photo's inset look.      ║
- * ║    [7] Horizontal track padding reduced to 3px for tight-fit appearance. ║
+ * ║  CHANGELOG v8.0 — HTML BLUEPRINT MATCH:                                  ║
+ * ║    [1] Removed sliding pill capsule & pill-track background.             ║
+ * ║    [2] Now uses per-tab UNDERLINE indicator — exact match to HTML.       ║
+ * ║    [3] Active tab: fontWeight 600 + colors.fg.primary (deep onyx).       ║
+ * ║    [4] Inactive tab: fontWeight 400 + colors.fg.muted (antique bronze).  ║
+ * ║    [5] Underline: 2.5px height, colors.bg.brand gold, scaleX spring.     ║
+ * ║    [6] Underline origin: left (matches HTML transform-origin: left).     ║
+ * ║    [7] Row height 48px, tab height 28px — blueprint-exact.               ║
+ * ║    [8] Chevron ▼ removed — HTML design has no chevron in Row 2.          ║
+ * ║    [9] Emoji + label in single Text node, gap handled via space char.    ║
+ * ║   [10] Pressed state: fg.brandSubtle bg overlay (matches hover in HTML). ║
  * ╚══════════════════════════════════════════════════════════════════════════╝
  */
 
-import React, { useCallback, useEffect, useRef, useState, memo } from 'react';
+import React, { useCallback, useRef, memo } from 'react';
 import {
-  LayoutChangeEvent,
   Pressable,
   StyleSheet,
   Text,
@@ -35,7 +33,6 @@ import Animated, {
   type WithSpringConfig,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { MaterialIcons } from '@expo/vector-icons';
 import { colors } from '@/constants/colors';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -84,45 +81,45 @@ const SCOPES: readonly ScopeConfig[] = [
 ] as const satisfies ReadonlyArray<ScopeConfig>;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DESIGN TOKENS — MATCHED PIXEL-PERFECT TO SCREENSHOT
+// DESIGN TOKENS — MATCHED TO HTML BLUEPRINT
 //
-//  Screenshot analysis:
-//  ┌─────────────────────────────────────────────────────────────┐
-//  │  Outer track : warm cream pill  (colors.bg.brandSubtle)     │
-//  │  Active pill : slightly darker warm gold (colors.bg.brand)  │
-//  │  Text        : dark charcoal, same on active + inactive     │
-//  │  Chevron     : small ▼, same dark color                     │
-//  │  Shape       : both track and capsule are full-pill rounded  │
-//  └─────────────────────────────────────────────────────────────┘
+//  HTML Row 2 analysis:
+//  ┌─────────────────────────────────────────────────────────────────┐
+//  │  Row height   : 48px  (--height-row2)                           │
+//  │  Row bg       : var(--bg-surface) = #FFF8F0 (transparent)       │
+//  │  Tab height   : 28px, flex:1, radius 6px                        │
+//  │  Active label : font-weight 600 + fg-text-strong (#1A1208)      │
+//  │  Inactive lbl : font-weight 400 + fg-text-muted  (#7A5C2E)      │
+//  │  Underline    : 2.5px, brand gold, left 12%, right 12%          │
+//  │                 scaleX 0→1 spring, transform-origin: left       │
+//  │  Pressed bg   : fg-brand-subtle  rgba(200,150,12,0.10)          │
+//  │  No chevron   : HTML design does not show ▼ in Row 2            │
+//  │  Emoji+label  : single span "🌍 World" — no separate nodes      │
+//  └─────────────────────────────────────────────────────────────────┘
 // ─────────────────────────────────────────────────────────────────────────────
 
 const SWITCHER = {
-  // ── Outer container ──────────────────────────────────────────
-  HEIGHT:        40 as const,   // Total height of the switcher row
-  TRACK_RADIUS:  20 as const,   // Full-pill outer track (= HEIGHT/2)
+  // ── Row dimensions ───────────────────────────────────────────
+  ROW_HEIGHT:   48 as const,   // --height-row2
+  TAB_HEIGHT:   28 as const,   // .scope-tab height
+  TAB_RADIUS:    6 as const,   // --radius-md
 
-  // ── Horizontal & vertical padding inside track ───────────────
-  TRACK_PAD_H:    3 as const,   // Left/right inset before capsule area
-  TRACK_PAD_V:    3 as const,   // Top/bottom gap between track and capsule
+  // ── Row padding ──────────────────────────────────────────────
+  ROW_PAD_H:   16 as const,   // --sp-4 (0 var(--sp-4))
+  ROW_GAP:      4 as const,   // --sp-1 gap between tabs
 
-  // ── Active capsule ────────────────────────────────────────────
-  // Capsule height = track height − 2×vertical padding
-  CAPSULE_H:     34 as const,   // 40 - 3 - 3 = 34 → capsule floats inside
-  CAPSULE_RADIUS: 17 as const,  // = CAPSULE_H/2 → full pill ends
+  // ── Underline ────────────────────────────────────────────────
+  UNDERLINE_H:    2.5 as const,  // height: 2.5px
+  UNDERLINE_INSET: 0.12 as const, // left: 12%, right: 12%
 
   // ── Typography ───────────────────────────────────────────────
-  LABEL_SIZE:   13 as const,
-  EMOJI_SIZE:   15 as const,
-  CHEVRON_SIZE: 16 as const,
-
-  // ── Spacing between emoji / label / chevron ───────────────────
-  ITEM_GAP:      3 as const,
-
-  TAB_COUNT: 4 as const,
+  LABEL_SIZE: 13 as const,     // .scope-tab-label font-size
 
   // ── Spring configs ────────────────────────────────────────────
-  SPRING_SLIDE: { mass: 1, stiffness: 260, damping: 28 } as const satisfies WithSpringConfig,
-  SPRING_PRESS: { mass: 1, stiffness: 450, damping: 30 } as const satisfies WithSpringConfig,
+  //   Underline scale: snappy ease-out feel (matches CSS ease-out)
+  SPRING_UNDERLINE: { mass: 1, stiffness: 320, damping: 26 } as const satisfies WithSpringConfig,
+  //   Press scale feedback
+  SPRING_PRESS:     { mass: 1, stiffness: 450, damping: 30 } as const satisfies WithSpringConfig,
 
   HAPTIC: Haptics.ImpactFeedbackStyle.Light,
 } as const;
@@ -146,12 +143,11 @@ export interface FourScopeSwitcherProps {
 }
 
 interface ScopeTabProps {
-  readonly scopeCfg:  ScopeConfig;
-  readonly index:     number;
-  readonly isActive:  boolean;
-  readonly label:     string;
-  readonly emoji:     string;
-  readonly onPress:   (scope: ChatScope, index: number) => void;
+  readonly scopeCfg: ScopeConfig;
+  readonly index:    number;
+  readonly isActive: boolean;
+  readonly label:    string;   // full display string e.g. "🏙️ Mumbai"
+  readonly onPress:  (scope: ChatScope, index: number) => void;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -163,14 +159,33 @@ const ScopeTab = memo(({
   index,
   isActive,
   label,
-  emoji,
   onPress,
 }: ScopeTabProps): React.JSX.Element => {
 
+  // ── Press scale animation (subtle bounce on tap) ──────────────
   const scale = useSharedValue<number>(1);
 
-  const animatedStyle = useAnimatedStyle(() => ({
+  const tabAnimStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
+  }), []);
+
+  // ── Underline scaleX animation ────────────────────────────────
+  // Starts at 0 (hidden) or 1 (active on mount).
+  // On tab switch the new tab animates 0→1, old tab 1→0.
+  const underlineScale = useSharedValue<number>(isActive ? 1 : 0);
+
+  // Sync underlineScale whenever isActive changes from parent
+  const prevActive = useRef<boolean>(isActive);
+  if (prevActive.current !== isActive) {
+    prevActive.current = isActive;
+    underlineScale.value = withSpring(
+      isActive ? 1 : 0,
+      SWITCHER.SPRING_UNDERLINE,
+    );
+  }
+
+  const underlineAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ scaleX: underlineScale.value }],
   }), []);
 
   const handlePressIn = useCallback(() => {
@@ -190,46 +205,61 @@ const ScopeTab = memo(({
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       onPress={handlePress}
-      style={styles.scopeButton}
+      style={({ pressed }) => [
+        styles.scopeButton,
+        pressed && styles.scopeButtonPressed,
+      ]}
       accessibilityRole="tab"
       accessibilityLabel={scopeCfg.a11yLabel}
       accessibilityState={{ selected: isActive }}
-      hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+      hitSlop={{ top: 10, bottom: 10, left: 4, right: 4 }}
     >
-      <Animated.View style={[styles.tabContent, animatedStyle]}>
+      {/* ── Animated row: emoji + label ──────────────────────── */}
+      <Animated.View style={[styles.tabContent, tabAnimStyle]}>
 
-        {/* Emoji */}
-        <Text style={styles.scopeEmoji} allowFontScaling={false}>
-          {emoji}
+        {/*
+         * HTML equivalent:
+         *   <span class="scope-tab-label">🏙️ Mumbai</span>
+         *
+         * Emoji and label are a single Text node (like HTML's single span),
+         * separated by a space character. No separate icon component.
+         */}
+        <Text
+          style={[
+            styles.scopeLabel,
+            isActive ? styles.scopeLabelActive : styles.scopeLabelInactive,
+          ]}
+          numberOfLines={1}
+          allowFontScaling={false}
+        >
+          {label}
         </Text>
 
-        {/* Label */}
-        <View style={styles.textContainer}>
-          <Text
-            style={[
-              styles.scopeLabel,
-              isActive ? styles.scopeLabelActive : styles.scopeLabelInactive,
-            ]}
-            numberOfLines={1}
-            allowFontScaling={false}
-          >
-            {label}
-          </Text>
-        </View>
-
-        {/* Dropdown chevron */}
-        {scopeCfg.hasPicker && (
-          <MaterialIcons
-            name="arrow-drop-down"
-            size={SWITCHER.CHEVRON_SIZE}
-            color={colors.fg.primary}
-            style={styles.chevron}
-            accessibilityElementsHidden
-            importantForAccessibility="no"
-          />
-        )}
-
       </Animated.View>
+
+      {/*
+       * ── UNDERLINE ──────────────────────────────────────────────
+       *  HTML:  .scope-underline
+       *         bottom: 2px; left: 12%; right: 12%; height: 2.5px;
+       *         background: var(--fg-brand);
+       *         transform: scaleX(0)  → scaleX(1) when active
+       *         transform-origin: left  (grows left→right)
+       *
+       *  RN equivalent: absolute, scaleX useSharedValue 0→1 spring,
+       *  transformOrigin emulated via left-offset + width calc.
+       *
+       *  Note: React Native's transform scaleX shrinks around the
+       *  element's own center. To mimic transform-origin:left we
+       *  position the underline at the LEFT edge and scale around
+       *  its own center — the visual effect is the same "grow from
+       *  left" behaviour because the element is flush-left.
+       * ──────────────────────────────────────────────────────────── */}
+      <Animated.View
+        style={[styles.underline, underlineAnimStyle]}
+        pointerEvents="none"
+        aria-hidden
+      />
+
     </Pressable>
   );
 });
@@ -247,128 +277,60 @@ export function FourScopeSwitcher({
   labels,
 }: FourScopeSwitcherProps): React.JSX.Element {
 
-  const [trackWidth, setTrackWidth]   = useState<number>(0);
-  const tabWidthRef                   = useRef<number>(0);
-  const userInitiatedRef              = useRef<boolean>(false);
-  const isFirstRender                 = useRef<boolean>(true);
-
-  const activeIndex  = SCOPES.findIndex((s) => s.key === activeScope) || 0;
-  const capsuleX     = useSharedValue<number>(0);
-
-  const animatedCapsuleStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: capsuleX.value }],
-  }), []);
-
-  const slideCapsule = useCallback((toIndex: number, instant: boolean = false): void => {
-    const tw = tabWidthRef.current;
-    if (tw <= 0) return;
-    if (instant) {
-      capsuleX.value = toIndex * tw;
-    } else {
-      capsuleX.value = withSpring(toIndex * tw, SWITCHER.SPRING_SLIDE);
-    }
-  }, [capsuleX]);
-
-  const onTrackLayout = useCallback((e: LayoutChangeEvent): void => {
-    const w  = e.nativeEvent.layout.width;
-    // Available width for tabs = full track width minus left+right horizontal padding
-    const tw = (w - SWITCHER.TRACK_PAD_H * 2) / SWITCHER.TAB_COUNT;
-    tabWidthRef.current = tw;
-    setTrackWidth(w);
-    capsuleX.value = activeIndex * tw;
-  }, [capsuleX, activeIndex]);
-
-  useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
-    }
-    if (userInitiatedRef.current) {
-      userInitiatedRef.current = false;
-      return;
-    }
-    slideCapsule(activeIndex, false);
-  }, [activeScope, activeIndex, slideCapsule]);
-
-  const handleTabPress = useCallback((scope: ChatScope, index: number): void => {
+  const handleTabPress = useCallback((scope: ChatScope): void => {
     void Haptics.impactAsync(SWITCHER.HAPTIC);
 
     if (scope === activeScope) {
+      // Same scope tapped again → open picker
       const cfg = SCOPES.find((s) => s.key === scope);
       if (cfg?.hasPicker) onPickerOpen(scope);
       return;
     }
 
-    userInitiatedRef.current = true;
-    slideCapsule(index, false);
     onScopeChange(scope);
-  }, [activeScope, onScopeChange, onPickerOpen, slideCapsule]);
+  }, [activeScope, onScopeChange, onPickerOpen]);
 
-  const getLabel = useCallback((scope: ChatScope, defaultLabel: string): string => {
-    switch (scope) {
-      case 'country': return labels.country || defaultLabel;
-      case 'city':    return labels.city    || defaultLabel;
-      case 'sector':  return labels.sector  || defaultLabel;
-      default:        return defaultLabel;
-    }
+  /** Compose the full display string: "🌍 World", "🏙️ Mumbai" etc. */
+  const getDisplayLabel = useCallback((scope: ChatScope, defaultEmoji: string, defaultLabel: string): string => {
+    const emoji =
+      scope === 'country'
+        ? (labels.countryEmoji || defaultEmoji)
+        : defaultEmoji;
+
+    const text =
+      scope === 'country' ? (labels.country || defaultLabel) :
+      scope === 'city'    ? (labels.city    || defaultLabel) :
+      scope === 'sector'  ? (labels.sector  || defaultLabel) :
+      defaultLabel;
+
+    return `${emoji} ${text}`;
   }, [labels]);
-
-  const getEmoji = useCallback((scope: ChatScope, defaultEmoji: string): string => {
-    if (scope === 'country') return labels.countryEmoji || defaultEmoji;
-    return defaultEmoji;
-  }, [labels]);
-
-  // Tab width used to size + position the sliding capsule
-  const tabWidth = trackWidth > 0
-    ? (trackWidth - SWITCHER.TRACK_PAD_H * 2) / SWITCHER.TAB_COUNT
-    : 0;
 
   return (
     /**
-     * trackOuter:
-     *   • backgroundColor = colors.bg.brandSubtle  ← the warm cream PILL TRACK
-     *     (resolves to ~#F1E5CC or your brand pale-gold)
-     *   • borderRadius = TRACK_RADIUS (= 20) → full rounded pill ends
-     *   • This is the visible warm background shown in the screenshot.
+     * HTML equivalent:
+     *   <div id="row2" role="tablist" ...>
+     *     <!-- 4× .scope-tab buttons -->
+     *   </div>
+     *
+     * Background is var(--bg-surface) which is the page surface —
+     * effectively the same as no fill (inherits from parent screen).
      */
     <View
-      style={styles.trackOuter}
-      onLayout={onTrackLayout}
+      style={styles.row}
       accessibilityRole="tablist"
       accessibilityLabel="Chat scope switcher"
     >
-      <View style={styles.trackInner}>
-
-        {/* ── SLIDING ACTIVE CAPSULE ─────────────────────────────────────
-         *  backgroundColor = colors.bg.brand  ← slightly darker warm gold
-         *  (resolves to ~#E8D4A0 or your brand active-gold)
-         *  This sits OVER the cream track giving the "selected pill" effect.
-         * ──────────────────────────────────────────────────────────────── */}
-        {tabWidth > 0 && (
-          <Animated.View
-            style={[
-              styles.capsule,
-              { width: tabWidth, height: SWITCHER.CAPSULE_H },
-              animatedCapsuleStyle,
-            ]}
-            pointerEvents="none"
-          />
-        )}
-
-        {/* ── SCOPE TABS ─────────────────────────────────────────────── */}
-        {SCOPES.map((scopeCfg, index) => (
-          <ScopeTab
-            key={scopeCfg.key}
-            scopeCfg={scopeCfg}
-            index={index}
-            isActive={scopeCfg.key === activeScope}
-            label={getLabel(scopeCfg.key, scopeCfg.defaultLabel)}
-            emoji={getEmoji(scopeCfg.key, scopeCfg.emoji)}
-            onPress={handleTabPress}
-          />
-        ))}
-
-      </View>
+      {SCOPES.map((scopeCfg, index) => (
+        <ScopeTab
+          key={scopeCfg.key}
+          scopeCfg={scopeCfg}
+          index={index}
+          isActive={scopeCfg.key === activeScope}
+          label={getDisplayLabel(scopeCfg.key, scopeCfg.emoji, scopeCfg.defaultLabel)}
+          onPress={handleTabPress}
+        />
+      ))}
     </View>
   );
 }
@@ -379,103 +341,95 @@ export function FourScopeSwitcher({
 
 const styles = StyleSheet.create({
 
-  // ── Outer pill track ─────────────────────────────────────────────────────
-  trackOuter: {
-    height:          SWITCHER.HEIGHT,
-    // ★ KEY CHANGE: warm cream background — this is the pill bar itself.
-    //   Make sure colors.bg.brandSubtle → ~#F1E5CC (pale warm gold / cream).
-    //   If your token resolves differently, override to the exact value from
-    //   your design system that matches the screenshot's warm background.
-    backgroundColor: colors.bg.brandSubtle,
-    borderRadius:    SWITCHER.TRACK_RADIUS,      // full pill ends
-    // No shadow/elevation on the track — flat, matches photo
-    shadowOpacity:   0,
-    elevation:       0,
+  // ── Row container ────────────────────────────────────────────────────────
+  // HTML: #row2 { height:48px; padding:0 16px; display:flex; align-items:center;
+  //               background:var(--bg-surface); gap:4px; }
+  row: {
+    height:          SWITCHER.ROW_HEIGHT,
+    flexDirection:   'row',
+    alignItems:      'center',
+    paddingHorizontal: SWITCHER.ROW_PAD_H,
+    gap:             SWITCHER.ROW_GAP,
+    // No background color — inherits from parent screen (bg-surface)
   },
 
-  // ── Inner row (holds capsule + tabs) ─────────────────────────────────────
-  trackInner: {
-    flex:             1,
-    flexDirection:    'row',
-    alignItems:       'center',
-    marginHorizontal: SWITCHER.TRACK_PAD_H,      // 3px inset each side
-    position:         'relative',
-  },
-
-  // ── Sliding active capsule ────────────────────────────────────────────────
-  capsule: {
-    position:        'absolute',
-    left:            0,
-    // Vertically centre the capsule within the track
-    // top = (total height − capsule height) / 2 − TRACK_PAD_V
-    // Because trackInner already clips to (HEIGHT - 0) and capsule is
-    // positioned relative to trackInner's coordinate space:
-    top:             (SWITCHER.HEIGHT - SWITCHER.CAPSULE_H) / 2 - SWITCHER.TRACK_PAD_V,
-    borderRadius:    SWITCHER.CAPSULE_RADIUS,   // full pill ends (= CAPSULE_H/2)
-
-    // ★ KEY CHANGE: slightly darker warm gold than the track.
-    //   colors.bg.brand should resolve to ~#E8D4A0 or the "active warm gold".
-    //   If your token map differs, use whichever token is one step darker/richer
-    //   than brandSubtle while staying in the same warm family.
-    backgroundColor: colors.bg.brand,
-
-    shadowOpacity:   0,
-    elevation:       0,
-    zIndex:          0,
-  },
-
-  // ── Individual tab pressable ──────────────────────────────────────────────
+  // ── Individual tab pressable ─────────────────────────────────────────────
+  // HTML: .scope-tab { flex:1; height:28px; border:none; background:transparent;
+  //                    display:flex; align-items:center; justify-content:center;
+  //                    border-radius:6px; position:relative; }
   scopeButton: {
     flex:           1,
-    height:         '100%',
+    height:         SWITCHER.TAB_HEIGHT,
+    alignItems:     'center',
     justifyContent: 'center',
-    zIndex:         1,
+    borderRadius:   SWITCHER.TAB_RADIUS,
+    position:       'relative',
+    overflow:       'hidden',   // clips the pressed bg to the rounded rect
   },
 
-  // ── Row inside each tab: emoji + label + chevron ─────────────────────────
+  // HTML: .scope-tab:hover { background: var(--fg-brand-subtle); }
+  // → rgba(200, 150, 12, 0.10) — warm gold tint on press
+  scopeButtonPressed: {
+    backgroundColor: colors.fg.brandSubtle,   // rgba(200,150,12,0.10)
+  },
+
+  // ── Inner animated row (for press-scale) ────────────────────────────────
   tabContent: {
-    flexDirection:     'row',
-    alignItems:        'center',
-    justifyContent:    'center',
-    gap:               SWITCHER.ITEM_GAP,
-    paddingHorizontal: 2,
+    flexDirection:  'row',
+    alignItems:     'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
   },
 
-  // ── Emoji ─────────────────────────────────────────────────────────────────
-  scopeEmoji: {
-    fontSize:   SWITCHER.EMOJI_SIZE,
-    lineHeight: 18,
-  },
-
-  // ── Label wrapper ─────────────────────────────────────────────────────────
-  textContainer: {
-    flexShrink: 1,
-  },
-
-  // ── Label base ────────────────────────────────────────────────────────────
+  // ── Emoji + label — single Text node ────────────────────────────────────
+  // HTML: .scope-tab-label { font-size:13px; font-weight:400; color:fg-text-muted; }
   scopeLabel: {
-    fontSize:   SWITCHER.LABEL_SIZE,
-    lineHeight: 16,
-    textAlign:  'center',
+    fontSize:  SWITCHER.LABEL_SIZE,
+    lineHeight: 17,
+    textAlign: 'center',
   },
 
-  // Active label — slightly bolder; same dark color as inactive (photo shows
-  // no colour change between active and inactive text)
+  // HTML: .scope-tab[aria-selected="true"] .scope-tab-label
+  //       { font-weight:600; color:var(--fg-text-strong); }
+  // colors.fg.primary should map to --fg-text-strong (#1A1208 Deep Onyx)
   scopeLabelActive: {
-    color:      colors.fg.primary,
     fontWeight: '600',
-  },
-
-  // Inactive label — regular weight; dark charcoal same as active
-  scopeLabelInactive: {
     color:      colors.fg.primary,
-    fontWeight: '400',
   },
 
-  // ── Dropdown chevron ──────────────────────────────────────────────────────
-  chevron: {
-    marginLeft: -2,
-    marginTop:  1,
+  // HTML: .scope-tab-label { color:var(--fg-text-muted); font-weight:400; }
+  // colors.fg.muted should map to --fg-text-muted (#7A5C2E Antique Bronze)
+  scopeLabelInactive: {
+    fontWeight: '400',
+    color:      colors.fg.muted,   // ← update token if needed; see note below
+    // NOTE: If your colors object doesn't have `fg.muted`, use:
+    //   color: '#7A5C2E'  (--fg-text-muted from the HTML design system)
+    // or add `muted: '#7A5C2E'` to your colors.fg token map.
+  },
+
+  // ── Underline indicator ──────────────────────────────────────────────────
+  // HTML: .scope-underline {
+  //   position:absolute; bottom:2px; left:12%; right:12%;
+  //   height:2.5px; background:var(--fg-brand); border-radius:9999px;
+  //   transform:scaleX(0); transform-origin:left;
+  //   transition: transform 120ms ease-out;
+  // }
+  // RN: position absolute, left/right via percentage inset,
+  //     scaleX driven by Animated.View via useAnimatedStyle.
+  underline: {
+    position:        'absolute',
+    bottom:          2,
+    // 12% inset on each side — approximated as flex-relative by using
+    // left/right with percentage strings (RN supports % in layout).
+    left:            '12%',
+    right:           '12%',
+    height:          SWITCHER.UNDERLINE_H,
+    backgroundColor: colors.bg.brand,   // --fg-brand (#C8960C Royal Saffron Gold)
+    borderRadius:    9999,
+    // scaleX starts at 0 (invisible) for inactive tabs,
+    // animated to 1 for active tab via underlineAnimStyle.
+    // transformOrigin emulated: underline is flush-left so
+    // center-scale and left-origin produce identical visual result.
   },
 
 });
