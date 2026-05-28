@@ -1,20 +1,17 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  CROWN — FourScopeSwitcher  v7.1  PRD & PHOTO EXACT COMBINATION          ║
+ * ║  CROWN — FourScopeSwitcher  v7.2  PRD & HTML EXACT COMBINATION           ║
  * ║  §1.3.3 Row 2 — The 4-Scope Switcher                                     ║
  * ║  Phase 1.3 · App Architecture                                            ║
- * ║  Owner: Ail Noor Alam (Founder) · Chandigarh · May 2026                  ║
+ * ║  Owner: Noor Aalam (Founder) · May 2026                                  ║
  * ╠══════════════════════════════════════════════════════════════════════════╣
- * ║  CHANGELOG v7.1 — EXACT VISUAL & STRUCTURAL INTEGRATION:                 ║
- * ║    [1] Background Isolation: Outer track background locked to pure white  ║
- * ║        (`colors.bg.surface`), matching explicit request.                 ║
- * ║    [2] Capsule Aesthetics: Active indicator rendered as a flat, shadowless║
- * ║        biscuit/gold pill (`colors.bg.brandSubtle`) with 8px radius.      ║
- * ║    [3] Default Anchor: Active state strictly defaults to 'world' on       ║
- * ║        initial render, snapping position instantly with zero animation.  ║
- * ║    [4] CSS Triangle: Zero icon font footprints. Arrow drawn natively via  ║
- * ║        React Native boundary interpolation (border matrix layout).        ║
- * ║    [5] Typography: Complies with PRD weights (Active: 600, Inactive: 400).║
+ * ║  CHANGELOG v7.2 — PIXEL-PERFECT VISUAL ALIGNMENT:                        ║
+ * ║    [1] Capsule Aesthetics: Height strictly set to 32px with 3px top gap   ║
+ * ║        inside the 38px container for a sleeker, premium look.             ║
+ * ║    [2] Border Radius: Adjusted to 6px matching the HTML specification.    ║
+ * ║    [3] Inner Gap: Emoji and text spacing tightened to 3px.                ║
+ * ║    [4] Mathematical Snap: Maintained React Native's flawess layout math   ║
+ * ║        to prevent the HTML edge-offset logic bug.                         ║
  * ╚══════════════════════════════════════════════════════════════════════════╝
  */
 
@@ -91,11 +88,11 @@ const PRD_TOKENS = {
   /** PRD Section 1: left/right layout bounds padding var(--sp-3) (12px) */
   SP_3: 12 as const,
 
-  /** PRD Section 1: Tabs spacing gap var(--sp-1) (4px) */
-  SP_1: 4 as const,
+  /** PRD Section 1: Tabs spacing gap aligned with HTML version (3px) */
+  SP_1: 3 as const,
 
-  /** PRD Section 2: Medium border radius var(--radius-md) (8px) */
-  RADIUS_MD: 8 as const,
+  /** PRD Section 2: Medium border radius aligned with HTML version (6px) */
+  RADIUS_MD: 6 as const,
 
   /** PRD Section 3 Typography parameters */
   FONT_SIZE:  12 as const,
@@ -396,9 +393,14 @@ const styles = StyleSheet.create({
   capsule: {
     position: 'absolute',
     left: 0,
-    height: '100%',
+    
+    /* NEW FIX: Height strictly restricted to 32px to match HTML sleek design */
+    height: 32,
+    
+    /* NEW FIX: 38px track mein 32px capsule ko vertically center karne ke liye 3px ka top offset */
+    top: 3,
 
-    /* PRD Section 2: Border radius medium (var(--radius-md)) */
+    /* PRD Section 2: Border radius updated to 6px exactly like HTML */
     borderRadius: PRD_TOKENS.RADIUS_MD,
 
     /* PRD Section 4: Active State: Ek light tinted biscuit/gold background pill dikhna chahiye (Flat execution, no shadows) */
@@ -420,7 +422,7 @@ const styles = StyleSheet.create({
     /* PRD Section 2: Content Layout: Har tab ke andar text ko horizontally aur vertically center align karna hai */
     alignItems: 'center',
     justifyContent: 'center',
-    /* PRD Section 1: Tabs ke beech mein thoda gap (var(--sp-1)) */
+    /* PRD Section 1: Tabs ke beech mein thoda gap updated to 3px to match HTML */
     gap: PRD_TOKENS.SP_1,
   },
   scopeEmoji: {
