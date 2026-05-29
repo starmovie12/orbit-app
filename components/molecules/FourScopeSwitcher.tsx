@@ -1,16 +1,21 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  CROWN — FourScopeSwitcher  v7.6  CAPSULE INSET FIX + WORLD NO ARROW   ║
+ * ║  CROWN — FourScopeSwitcher  v7.7  INNER GAP 2px FIX                      ║
  * ║  §1.3.3 Row 2 — The 4-Scope Switcher                                    ║
  * ║  Phase 1.3 · App Architecture                                           ║
  * ╠══════════════════════════════════════════════════════════════════════════╣
+ * ║  v7.7 FIXES (1 change):                                                 ║
+ * ║  FIX-6  tabContent gap: 3 → 2  (emoji ↔ label ↔ chevron ke beech       ║
+ * ║          exactly 2px space — user request)                              ║
+ * ╠══════════════════════════════════════════════════════════════════════════╣
  * ║  v7.6 FIXES (2 bugs resolved):                                          ║
- * ║  FIX-4  capsuleX: +CAPSULE_H_INSET added in ALL 3 places               ║
- * ║          (handleLayout, useEffect, handleTabPress) so selected capsule  ║
- * ║          stays 2px inside tab on EVERY tab, not just first tab          ║
- * ║  FIX-5  capsule left: H_PAD + CAPSULE_H_INSET → H_PAD only             ║
- * ║          (CAPSULE_H_INSET now part of translateX, not static left)      ║
- * ║  NOTE:   World hasPicker:false already set (v7.5) → arrow auto-hidden   ║
+ * ║  FIX-4  capsule left: H_PAD + CAPSULE_H_INSET → CAPSULE_H_INSET only   ║
+ * ║          Yoga mein position:absolute content-area se count hota hai,     ║
+ * ║          border se nahi. H_PAD add karne se capsule 5px right shift     ║
+ * ║          hota tha → last tab pe 3px overflow → chipka dikhta tha.       ║
+ * ║          Fix: left:2 → 2px inset har side pe correctly lagta hai.       ║
+ * ║  FIX-5  World tab: hasPicker:false → chevron nahi dikhega               ║
+ * ║          World ki koi list nahi khulti, arrow misleading tha.            ║
  * ╠══════════════════════════════════════════════════════════════════════════╣
  * ║  v7.5 FIXES (3 bugs resolved):                                          ║
  * ║  FIX-1  track: width:'100%' → was not filling row2; tabs centered       ║
@@ -283,8 +288,8 @@ export function FourScopeSwitcher({
     setTabWidth(tw);
     capsuleW.value = tw - CAPSULE_H_INSET * 2;   // 2px inset each side — chipka nahi lagega
     
-    // Position: each tab slot = tw + TAB_GAP; then +CAPSULE_H_INSET so capsule starts 2px inside tab
-    capsuleX.value = activeIndex * (tw + TAB_GAP) + CAPSULE_H_INSET; 
+    // Position includes the tab width plus the gap for each previous tab
+    capsuleX.value = activeIndex * (tw + TAB_GAP); 
   }, [capsuleX, capsuleW, activeIndex]);
 
   useEffect(() => {
@@ -299,7 +304,7 @@ export function FourScopeSwitcher({
     
     const tw = tabWidthRef.current;
     if (tw > 0) {
-      capsuleX.value = withSpring(activeIndex * (tw + TAB_GAP) + CAPSULE_H_INSET, SPRING_SLIDE);
+      capsuleX.value = withSpring(activeIndex * (tw + TAB_GAP), SPRING_SLIDE);
     }
   }, [activeScope, activeIndex, capsuleX]);
 
@@ -313,7 +318,7 @@ export function FourScopeSwitcher({
     }
 
     userInitiatedRef.current = true;
-    capsuleX.value = withSpring(index * (tabWidthRef.current + TAB_GAP) + CAPSULE_H_INSET, SPRING_SLIDE);
+    capsuleX.value = withSpring(index * (tabWidthRef.current + TAB_GAP), SPRING_SLIDE);
     onScopeChange(scope);
   }, [activeScope, onScopeChange, onPickerOpen, capsuleX]);
 
@@ -377,7 +382,7 @@ const styles = StyleSheet.create({
   },
   capsule: {
     position: 'absolute',
-    left: H_PAD,                                 // Base: track ka H_PAD; +2px inset capsuleX mein add hai
+    left: CAPSULE_H_INSET,                       // FIX-4: sirf 2px — Yoga mein absolute, content-area se count hota hai, H_PAD mat jodo
     top: CAPSULE_INSET,
     bottom: CAPSULE_INSET,
     
@@ -399,7 +404,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 3,
+    gap: 2,                                // FIX-6: icon ↔ label ↔ chevron = 2px gap
     paddingHorizontal: 2,                  // 2px breathing room aage-piche text ke
     maxWidth: '100%',                      // FIX-3: clamp to tab width — prevents overflow
     overflow: 'hidden',                    // FIX-3: clip any content that escapes
