@@ -1,8 +1,15 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  CROWN — FourScopeSwitcher  v7.7  INNER GAP 2px FIX                      ║
+ * ║  CROWN — FourScopeSwitcher  v7.8  TAB OVERFLOW + CHEVRON FIX             ║
  * ║  §1.3.3 Row 2 — The 4-Scope Switcher                                    ║
  * ║  Phase 1.3 · App Architecture                                           ║
+ * ╠══════════════════════════════════════════════════════════════════════════╣
+ * ║  v7.8 FIXES (2 bugs resolved):                                          ║
+ * ║  FIX-7  Tab overflow: tab ko minWidth:0 diya — flex:1 tab bina          ║
+ * ║          minWidth:0 ke shrink nahi karta, tabs overflow ho rahe the.     ║
+ * ║  FIX-8  Chevron andar aane ke liye: tabContent width:'100%' kiya,       ║
+ * ║          label minWidth:0 diya, Animated.View style fix — chevron ab     ║
+ * ║          hamesha tab ke andar rahega, bahar nahi niklega.                ║
  * ╠══════════════════════════════════════════════════════════════════════════╣
  * ║  v7.7 FIXES (1 change):                                                 ║
  * ║  FIX-6  tabContent gap: 3 → 2  (emoji ↔ label ↔ chevron ke beech       ║
@@ -394,6 +401,7 @@ const styles = StyleSheet.create({
   },
   tab: {
     flex: 1,
+    minWidth: 0,          // FIX-7: flex:1 bina minWidth:0 ke shrink nahi karta → overflow
     height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
@@ -404,10 +412,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 2,                                // FIX-6: icon ↔ label ↔ chevron = 2px gap
-    paddingHorizontal: 2,                  // 2px breathing room aage-piche text ke
-    maxWidth: '100%',                      // FIX-3: clamp to tab width — prevents overflow
-    overflow: 'hidden',                    // FIX-3: clip any content that escapes
+    gap: 2,                                // icon ↔ label ↔ chevron = 2px gap
+    paddingHorizontal: 2,                  // 2px breathing room
+    width: '100%',                         // FIX-8: maxWidth→width, Animated.View fills tab
+    overflow: 'hidden',                    // clip overflow
   },
   emoji: {
     fontSize: 13,
@@ -420,6 +428,7 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     letterSpacing: 0.1,
     flexShrink: 1,
+    minWidth: 0,          // FIX-8: label shrink ho sake — chevron ko tab ke andar rakhta hai
     ...(Platform.OS === 'android' && { includeFontPadding: false }),
   },
   labelInactive: {
