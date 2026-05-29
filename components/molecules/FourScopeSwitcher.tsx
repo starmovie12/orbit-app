@@ -1,17 +1,19 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  CROWN — FourScopeSwitcher  v7.3  OMEGA-V5 ASCENDED                     ║
+ * ║  CROWN — FourScopeSwitcher  v7.4  HTML-DESIGN-SYNC                      ║
  * ║  §1.3.3 Row 2 — The 4-Scope Switcher                                    ║
  * ║  Phase 1.3 · App Architecture                                           ║
  * ╠══════════════════════════════════════════════════════════════════════════╣
- * ║  OMEGA V5 UPGRADES (User Directives Applied):                           ║
- * ║  1. Tab Spacing: Introduced `TAB_GAP` (4dp) between tabs.               ║
- * ║  2. Fill Parent: Maintained `flex: 1` so tabs stretch to fill available ║
- * ║     horizontal space evenly.                                            ║
- * ║  3. Exact Math: Re-calculated capsule width & translation to account    ║
- * ║     for inter-tab gaps.                                                 ║
- * ║  4. Golden Fika Background: Active capsule strictly uses                ║
- * ║     `colors.bg.brandSubtle` (subtle gold) with zero white interference. ║
+ * ║  v7.4 CHANGES (HTML crown-scope-switcher v7.1 pixel-sync):              ║
+ * ║  1. TRACK_HEIGHT: 44 → 38px  (HTML token --row-height: 38px)            ║
+ * ║  2. Track bg: colors.bg.surface → #FFF8F0 (HTML --bg-surface)           ║
+ * ║  3. Track radius: 12 → 6px  (HTML token --radius-md: 6px)               ║
+ * ║  4. Capsule bg: fixed → rgba(200,150,12,0.18) (HTML --brand-subtle)     ║
+ * ║  5. Capsule radius: 8 → 6px  (flat pill, no shadow — HTML spec)         ║
+ * ║  6. Inactive text: #7A5C2E  (HTML --fg-text-muted)                      ║
+ * ║  7. Active text: #1A1208    (HTML --fg-text-strong)                     ║
+ * ║  8. Active chevron: #C8960C (HTML --fg-brand)                           ║
+ * ║  9. Font: Inter (FONT_BODY.regular / .semiBold) — DM Sans equiv         ║
  * ╚══════════════════════════════════════════════════════════════════════════╝
  */
 
@@ -40,6 +42,7 @@ import * as Haptics from 'expo-haptics';
 
 // ── V5 SEMANTIC TOKENS ───────────────────────────────────────────────────────
 import { colors } from '@/constants/colors';
+import { FONT_BODY } from '@/constants/typography';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES & INTERFACES
@@ -110,10 +113,10 @@ const N_TABS = SCOPES.length;
 // V5 CONSTANTS (Optical & Physics)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const TRACK_HEIGHT = 44 as const; // Apple HIG minimum
-const H_PAD = 12 as const;        // Track horizontal padding
-const TAB_GAP = 4 as const;       // Space between each tab (fill parent distribution)
-const CAPSULE_INSET = 3 as const; 
+const TRACK_HEIGHT = 38 as const; // PRD §1.3.3 Row 2 — 38px locked (HTML token --row-height)
+const H_PAD = 12 as const;        // Track horizontal padding — HTML token --sp-3
+const TAB_GAP = 4 as const;       // Space between each tab — HTML token --sp-1
+const CAPSULE_INSET = 3 as const; // Capsule vertical inset (top: 3, bottom: 3)
 
 // Liquid Spring for Capsule Sliding
 const SPRING_SLIDE: WithSpringConfig = {
@@ -141,7 +144,7 @@ const Chevron = memo(({ isActive }: { readonly isActive: boolean }) => (
   <View
     style={[
       styles.chevron,
-      { borderTopColor: isActive ? colors.fg.brand : colors.fg.tertiary },
+      { borderTopColor: isActive ? '#C8960C' : '#7A5C2E' },
     ]}
   />
 ));
@@ -342,12 +345,12 @@ export function FourScopeSwitcher({
 const styles = StyleSheet.create({
   track: {
     height: TRACK_HEIGHT,
-    backgroundColor: colors.bg.surface, // Container outer background
-    borderRadius: 12,
+    backgroundColor: '#FFF8F0',           // HTML token: --bg-surface #FFF8F0
+    borderRadius: 6,                       // HTML token: --radius-md 6px
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: H_PAD,
-    gap: TAB_GAP, // Creates the distinct spaces beside each tab
+    gap: TAB_GAP,
     overflow: 'hidden',
   },
   capsule: {
@@ -356,20 +359,14 @@ const styles = StyleSheet.create({
     top: CAPSULE_INSET,
     bottom: CAPSULE_INSET,
     
-    // PURE GOLDEN FIKA COLOUR — No white background interference
-    backgroundColor: colors.bg.brandSubtle, 
+    // HTML token: --brand-subtle rgba(200,150,12,0.18) — flat gold pill, no shadow
+    backgroundColor: 'rgba(200,150,12,0.18)',
     
-    borderRadius: 8,
+    borderRadius: 6,                       // HTML token: --radius-md 6px
     zIndex: 0,
-    
-    shadowColor: colors.fg.brand,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 4,
-    elevation: 1,
   },
   tab: {
-    flex: 1, // Ensures every tab fills the available parent space equally
+    flex: 1,
     height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
@@ -391,17 +388,19 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 12,
     lineHeight: 16,
-    letterSpacing: 0.15,
+    letterSpacing: 0.1,
     flexShrink: 1,
     ...(Platform.OS === 'android' && { includeFontPadding: false }),
   },
   labelInactive: {
     fontWeight: '400',
-    color: colors.fg.tertiary,
+    fontFamily: FONT_BODY.regular,        // Inter_400Regular
+    color: '#7A5C2E',                     // HTML token: --fg-text-muted
   },
   labelActive: {
     fontWeight: '600',
-    color: colors.fg.primary,
+    fontFamily: FONT_BODY.semiBold,       // Inter_600SemiBold
+    color: '#1A1208',                     // HTML token: --fg-text-strong
   },
   chevron: {
     width: 0,
