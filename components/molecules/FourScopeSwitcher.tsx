@@ -113,9 +113,9 @@ const N_TABS = SCOPES.length;
 // V5 CONSTANTS (Optical & Physics)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const TRACK_HEIGHT = 38 as const; // PRD §1.3.3 Row 2 — 38px locked (HTML token --row-height)
-const H_PAD = 12 as const;        // Track horizontal padding — HTML token --sp-3
-const TAB_GAP = 4 as const;       // Space between each tab — HTML token --sp-1
+const TRACK_HEIGHT = 38 as const; // PRD §1.3.3 Row 2 — 38px locked
+const H_PAD = 15 as const;        // 15px outer padding — World tab left / Sector tab right
+const TAB_GAP = 2 as const;       // 2px gap between each tab
 const CAPSULE_INSET = 3 as const; // Capsule vertical inset (top: 3, bottom: 3)
 
 // Liquid Spring for Capsule Sliding
@@ -345,12 +345,12 @@ export function FourScopeSwitcher({
 const styles = StyleSheet.create({
   track: {
     height: TRACK_HEIGHT,
-    backgroundColor: '#FFF8F0',           // HTML token: --bg-surface #FFF8F0
-    borderRadius: 6,                       // HTML token: --radius-md 6px
+    backgroundColor: 'transparent',       // No track bg — parent layout color shows through
+    borderRadius: 6,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: H_PAD,
-    gap: TAB_GAP,
+    paddingHorizontal: H_PAD,             // 15px left (World) + 15px right (Sector)
+    gap: TAB_GAP,                         // 2px between each tab
     overflow: 'hidden',
   },
   capsule: {
@@ -378,6 +378,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 3,
+    paddingHorizontal: 2,                  // 2px breathing room aage-piche text ke
   },
   emoji: {
     fontSize: 13,
