@@ -1,12 +1,19 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  CROWN — FourScopeSwitcher  v7.4  HTML-DESIGN-SYNC                      ║
+ * ║  CROWN — FourScopeSwitcher  v7.5  OVERFLOW + CENTERING + TRUNCATION     ║
  * ║  §1.3.3 Row 2 — The 4-Scope Switcher                                    ║
  * ║  Phase 1.3 · App Architecture                                           ║
  * ╠══════════════════════════════════════════════════════════════════════════╣
+ * ║  v7.5 FIXES (3 bugs resolved):                                          ║
+ * ║  FIX-1  track: width:'100%' → was not filling row2; tabs centered       ║
+ * ║  FIX-2  capsuleW: useSharedValue (was tabWidthRef.current in worklet    ║
+ * ║          → UI thread always read 0 → capsule invisible → overflow)      ║
+ * ║  FIX-3  tabContent: maxWidth:'100%' + ellipsizeMode="tail" on label     ║
+ * ║          → long city names truncate: "Chandigarh"→"Chandigar…"          ║
+ * ╠══════════════════════════════════════════════════════════════════════════╣
  * ║  v7.4 CHANGES (HTML crown-scope-switcher v7.1 pixel-sync):              ║
  * ║  1. TRACK_HEIGHT: 44 → 38px  (HTML token --row-height: 38px)            ║
- * ║  2. Track bg: colors.bg.surface → #FFF8F0 (HTML --bg-surface)           ║
+ * ║  2. Track bg: colors.bg.surface → transparent (parent bg shows)         ║
  * ║  3. Track radius: 12 → 6px  (HTML token --radius-md: 6px)               ║
  * ║  4. Capsule bg: fixed → rgba(200,150,12,0.18) (HTML --brand-subtle)     ║
  * ║  5. Capsule radius: 8 → 6px  (flat pill, no shadow — HTML spec)         ║
@@ -41,7 +48,6 @@ import Animated, {
 import * as Haptics from 'expo-haptics';
 
 // ── V5 SEMANTIC TOKENS ───────────────────────────────────────────────────────
-import { colors } from '@/constants/colors';
 import { FONT_BODY } from '@/constants/typography';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -211,6 +217,7 @@ const ScopeTab = memo(({
             isActive ? styles.labelActive : styles.labelInactive,
           ]}
           numberOfLines={1}
+          ellipsizeMode="tail"     // FIX-3: "Chandigarh" → "Chandigar…" (was missing!)
           allowFontScaling={false}
           selectable={false}
         >
@@ -241,6 +248,10 @@ export function FourScopeSwitcher({
   const userInitiatedRef = useRef<boolean>(false);
 
   const capsuleX = useSharedValue<number>(0);
+  // FIX-2: capsuleW must be SharedValue — tabWidthRef.current inside a
+  //         Reanimated worklet (UI thread) always read 0 (initial value),
+  //         making the capsule invisible and content overflow out of it.
+  const capsuleW = useSharedValue<number>(0);
 
   const activeIndex = Math.max(
     0,
@@ -249,7 +260,7 @@ export function FourScopeSwitcher({
 
   const capsuleAnimStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: capsuleX.value }],
-    width: tabWidthRef.current,
+    width: capsuleW.value,   // FIX-2: SharedValue — readable on UI thread
   }), []);
 
   const handleLayout = useCallback((e: LayoutChangeEvent): void => {
@@ -261,10 +272,11 @@ export function FourScopeSwitcher({
 
     tabWidthRef.current = tw;
     setTabWidth(tw);
+    capsuleW.value = tw;   // FIX-2: sync SharedValue so worklet reads correct width
     
     // Position includes the tab width plus the gap for each previous tab
     capsuleX.value = activeIndex * (tw + TAB_GAP); 
-  }, [capsuleX, activeIndex]);
+  }, [capsuleX, capsuleW, activeIndex]);
 
   useEffect(() => {
     if (isFirstRender.current) {
@@ -344,6 +356,7 @@ export function FourScopeSwitcher({
 
 const styles = StyleSheet.create({
   track: {
+    width: '100%',                     // FIX-1: fills row2's inner width; was centering before
     height: TRACK_HEIGHT,
     backgroundColor: 'transparent',       // No track bg — parent layout color shows through
     borderRadius: 6,
@@ -379,6 +392,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 3,
     paddingHorizontal: 2,                  // 2px breathing room aage-piche text ke
+    maxWidth: '100%',                      // FIX-3: clamp to tab width — prevents overflow
+    overflow: 'hidden',                    // FIX-3: clip any content that escapes
   },
   emoji: {
     fontSize: 13,
