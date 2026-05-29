@@ -120,7 +120,7 @@ const N_TABS = SCOPES.length;
 // ─────────────────────────────────────────────────────────────────────────────
 
 const TRACK_HEIGHT = 38 as const; // PRD §1.3.3 Row 2 — 38px locked
-const H_PAD = 15 as const;        // 15px outer padding — World tab left / Sector tab right
+const H_PAD = 5 as const;         // 5px outer padding — World tab left / Sector tab right (was 15)
 const TAB_GAP = 2 as const;       // 2px gap between each tab
 const CAPSULE_INSET = 3 as const; // Capsule vertical inset (top: 3, bottom: 3)
 
