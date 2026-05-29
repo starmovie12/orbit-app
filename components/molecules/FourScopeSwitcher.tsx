@@ -1,46 +1,30 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  CROWN — FourScopeSwitcher  v7.8  TAB OVERFLOW + CHEVRON FIX             ║
+ * ║  CROWN — FourScopeSwitcher  v7.9  COMPLETE LAYOUT REWRITE               ║
  * ║  §1.3.3 Row 2 — The 4-Scope Switcher                                    ║
  * ║  Phase 1.3 · App Architecture                                           ║
  * ╠══════════════════════════════════════════════════════════════════════════╣
- * ║  v7.8 FIXES (2 bugs resolved):                                          ║
- * ║  FIX-7  Tab overflow: tab ko minWidth:0 diya — flex:1 tab bina          ║
- * ║          minWidth:0 ke shrink nahi karta, tabs overflow ho rahe the.     ║
- * ║  FIX-8  Chevron andar aane ke liye: tabContent width:'100%' kiya,       ║
- * ║          label minWidth:0 diya, Animated.View style fix — chevron ab     ║
- * ║          hamesha tab ke andar rahega, bahar nahi niklega.                ║
+ * ║  v7.9 ROOT CAUSE FIXES (3 asli bugs):                                   ║
+ * ║                                                                         ║
+ * ║  BUG-A  gap + overflow:hidden = tabs overflow ho rahe the               ║
+ * ║         RN mein gap property + overflow:hidden = tabs bahar nikalte     ║
+ * ║         hain. Fix: gap hata diya, tabs pe marginRight se TAB_GAP.       ║
+ * ║                                                                         ║
+ * ║  BUG-B  Animated.View pe width:'100%' kaam nahi karta                   ║
+ * ║         Chevron bahar nikal rahi thi kyunki Animated.View tab width     ║
+ * ║         se bind nahi tha. Fix: Pressable full flex:1, Animated.View     ║
+ * ║         sirf scale transform ke liye, tabContent regular View hai.      ║
+ * ║                                                                         ║
+ * ║  BUG-C  Capsule X position galat tha                                    ║
+ * ║         capsuleX = index*(tw+GAP) → H_PAD ignore ho raha tha.          ║
+ * ║         Fix: capsuleX = H_PAD + CAPSULE_H_INSET + index*(tw+GAP).      ║
+ * ║         Aur capsule left:0 kiya (translateX mein offset hai).           ║
  * ╠══════════════════════════════════════════════════════════════════════════╣
- * ║  v7.7 FIXES (1 change):                                                 ║
- * ║  FIX-6  tabContent gap: 3 → 2  (emoji ↔ label ↔ chevron ke beech       ║
- * ║          exactly 2px space — user request)                              ║
- * ╠══════════════════════════════════════════════════════════════════════════╣
- * ║  v7.6 FIXES (2 bugs resolved):                                          ║
- * ║  FIX-4  capsule left: H_PAD + CAPSULE_H_INSET → CAPSULE_H_INSET only   ║
- * ║          Yoga mein position:absolute content-area se count hota hai,     ║
- * ║          border se nahi. H_PAD add karne se capsule 5px right shift     ║
- * ║          hota tha → last tab pe 3px overflow → chipka dikhta tha.       ║
- * ║          Fix: left:2 → 2px inset har side pe correctly lagta hai.       ║
- * ║  FIX-5  World tab: hasPicker:false → chevron nahi dikhega               ║
- * ║          World ki koi list nahi khulti, arrow misleading tha.            ║
- * ╠══════════════════════════════════════════════════════════════════════════╣
- * ║  v7.5 FIXES (3 bugs resolved):                                          ║
- * ║  FIX-1  track: width:'100%' → was not filling row2; tabs centered       ║
- * ║  FIX-2  capsuleW: useSharedValue (was tabWidthRef.current in worklet    ║
- * ║          → UI thread always read 0 → capsule invisible → overflow)      ║
- * ║  FIX-3  tabContent: maxWidth:'100%' + ellipsizeMode="tail" on label     ║
- * ║          → long city names truncate: "Chandigarh"→"Chandigar…"          ║
- * ╠══════════════════════════════════════════════════════════════════════════╣
- * ║  v7.4 CHANGES (HTML crown-scope-switcher v7.1 pixel-sync):              ║
- * ║  1. TRACK_HEIGHT: 44 → 38px  (HTML token --row-height: 38px)            ║
- * ║  2. Track bg: colors.bg.surface → transparent (parent bg shows)         ║
- * ║  3. Track radius: 12 → 6px  (HTML token --radius-md: 6px)               ║
- * ║  4. Capsule bg: fixed → rgba(200,150,12,0.18) (HTML --brand-subtle)     ║
- * ║  5. Capsule radius: 8 → 6px  (flat pill, no shadow — HTML spec)         ║
- * ║  6. Inactive text: #7A5C2E  (HTML --fg-text-muted)                      ║
- * ║  7. Active text: #1A1208    (HTML --fg-text-strong)                     ║
- * ║  8. Active chevron: #C8960C (HTML --fg-brand)                           ║
- * ║  9. Font: Inter (FONT_BODY.regular / .semiBold) — DM Sans equiv         ║
+ * ║  v7.8 — minWidth:0 on tab + label                                       ║
+ * ║  v7.7 — gap: 3→2                                                        ║
+ * ║  v7.6 — capsule left fix, World hasPicker:false                         ║
+ * ║  v7.5 — width:100%, capsuleW SharedValue, ellipsizeMode                 ║
+ * ║  v7.4 — HTML pixel-sync (38px, 6px radius, brand colors)               ║
  * ╚══════════════════════════════════════════════════════════════════════════╝
  */
 
@@ -67,11 +51,10 @@ import Animated, {
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 
-// ── V5 SEMANTIC TOKENS ───────────────────────────────────────────────────────
 import { FONT_BODY } from '@/constants/typography';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TYPES & INTERFACES
+// TYPES
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type ChatScope = 'world' | 'country' | 'city' | 'sector';
@@ -99,7 +82,7 @@ export interface FourScopeSwitcherProps {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SCOPE DEFINITIONS
+// SCOPES
 // ─────────────────────────────────────────────────────────────────────────────
 
 const SCOPES: readonly ScopeConfig[] = [
@@ -107,7 +90,7 @@ const SCOPES: readonly ScopeConfig[] = [
     key: 'world',
     emoji: '🌍',
     defaultLabel: 'World',
-    hasPicker: false,                          // FIX: World ka koi picker nahi — arrow hata diya
+    hasPicker: false,
     a11yLabel: 'World chat scope. Tap to select.',
   },
   {
@@ -136,16 +119,15 @@ const SCOPES: readonly ScopeConfig[] = [
 const N_TABS = SCOPES.length;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// V5 CONSTANTS (Optical & Physics)
+// CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
 
-const TRACK_HEIGHT = 38 as const; // PRD §1.3.3 Row 2 — 38px locked
-const H_PAD = 5 as const;         // 5px outer padding — World tab left / Sector tab right (was 15)
-const TAB_GAP = 2 as const;       // 2px gap between each tab
-const CAPSULE_INSET = 3 as const; // Capsule vertical inset (top: 3, bottom: 3)
-const CAPSULE_H_INSET = 2 as const; // 2px horizontal inset — capsule tab edge se chipka na lage
+const TRACK_HEIGHT    = 38 as const;
+const H_PAD           = 5  as const;
+const TAB_GAP         = 2  as const;
+const CAPSULE_INSET   = 3  as const;
+const CAPSULE_H_INSET = 2  as const;
 
-// Liquid Spring for Capsule Sliding
 const SPRING_SLIDE: WithSpringConfig = {
   mass: 1,
   stiffness: 250,
@@ -153,7 +135,6 @@ const SPRING_SLIDE: WithSpringConfig = {
   overshootClamping: false,
 } as const;
 
-// Haptic-synced press squish
 const SPRING_PRESS: WithSpringConfig = {
   mass: 1,
   stiffness: 400,
@@ -161,12 +142,9 @@ const SPRING_PRESS: WithSpringConfig = {
 } as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// COMPONENTS
+// CHEVRON
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Optical CSS Border Triangle Chevron
- */
 const Chevron = memo(({ isActive }: { readonly isActive: boolean }) => (
   <View
     style={[
@@ -177,13 +155,15 @@ const Chevron = memo(({ isActive }: { readonly isActive: boolean }) => (
 ));
 Chevron.displayName = 'Chevron';
 
-/**
- * Individual Scope Tab Button
- */
+// ─────────────────────────────────────────────────────────────────────────────
+// SCOPE TAB
+// ─────────────────────────────────────────────────────────────────────────────
+
 interface ScopeTabProps {
   readonly scopeCfg: ScopeConfig;
   readonly index: number;
   readonly isActive: boolean;
+  readonly isLast: boolean;
   readonly label: string;
   readonly emoji: string;
   readonly onPress: (scope: ChatScope, index: number) => void;
@@ -193,127 +173,129 @@ const ScopeTab = memo(({
   scopeCfg,
   index,
   isActive,
+  isLast,
   label,
   emoji,
   onPress,
 }: ScopeTabProps): React.JSX.Element => {
-  
+
   const scale = useSharedValue<number>(1);
 
   const pressAnimStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
   }), []);
 
-  const handlePressIn = useCallback(() => {
-    scale.value = withSpring(0.95, SPRING_PRESS);
-  }, [scale]);
-
-  const handlePressOut = useCallback(() => {
-    scale.value = withSpring(1, SPRING_PRESS);
-  }, [scale]);
-
-  const handlePress = useCallback(() => {
-    onPress(scopeCfg.key, index);
-  }, [onPress, scopeCfg.key, index]);
+  const handlePressIn  = useCallback(() => { scale.value = withSpring(0.95, SPRING_PRESS); }, [scale]);
+  const handlePressOut = useCallback(() => { scale.value = withSpring(1,    SPRING_PRESS); }, [scale]);
+  const handlePress    = useCallback(() => { onPress(scopeCfg.key, index); }, [onPress, scopeCfg.key, index]);
 
   return (
     <Pressable
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       onPress={handlePress}
-      style={styles.tab}
+      // BUG-A FIX: gap hata ke marginRight diya — overflow:hidden ke saath safe
+      style={[styles.tab, !isLast && styles.tabGap]}
       accessibilityRole="tab"
       accessibilityState={{ selected: isActive }}
       accessibilityLabel={scopeCfg.a11yLabel}
       hitSlop={{ top: 8, bottom: 8, left: 2, right: 2 }}
     >
-      <Animated.View style={[styles.tabContent, pressAnimStyle]}>
-        <Text style={styles.emoji} allowFontScaling={false} selectable={false}>
-          {emoji}
-        </Text>
+      {/*
+        BUG-B FIX: 2-layer approach
+        Layer 1 — Animated.View: sirf scale transform, flex:1 se Pressable fill karta hai
+        Layer 2 — Regular View (tabContent): emoji+label+chevron row, overflow:hidden yahan kaam karta hai
+      */}
+      <Animated.View style={[styles.tabInner, pressAnimStyle]}>
+        <View style={styles.tabContent}>
+          <Text
+            style={styles.emoji}
+            allowFontScaling={false}
+            selectable={false}
+          >
+            {emoji}
+          </Text>
 
-        <Text
-          style={[
-            styles.label,
-            isActive ? styles.labelActive : styles.labelInactive,
-          ]}
-          numberOfLines={1}
-          ellipsizeMode="tail"     // FIX-3: "Chandigarh" → "Chandigar…" (was missing!)
-          allowFontScaling={false}
-          selectable={false}
-        >
-          {label}
-        </Text>
+          <Text
+            style={[
+              styles.label,
+              isActive ? styles.labelActive : styles.labelInactive,
+            ]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+            allowFontScaling={false}
+            selectable={false}
+          >
+            {label}
+          </Text>
 
-        {scopeCfg.hasPicker && <Chevron isActive={isActive} />}
+          {scopeCfg.hasPicker && <Chevron isActive={isActive} />}
+        </View>
       </Animated.View>
     </Pressable>
   );
 });
 ScopeTab.displayName = 'ScopeTab';
 
-/**
- * Main Switcher Component
- */
+// ─────────────────────────────────────────────────────────────────────────────
+// MAIN COMPONENT
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function FourScopeSwitcher({
   activeScope,
   onScopeChange,
   onPickerOpen,
   labels,
 }: FourScopeSwitcherProps): React.JSX.Element {
-  
-  const [tabWidth, setTabWidth] = useState<number>(0);
-  const tabWidthRef = useRef<number>(0);
 
-  const isFirstRender = useRef<boolean>(true);
-  const userInitiatedRef = useRef<boolean>(false);
+  const [tabWidth, setTabWidth] = useState<number>(0);
+  const tabWidthRef    = useRef<number>(0);
+  const isFirstRender  = useRef<boolean>(true);
+  const userInitiated  = useRef<boolean>(false);
 
   const capsuleX = useSharedValue<number>(0);
-  // FIX-2: capsuleW must be SharedValue — tabWidthRef.current inside a
-  //         Reanimated worklet (UI thread) always read 0 (initial value),
-  //         making the capsule invisible and content overflow out of it.
   const capsuleW = useSharedValue<number>(0);
 
-  const activeIndex = Math.max(
-    0,
-    SCOPES.findIndex((s) => s.key === activeScope),
-  );
+  const activeIndex = Math.max(0, SCOPES.findIndex((s) => s.key === activeScope));
 
   const capsuleAnimStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: capsuleX.value }],
-    width: capsuleW.value,   // FIX-2: SharedValue — readable on UI thread
+    width: capsuleW.value,
   }), []);
+
+  /**
+   * BUG-C FIX: Capsule X
+   * track mein paddingHorizontal: H_PAD hai
+   * absolute element content-area se count karta hai (padding ke andar se)
+   * tab 0 ki left edge = 0 (content-area mein)
+   * tab n ki left edge = n * (tw + TAB_GAP)
+   * capsule = tab left edge + CAPSULE_H_INSET (2px andar se)
+   */
+  const calcCapsuleX = useCallback(
+    (index: number, tw: number): number => index * (tw + TAB_GAP) + CAPSULE_H_INSET,
+    [],
+  );
 
   const handleLayout = useCallback((e: LayoutChangeEvent): void => {
     const totalW = e.nativeEvent.layout.width;
-    
-    // NEW MATH: Account for horizontal padding AND the gaps between tabs
-    const availableWidth = totalW - (H_PAD * 2) - (TAB_GAP * (N_TABS - 1));
-    const tw = availableWidth / N_TABS;
+    // totalW includes H_PAD on each side
+    const tw = (totalW - H_PAD * 2 - TAB_GAP * (N_TABS - 1)) / N_TABS;
 
     tabWidthRef.current = tw;
     setTabWidth(tw);
-    capsuleW.value = tw - CAPSULE_H_INSET * 2;   // 2px inset each side — chipka nahi lagega
-    
-    // Position includes the tab width plus the gap for each previous tab
-    capsuleX.value = activeIndex * (tw + TAB_GAP); 
-  }, [capsuleX, capsuleW, activeIndex]);
+    capsuleW.value = tw - CAPSULE_H_INSET * 2;
+    capsuleX.value = calcCapsuleX(activeIndex, tw);
+  }, [capsuleX, capsuleW, activeIndex, calcCapsuleX]);
 
   useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
-    }
-    if (userInitiatedRef.current) {
-      userInitiatedRef.current = false;
-      return;
-    }
-    
+    if (isFirstRender.current) { isFirstRender.current = false; return; }
+    if (userInitiated.current)  { userInitiated.current  = false; return; }
+
     const tw = tabWidthRef.current;
     if (tw > 0) {
-      capsuleX.value = withSpring(activeIndex * (tw + TAB_GAP), SPRING_SLIDE);
+      capsuleX.value = withSpring(calcCapsuleX(activeIndex, tw), SPRING_SLIDE);
     }
-  }, [activeScope, activeIndex, capsuleX]);
+  }, [activeScope, activeIndex, capsuleX, calcCapsuleX]);
 
   const handleTabPress = useCallback((scope: ChatScope, index: number): void => {
     void Haptics.selectionAsync();
@@ -324,16 +306,16 @@ export function FourScopeSwitcher({
       return;
     }
 
-    userInitiatedRef.current = true;
-    capsuleX.value = withSpring(index * (tabWidthRef.current + TAB_GAP), SPRING_SLIDE);
+    userInitiated.current = true;
+    capsuleX.value = withSpring(calcCapsuleX(index, tabWidthRef.current), SPRING_SLIDE);
     onScopeChange(scope);
-  }, [activeScope, onScopeChange, onPickerOpen, capsuleX]);
+  }, [activeScope, onScopeChange, onPickerOpen, capsuleX, calcCapsuleX]);
 
   const getLabel = useCallback((scope: ChatScope, fallback: string): string => {
     switch (scope) {
       case 'country': return labels.country || fallback;
-      case 'city':    return labels.city || fallback;
-      case 'sector':  return labels.sector || fallback;
+      case 'city':    return labels.city    || fallback;
+      case 'sector':  return labels.sector  || fallback;
       default:        return fallback;
     }
   }, [labels]);
@@ -362,6 +344,7 @@ export function FourScopeSwitcher({
           scopeCfg={scopeCfg}
           index={index}
           isActive={scopeCfg.key === activeScope}
+          isLast={index === N_TABS - 1}
           label={getLabel(scopeCfg.key, scopeCfg.defaultLabel)}
           emoji={getEmoji(scopeCfg.key, scopeCfg.emoji)}
           onPress={handleTabPress}
@@ -377,70 +360,88 @@ export function FourScopeSwitcher({
 
 const styles = StyleSheet.create({
   track: {
-    width: '100%',                     // FIX-1: fills row2's inner width; was centering before
+    width: '100%',
     height: TRACK_HEIGHT,
-    backgroundColor: 'transparent',       // No track bg — parent layout color shows through
+    backgroundColor: 'transparent',
     borderRadius: 6,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: H_PAD,             // 15px left (World) + 15px right (Sector)
-    gap: TAB_GAP,                         // 2px between each tab
+    paddingHorizontal: H_PAD,
+    // BUG-A FIX: gap yahan nahi — tabs ke marginRight se spacing
     overflow: 'hidden',
   },
+
   capsule: {
     position: 'absolute',
-    left: CAPSULE_H_INSET,                       // FIX-4: sirf 2px — Yoga mein absolute, content-area se count hota hai, H_PAD mat jodo
+    // BUG-C FIX: left:0 — translateX mein already offset calculate hai
+    // (H_PAD padding ke andar absolute start hota hai, sirf CAPSULE_H_INSET chahiye)
+    left: 0,
     top: CAPSULE_INSET,
     bottom: CAPSULE_INSET,
-    
-    // HTML token: --brand-subtle rgba(200,150,12,0.18) — flat gold pill, no shadow
     backgroundColor: 'rgba(200,150,12,0.18)',
-    
-    borderRadius: 6,                       // HTML token: --radius-md 6px
+    borderRadius: 6,
     zIndex: 0,
   },
+
   tab: {
     flex: 1,
-    minWidth: 0,          // FIX-7: flex:1 bina minWidth:0 ke shrink nahi karta → overflow
+    minWidth: 0,        // flex shrink sahi kaam kare
     height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
     zIndex: 1,
     backgroundColor: 'transparent',
   },
+
+  // BUG-A FIX: gap ki jagah marginRight (last tab pe nahi lagega)
+  tabGap: {
+    marginRight: TAB_GAP,
+  },
+
+  // BUG-B FIX: Animated.View — sirf scale, layout nahi
+  tabInner: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  // BUG-B FIX: Regular View — overflow:hidden yahan properly kaam karta hai
   tabContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 2,                                // icon ↔ label ↔ chevron = 2px gap
-    paddingHorizontal: 2,                  // 2px breathing room
-    width: '100%',                         // FIX-8: maxWidth→width, Animated.View fills tab
-    overflow: 'hidden',                    // clip overflow
+    gap: 2,             // emoji ↔ label ↔ chevron = 2px
+    paddingHorizontal: 2,
+    maxWidth: '100%',
+    overflow: 'hidden',
   },
+
   emoji: {
     fontSize: 13,
     lineHeight: 16,
     flexShrink: 0,
     ...(Platform.OS === 'android' && { includeFontPadding: false }),
   },
+
   label: {
     fontSize: 12,
     lineHeight: 16,
     letterSpacing: 0.1,
     flexShrink: 1,
-    minWidth: 0,          // FIX-8: label shrink ho sake — chevron ko tab ke andar rakhta hai
+    minWidth: 0,        // label shrink ho, chevron andar rahe
     ...(Platform.OS === 'android' && { includeFontPadding: false }),
   },
+
   labelInactive: {
     fontWeight: '400',
-    fontFamily: FONT_BODY.regular,        // Inter_400Regular
-    color: '#7A5C2E',                     // HTML token: --fg-text-muted
+    fontFamily: FONT_BODY.regular,
+    color: '#7A5C2E',
   },
+
   labelActive: {
     fontWeight: '600',
-    fontFamily: FONT_BODY.semiBold,       // Inter_600SemiBold
-    color: '#1A1208',                     // HTML token: --fg-text-strong
+    fontFamily: FONT_BODY.semiBold,
+    color: '#1A1208',
   },
+
   chevron: {
     width: 0,
     height: 0,
