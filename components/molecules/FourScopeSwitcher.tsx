@@ -1,8 +1,16 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  CROWN — FourScopeSwitcher  v7.5  OVERFLOW + CENTERING + TRUNCATION     ║
+ * ║  CROWN — FourScopeSwitcher  v7.6  CAPSULE INSET FIX + WORLD NO ARROW   ║
  * ║  §1.3.3 Row 2 — The 4-Scope Switcher                                    ║
  * ║  Phase 1.3 · App Architecture                                           ║
+ * ╠══════════════════════════════════════════════════════════════════════════╣
+ * ║  v7.6 FIXES (2 bugs resolved):                                          ║
+ * ║  FIX-4  capsuleX: +CAPSULE_H_INSET added in ALL 3 places               ║
+ * ║          (handleLayout, useEffect, handleTabPress) so selected capsule  ║
+ * ║          stays 2px inside tab on EVERY tab, not just first tab          ║
+ * ║  FIX-5  capsule left: H_PAD + CAPSULE_H_INSET → H_PAD only             ║
+ * ║          (CAPSULE_H_INSET now part of translateX, not static left)      ║
+ * ║  NOTE:   World hasPicker:false already set (v7.5) → arrow auto-hidden   ║
  * ╠══════════════════════════════════════════════════════════════════════════╣
  * ║  v7.5 FIXES (3 bugs resolved):                                          ║
  * ║  FIX-1  track: width:'100%' → was not filling row2; tabs centered       ║
@@ -87,8 +95,8 @@ const SCOPES: readonly ScopeConfig[] = [
     key: 'world',
     emoji: '🌍',
     defaultLabel: 'World',
-    hasPicker: true,
-    a11yLabel: 'World chat scope. Tap to select or change.',
+    hasPicker: false,                          // FIX: World ka koi picker nahi — arrow hata diya
+    a11yLabel: 'World chat scope. Tap to select.',
   },
   {
     key: 'country',
@@ -123,6 +131,7 @@ const TRACK_HEIGHT = 38 as const; // PRD §1.3.3 Row 2 — 38px locked
 const H_PAD = 5 as const;         // 5px outer padding — World tab left / Sector tab right (was 15)
 const TAB_GAP = 2 as const;       // 2px gap between each tab
 const CAPSULE_INSET = 3 as const; // Capsule vertical inset (top: 3, bottom: 3)
+const CAPSULE_H_INSET = 2 as const; // 2px horizontal inset — capsule tab edge se chipka na lage
 
 // Liquid Spring for Capsule Sliding
 const SPRING_SLIDE: WithSpringConfig = {
@@ -272,10 +281,10 @@ export function FourScopeSwitcher({
 
     tabWidthRef.current = tw;
     setTabWidth(tw);
-    capsuleW.value = tw;   // FIX-2: sync SharedValue so worklet reads correct width
+    capsuleW.value = tw - CAPSULE_H_INSET * 2;   // 2px inset each side — chipka nahi lagega
     
-    // Position includes the tab width plus the gap for each previous tab
-    capsuleX.value = activeIndex * (tw + TAB_GAP); 
+    // Position: each tab slot = tw + TAB_GAP; then +CAPSULE_H_INSET so capsule starts 2px inside tab
+    capsuleX.value = activeIndex * (tw + TAB_GAP) + CAPSULE_H_INSET; 
   }, [capsuleX, capsuleW, activeIndex]);
 
   useEffect(() => {
@@ -290,7 +299,7 @@ export function FourScopeSwitcher({
     
     const tw = tabWidthRef.current;
     if (tw > 0) {
-      capsuleX.value = withSpring(activeIndex * (tw + TAB_GAP), SPRING_SLIDE);
+      capsuleX.value = withSpring(activeIndex * (tw + TAB_GAP) + CAPSULE_H_INSET, SPRING_SLIDE);
     }
   }, [activeScope, activeIndex, capsuleX]);
 
@@ -304,7 +313,7 @@ export function FourScopeSwitcher({
     }
 
     userInitiatedRef.current = true;
-    capsuleX.value = withSpring(index * (tabWidthRef.current + TAB_GAP), SPRING_SLIDE);
+    capsuleX.value = withSpring(index * (tabWidthRef.current + TAB_GAP) + CAPSULE_H_INSET, SPRING_SLIDE);
     onScopeChange(scope);
   }, [activeScope, onScopeChange, onPickerOpen, capsuleX]);
 
@@ -368,7 +377,7 @@ const styles = StyleSheet.create({
   },
   capsule: {
     position: 'absolute',
-    left: H_PAD,
+    left: H_PAD,                                 // Base: track ka H_PAD; +2px inset capsuleX mein add hai
     top: CAPSULE_INSET,
     bottom: CAPSULE_INSET,
     
