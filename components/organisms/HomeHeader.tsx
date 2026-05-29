@@ -546,11 +546,9 @@ const styles = StyleSheet.create({
   },
 
   // ── ROW 2 — 44px (v4.0: was 48px) ─────────────────────────────────────────
-  // paddingHorizontal: 0 — FourScopeSwitcher apna khud ka H_PAD=5 manage karta hai
-  // World (left) aur Sector (right) dono 5px screen edge se — no double padding
   row2: {
     height:            HDR.ROW2_H,              // 44px
-    paddingHorizontal: 0,
+    paddingHorizontal: 10,                      // 10px left (World) + 10px right (Sector)
     backgroundColor:   'transparent',
   },
 
