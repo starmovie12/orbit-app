@@ -1,10 +1,19 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  CROWN — FourScopeSwitcher  v8.0  SEPARATOR VIEW — PIXEL-PERFECT        ║
+ * ║  CROWN — FourScopeSwitcher  v8.1  CAPSULE LEFT EDGE FIX                 ║
  * ║  §1.3.3 Row 2 — The 4-Scope Switcher                                    ║
  * ║  Phase 1.3 · App Architecture                                           ║
  * ╠══════════════════════════════════════════════════════════════════════════╣
- * ║  v8.0 — ROOT CAUSE FIX (v7.9 ka asli bug):                             ║
+ * ║  v8.1 — CAPSULE LEFT EDGE FIX:                                          ║
+ * ║    Bug: capsule `left: 0` → RN mein absolute child BORDER edge se       ║
+ * ║    position hota hai, content area se nahi.                             ║
+ * ║    Tabs paddingHorizontal: H_PAD (5px) ke andar hain.                   ║
+ * ║    Capsule border edge se start hoti thi → 5px LEFT shift → adhi        ║
+ * ║    capsule cut off dikh rahi thi (Chandigarh screenshot mein clearly).  ║
+ * ║    Fix: `capsule left: H_PAD` (5px) — tabs ke saath align ✓            ║
+ * ║    calcCapsuleX unchanged: index*(tw+TAB_GAP) + CAPSULE_H_INSET ✓      ║
+ * ╠══════════════════════════════════════════════════════════════════════════╣
+ * ║  v8.0 — Separator View approach (equal tab widths) ║
  * ║                                                                         ║
  * ║  v7.9 mein `marginRight: TAB_GAP` approach use kiya tha.               ║
  * ║  Yeh WRONG tha kyunki:                                                  ║
@@ -296,20 +305,20 @@ export function FourScopeSwitcher({
   }), []);
 
   /**
-   * Capsule X calculation — separator View approach ke saath exact math:
+   * Capsule X calculation — v8.1 updated:
    *
-   * Content area (track ke andar H_PAD ke baad):
-   *   Tab 0 starts: x = 0
-   *   Sep 0 starts: x = tw
-   *   Tab 1 starts: x = tw + TAB_GAP
-   *   Sep 1 starts: x = 2*tw + TAB_GAP
-   *   Tab 2 starts: x = 2*tw + 2*TAB_GAP = 2*(tw + TAB_GAP)
-   *   ...
-   *   Tab n starts: x = n * (tw + TAB_GAP)    ← exact formula
+   * capsule style: `left: H_PAD` (border edge + H_PAD = content area start)
+   * translateX: index*(tw+TAB_GAP) + CAPSULE_H_INSET
    *
-   * Capsule = tab left edge + CAPSULE_H_INSET (2px andar se)
-   * `capsule` style has `left: 0` (absolute, content area se count)
-   * translateX does all the work
+   * Visually:
+   *   Capsule left edge = H_PAD + translateX
+   *                     = H_PAD + index*(tw+TAB_GAP) + CAPSULE_H_INSET
+   *   Tab n left edge   = H_PAD + index*(tw+TAB_GAP)   [padding + flex offset]
+   *   Capsule offset inside tab = CAPSULE_H_INSET = 2px ✓
+   *
+   * For tab 2 (Chandigarh, index=2):
+   *   translateX = 2*(tw+2) + 2
+   *   Capsule starts at H_PAD + 2*(tw+2) + 2 → exactly on tab 2 ✓
    */
   const calcCapsuleX = useCallback(
     (index: number, tw: number): number =>
@@ -457,7 +466,10 @@ const styles = StyleSheet.create({
 
   capsule: {
     position: 'absolute',
-    left: 0,              // absolute: content area se (H_PAD ke baad) start hota hai
+    // v8.1 FIX: left: H_PAD (5px) — tabs paddingHorizontal ke andar hain
+    // RN mein absolute child BORDER edge se count karta hai, content se nahi
+    // left:0 tha → capsule 5px left shift thi → adhi cut off dikh rahi thi
+    left: H_PAD,
     top: CAPSULE_INSET,
     bottom: CAPSULE_INSET,
     backgroundColor: 'rgba(200,150,12,0.18)',
