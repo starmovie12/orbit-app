@@ -1,6 +1,6 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  CROWN — FourScopeSwitcher  v8.2  PADDING + CHANDIGARH FULL NAME FIX     ║
+ * ║  CROWN — FourScopeSwitcher  v8.3  PADDING 2px→5px                       ║
  * ║  §1.3.3 Row 2 — The 4-Scope Switcher                                    ║
  * ║  Phase 1.3 · App Architecture                                           ║
  * ╠══════════════════════════════════════════════════════════════════════════╣
@@ -510,7 +510,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 2,   // v8.2 FIX: 2px left/right space — overflow:hidden ke bahar
+    paddingHorizontal: 5,   // v8.3: 2px→5px left/right space
   },
 
   // Regular View — emoji + label + chevron ka row
