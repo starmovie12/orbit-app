@@ -1,10 +1,18 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  CROWN — FourScopeSwitcher  v8.1  CAPSULE LEFT EDGE FIX                 ║
+ * ║  CROWN — FourScopeSwitcher  v8.2  PADDING + CHANDIGARH FULL NAME FIX     ║
  * ║  §1.3.3 Row 2 — The 4-Scope Switcher                                    ║
  * ║  Phase 1.3 · App Architecture                                           ║
  * ╠══════════════════════════════════════════════════════════════════════════╣
- * ║  v8.1 — CAPSULE LEFT EDGE FIX:                                          ║
+ * ║  v8.2 — 2 fixes:                                                        ║
+ * ║    FIX-1: paddingHorizontal tabContent→tabInner move kiya.             ║
+ * ║      tabContent pe overflow:hidden tha → padding clip ho raha tha      ║
+ * ║      → text left edge se chipka dikhta tha.                            ║
+ * ║      tabInner pe padding hai → clip nahi hota → 2px breathing room ✓  ║
+ * ║    FIX-2: fontSize 13→12 (emoji), 12→11 (label) — "Chandigarh" pura   ║
+ * ║      tab mein fit ho, truncate na ho. India bhi centered rahe. ✓       ║
+ * ╠══════════════════════════════════════════════════════════════════════════╣
+ * ║  v8.1 — capsule left: H_PAD fix ║
  * ║    Bug: capsule `left: 0` → RN mein absolute child BORDER edge se       ║
  * ║    position hota hai, content area se nahi.                             ║
  * ║    Tabs paddingHorizontal: H_PAD (5px) ke andar hain.                   ║
@@ -497,38 +505,39 @@ const styles = StyleSheet.create({
 
   // Animated.View — ONLY for press scale transform
   // flex:1 se Pressable ka poora area fill karta hai
+  // paddingHorizontal YAHAN lagao — overflow:hidden ke bahar hai toh clip nahi hoga
   tabInner: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 2,   // v8.2 FIX: 2px left/right space — overflow:hidden ke bahar
   },
 
   // Regular View — emoji + label + chevron ka row
-  // overflow:hidden regular View pe sahi kaam karta hai
-  // maxWidth:'100%' yahan reliably constrain karta hai
+  // overflow:hidden yahan kaam karta hai
+  // paddingHorizontal NAHI — tabInner mein hai (warna padding clip ho jaati thi)
   tabContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 2,               // emoji ↔ label ↔ chevron = 2px space
-    paddingHorizontal: 2, // left/right breathing room
     maxWidth: '100%',
     overflow: 'hidden',
   },
 
   emoji: {
-    fontSize: 13,
+    fontSize: 12,          // v8.2: 13→12 — "Chandigarh" pura fit ho
     lineHeight: 16,
-    flexShrink: 0,        // emoji kabhi nahi shrink hoga
+    flexShrink: 0,
     ...(Platform.OS === 'android' && { includeFontPadding: false }),
   },
 
   label: {
-    fontSize: 12,
+    fontSize: 11,          // v8.2: 12→11 — "Chandigarh" pura fit ho, India bhi center rahe
     lineHeight: 16,
     letterSpacing: 0.1,
-    flexShrink: 1,        // label shrinkable — pehle yahi shrink hoga
-    minWidth: 0,          // flex shrink ke liye zaruri
+    flexShrink: 1,
+    minWidth: 0,
     ...(Platform.OS === 'android' && { includeFontPadding: false }),
   },
 
