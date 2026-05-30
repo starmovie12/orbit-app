@@ -3,9 +3,11 @@
  *
  * Single source of truth for all Room reads/writes in CROWD WORLD.
  *
- * Collection path
- * ───────────────
- * /rooms/{roomId}
+ * Collection paths
+ * ────────────────
+ * /rooms/{roomId}               — chat rooms
+ * /cities/{cityId}              — city directory
+ * /cities/{cityId}/sectors/{sectorId} — sectors per city
  *
  * Room ID convention: `${cityId}_${sectorId}`, e.g. "chandigarh_sector-17".
  * This composite key is intentional — it makes hyper-local queries instant
@@ -39,21 +41,27 @@
  * is the correct tool for this specific case.
  * ─────────────────────────────────────────────────────────────────────────────
  *
- * ─── Composite index required ─────────────────────────────────────────────
- * getRoomsByCitySector() queries (cityId == x AND sectorId == y). Firestore
- * single-field indexes are insufficient — deploy the composite index:
- *
+ * ─── Composite indexes required ───────────────────────────────────────────
+ * getRoomsByCitySector() queries (cityId == x AND sectorId == y):
  *   Collection: rooms
  *   Fields:     cityId ASC, sectorId ASC, lastMessageAt DESC
+ *
+ * getCities() queries (is_active == true, orderBy name):
+ *   Collection: cities
+ *   Fields:     is_active ASC, name ASC
+ *
+ * subscribeSectorsByCity() queries (is_active == true, orderBy sectorName):
+ *   Collection group: sectors
+ *   Fields:           is_active ASC, sectorName ASC
  *
  * Add to firestore.indexes.json or create via Firebase Console.
  * ─────────────────────────────────────────────────────────────────────────────
  *
  * Exported surface (public API)
  * ─────────────────────────────
- * Types     : Unsubscribe
+ * Types     : Unsubscribe · SectorRow
  * Reads     : getRoom · getRoomsByCitySector
- * Realtime  : subscribeToRoom · subscribeRooms
+ * Realtime  : subscribeToRoom · subscribeRooms · getCities · subscribeSectorsByCity
  * Writes    : incrementOnlineCount · decrementOnlineCount · touchRoomLastMessage
  * Utility   : defaultRoom
  * Deprecated: subscribeRoom (renamed to subscribeToRoom)
@@ -67,9 +75,11 @@ import type { CWRoom } from '@/types/cw';
 /** Return type of all realtime subscriptions. Call to stop listening. */
 export type Unsubscribe = () => void;
 
-// ─── Collection path ──────────────────────────────────────────────────────────
+// ─── Collection paths ─────────────────────────────────────────────────────────
 
-const ROOMS = 'rooms';
+const ROOMS   = 'rooms';
+const CITIES  = 'cities';
+const SECTORS = 'sectors';
 
 // ─── snap.exists boolean helper ───────────────────────────────────────────────
 
@@ -88,7 +98,7 @@ function snapExists(snap: any): boolean {
   return !!snap.exists;
 }
 
-// ─── Typed collection ref ─────────────────────────────────────────────────────
+// ─── Typed collection refs ────────────────────────────────────────────────────
 
 function roomsRef() {
   return firestore().collection(ROOMS);
@@ -134,7 +144,7 @@ export async function getRoom(roomId: string): Promise<CWRoom | null> {
  * The listener emits null on any Firestore error (permissions revoked, room
  * deleted) — the chat screen should redirect to /rooms on null emission.
  *
- * Naming: replaces the deprecated subscribeRoom() — see § 7.
+ * Naming: replaces the deprecated subscribeRoom() — see § 8.
  *
  * @param roomId  Composite Firestore room document ID.
  * @param cb      Called with the current CWRoom on every change, or null on error.
@@ -360,6 +370,131 @@ export function defaultRoom(args: {
     createdAt:               serverTimestamp() as any,
     lastMessageAt:           serverTimestamp() as any,
   };
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// § A — SECTOROW TYPE
+// ═════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Shape of one document inside /cities/{cityId}/sectors subcollection.
+ * SectorPickerSheet imports this type directly from firestore-rooms.
+ *
+ * Firestore document ID = sectorId (e.g. "sector-17").
+ * sectorId is injected at read time — not stored as a field in Firestore.
+ */
+export interface SectorRow {
+  /** Firestore document ID — injected on read (e.g. "sector-17") */
+  sectorId:    string;
+  /** Display name shown in picker (e.g. "Sector 17") */
+  sectorName:  string;
+  /** 0–100 heat score — pill shown when ≥ 30 */
+  heatScore:   number;
+  /** Current online users in this sector's room */
+  onlineCount: number;
+  /** Optional sub-area label (e.g. "Elante Mall Area") */
+  colonyTag:   string | null;
+  /** false = hidden from picker but data retained */
+  is_active:   boolean;
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// § B — getCities
+// ═════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Real-time subscription to the /cities collection.
+ *
+ * Filters: is_active == true
+ * Order:   name ASC (alphabetical)
+ *
+ * CityPickerSheet calls this on sheet open and passes the callback to
+ * setCities(). Returns an Unsubscribe function for useEffect cleanup.
+ *
+ * Firestore index required:
+ *   Collection: cities
+ *   Fields:     is_active ASC, name ASC
+ * Firebase Console will prompt to create this automatically on first query —
+ * click the link in the Firestore error logs.
+ *
+ * @param cb  Called with sorted city docs[] on every change.
+ * @returns   Unsubscribe — call in useEffect cleanup.
+ */
+export function getCities(
+  cb: (cities: any[]) => void,
+): Unsubscribe {
+  return firestore()
+    .collection(CITIES)
+    .where('is_active', '==', true)
+    .orderBy('name', 'asc')
+    .onSnapshot(
+      (qs) => {
+        const list: any[] = [];
+        qs.forEach((doc) => {
+          list.push({ id: doc.id, ...doc.data() });
+        });
+        cb(list);
+      },
+      (_err) => {
+        console.error('[getCities] Firestore error:', _err);
+        cb([]);
+      },
+    );
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// § C — subscribeSectorsByCity
+// ═════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Real-time subscription to /cities/{cityId}/sectors subcollection.
+ *
+ * Filters: is_active == true
+ * Order:   sectorName ASC (alphabetical)
+ *
+ * SectorPickerSheet calls this whenever cityId changes or the sheet opens.
+ * Returns an Unsubscribe function for useEffect cleanup.
+ *
+ * Firestore index required:
+ *   Collection group: sectors
+ *   Fields:           is_active ASC, sectorName ASC
+ * Firebase Console will prompt automatically — click the link in error logs.
+ *
+ * @param cityId  e.g. "chandigarh" — must match /cities document ID exactly
+ * @param cb      Called with SectorRow[] on every change.
+ * @returns       Unsubscribe — call in useEffect cleanup.
+ */
+export function subscribeSectorsByCity(
+  cityId: string,
+  cb: (sectors: SectorRow[]) => void,
+): Unsubscribe {
+  if (!cityId) {
+    cb([]);
+    return () => {};
+  }
+
+  return firestore()
+    .collection(CITIES)
+    .doc(cityId)
+    .collection(SECTORS)
+    .where('is_active', '==', true)
+    .orderBy('sectorName', 'asc')
+    .onSnapshot(
+      (qs) => {
+        const list: SectorRow[] = [];
+        qs.forEach((doc) => {
+          list.push({
+            sectorId: doc.id,
+            ...(doc.data() as Omit<SectorRow, 'sectorId'>),
+          });
+        });
+        cb(list);
+      },
+      (_err) => {
+        console.error('[subscribeSectorsByCity] Firestore error:', _err);
+        cb([]);
+      },
+    );
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
