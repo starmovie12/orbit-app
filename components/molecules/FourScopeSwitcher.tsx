@@ -1,27 +1,36 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  CROWN — FourScopeSwitcher  v7.9  COMPLETE LAYOUT REWRITE               ║
+ * ║  CROWN — FourScopeSwitcher  v8.0  SEPARATOR VIEW — PIXEL-PERFECT        ║
  * ║  §1.3.3 Row 2 — The 4-Scope Switcher                                    ║
  * ║  Phase 1.3 · App Architecture                                           ║
  * ╠══════════════════════════════════════════════════════════════════════════╣
- * ║  v7.9 ROOT CAUSE FIXES (3 asli bugs):                                   ║
+ * ║  v8.0 — ROOT CAUSE FIX (v7.9 ka asli bug):                             ║
  * ║                                                                         ║
- * ║  BUG-A  gap + overflow:hidden = tabs overflow ho rahe the               ║
- * ║         RN mein gap property + overflow:hidden = tabs bahar nikalte     ║
- * ║         hain. Fix: gap hata diya, tabs pe marginRight se TAB_GAP.       ║
+ * ║  v7.9 mein `marginRight: TAB_GAP` approach use kiya tha.               ║
+ * ║  Yeh WRONG tha kyunki:                                                  ║
  * ║                                                                         ║
- * ║  BUG-B  Animated.View pe width:'100%' kaam nahi karta                   ║
- * ║         Chevron bahar nikal rahi thi kyunki Animated.View tab width     ║
- * ║         se bind nahi tha. Fix: Pressable full flex:1, Animated.View     ║
- * ║         sirf scale transform ke liye, tabContent regular View hai.      ║
+ * ║  flex:1 + marginRight ke saath:                                         ║
+ * ║    Tab 0,1,2 inner width = S/4 - 2  (margin flex space se khaata hai)  ║
+ * ║    Tab 3     inner width = S/4      (no margin → 2px WIDER!)            ║
  * ║                                                                         ║
- * ║  BUG-C  Capsule X position galat tha                                    ║
- * ║         capsuleX = index*(tw+GAP) → H_PAD ignore ho raha tha.          ║
- * ║         Fix: capsuleX = H_PAD + CAPSULE_H_INSET + index*(tw+GAP).      ║
- * ║         Aur capsule left:0 kiya (translateX mein offset hai).           ║
+ * ║  → Tabs unequal width hote hain                                         ║
+ * ║  → capsuleX math off hota hai (last tab pe 1.5px shift)                ║
+ * ║  → Screenshot mein Sector 17 ka capsule slightly misaligned tha        ║
+ * ║                                                                         ║
+ * ║  v8.0 FIX: Separator View approach                                      ║
+ * ║    Fixed-width `View` (width: TAB_GAP) between each pair of tabs.      ║
+ * ║    Flex:1 distributes ONLY remaining space (after 3 × 2px separators). ║
+ * ║    Each tab gets exactly (S - 6) / 4 — guaranteed equal.               ║
+ * ║    Capsule math: index * (tw + TAB_GAP)  — exact, no rounding error.   ║
+ * ║                                                                         ║
+ * ║  RETAINED FROM v7.9:                                                    ║
+ * ║    2-layer render: Animated.View (scale only) + View (content+clip)    ║
+ * ║    tab: flex:1, minWidth:0                                              ║
+ * ║    label: flexShrink:1, minWidth:0                                      ║
  * ╠══════════════════════════════════════════════════════════════════════════╣
+ * ║  v7.9 — marginRight approach (wrong — tabs unequal)                    ║
  * ║  v7.8 — minWidth:0 on tab + label                                       ║
- * ║  v7.7 — gap: 3→2                                                        ║
+ * ║  v7.7 — gap: 3→2 in tabContent                                         ║
  * ║  v7.6 — capsule left fix, World hasPicker:false                         ║
  * ║  v7.5 — width:100%, capsuleW SharedValue, ellipsizeMode                 ║
  * ║  v7.4 — HTML pixel-sync (38px, 6px radius, brand colors)               ║
@@ -116,17 +125,17 @@ const SCOPES: readonly ScopeConfig[] = [
   },
 ] as const;
 
-const N_TABS = SCOPES.length;
+const N_TABS = SCOPES.length; // 4
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
 
-const TRACK_HEIGHT    = 38 as const;
-const H_PAD           = 5  as const;
-const TAB_GAP         = 2  as const;
-const CAPSULE_INSET   = 3  as const;
-const CAPSULE_H_INSET = 2  as const;
+const TRACK_HEIGHT    = 38 as const; // PRD §1.3.3 locked
+const H_PAD           = 5  as const; // track ke andar horizontal padding
+const TAB_GAP         = 2  as const; // separator View ki width (tabs ke beech)
+const CAPSULE_INSET   = 3  as const; // top/bottom inset for capsule
+const CAPSULE_H_INSET = 2  as const; // left/right inset (capsule tab se 2px chota)
 
 const SPRING_SLIDE: WithSpringConfig = {
   mass: 1,
@@ -157,13 +166,13 @@ Chevron.displayName = 'Chevron';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SCOPE TAB
+// NOTE: isLast prop hataya — separator View approach mein zarurat nahi
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface ScopeTabProps {
   readonly scopeCfg: ScopeConfig;
   readonly index: number;
   readonly isActive: boolean;
-  readonly isLast: boolean;
   readonly label: string;
   readonly emoji: string;
   readonly onPress: (scope: ChatScope, index: number) => void;
@@ -173,7 +182,6 @@ const ScopeTab = memo(({
   scopeCfg,
   index,
   isActive,
-  isLast,
   label,
   emoji,
   onPress,
@@ -185,29 +193,47 @@ const ScopeTab = memo(({
     transform: [{ scale: scale.value }],
   }), []);
 
-  const handlePressIn  = useCallback(() => { scale.value = withSpring(0.95, SPRING_PRESS); }, [scale]);
-  const handlePressOut = useCallback(() => { scale.value = withSpring(1,    SPRING_PRESS); }, [scale]);
-  const handlePress    = useCallback(() => { onPress(scopeCfg.key, index); }, [onPress, scopeCfg.key, index]);
+  const handlePressIn  = useCallback(() => {
+    scale.value = withSpring(0.95, SPRING_PRESS);
+  }, [scale]);
+
+  const handlePressOut = useCallback(() => {
+    scale.value = withSpring(1, SPRING_PRESS);
+  }, [scale]);
+
+  const handlePress = useCallback(() => {
+    onPress(scopeCfg.key, index);
+  }, [onPress, scopeCfg.key, index]);
 
   return (
     <Pressable
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       onPress={handlePress}
-      // BUG-A FIX: gap hata ke marginRight diya — overflow:hidden ke saath safe
-      style={[styles.tab, !isLast && styles.tabGap]}
+      style={styles.tab}           // flex:1 only — no marginRight needed anymore
       accessibilityRole="tab"
       accessibilityState={{ selected: isActive }}
       accessibilityLabel={scopeCfg.a11yLabel}
       hitSlop={{ top: 8, bottom: 8, left: 2, right: 2 }}
     >
       {/*
-        BUG-B FIX: 2-layer approach
-        Layer 1 — Animated.View: sirf scale transform, flex:1 se Pressable fill karta hai
-        Layer 2 — Regular View (tabContent): emoji+label+chevron row, overflow:hidden yahan kaam karta hai
+        2-layer render approach (v7.9 se retain kiya):
+
+        Layer 1 — Animated.View (tabInner):
+          Sirf scale transform handle karta hai (press animation).
+          flex:1 se Pressable ka poora area fill karta hai.
+          Animated.View pe width constraints reliable nahi hote RN mein.
+
+        Layer 2 — Regular View (tabContent):
+          emoji + label + chevron ka row yahaan hai.
+          overflow:'hidden' regular View pe sahi kaam karta hai.
+          maxWidth:'100%' bhi regular View pe properly constrain karta hai.
+          Chevron hamesha andar rahegi — bahar nahi niklegi.
       */}
       <Animated.View style={[styles.tabInner, pressAnimStyle]}>
         <View style={styles.tabContent}>
+
+          {/* Emoji — fixed size, never shrinks */}
           <Text
             style={styles.emoji}
             allowFontScaling={false}
@@ -216,6 +242,7 @@ const ScopeTab = memo(({
             {emoji}
           </Text>
 
+          {/* Label — shrinks when needed, chevron ko push nahi karta */}
           <Text
             style={[
               styles.label,
@@ -229,7 +256,9 @@ const ScopeTab = memo(({
             {label}
           </Text>
 
+          {/* Chevron — only for tabs with picker, never shrinks */}
           {scopeCfg.hasPicker && <Chevron isActive={isActive} />}
+
         </View>
       </Animated.View>
     </Pressable>
@@ -249,14 +278,17 @@ export function FourScopeSwitcher({
 }: FourScopeSwitcherProps): React.JSX.Element {
 
   const [tabWidth, setTabWidth] = useState<number>(0);
-  const tabWidthRef    = useRef<number>(0);
-  const isFirstRender  = useRef<boolean>(true);
-  const userInitiated  = useRef<boolean>(false);
+  const tabWidthRef   = useRef<number>(0);
+  const isFirstRender = useRef<boolean>(true);
+  const userInitiated = useRef<boolean>(false);
 
   const capsuleX = useSharedValue<number>(0);
   const capsuleW = useSharedValue<number>(0);
 
-  const activeIndex = Math.max(0, SCOPES.findIndex((s) => s.key === activeScope));
+  const activeIndex = Math.max(
+    0,
+    SCOPES.findIndex((s) => s.key === activeScope),
+  );
 
   const capsuleAnimStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: capsuleX.value }],
@@ -264,29 +296,52 @@ export function FourScopeSwitcher({
   }), []);
 
   /**
-   * BUG-C FIX: Capsule X
-   * track mein paddingHorizontal: H_PAD hai
-   * absolute element content-area se count karta hai (padding ke andar se)
-   * tab 0 ki left edge = 0 (content-area mein)
-   * tab n ki left edge = n * (tw + TAB_GAP)
-   * capsule = tab left edge + CAPSULE_H_INSET (2px andar se)
+   * Capsule X calculation — separator View approach ke saath exact math:
+   *
+   * Content area (track ke andar H_PAD ke baad):
+   *   Tab 0 starts: x = 0
+   *   Sep 0 starts: x = tw
+   *   Tab 1 starts: x = tw + TAB_GAP
+   *   Sep 1 starts: x = 2*tw + TAB_GAP
+   *   Tab 2 starts: x = 2*tw + 2*TAB_GAP = 2*(tw + TAB_GAP)
+   *   ...
+   *   Tab n starts: x = n * (tw + TAB_GAP)    ← exact formula
+   *
+   * Capsule = tab left edge + CAPSULE_H_INSET (2px andar se)
+   * `capsule` style has `left: 0` (absolute, content area se count)
+   * translateX does all the work
    */
   const calcCapsuleX = useCallback(
-    (index: number, tw: number): number => index * (tw + TAB_GAP) + CAPSULE_H_INSET,
+    (index: number, tw: number): number =>
+      index * (tw + TAB_GAP) + CAPSULE_H_INSET,
     [],
   );
 
   const handleLayout = useCallback((e: LayoutChangeEvent): void => {
     const totalW = e.nativeEvent.layout.width;
-    // totalW includes H_PAD on each side
+
+    /**
+     * Separator View math:
+     *   totalW = H_PAD*2 + N_TABS*tw + (N_TABS-1)*TAB_GAP
+     *   tw     = (totalW - H_PAD*2 - (N_TABS-1)*TAB_GAP) / N_TABS
+     *          = (totalW - 10 - 6) / 4
+     *
+     * All 4 tabs get identical width. No rounding issues.
+     */
     const tw = (totalW - H_PAD * 2 - TAB_GAP * (N_TABS - 1)) / N_TABS;
 
-    tabWidthRef.current = tw;
+    tabWidthRef.current  = tw;
     setTabWidth(tw);
+
+    // capsuleW = tab width - 2px inset on each side
     capsuleW.value = tw - CAPSULE_H_INSET * 2;
+
+    // Initial capsule position — no animation (first render)
     capsuleX.value = calcCapsuleX(activeIndex, tw);
+
   }, [capsuleX, capsuleW, activeIndex, calcCapsuleX]);
 
+  // Animate capsule when activeScope changes from outside (not user tap)
   useEffect(() => {
     if (isFirstRender.current) { isFirstRender.current = false; return; }
     if (userInitiated.current)  { userInitiated.current  = false; return; }
@@ -300,14 +355,20 @@ export function FourScopeSwitcher({
   const handleTabPress = useCallback((scope: ChatScope, index: number): void => {
     void Haptics.selectionAsync();
 
+    // Same tab tap — open picker if available
     if (scope === activeScope) {
       const cfg = SCOPES.find((s) => s.key === scope);
       if (cfg?.hasPicker) onPickerOpen(scope);
       return;
     }
 
+    // New tab — animate capsule, update scope
+    // Flag prevents useEffect double-animating
     userInitiated.current = true;
-    capsuleX.value = withSpring(calcCapsuleX(index, tabWidthRef.current), SPRING_SLIDE);
+    capsuleX.value = withSpring(
+      calcCapsuleX(index, tabWidthRef.current),
+      SPRING_SLIDE,
+    );
     onScopeChange(scope);
   }, [activeScope, onScopeChange, onPickerOpen, capsuleX, calcCapsuleX]);
 
@@ -331,6 +392,7 @@ export function FourScopeSwitcher({
       accessibilityRole="tablist"
       accessibilityLabel="CROWN Chat scope selector"
     >
+      {/* Animated capsule — behind tabs (zIndex:0), shown after layout fires */}
       {tabWidth > 0 && (
         <Animated.View
           style={[styles.capsule, capsuleAnimStyle]}
@@ -338,17 +400,38 @@ export function FourScopeSwitcher({
         />
       )}
 
+      {/*
+        SEPARATOR VIEW APPROACH:
+        Tabs ke beech fixed-width View (2px) lagaya.
+
+        WHY NOT marginRight:
+          marginRight + flex:1 → tabs 0,1,2 width = S/4-2, tab3 width = S/4
+          Unequal widths → capsule math off → misaligned highlight
+
+        WHY NOT gap property in track:
+          RN mein gap + overflow:hidden = sometimes children overflow
+
+        WHY SEPARATOR VIEW WORKS:
+          View width:TAB_GAP is a fixed element, not part of flex:1 distribution.
+          Flex algorithm: available = content - 3*TAB_GAP = content - 6
+          Each flex:1 tab = (content - 6) / 4 — EXACTLY EQUAL.
+          Capsule math: n*(tw+TAB_GAP) — EXACTLY CORRECT.
+      */}
       {SCOPES.map((scopeCfg, index) => (
-        <ScopeTab
-          key={scopeCfg.key}
-          scopeCfg={scopeCfg}
-          index={index}
-          isActive={scopeCfg.key === activeScope}
-          isLast={index === N_TABS - 1}
-          label={getLabel(scopeCfg.key, scopeCfg.defaultLabel)}
-          emoji={getEmoji(scopeCfg.key, scopeCfg.emoji)}
-          onPress={handleTabPress}
-        />
+        <React.Fragment key={scopeCfg.key}>
+          <ScopeTab
+            scopeCfg={scopeCfg}
+            index={index}
+            isActive={scopeCfg.key === activeScope}
+            label={getLabel(scopeCfg.key, scopeCfg.defaultLabel)}
+            emoji={getEmoji(scopeCfg.key, scopeCfg.emoji)}
+            onPress={handleTabPress}
+          />
+          {/* Separator between tabs — last tab ke baad nahi */}
+          {index < N_TABS - 1 && (
+            <View style={styles.tabSeparator} pointerEvents="none" />
+          )}
+        </React.Fragment>
       ))}
     </View>
   );
@@ -359,6 +442,7 @@ export function FourScopeSwitcher({
 // ─────────────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
+
   track: {
     width: '100%',
     height: TRACK_HEIGHT,
@@ -367,49 +451,55 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: H_PAD,
-    // BUG-A FIX: gap yahan nahi — tabs ke marginRight se spacing
+    // No gap property — separator Views handle spacing (gap+overflow:hidden can cause issues in RN)
     overflow: 'hidden',
   },
 
   capsule: {
     position: 'absolute',
-    // BUG-C FIX: left:0 — translateX mein already offset calculate hai
-    // (H_PAD padding ke andar absolute start hota hai, sirf CAPSULE_H_INSET chahiye)
-    left: 0,
+    left: 0,              // absolute: content area se (H_PAD ke baad) start hota hai
     top: CAPSULE_INSET,
     bottom: CAPSULE_INSET,
     backgroundColor: 'rgba(200,150,12,0.18)',
     borderRadius: 6,
+    zIndex: 0,            // tabs ke peeche
+  },
+
+  // Fixed-width spacer between tabs
+  // flex:1 tabs ke beech fixed element → equal tab width guaranteed
+  tabSeparator: {
+    width: TAB_GAP,       // 2px
+    flexShrink: 0,        // kabhi nahi shrink hoga
+    alignSelf: 'stretch', // full track height
     zIndex: 0,
   },
 
   tab: {
     flex: 1,
-    minWidth: 0,        // flex shrink sahi kaam kare
+    minWidth: 0,          // flex shrink properly kaam kare
     height: '100%',
-    zIndex: 1,
+    zIndex: 1,            // capsule ke upar
     backgroundColor: 'transparent',
+    // NO marginRight — separator View handles spacing
   },
 
-  // BUG-A FIX: gap ki jagah marginRight (last tab pe nahi lagega)
-  tabGap: {
-    marginRight: TAB_GAP,
-  },
-
-  // BUG-B FIX: Animated.View — sirf scale, layout nahi
+  // Animated.View — ONLY for press scale transform
+  // flex:1 se Pressable ka poora area fill karta hai
   tabInner: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
 
-  // BUG-B FIX: Regular View — overflow:hidden yahan properly kaam karta hai
+  // Regular View — emoji + label + chevron ka row
+  // overflow:hidden regular View pe sahi kaam karta hai
+  // maxWidth:'100%' yahan reliably constrain karta hai
   tabContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 2,             // emoji ↔ label ↔ chevron = 2px
-    paddingHorizontal: 2,
+    gap: 2,               // emoji ↔ label ↔ chevron = 2px space
+    paddingHorizontal: 2, // left/right breathing room
     maxWidth: '100%',
     overflow: 'hidden',
   },
@@ -417,7 +507,7 @@ const styles = StyleSheet.create({
   emoji: {
     fontSize: 13,
     lineHeight: 16,
-    flexShrink: 0,
+    flexShrink: 0,        // emoji kabhi nahi shrink hoga
     ...(Platform.OS === 'android' && { includeFontPadding: false }),
   },
 
@@ -425,8 +515,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
     letterSpacing: 0.1,
-    flexShrink: 1,
-    minWidth: 0,        // label shrink ho, chevron andar rahe
+    flexShrink: 1,        // label shrinkable — pehle yahi shrink hoga
+    minWidth: 0,          // flex shrink ke liye zaruri
     ...(Platform.OS === 'android' && { includeFontPadding: false }),
   },
 
@@ -451,9 +541,10 @@ const styles = StyleSheet.create({
     borderTopWidth: 4.5,
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
-    flexShrink: 0,
+    flexShrink: 0,        // chevron kabhi nahi shrink/clip hogi
     marginTop: 1,
   },
+
 });
 
 export default FourScopeSwitcher;
