@@ -113,7 +113,7 @@ import SkeletonBubble             from '@/components/atoms/SkeletonBubble';
 // ── Sheet / Modal organisms ───────────────────────────────────────────────
 import CityPickerSheet            from '@/components/organisms/CityPickerSheet';
 import SectorPickerSheet          from '@/components/organisms/SectorPickerSheet';
-import { IndiaPickerSheet }       from '@/components/organisms/IndiaPickerSheet';
+import CountryPickerSheet         from '@/components/organisms/CountryPickerSheet';
 import { MessageActionSheet }     from '@/components/organisms/MessageActionSheet';
 import { AuthGateSheet }          from '@/components/organisms/AuthGateSheet';
 import { SendFailedModal }         from '@/components/organisms/SendFailedModal';
@@ -144,6 +144,9 @@ const TRUST_ANCHOR_MS    = 60_000 as const;
 
 const DEFAULT_CITY_ID      = 'chandigarh'  as const;
 const DEFAULT_CITY_LABEL   = 'Chandigarh'  as const;
+const DEFAULT_COUNTRY_ID    = 'IN'          as const;
+const DEFAULT_COUNTRY_LABEL = 'India'       as const;
+const DEFAULT_COUNTRY_EMOJI = '🇮🇳'         as const;
 const DEFAULT_SECTOR_ID    = 'sector-17'   as const;
 const DEFAULT_SECTOR_LABEL = 'Sector 17'   as const;
 
@@ -172,12 +175,13 @@ const TRUST_ANCHOR_SCROLL_THRESHOLD = 20 as const;
 /** Derive scope-aware roomId */
 function buildRoomId(
   scope: ScopeKey,
+  countryId: string,
   cityId: string,
   sectorId: string,
 ): string {
   switch (scope) {
     case 'world':   return 'world';
-    case 'country': return 'india';       // default country
+    case 'country': return countryId.toLowerCase();
     case 'city':    return cityId;
     case 'sector':  return `${cityId}_${sectorId}`;
   }
@@ -432,6 +436,9 @@ export default function HomeScreen() {
   const { user } = useAuth();
 
   // ── Location ─────────────────────────────────────────────────────────────
+  const [countryId,    setCountryId]    = useState(DEFAULT_COUNTRY_ID);
+  const [countryLabel, setCountryLabel] = useState(DEFAULT_COUNTRY_LABEL);
+  const [countryEmoji, setCountryEmoji] = useState(DEFAULT_COUNTRY_EMOJI);
   const [cityId,       setCityId]       = useState(DEFAULT_CITY_ID);
   const [cityLabel,    setCityLabel]    = useState(DEFAULT_CITY_LABEL);
   const [sectorId,     setSectorId]     = useState(DEFAULT_SECTOR_ID);
@@ -442,8 +449,8 @@ export default function HomeScreen() {
 
   // ── Room ID — scope-aware ─────────────────────────────────────────────────
   const roomId = useMemo(
-    () => buildRoomId(activeScope, cityId, sectorId),
-    [activeScope, cityId, sectorId],
+    () => buildRoomId(activeScope, countryId, cityId, sectorId),
+    [activeScope, countryId, cityId, sectorId],
   );
 
   // ── Room metadata ─────────────────────────────────────────────────────────
@@ -473,12 +480,12 @@ export default function HomeScreen() {
   const lastScrollY = useRef(0);
 
   // ── Sheets ────────────────────────────────────────────────────────────────
-  const [citySheetOpen,    setCitySheetOpen]    = useState(false);
-  const [sectorSheetOpen,  setSectorSheetOpen]  = useState(false);
   const [countrySheetOpen, setCountrySheetOpen] = useState(false);
-  const [authSheetOpen,   setAuthSheetOpen]    = useState(false);
-  const [actionSheetOpen, setActionSheetOpen]  = useState(false);
-  const [actionMsg,       setActionMsg]        = useState<ActionSheetMsg | null>(null);
+  const [citySheetOpen,   setCitySheetOpen]   = useState(false);
+  const [sectorSheetOpen, setSectorSheetOpen] = useState(false);
+  const [authSheetOpen,   setAuthSheetOpen]   = useState(false);
+  const [actionSheetOpen, setActionSheetOpen] = useState(false);
+  const [actionMsg,       setActionMsg]       = useState<ActionSheetMsg | null>(null);
 
   // ── Send-failed modal ─────────────────────────────────────────────────────
   const [failedModalOpen, setFailedModalOpen] = useState(false);
@@ -771,12 +778,18 @@ export default function HomeScreen() {
     if (scope === 'country') { setCountrySheetOpen(true); return; }
     if (scope === 'city')    { setCitySheetOpen(true);    return; }
     if (scope === 'sector')  { setSectorSheetOpen(true);  return; }
-    // 'world' — no picker in v1.0 (single global room)
+    // 'world' — no picker (only one world room)
   }, []);
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // § 8.9 — CITY / SECTOR SELECTION (UNCHANGED)
+  // § 8.9 — CITY / SECTOR / COUNTRY SELECTION
   // ═══════════════════════════════════════════════════════════════════════════
+
+  const handleCountrySelect = useCallback((id: string, name: string, emoji: string) => {
+    setCountryId(id);
+    setCountryLabel(name);
+    setCountryEmoji(emoji);
+  }, []);
 
   const handleCitySelect = useCallback((selectedCityId: string) => {
     setCityId(selectedCityId);
@@ -870,10 +883,10 @@ export default function HomeScreen() {
       <HomeHeader
         activeScope={activeScope}
         scopeLabels={{
-          country:      'India',
+          country:      countryLabel,
           city:         cityLabel,
           sector:       sectorLabel,
-          countryEmoji: '🇮🇳',
+          countryEmoji: countryEmoji,
         }}
         onScopeChange={handleScopeChange}
         onPickerOpen={handlePickerOpen}
@@ -1040,6 +1053,18 @@ export default function HomeScreen() {
           ═══════════════════════════════════════════════════════════════════ */}
 
       {/*
+       * COUNTRY PICKER SHEET
+       * Triggered: tap already-active 'country' scope button (PRD §10.8)
+       * Design: 72% height · hero cards · full-row gold active state
+       */}
+      <CountryPickerSheet
+        visible={countrySheetOpen}
+        onClose={() => setCountrySheetOpen(false)}
+        selected={countryId}
+        onSelect={handleCountrySelect}
+      />
+
+      {/*
        * CITY PICKER SHEET
        * Triggered: tap already-active 'city' scope button (PRD §10.8)
        */}
@@ -1048,21 +1073,6 @@ export default function HomeScreen() {
         onClose={() => setCitySheetOpen(false)}
         selected={cityId}
         onSelect={handleCitySelect}
-      />
-
-      {/*
-       * INDIA PICKER SHEET — Midnight Bharat Design
-       * Triggered: tap already-active 'country / India' scope button
-       * Opens the India city explorer — grid view with region filter
-       */}
-      <IndiaPickerSheet
-        visible={countrySheetOpen}
-        onClose={() => setCountrySheetOpen(false)}
-        selected={cityId}
-        onSelect={(selectedCityId) => {
-          handleCitySelect(selectedCityId);
-          setActiveScope('city');
-        }}
       />
 
       {/*
