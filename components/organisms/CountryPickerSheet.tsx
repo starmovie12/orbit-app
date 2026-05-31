@@ -15,23 +15,35 @@
  * ── FEATURES ─────────────────────────────────────────────────────────────────
  *   • 72% screen height (immersive — bigger than City's 50%)
  *   • Custom header: globe icon + title + active country strip with live dot
- *   • "🔥 Trending Right Now" hero cards (horizontal scroll, 5 cards)
+ *   • "🔥 Popular Desh" hero cards (horizontal scroll, 5 cards)
  *     - Gradient card per continent region
  *     - Flag emoji · name · online count · heat bar
- *   • Live search filter ("195 desh dhundo...")
+ *   • Live search filter
  *   • Rich 72px country rows:
  *     - 44×44 region-tinted flag container
  *     - Country name (bold 15px) + online count
  *     - 52×5px heat gauge bar (colour shifts gold→emerald by intensity)
- *   • Active state: full gold shimmer bg + gold checkmark circle (vs left border in City)
+ *   • Active state: full gold shimmer bg + gold checkmark circle
  *   • Shimmer skeleton while loading (6 rows · 80px)
+ *   • Error state with retry button
  *   • AsyncStorage persistence — @cw/country_id
  *   • Haptics on select / dismiss
  *
  * ── DATA ─────────────────────────────────────────────────────────────────────
- *   Phase 1:  Mock COUNTRIES array (35 countries, sorted by onlineCount)
- *   Phase 2:  Firestore /countries collection — getCities-style subscription
- *             (hook point marked ── FIRESTORE HOOK ── below)
+ *   Live Firestore /countries collection
+ *   Firestore fields used: flag, name, iso2, continent, online_count, is_active
+ *   Fetches ALL active countries (250+), sorted by online_count desc, name A→Z for ties
+ *   Heat computed logarithmically from online_count (0 online → 0 heat, 10K → ~80)
+ *   Region inferred from continent + Middle East ISO-2 override set
+ *
+ * ── BUG FIXES (v2) ───────────────────────────────────────────────────────────
+ *   FIX 1  → Replaced 35-entry mock COUNTRIES array with live Firestore fetch.
+ *            All 250+ countries now load. useEffect wires getDocs() correctly.
+ *   FIX 2  → getItemLayout was off by 1px from item #1 onward.
+ *            Moved divider to ItemSeparatorComponent; formula is now exact:
+ *            length = L.rowH (72), offset = (L.rowH + 1) * index.
+ *   FIX 3  → Added error state + retry button for network/Firestore failures.
+ *   FIX 4  → Subtitle + search placeholder show dynamic fetched count.
  *
  * ── USAGE ────────────────────────────────────────────────────────────────────
  *
@@ -50,6 +62,10 @@
  *       setCountryEmoji(emoji);
  *     }}
  *   />
+ *
+ * ── FIREBASE CONFIG ──────────────────────────────────────────────────────────
+ *   Import path assumed: @/lib/firebase  (exports: db)
+ *   If your project puts Firebase config elsewhere, update the import below.
  */
 
 import React, {
@@ -74,9 +90,13 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { Feather }        from '@expo/vector-icons';
-import * as Haptics       from 'expo-haptics';
-import AsyncStorage       from '@react-native-async-storage/async-storage';
+import { Feather }            from '@expo/vector-icons';
+import * as Haptics           from 'expo-haptics';
+import AsyncStorage           from '@react-native-async-storage/async-storage';
+import { collection, getDocs, query, where } from 'firebase/firestore';
+
+// ⚠️  Adjust this path if your Firebase config lives elsewhere
+import { db }                 from '@/lib/firebase';
 
 import { BottomSheet }            from '@/components/BottomSheet';
 import { palette, colors }        from '@/constants/colors';
@@ -105,7 +125,6 @@ const L = {
   handleW:       36,
   handleH:       4,
   handleTop:     10,
-  activeBarW:    0,     // no left bar — full row highlight instead
   titleSize:     19,
   subtitleSize:  12,
   nameSize:      15,
@@ -115,6 +134,7 @@ const L = {
   shimmerRows:   6,
   shimmerRowH:   80,
   shimmerDur:    1200,
+  separatorH:    1,     // row divider height (used in getItemLayout)
 } as const;
 
 // ─── Design token aliases ─────────────────────────────────────────────────────
@@ -136,7 +156,6 @@ const T = {
 // Derived values (opacity compositions — not in design system)
 const ACTIVE_ROW_BG   = 'rgba(212, 160, 23, 0.09)' as const;   // gold wash full row
 const ACTIVE_CHECK_BG = T.gold600                   as const;   // checkmark circle bg
-const HERO_PRESS_BG   = 'rgba(212, 160, 23, 0.06)' as const;   // hero card press state
 const SPINNER_OVERLAY = 'rgba(255, 255, 255, 0.80)' as const;   // switching overlay
 const LIVE_DOT_COLOR  = '#22C55E'                   as const;   // green live pulse
 
@@ -165,11 +184,11 @@ const HERO_CARD_BG: Record<Region, { bg: string; border: string }> = {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface CountryDoc {
-  id:          string;    // ISO 3166-1 alpha-2 (e.g., 'IN')
+  id:          string;    // ISO 3166-1 alpha-2, uppercase (e.g., 'IN')
   name:        string;    // Display name
   emoji:       string;    // Flag emoji
   onlineCount: number;    // Live user count
-  heat:        number;    // 0–100 activity score
+  heat:        number;    // 0–100 activity score (computed from onlineCount)
   region:      Region;
 }
 
@@ -180,53 +199,120 @@ export interface CountryPickerSheetProps {
   onSelect:  (countryId: string, name: string, emoji: string) => void;
 }
 
-// ─── Mock country data ────────────────────────────────────────────────────────
-// Phase 2: replace with Firestore /countries snapshot subscription
-// Sorted by onlineCount desc (PRD §3.3 — countries sorted by online count by default)
-const COUNTRIES: CountryDoc[] = [
-  { id: 'IN', name: 'India',          emoji: '🇮🇳', onlineCount: 0, heat: 96, region: 'Asia'        },
-  { id: 'US', name: 'USA',            emoji: '🇺🇸', onlineCount: 0, heat: 88, region: 'Americas'    },
-  { id: 'BR', name: 'Brazil',         emoji: '🇧🇷', onlineCount: 0, heat: 82, region: 'Americas'    },
-  { id: 'NG', name: 'Nigeria',        emoji: '🇳🇬', onlineCount: 0, heat: 79, region: 'Africa'      },
-  { id: 'PK', name: 'Pakistan',       emoji: '🇵🇰', onlineCount: 0, heat: 74, region: 'Asia'        },
-  { id: 'ID', name: 'Indonesia',      emoji: '🇮🇩', onlineCount: 0, heat: 71, region: 'Asia'        },
-  { id: 'PH', name: 'Philippines',    emoji: '🇵🇭', onlineCount: 0, heat: 68, region: 'Asia'        },
-  { id: 'GB', name: 'United Kingdom', emoji: '🇬🇧', onlineCount: 0, heat: 65, region: 'Europe'      },
-  { id: 'MX', name: 'Mexico',         emoji: '🇲🇽', onlineCount: 0, heat: 63, region: 'Americas'    },
-  { id: 'EG', name: 'Egypt',          emoji: '🇪🇬', onlineCount: 0, heat: 61, region: 'Africa'      },
-  { id: 'BD', name: 'Bangladesh',     emoji: '🇧🇩', onlineCount: 0, heat: 60, region: 'Asia'        },
-  { id: 'DE', name: 'Germany',        emoji: '🇩🇪', onlineCount: 0, heat: 58, region: 'Europe'      },
-  { id: 'TR', name: 'Turkey',         emoji: '🇹🇷', onlineCount: 0, heat: 56, region: 'Middle East' },
-  { id: 'KE', name: 'Kenya',          emoji: '🇰🇪', onlineCount: 0, heat: 55, region: 'Africa'      },
-  { id: 'GH', name: 'Ghana',          emoji: '🇬🇭', onlineCount: 0, heat: 53, region: 'Africa'      },
-  { id: 'FR', name: 'France',         emoji: '🇫🇷', onlineCount: 0, heat: 49, region: 'Europe'      },
-  { id: 'JP', name: 'Japan',          emoji: '🇯🇵', onlineCount: 0, heat: 47, region: 'Asia'        },
-  { id: 'ZA', name: 'South Africa',   emoji: '🇿🇦', onlineCount: 0, heat: 45, region: 'Africa'      },
-  { id: 'AR', name: 'Argentina',      emoji: '🇦🇷', onlineCount: 0, heat: 43, region: 'Americas'    },
-  { id: 'CA', name: 'Canada',         emoji: '🇨🇦', onlineCount: 0, heat: 41, region: 'Americas'    },
-  { id: 'SA', name: 'Saudi Arabia',   emoji: '🇸🇦', onlineCount: 0, heat: 40, region: 'Middle East' },
-  { id: 'IT', name: 'Italy',          emoji: '🇮🇹', onlineCount: 0, heat: 39, region: 'Europe'      },
-  { id: 'ES', name: 'Spain',          emoji: '🇪🇸', onlineCount: 0, heat: 38, region: 'Europe'      },
-  { id: 'TH', name: 'Thailand',       emoji: '🇹🇭', onlineCount: 0, heat: 37, region: 'Asia'        },
-  { id: 'CO', name: 'Colombia',       emoji: '🇨🇴', onlineCount: 0, heat: 36, region: 'Americas'    },
-  { id: 'VN', name: 'Vietnam',        emoji: '🇻🇳', onlineCount: 0, heat: 35, region: 'Asia'        },
-  { id: 'TZ', name: 'Tanzania',       emoji: '🇹🇿', onlineCount: 0, heat: 32, region: 'Africa'      },
-  { id: 'AU', name: 'Australia',      emoji: '🇦🇺', onlineCount: 0, heat: 31, region: 'Oceania'     },
-  { id: 'MY', name: 'Malaysia',       emoji: '🇲🇾', onlineCount: 0, heat: 30, region: 'Asia'        },
-  { id: 'UA', name: 'Ukraine',        emoji: '🇺🇦', onlineCount: 0, heat: 28, region: 'Europe'      },
-  { id: 'PL', name: 'Poland',         emoji: '🇵🇱', onlineCount: 0, heat: 27, region: 'Europe'      },
-  { id: 'KR', name: 'South Korea',    emoji: '🇰🇷', onlineCount: 0, heat: 26, region: 'Asia'        },
-  { id: 'NL', name: 'Netherlands',    emoji: '🇳🇱', onlineCount: 0, heat: 25, region: 'Europe'      },
-  { id: 'MA', name: 'Morocco',        emoji: '🇲🇦', onlineCount: 0, heat: 24, region: 'Africa'      },
-  { id: 'RU', name: 'Russia',         emoji: '🇷🇺', onlineCount: 0, heat: 22, region: 'Europe'      },
-];
+// ─── Firestore raw shape ──────────────────────────────────────────────────────
+// Maps 1-to-1 with what /countries/{iso2} documents actually contain
+interface FirestoreCountryData {
+  name:         string;
+  flag:         string;   // flag emoji e.g. "🇮🇳"
+  iso2:         string;   // uppercase ISO code e.g. "IN"
+  continent:    string;   // e.g. "Asia", "Europe", "North America"
+  online_count: number;
+  is_active:    boolean;
+  capital?:     string;
+  currency?:    string;
+  phone_code?:  string;
+}
+
+// ─── Continent / Region mapping ───────────────────────────────────────────────
+// Countries whose continent is "Asia" in Firebase but are culturally Middle East
+const MIDDLE_EAST_ISOS = new Set<string>([
+  'AE', 'BH', 'IQ', 'IR', 'IL', 'JO', 'KW', 'LB', 'OM', 'PS', 'QA', 'SA', 'SY', 'YE',
+]);
+
+/**
+ * Maps a Firestore continent string (+ ISO code for Middle East override) → Region type.
+ * Handles all known continent label variations in common country datasets.
+ */
+function mapToRegion(continent: string, iso2Upper: string): Region {
+  // Middle East: ISO override takes priority over continent label
+  if (MIDDLE_EAST_ISOS.has(iso2Upper)) return 'Middle East';
+
+  switch (continent?.trim()) {
+    case 'Africa':              return 'Africa';
+    case 'Europe':              return 'Europe';
+    case 'Oceania':
+    case 'Australia/Oceania':
+    case 'Australia & Oceania': return 'Oceania';
+    case 'Asia':                return 'Asia';
+    case 'North America':
+    case 'South America':
+    case 'Central America':
+    case 'Americas':            return 'Americas';
+    default:                    return 'Asia';  // safe fallback
+  }
+}
+
+/**
+ * Computes a 0–100 heat score from online_count using a log scale.
+ * 0 online → 0  |  100 → ~40  |  1K → ~60  |  10K → ~80  |  100K+ → 100
+ */
+function computeHeat(onlineCount: number): number {
+  if (onlineCount <= 0) return 0;
+  return Math.min(100, Math.round((Math.log10(onlineCount + 1) / 5) * 100));
+}
+
+/**
+ * Maps a raw Firestore document → CountryDoc (the shape our UI components use).
+ * Defensive: every field has a sensible fallback so malformed docs don't crash.
+ */
+function mapFirestoreDoc(
+  docId: string,
+  data: Partial<FirestoreCountryData>,
+): CountryDoc {
+  const iso2        = ((data.iso2 ?? docId) as string).toUpperCase();
+  const onlineCount = Number(data.online_count ?? 0);
+
+  return {
+    id:          iso2,
+    name:        (data.name        as string) ?? iso2,
+    emoji:       (data.flag        as string) ?? '🌐',
+    onlineCount,
+    heat:        computeHeat(onlineCount),
+    region:      mapToRegion((data.continent as string) ?? '', iso2),
+  };
+}
+
+/**
+ * Fetches ALL active countries from Firestore /countries collection.
+ *
+ * - Filters:  is_active === true  (server-side, no extra index needed)
+ * - Sorting:  onlineCount desc, then name A→Z for ties  (client-side, keeps query simple)
+ * - Returns:  Full list — 250+ countries, no hardcoded limit
+ *
+ * Why no orderBy in the query?
+ *   Using `where` without `orderBy` avoids requiring a composite Firestore index,
+ *   which speeds up initial setup. Sorting in JS is fine at this data size (~250 docs).
+ */
+async function fetchAllActiveCountries(): Promise<CountryDoc[]> {
+  const q = query(
+    collection(db, 'countries'),
+    where('is_active', '==', true),
+  );
+
+  const snap = await getDocs(q);
+
+  const docs = snap.docs.map((doc) =>
+    mapFirestoreDoc(doc.id, doc.data() as Partial<FirestoreCountryData>),
+  );
+
+  // Sort: highest online first; alphabetical A→Z for ties
+  docs.sort((a, b) =>
+    b.onlineCount !== a.onlineCount
+      ? b.onlineCount - a.onlineCount
+      : a.name.localeCompare(b.name),
+  );
+
+  return docs;
+}
 
 const TRENDING_COUNT = 5;  // hero cards shown in trending strip
 
 // ─── Utility functions ────────────────────────────────────────────────────────
 
-/** Format large counts in Indian notation (Lakh/Cr).
- *  Returns "0" when count is zero (no fake numbers shown). */
+/**
+ * Format large counts in Indian notation (Lakh/Cr).
+ * Returns "0" when count is zero (no fake numbers shown).
+ */
 function fmtCount(n: number): string {
   if (n <= 0) return '0';
   if (n >= 10_000_000) {
@@ -301,7 +387,7 @@ interface HeroCardProps {
 
 const HeroCard = memo<HeroCardProps>(({ country, isSelected, onPress }) => {
   const { bg, border } = HERO_CARD_BG[country.region];
-  const heat = country.heat;
+  const heat   = country.heat;
   const filled = Math.max(0, Math.min(1, heat / 100));
 
   return (
@@ -309,7 +395,7 @@ const HeroCard = memo<HeroCardProps>(({ country, isSelected, onPress }) => {
       onPress={onPress}
       style={({ pressed }) => [
         hc.card,
-        { backgroundColor: isSelected ? bg : bg, borderColor: isSelected ? T.gold600 : border },
+        { backgroundColor: bg, borderColor: isSelected ? T.gold600 : border },
         pressed && { opacity: 0.88 },
         isSelected && hc.cardActive,
       ]}
@@ -580,7 +666,11 @@ const cr = StyleSheet.create({
 });
 
 // ─── Divider ──────────────────────────────────────────────────────────────────
-const RowDivider = () => <View style={{ height: 1, backgroundColor: T.cream400, opacity: 0.5, marginHorizontal: L.rowPadH }} />;
+// Used as ItemSeparatorComponent — fixes the getItemLayout 1px offset bug
+// that existed when the divider was rendered inline inside renderItem.
+const RowDivider = memo(() => (
+  <View style={{ height: L.separatorH, backgroundColor: T.cream400, opacity: 0.5, marginHorizontal: L.rowPadH }} />
+));
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
@@ -593,10 +683,12 @@ function CountryPickerSheetBase({
   onSelect,
 }: CountryPickerSheetProps) {
 
-  const [countries,    setCountries]   = useState<CountryDoc[]>([]);
-  const [sheetState,   setSheetState]  = useState<SheetState>('loading');
-  const [searchQuery,  setSearchQuery] = useState('');
-  const [reducedMotion,setRM]          = useState(false);
+  const [countries,     setCountries]   = useState<CountryDoc[]>([]);
+  const [sheetState,    setSheetState]  = useState<SheetState>('loading');
+  const [searchQuery,   setSearchQuery] = useState('');
+  const [reducedMotion, setRM]          = useState(false);
+  // ── NEW: error state for Firestore fetch failures ────────────────────────────
+  const [error,         setError]       = useState<string | null>(null);
 
   const searchRef = useRef<TextInput>(null);
   const shimmer   = useShimmer(sheetState === 'loading');
@@ -608,27 +700,58 @@ function CountryPickerSheetBase({
     return () => sub.remove();
   }, []);
 
-  // ── Load data on sheet open ─────────────────────────────────────────────────
+  // ── Load ALL countries from Firestore on sheet open ─────────────────────────
+  //
+  // FIX 1: The original code used setTimeout + a 35-entry mock COUNTRIES array.
+  // This now calls fetchAllActiveCountries() which hits Firestore /countries
+  // and returns every document with is_active === true (250+ countries).
+  //
+  // The `cancelled` flag guards against setting state after the component has
+  // unmounted or the sheet has been closed during a slow network request.
   useEffect(() => {
     if (!visible) return;
 
+    let cancelled = false;
+
     setSheetState('loading');
     setSearchQuery('');
+    setError(null);
 
-    // ── FIRESTORE HOOK (Phase 2) ──────────────────────────────────────────────
-    // Replace the setTimeout below with:
-    //   unsub = getCountries((docs: CountryDoc[]) => {
-    //     setCountries(docs.sort((a, b) => b.onlineCount - a.onlineCount));
-    //     setSheetState('idle');
-    //   });
-    // ─────────────────────────────────────────────────────────────────────────
-    const timer = setTimeout(() => {
-      setCountries(COUNTRIES);
-      setSheetState('idle');
-    }, 380);                // simulate 380ms load — shorter than skeleton feels sluggish
+    fetchAllActiveCountries()
+      .then((docs) => {
+        if (!cancelled) {
+          setCountries(docs);
+          setSheetState('idle');
+        }
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          // Log for debugging — does not expose internals to UI
+          console.error('[CountryPickerSheet] Firestore fetch failed:', err);
+          setError('Desh load nahi ho sake. Network check karo aur retry karo.');
+          setSheetState('idle');
+        }
+      });
 
-    return () => clearTimeout(timer);
+    return () => { cancelled = true; };
   }, [visible]);
+
+  // ── Retry handler (called by error state button) ────────────────────────────
+  const handleRetry = useCallback(() => {
+    setSheetState('loading');
+    setError(null);
+
+    fetchAllActiveCountries()
+      .then((docs) => {
+        setCountries(docs);
+        setSheetState('idle');
+      })
+      .catch((err: unknown) => {
+        console.error('[CountryPickerSheet] Retry failed:', err);
+        setError('Dobara bhi nahi aaya. Apna internet check karo.');
+        setSheetState('idle');
+      });
+  }, []);
 
   // ── Filtered list ───────────────────────────────────────────────────────────
   const filteredCountries = useMemo<CountryDoc[]>(() => {
@@ -637,7 +760,7 @@ function CountryPickerSheetBase({
     return countries.filter(
       (c) =>
         c.name.toLowerCase().includes(q) ||
-        c.id.toLowerCase().includes(q)
+        c.id.toLowerCase().includes(q),
     );
   }, [countries, searchQuery]);
 
@@ -648,8 +771,14 @@ function CountryPickerSheetBase({
   // ── Selected country object ─────────────────────────────────────────────────
   const selectedCountry = useMemo(
     () => countries.find((c) => c.id === selected) ?? null,
-    [countries, selected]
+    [countries, selected],
   );
+
+  // ── Dynamic label strings ───────────────────────────────────────────────────
+  const countLabel       = countries.length > 0 ? `${countries.length} desh` : '195 desh';
+  const searchPlaceholder = countries.length > 0
+    ? `${countries.length} desh dhundo...`
+    : 'Desh dhundo...';
 
   // ── Country selection ───────────────────────────────────────────────────────
   const handleSelect = useCallback(async (country: CountryDoc) => {
@@ -675,16 +804,15 @@ function CountryPickerSheetBase({
   // ── Key extractor ───────────────────────────────────────────────────────────
   const keyExtractor = useCallback((item: CountryDoc) => item.id, []);
 
-  // ── Row renderer ────────────────────────────────────────────────────────────
-  const renderRow = useCallback(({ item, index }: { item: CountryDoc; index: number }) => (
-    <React.Fragment key={item.id}>
-      {index > 0 && <RowDivider />}
-      <CountryRow
-        country={item}
-        isSelected={item.id === selected}
-        onPress={() => handleSelect(item)}
-      />
-    </React.Fragment>
+  // ── Row renderer ─────────────────────────────────────────────────────────────
+  // FIX 2: Divider removed from here — now handled by ItemSeparatorComponent.
+  // This makes getItemLayout math exact (was off by 1px for all items after #0).
+  const renderRow = useCallback(({ item }: { item: CountryDoc }) => (
+    <CountryRow
+      country={item}
+      isSelected={item.id === selected}
+      onPress={() => handleSelect(item)}
+    />
   ), [selected, handleSelect]);
 
   // ── Search clear ────────────────────────────────────────────────────────────
@@ -710,7 +838,8 @@ function CountryPickerSheetBase({
           <Text style={sh.globe}>🌍</Text>
           <View>
             <Text style={sh.title}>Desh Chuno</Text>
-            <Text style={sh.subtitle}>195 desh · duniya bhar se</Text>
+            {/* Dynamic count updates after Firestore load */}
+            <Text style={sh.subtitle}>{countLabel} · duniya bhar se</Text>
           </View>
         </View>
         <Pressable
@@ -778,7 +907,7 @@ function CountryPickerSheetBase({
           style={sh.searchInput}
           value={searchQuery}
           onChangeText={setSearchQuery}
-          placeholder="195 desh dhundo..."
+          placeholder={searchPlaceholder}
           placeholderTextColor={T.ink400}
           autoCorrect={false}
           autoCapitalize="none"
@@ -793,40 +922,83 @@ function CountryPickerSheetBase({
         )}
       </View>
 
-      {/* ── COUNTRY LIST ──────────────────────────────────────────────────────── */}
+      {/* ── CONTENT AREA: loading / error / empty / list ──────────────────────── */}
       {sheetState === 'loading' ? (
-        // Skeleton
+
+        // ── Skeleton (while Firestore fetch is in progress) ──────────────────
         <View>
           {Array.from({ length: L.shimmerRows }, (_, i) => (
             <SkeletonRow key={i} shimmer={shimmer} />
           ))}
         </View>
+
+      ) : error ? (
+
+        // ── FIX 3: Error state with retry button ─────────────────────────────
+        <View style={sh.errorWrap}>
+          <Text style={sh.errorIcon}>⚠️</Text>
+          <Text style={sh.errorTitle}>Load nahi hua</Text>
+          <Text style={sh.errorHint}>{error}</Text>
+          <Pressable
+            onPress={handleRetry}
+            style={({ pressed }) => [sh.retryBtn, pressed && { opacity: 0.75 }]}
+            accessibilityRole="button"
+            accessibilityLabel="Retry loading countries"
+          >
+            <Text style={sh.retryBtnText}>🔄  Dobara Try Karo</Text>
+          </Pressable>
+        </View>
+
       ) : filteredCountries.length === 0 ? (
-        // Empty state
+
+        // ── Empty search state ───────────────────────────────────────────────
         <View style={sh.emptyWrap}>
           <Text style={sh.emptyIcon}>🌐</Text>
           <Text style={sh.emptyTitle}>Koi desh nahi mila</Text>
           <Text style={sh.emptyHint}>"{searchQuery}" se koi match nahi hua</Text>
         </View>
+
       ) : (
+
+        // ── FIX 2: FlatList with ItemSeparatorComponent + corrected getItemLayout
+        //
+        // WHY THIS FIXES THE BUG:
+        //   Before: renderItem rendered {index > 0 && <RowDivider />} inside each item.
+        //   This made item #0 shorter (rowH) while items #1+ were taller (rowH + 1).
+        //   getItemLayout assumed ALL items were rowH+1, so offsets were 1px wrong
+        //   for every item after the first → incorrect scrollToIndex behaviour.
+        //
+        //   After: divider lives in ItemSeparatorComponent (React Native handles it
+        //   separately). getItemLayout now says length=rowH for every item, and
+        //   offset=(rowH + separatorH) * index. This is exactly correct.
+        //
+        // LAYOUT PROOF (rowH=72, separatorH=1):
+        //   index 0: offset = 73×0 = 0,   length = 72  → occupies [0,   72]
+        //   sep 0→1: occupies [72, 73]
+        //   index 1: offset = 73×1 = 73,  length = 72  → occupies [73,  145]
+        //   sep 1→2: occupies [145, 146]
+        //   index 2: offset = 73×2 = 146, length = 72  → occupies [146, 218] ✓
         <FlatList
           data={filteredCountries}
           renderItem={renderRow}
           keyExtractor={keyExtractor}
+          ItemSeparatorComponent={RowDivider}
           showsVerticalScrollIndicator={false}
           style={sh.flatList}
           contentContainerStyle={sh.listContent}
           keyboardShouldPersistTaps="handled"
           removeClippedSubviews
-          initialNumToRender={12}
-          maxToRenderPerBatch={10}
-          windowSize={5}
+          initialNumToRender={15}
+          maxToRenderPerBatch={15}
+          updateCellsBatchingPeriod={50}
+          windowSize={7}
           getItemLayout={(_, index) => ({
-            length: L.rowH + 1,   // row + divider
-            offset: (L.rowH + 1) * index,
+            length: L.rowH,                        // item height only (no separator)
+            offset: (L.rowH + L.separatorH) * index, // 73 × index — exact offset
             index,
           })}
         />
+
       )}
 
       {/* ── SWITCHING OVERLAY ─────────────────────────────────────────────────── */}
@@ -969,7 +1141,7 @@ const sh = StyleSheet.create({
     gap:               10,
   },
 
-  // Divider
+  // Divider (between trending and search)
   hairline: {
     height:           1,
     backgroundColor:  T.cream400,
@@ -1023,6 +1195,48 @@ const sh = StyleSheet.create({
     fontSize:   13,
     color:      T.ink400,
     fontFamily: FONT_BODY.regular,
+  },
+
+  // ── FIX 3: Error state styles ─────────────────────────────────────────────
+  errorWrap: {
+    alignItems:     'center',
+    paddingTop:     36,
+    paddingBottom:  28,
+    paddingHorizontal: 24,
+    gap:            10,
+  },
+  errorIcon: { fontSize: 36 },
+  errorTitle: {
+    fontSize:   16,
+    fontWeight: '700',
+    color:      T.ink950,
+    fontFamily: FONT_HEADING.semiBold,
+  },
+  errorHint: {
+    fontSize:   13,
+    color:      T.ink600,
+    fontFamily: FONT_BODY.regular,
+    textAlign:  'center',
+    lineHeight: 19,
+  },
+  retryBtn: {
+    marginTop:        6,
+    paddingVertical:  11,
+    paddingHorizontal: 28,
+    backgroundColor:  T.gold600,
+    borderRadius:     14,
+    shadowColor:      '#000',
+    shadowOpacity:    0.10,
+    shadowRadius:     8,
+    shadowOffset:     { width: 0, height: 3 },
+    elevation:        3,
+  },
+  retryBtnText: {
+    fontSize:   14,
+    fontWeight: '700',
+    color:      '#FFF',
+    fontFamily: FONT_HEADING.semiBold,
+    letterSpacing: 0.2,
   },
 
   // Switching overlay
