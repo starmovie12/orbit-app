@@ -113,6 +113,7 @@ import SkeletonBubble             from '@/components/atoms/SkeletonBubble';
 // ── Sheet / Modal organisms ───────────────────────────────────────────────
 import CityPickerSheet            from '@/components/organisms/CityPickerSheet';
 import SectorPickerSheet          from '@/components/organisms/SectorPickerSheet';
+import { IndiaPickerSheet }       from '@/components/organisms/IndiaPickerSheet';
 import { MessageActionSheet }     from '@/components/organisms/MessageActionSheet';
 import { AuthGateSheet }          from '@/components/organisms/AuthGateSheet';
 import { SendFailedModal }         from '@/components/organisms/SendFailedModal';
@@ -472,11 +473,12 @@ export default function HomeScreen() {
   const lastScrollY = useRef(0);
 
   // ── Sheets ────────────────────────────────────────────────────────────────
-  const [citySheetOpen,   setCitySheetOpen]   = useState(false);
-  const [sectorSheetOpen, setSectorSheetOpen] = useState(false);
-  const [authSheetOpen,   setAuthSheetOpen]   = useState(false);
-  const [actionSheetOpen, setActionSheetOpen] = useState(false);
-  const [actionMsg,       setActionMsg]       = useState<ActionSheetMsg | null>(null);
+  const [citySheetOpen,    setCitySheetOpen]    = useState(false);
+  const [sectorSheetOpen,  setSectorSheetOpen]  = useState(false);
+  const [countrySheetOpen, setCountrySheetOpen] = useState(false);
+  const [authSheetOpen,   setAuthSheetOpen]    = useState(false);
+  const [actionSheetOpen, setActionSheetOpen]  = useState(false);
+  const [actionMsg,       setActionMsg]        = useState<ActionSheetMsg | null>(null);
 
   // ── Send-failed modal ─────────────────────────────────────────────────────
   const [failedModalOpen, setFailedModalOpen] = useState(false);
@@ -766,9 +768,10 @@ export default function HomeScreen() {
   }, []);
 
   const handlePickerOpen = useCallback((scope: ScopeKey) => {
-    if (scope === 'city')   { setCitySheetOpen(true);   return; }
-    if (scope === 'sector') { setSectorSheetOpen(true); return; }
-    // 'world' and 'country' — no picker in v1.0 (single global / country room)
+    if (scope === 'country') { setCountrySheetOpen(true); return; }
+    if (scope === 'city')    { setCitySheetOpen(true);    return; }
+    if (scope === 'sector')  { setSectorSheetOpen(true);  return; }
+    // 'world' — no picker in v1.0 (single global room)
   }, []);
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1045,6 +1048,21 @@ export default function HomeScreen() {
         onClose={() => setCitySheetOpen(false)}
         selected={cityId}
         onSelect={handleCitySelect}
+      />
+
+      {/*
+       * INDIA PICKER SHEET — Midnight Bharat Design
+       * Triggered: tap already-active 'country / India' scope button
+       * Opens the India city explorer — grid view with region filter
+       */}
+      <IndiaPickerSheet
+        visible={countrySheetOpen}
+        onClose={() => setCountrySheetOpen(false)}
+        selected={cityId}
+        onSelect={(selectedCityId) => {
+          handleCitySelect(selectedCityId);
+          setActiveScope('city');
+        }}
       />
 
       {/*
