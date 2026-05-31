@@ -370,7 +370,7 @@ const hc = StyleSheet.create({
     fontSize:   13,
     fontWeight: '700',
     color:      T.ink950,
-    fontFamily: FONT_HEADING,
+    fontFamily: FONT_HEADING.semiBold,
   },
   nameActive: { color: T.gold600 },
   countRow: {
@@ -388,7 +388,7 @@ const hc = StyleSheet.create({
     fontSize:   10,
     fontWeight: '600',
     color:      T.ink600,
-    fontFamily: FONT_BODY,
+    fontFamily: FONT_BODY.semiBold,
   },
   countActive: { color: T.gold600 },
   heatTrack: {
@@ -521,7 +521,7 @@ const cr = StyleSheet.create({
     fontSize:   L.nameSize,
     fontWeight: '600',
     color:      T.ink950,
-    fontFamily: FONT_HEADING,
+    fontFamily: FONT_HEADING.medium,
   },
   nameActive: { color: T.gold600, fontWeight: '700' },
   metaRow: {
@@ -538,7 +538,7 @@ const cr = StyleSheet.create({
     fontSize:   L.countSize,
     fontWeight: '500',
     color:      T.ink600,
-    fontFamily: FONT_BODY,
+    fontFamily: FONT_BODY.medium,
   },
   countActive: { color: T.gold600 },
   heatCol: {
@@ -561,7 +561,7 @@ const cr = StyleSheet.create({
     fontSize:   10,
     fontWeight: '600',
     color:      T.ink400,
-    fontFamily: FONT_BODY,
+    fontFamily: FONT_BODY.semiBold,
   },
   heatNumActive: { color: T.gold600 },
   checkCircle: {
@@ -885,14 +885,14 @@ const sh = StyleSheet.create({
     fontSize:   L.titleSize,
     fontWeight: '700',
     color:      T.ink950,
-    fontFamily: FONT_HEADING,
+    fontFamily: FONT_HEADING.semiBold,
     letterSpacing: -0.3,
   },
   subtitle: {
     fontSize:   L.subtitleSize,
     fontWeight: '500',
     color:      T.ink600,
-    fontFamily: FONT_BODY,
+    fontFamily: FONT_BODY.medium,
     marginTop:  1,
   },
   closeBtn: {
@@ -929,7 +929,7 @@ const sh = StyleSheet.create({
     fontSize:   14,
     fontWeight: '700',
     color:      T.gold600,
-    fontFamily: FONT_HEADING,
+    fontFamily: FONT_HEADING.semiBold,
   },
   activeSep: {
     color:      T.ink400,
@@ -940,7 +940,7 @@ const sh = StyleSheet.create({
     fontSize:   12,
     fontWeight: '500',
     color:      T.ink600,
-    fontFamily: FONT_BODY,
+    fontFamily: FONT_BODY.medium,
   },
   activeBadge: {
     backgroundColor:  T.gold600,
@@ -972,7 +972,7 @@ const sh = StyleSheet.create({
     fontWeight:   '700',
     color:        T.ink600,
     letterSpacing: 0.7,
-    fontFamily:   FONT_BODY,
+    fontFamily:   FONT_BODY.bold,
     textTransform: 'uppercase',
   },
   heroScroll: {
@@ -1007,7 +1007,7 @@ const sh = StyleSheet.create({
     flex:       1,
     fontSize:   14,
     color:      T.ink950,
-    fontFamily: FONT_BODY,
+    fontFamily: FONT_BODY.regular,
     paddingVertical: 0,
   },
   clearBtn:    {},
@@ -1027,12 +1027,12 @@ const sh = StyleSheet.create({
     fontSize:   15,
     fontWeight: '600',
     color:      T.ink600,
-    fontFamily: FONT_HEADING,
+    fontFamily: FONT_HEADING.medium,
   },
   emptyHint: {
     fontSize:   13,
     color:      T.ink400,
-    fontFamily: FONT_BODY,
+    fontFamily: FONT_BODY.regular,
   },
 
   // Switching overlay
