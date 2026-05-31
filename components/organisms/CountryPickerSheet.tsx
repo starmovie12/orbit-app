@@ -184,49 +184,51 @@ export interface CountryPickerSheetProps {
 // Phase 2: replace with Firestore /countries snapshot subscription
 // Sorted by onlineCount desc (PRD §3.3 — countries sorted by online count by default)
 const COUNTRIES: CountryDoc[] = [
-  { id: 'IN', name: 'India',         emoji: '🇮🇳', onlineCount: 12_400_000, heat: 96, region: 'Asia'        },
-  { id: 'US', name: 'USA',           emoji: '🇺🇸', onlineCount:  4_800_000, heat: 88, region: 'Americas'    },
-  { id: 'BR', name: 'Brazil',        emoji: '🇧🇷', onlineCount:  2_100_000, heat: 82, region: 'Americas'    },
-  { id: 'NG', name: 'Nigeria',       emoji: '🇳🇬', onlineCount:  1_700_000, heat: 79, region: 'Africa'      },
-  { id: 'PK', name: 'Pakistan',      emoji: '🇵🇰', onlineCount:  1_500_000, heat: 74, region: 'Asia'        },
-  { id: 'ID', name: 'Indonesia',     emoji: '🇮🇩', onlineCount:  1_300_000, heat: 71, region: 'Asia'        },
-  { id: 'PH', name: 'Philippines',   emoji: '🇵🇭', onlineCount:    980_000, heat: 68, region: 'Asia'        },
-  { id: 'GB', name: 'United Kingdom',emoji: '🇬🇧', onlineCount:    850_000, heat: 65, region: 'Europe'      },
-  { id: 'MX', name: 'Mexico',        emoji: '🇲🇽', onlineCount:    780_000, heat: 63, region: 'Americas'    },
-  { id: 'EG', name: 'Egypt',         emoji: '🇪🇬', onlineCount:    720_000, heat: 61, region: 'Africa'      },
-  { id: 'BD', name: 'Bangladesh',    emoji: '🇧🇩', onlineCount:    690_000, heat: 60, region: 'Asia'        },
-  { id: 'DE', name: 'Germany',       emoji: '🇩🇪', onlineCount:    650_000, heat: 58, region: 'Europe'      },
-  { id: 'TR', name: 'Turkey',        emoji: '🇹🇷', onlineCount:    590_000, heat: 56, region: 'Middle East' },
-  { id: 'KE', name: 'Kenya',         emoji: '🇰🇪', onlineCount:    580_000, heat: 55, region: 'Africa'      },
-  { id: 'GH', name: 'Ghana',         emoji: '🇬🇭', onlineCount:    520_000, heat: 53, region: 'Africa'      },
-  { id: 'FR', name: 'France',        emoji: '🇫🇷', onlineCount:    450_000, heat: 49, region: 'Europe'      },
-  { id: 'JP', name: 'Japan',         emoji: '🇯🇵', onlineCount:    420_000, heat: 47, region: 'Asia'        },
-  { id: 'ZA', name: 'South Africa',  emoji: '🇿🇦', onlineCount:    380_000, heat: 45, region: 'Africa'      },
-  { id: 'AR', name: 'Argentina',     emoji: '🇦🇷', onlineCount:    350_000, heat: 43, region: 'Americas'    },
-  { id: 'CA', name: 'Canada',        emoji: '🇨🇦', onlineCount:    320_000, heat: 41, region: 'Americas'    },
-  { id: 'SA', name: 'Saudi Arabia',  emoji: '🇸🇦', onlineCount:    300_000, heat: 40, region: 'Middle East' },
-  { id: 'IT', name: 'Italy',         emoji: '🇮🇹', onlineCount:    290_000, heat: 39, region: 'Europe'      },
-  { id: 'ES', name: 'Spain',         emoji: '🇪🇸', onlineCount:    270_000, heat: 38, region: 'Europe'      },
-  { id: 'TH', name: 'Thailand',      emoji: '🇹🇭', onlineCount:    250_000, heat: 37, region: 'Asia'        },
-  { id: 'CO', name: 'Colombia',      emoji: '🇨🇴', onlineCount:    230_000, heat: 36, region: 'Americas'    },
-  { id: 'VN', name: 'Vietnam',       emoji: '🇻🇳', onlineCount:    210_000, heat: 35, region: 'Asia'        },
-  { id: 'TZ', name: 'Tanzania',      emoji: '🇹🇿', onlineCount:    180_000, heat: 32, region: 'Africa'      },
-  { id: 'AU', name: 'Australia',     emoji: '🇦🇺', onlineCount:    170_000, heat: 31, region: 'Oceania'     },
-  { id: 'MY', name: 'Malaysia',      emoji: '🇲🇾', onlineCount:    160_000, heat: 30, region: 'Asia'        },
-  { id: 'UA', name: 'Ukraine',       emoji: '🇺🇦', onlineCount:    140_000, heat: 28, region: 'Europe'      },
-  { id: 'PL', name: 'Poland',        emoji: '🇵🇱', onlineCount:    130_000, heat: 27, region: 'Europe'      },
-  { id: 'KR', name: 'South Korea',   emoji: '🇰🇷', onlineCount:    120_000, heat: 26, region: 'Asia'        },
-  { id: 'NL', name: 'Netherlands',   emoji: '🇳🇱', onlineCount:    110_000, heat: 25, region: 'Europe'      },
-  { id: 'MA', name: 'Morocco',       emoji: '🇲🇦', onlineCount:    100_000, heat: 24, region: 'Africa'      },
-  { id: 'RU', name: 'Russia',        emoji: '🇷🇺', onlineCount:     90_000, heat: 22, region: 'Europe'      },
+  { id: 'IN', name: 'India',          emoji: '🇮🇳', onlineCount: 0, heat: 96, region: 'Asia'        },
+  { id: 'US', name: 'USA',            emoji: '🇺🇸', onlineCount: 0, heat: 88, region: 'Americas'    },
+  { id: 'BR', name: 'Brazil',         emoji: '🇧🇷', onlineCount: 0, heat: 82, region: 'Americas'    },
+  { id: 'NG', name: 'Nigeria',        emoji: '🇳🇬', onlineCount: 0, heat: 79, region: 'Africa'      },
+  { id: 'PK', name: 'Pakistan',       emoji: '🇵🇰', onlineCount: 0, heat: 74, region: 'Asia'        },
+  { id: 'ID', name: 'Indonesia',      emoji: '🇮🇩', onlineCount: 0, heat: 71, region: 'Asia'        },
+  { id: 'PH', name: 'Philippines',    emoji: '🇵🇭', onlineCount: 0, heat: 68, region: 'Asia'        },
+  { id: 'GB', name: 'United Kingdom', emoji: '🇬🇧', onlineCount: 0, heat: 65, region: 'Europe'      },
+  { id: 'MX', name: 'Mexico',         emoji: '🇲🇽', onlineCount: 0, heat: 63, region: 'Americas'    },
+  { id: 'EG', name: 'Egypt',          emoji: '🇪🇬', onlineCount: 0, heat: 61, region: 'Africa'      },
+  { id: 'BD', name: 'Bangladesh',     emoji: '🇧🇩', onlineCount: 0, heat: 60, region: 'Asia'        },
+  { id: 'DE', name: 'Germany',        emoji: '🇩🇪', onlineCount: 0, heat: 58, region: 'Europe'      },
+  { id: 'TR', name: 'Turkey',         emoji: '🇹🇷', onlineCount: 0, heat: 56, region: 'Middle East' },
+  { id: 'KE', name: 'Kenya',          emoji: '🇰🇪', onlineCount: 0, heat: 55, region: 'Africa'      },
+  { id: 'GH', name: 'Ghana',          emoji: '🇬🇭', onlineCount: 0, heat: 53, region: 'Africa'      },
+  { id: 'FR', name: 'France',         emoji: '🇫🇷', onlineCount: 0, heat: 49, region: 'Europe'      },
+  { id: 'JP', name: 'Japan',          emoji: '🇯🇵', onlineCount: 0, heat: 47, region: 'Asia'        },
+  { id: 'ZA', name: 'South Africa',   emoji: '🇿🇦', onlineCount: 0, heat: 45, region: 'Africa'      },
+  { id: 'AR', name: 'Argentina',      emoji: '🇦🇷', onlineCount: 0, heat: 43, region: 'Americas'    },
+  { id: 'CA', name: 'Canada',         emoji: '🇨🇦', onlineCount: 0, heat: 41, region: 'Americas'    },
+  { id: 'SA', name: 'Saudi Arabia',   emoji: '🇸🇦', onlineCount: 0, heat: 40, region: 'Middle East' },
+  { id: 'IT', name: 'Italy',          emoji: '🇮🇹', onlineCount: 0, heat: 39, region: 'Europe'      },
+  { id: 'ES', name: 'Spain',          emoji: '🇪🇸', onlineCount: 0, heat: 38, region: 'Europe'      },
+  { id: 'TH', name: 'Thailand',       emoji: '🇹🇭', onlineCount: 0, heat: 37, region: 'Asia'        },
+  { id: 'CO', name: 'Colombia',       emoji: '🇨🇴', onlineCount: 0, heat: 36, region: 'Americas'    },
+  { id: 'VN', name: 'Vietnam',        emoji: '🇻🇳', onlineCount: 0, heat: 35, region: 'Asia'        },
+  { id: 'TZ', name: 'Tanzania',       emoji: '🇹🇿', onlineCount: 0, heat: 32, region: 'Africa'      },
+  { id: 'AU', name: 'Australia',      emoji: '🇦🇺', onlineCount: 0, heat: 31, region: 'Oceania'     },
+  { id: 'MY', name: 'Malaysia',       emoji: '🇲🇾', onlineCount: 0, heat: 30, region: 'Asia'        },
+  { id: 'UA', name: 'Ukraine',        emoji: '🇺🇦', onlineCount: 0, heat: 28, region: 'Europe'      },
+  { id: 'PL', name: 'Poland',         emoji: '🇵🇱', onlineCount: 0, heat: 27, region: 'Europe'      },
+  { id: 'KR', name: 'South Korea',    emoji: '🇰🇷', onlineCount: 0, heat: 26, region: 'Asia'        },
+  { id: 'NL', name: 'Netherlands',    emoji: '🇳🇱', onlineCount: 0, heat: 25, region: 'Europe'      },
+  { id: 'MA', name: 'Morocco',        emoji: '🇲🇦', onlineCount: 0, heat: 24, region: 'Africa'      },
+  { id: 'RU', name: 'Russia',         emoji: '🇷🇺', onlineCount: 0, heat: 22, region: 'Europe'      },
 ];
 
 const TRENDING_COUNT = 5;  // hero cards shown in trending strip
 
 // ─── Utility functions ────────────────────────────────────────────────────────
 
-/** Format large counts in Indian notation (Lakh/Cr). */
+/** Format large counts in Indian notation (Lakh/Cr).
+ *  Returns "0" when count is zero (no fake numbers shown). */
 function fmtCount(n: number): string {
+  if (n <= 0) return '0';
   if (n >= 10_000_000) {
     const cr = n / 10_000_000;
     return `${cr % 1 === 0 ? cr.toFixed(0) : cr.toFixed(2)} Cr`;
@@ -326,7 +328,7 @@ const HeroCard = memo<HeroCardProps>(({ country, isSelected, onPress }) => {
       <View style={hc.countRow}>
         <View style={[hc.liveDot, { backgroundColor: isSelected ? T.gold600 : LIVE_DOT_COLOR }]} />
         <Text style={[hc.count, isSelected && hc.countActive]}>
-          {fmtCount(country.onlineCount)}
+          {country.onlineCount > 0 ? fmtCount(country.onlineCount) : '—'}
         </Text>
       </View>
 
@@ -461,7 +463,9 @@ const CountryRow = memo<CountryRowProps>(({ country, isSelected, onPress }) => {
           <View style={cr.metaRow}>
             <View style={[cr.liveDot, { backgroundColor: isSelected ? T.gold600 : LIVE_DOT_COLOR }]} />
             <Text style={[cr.count, isSelected && cr.countActive]}>
-              {fmtCount(country.onlineCount)} online
+              {country.onlineCount > 0
+                ? `${fmtCount(country.onlineCount)} online`
+                : 'Abhi koi nahi'}
             </Text>
           </View>
         </View>
@@ -700,11 +704,6 @@ function CountryPickerSheetBase({
       maxHeight={SHEET_MAX}
       style={sh.sheet}
     >
-      {/* ── DRAG HANDLE ───────────────────────────────────────────────────────── */}
-      <View style={sh.handleWrap}>
-        <View style={sh.handle} />
-      </View>
-
       {/* ── HEADER: Title + Close ─────────────────────────────────────────────── */}
       <View style={sh.headerRow}>
         <View style={sh.titleGroup}>
@@ -733,7 +732,9 @@ function CountryPickerSheetBase({
           <Text style={sh.activeName}>{selectedCountry.name}</Text>
           <Text style={sh.activeSep}>·</Text>
           <Text style={sh.activeCount}>
-            {fmtCount(selectedCountry.onlineCount)} online
+            {selectedCountry.onlineCount > 0
+              ? `${fmtCount(selectedCountry.onlineCount)} online`
+              : 'Abhi koi nahi'}
           </Text>
           <View style={sh.activeBadge}>
             <Text style={sh.activeBadgeText}>ACTIVE</Text>
@@ -746,7 +747,7 @@ function CountryPickerSheetBase({
         <View style={sh.trendingSection}>
           <View style={sh.sectionLabelRow}>
             <Text style={sh.fireIcon}>🔥</Text>
-            <Text style={sh.sectionLabel}>TRENDING RIGHT NOW</Text>
+            <Text style={sh.sectionLabel}>POPULAR DESH</Text>
           </View>
           <ScrollView
             horizontal
@@ -813,6 +814,7 @@ function CountryPickerSheetBase({
           renderItem={renderRow}
           keyExtractor={keyExtractor}
           showsVerticalScrollIndicator={false}
+          style={sh.flatList}
           contentContainerStyle={sh.listContent}
           keyboardShouldPersistTaps="handled"
           removeClippedSubviews
@@ -851,19 +853,6 @@ const sh = StyleSheet.create({
     borderTopLeftRadius:  24,
     borderTopRightRadius: 24,
     overflow:             'hidden',
-  },
-
-  // Handle
-  handleWrap: {
-    alignItems:  'center',
-    paddingTop:  L.handleTop,
-    paddingBottom: 4,
-  },
-  handle: {
-    width:         L.handleW,
-    height:        L.handleH,
-    borderRadius:  L.handleH / 2,
-    backgroundColor: T.cream400,
   },
 
   // Header
@@ -1013,6 +1002,7 @@ const sh = StyleSheet.create({
   clearBtn:    {},
 
   // List
+  flatList:    { flex: 1 },
   listContent: { paddingBottom: Platform.OS === 'web' ? 32 : 20 },
 
   // Empty state
