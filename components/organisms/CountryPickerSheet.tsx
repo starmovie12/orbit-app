@@ -72,6 +72,7 @@ import {
   Animated,
   FlatList,
   Keyboard,
+  PanResponder,
   Platform,
   Pressable,
   ScrollView,
@@ -96,6 +97,12 @@ const CW_COUNTRY_KEY  = '@cw/country_id'           as const;
 const CW_RECENTS_KEY  = '@cw/recent_countries_v3'  as const;
 const MAX_RECENTS     = 3                           as const;
 const TRENDING_COUNT  = 5                           as const;
+
+// ─── Country cache (AsyncStorage) ─────────────────────────────────────────────
+// [FIX-BILL] Prevents getDocs on every mount.
+// At 50L users × 3 opens/day = 125M reads/day at $0.036/100K = ₹3,700/day without cache.
+const COUNTRIES_CACHE_KEY = '@cw/countries_v1'     as const;
+const COUNTRIES_CACHE_TTL = 6 * 60 * 60 * 1000    as const; // 6 hours
 
 // ─── Layout constants (exact px — no magic numbers) ───────────────────────────
 const L = {
@@ -303,8 +310,26 @@ function mapFSDoc(docId: string, data: Partial<FSCountry>): CountryDoc {
   };
 }
 
-// ─── Firestore fetch ───────────────────────────────────────────────────────────
-async function fetchCountries(): Promise<CountryDoc[]> {
+// ─── Firestore fetch — cache-first (AsyncStorage) ────────────────────────────
+// [FIX-BILL] Cache hit = 0 Firestore reads. Cache miss = 1 getDocs, then cached.
+// Returns [docs, fetchedAt] so callers can display an honest data-age label.
+// bypassCache=true used by handleRetry so manual retries always get fresh data.
+interface CountryCacheEntry { data: CountryDoc[]; fetchedAt: number }
+
+async function fetchCountries(bypassCache = false): Promise<[CountryDoc[], number]> {
+  // 1. Serve from cache if fresh
+  if (!bypassCache) {
+    try {
+      const raw = await AsyncStorage.getItem(COUNTRIES_CACHE_KEY);
+      if (raw) {
+        const entry = JSON.parse(raw) as CountryCacheEntry;
+        if (Date.now() - entry.fetchedAt < COUNTRIES_CACHE_TTL)
+          return [entry.data, entry.fetchedAt]; // ← cache hit: 0 Firestore reads
+      }
+    } catch { /* cache miss — fall through to network */ }
+  }
+
+  // 2. Network fetch from Firestore
   const snap = await getDocs(
     query(collection(db, 'countries'), where('is_active', '==', true)),
   );
@@ -314,7 +339,15 @@ async function fetchCountries(): Promise<CountryDoc[]> {
       ? b.onlineCount - a.onlineCount
       : a.name.localeCompare(b.name),
   );
-  return docs;
+
+  // 3. Persist to cache (fire-and-forget)
+  const fetchedAt = Date.now();
+  AsyncStorage.setItem(
+    COUNTRIES_CACHE_KEY,
+    JSON.stringify({ data: docs, fetchedAt } as CountryCacheEntry),
+  ).catch(() => { /* non-critical */ });
+
+  return [docs, fetchedAt];
 }
 
 // ─── [NEW-01] Build alphabetically grouped flat-list data ─────────────────────
@@ -818,46 +851,82 @@ const rp = StyleSheet.create({
   textActive:  { color:T.gold },
 });
 
-// ─── [NEW-02] AlphabetSidebar ─────────────────────────────────────────────────
+// ─── [NEW-02] AlphabetSidebar — PanResponder pan-to-seek ────────────────────
+// [FIX-TOUCH] Replaces per-letter Pressables (18px tap target = impossible to hit)
+// with a single PanResponder on the container. The finger slides continuously and
+// snaps to the correct letter — identical to native iOS Contacts behavior.
+// e.nativeEvent.locationY is relative to this View, so no measure() needed.
 const AlphabetSidebar = memo<{ letters: string[]; onPress: (l: string) => void }>(
-  ({ letters, onPress }) => (
-    <View style={ab.wrap} pointerEvents="box-none">
-      {letters.map((letter) => (
-        <Pressable
-          key={letter}
-          onPress={() => { void hapticSelect(); onPress(letter); }}
-          // [FIX-15] hitSlop as object (not scalar)
-          hitSlop={{ top:3, bottom:3, left:10, right:10 }}
-          style={({ pressed }) => [ab.btn, pressed && ab.btnPressed]}
-          accessibilityRole="button"
-          accessibilityLabel={`Jump to ${letter}`}
-        >
-          <Text style={ab.letter}>{letter}</Text>
-        </Pressable>
-      ))}
-    </View>
-  ),
+  ({ letters, onPress }) => {
+    const heightRef    = useRef(0);
+    const lastIdxRef   = useRef(-1);
+    const hitLetterRef = useRef<(locationY: number) => void>(() => {});
+
+    // Keep hitLetter current across renders without re-creating PanResponder
+    useEffect(() => {
+      hitLetterRef.current = (locationY: number) => {
+        if (heightRef.current <= 0 || letters.length === 0) return;
+        const idx     = Math.floor((locationY / heightRef.current) * letters.length);
+        const clamped = Math.max(0, Math.min(letters.length - 1, idx));
+        if (clamped !== lastIdxRef.current) {
+          lastIdxRef.current = clamped;
+          const letter = letters[clamped];
+          if (letter) { void hapticSelect(); onPress(letter); }
+        }
+      };
+    }, [letters, onPress]);
+
+    // Single PanResponder on the container — created once, delegates via ref
+    const panHandlers = useRef(
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder:  () => true,
+        onPanResponderGrant:   (e) => { lastIdxRef.current = -1; hitLetterRef.current(e.nativeEvent.locationY); },
+        onPanResponderMove:    (e) => { hitLetterRef.current(e.nativeEvent.locationY); },
+        onPanResponderRelease: ()  => { lastIdxRef.current = -1; },
+      }).panHandlers,
+    ).current;
+
+    return (
+      <View
+        style={ab.wrap}
+        onLayout={(e) => { heightRef.current = e.nativeEvent.layout.height; }}
+        {...panHandlers}
+        accessibilityRole="adjustable"
+        accessibilityLabel="Alphabet scroller — drag to jump to a letter"
+      >
+        {letters.map((letter) => (
+          <View key={letter} style={ab.btn} accessible={false}>
+            <Text style={ab.letter}>{letter}</Text>
+          </View>
+        ))}
+      </View>
+    );
+  },
 );
 
 const ab = StyleSheet.create({
+  // [FIX-TOUCH] flex layout: letters fill full sidebar height evenly
+  // (e.g. 500px ÷ 25 letters = 20px each — far better than the previous 18px fixed)
   wrap: {
-    position:       'absolute',
-    right:          2,
-    top:            0,
-    bottom:         0,
-    width:          L.alphaBarW,
-    justifyContent: 'center',
-    alignItems:     'center',
-    zIndex:         10,
+    position:      'absolute',
+    right:         2,
+    top:           0,
+    bottom:        0,
+    width:         L.alphaBarW,
+    flexDirection: 'column',   // letters stack vertically
+    alignItems:    'center',
+    zIndex:        10,
   },
   btn: {
     width:          L.alphaBarW,
-    height:         L.alphaItemH,
+    flex:           1,         // [FIX-TOUCH] was: height:L.alphaItemH (18px = unusable)
     alignItems:     'center',
     justifyContent: 'center',
+    minHeight:      8,
   },
-  btnPressed: { opacity:0.45 },
-  letter:     { fontSize:10, fontWeight:'700', color:T.gold, fontFamily:FONT_BODY.bold },
+  // btnPressed removed — no per-letter Pressables in PanResponder approach
+  letter: { fontSize:9, fontWeight:'700', color:T.gold, fontFamily:FONT_BODY.bold },
 });
 
 // ─── Main component ────────────────────────────────────────────────────────────
@@ -882,9 +951,14 @@ function CountryPickerSheetBase({
   const [error,         setError]        = useState<string | null>(null);
   const [reducedMotion, setRM]           = useState(false);
   const [recentIds,     setRecentIds]    = useState<string[]>([]);
+  // [FIX-MIRROR] Actual timestamp of when counts were fetched — prevents LiveDot
+  // implying live data when getDocs is a one-shot call on mount
+  const [fetchedAt,     setFetchedAt]    = useState<number | null>(null);
 
-  const searchRef = useRef<TextInput>(null);
-  const listRef   = useRef<FlatList<ListItem>>(null);
+  const searchRef     = useRef<TextInput>(null);
+  const listRef       = useRef<FlatList<ListItem>>(null);
+  // [FIX-RETRY] Prevents concurrent getDocs calls from rapid "Try Again" taps
+  const isFetchingRef = useRef(false);
 
   const shimmerAnim = useRef(new Animated.Value(0)).current;
 
@@ -933,8 +1007,11 @@ function CountryPickerSheetBase({
       })
       .catch(() => { /* non-critical */ });
 
+    isFetchingRef.current = true;
     fetchCountries()
-      .then((docs) => { if (!cancelled) { setCountries(docs); setSheetState('idle'); } })
+      .then(([docs, ts]) => {
+        if (!cancelled) { setCountries(docs); setFetchedAt(ts); setSheetState('idle'); }
+      })
       .catch((err: unknown) => {
         if (!cancelled) {
           console.error('[CountryPickerSheet] fetch failed:', err);
@@ -942,23 +1019,29 @@ function CountryPickerSheetBase({
           setError('Could not load countries. Check your connection and try again.');
           setSheetState('idle');
         }
-      });
+      })
+      .finally(() => { isFetchingRef.current = false; });
 
     return () => { cancelled = true; };
   }, [visible]);
 
   // ── Retry ─────────────────────────────────────────────────────────────────────
+  // [FIX-RETRY] isFetchingRef gate: 5 rapid taps → 1 getDocs call, not 5.
+  // bypassCache=true: user explicitly asked for fresh data; don't serve stale cache.
   const handleRetry = useCallback(() => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
     setSheetState('loading');
     setError(null);
-    fetchCountries()
-      .then((docs) => { setCountries(docs); setSheetState('idle'); })
+    fetchCountries(true)
+      .then(([docs, ts]) => { setCountries(docs); setFetchedAt(ts); setSheetState('idle'); })
       .catch((err: unknown) => {
         console.error('[CountryPickerSheet] retry failed:', err);
         // [FIX-17] English error message
         setError('Still unable to load. Please try again later.');
         setSheetState('idle');
-      });
+      })
+      .finally(() => { isFetchingRef.current = false; });
   }, []);
 
   // ── Filtered lists ────────────────────────────────────────────────────────────
@@ -977,6 +1060,17 @@ function CountryPickerSheetBase({
   }, [countries, regionFiltered, searchQuery]);
 
   const trendingCountries = useMemo(() => countries.slice(0, TRENDING_COUNT), [countries]);
+
+  // [FIX-MIRROR] Shows WHEN counts were fetched — dispels the 'live data' illusion
+  // created by the pulsing LiveDot. getDocs is one-shot; counts don't update in real-time.
+  // Displays absolute time (HH:MM) rather than relative ('5 min ago') to avoid staling.
+  const countTimeLabel = useMemo<string | null>(() => {
+    if (fetchedAt == null) return null;
+    const d  = new Date(fetchedAt);
+    const hh = d.getHours().toString().padStart(2, '0');
+    const mm = d.getMinutes().toString().padStart(2, '0');
+    return `Counts at ${hh}:${mm}`;
+  }, [fetchedAt]);
 
   const selectedCountry = useMemo(
     () => countries.find((c) => c.id === selected) ?? null,
@@ -1239,6 +1333,10 @@ function CountryPickerSheetBase({
                 {/* [FIX-19] Feather icon instead of 🔥 emoji */}
                 <Feather name="trending-up" size={13} color={T.gold} />
                 <Text style={sh.trendingLabel}>TRENDING</Text>
+                {/* [FIX-MIRROR] Absolute timestamp — tells user counts are not live */}
+                {countTimeLabel != null && (
+                  <Text style={sh.countTimeLabel}>{countTimeLabel}</Text>
+                )}
               </View>
               <ScrollView
                 horizontal
@@ -1477,7 +1575,7 @@ const sh = StyleSheet.create({
     marginTop:        8,
     marginBottom:     10,
   },
-  // [FIX-19] "TRENDING" label
+  // [FIX-19] "TRENDING" label — flex:1 pushes countTimeLabel to right edge
   trendingLabel: {
     fontSize:      11,
     fontWeight:    '700',
@@ -1485,6 +1583,14 @@ const sh = StyleSheet.create({
     letterSpacing: 0.8,
     fontFamily:    FONT_BODY.bold,
     textTransform: 'uppercase',
+    flex:          1,          // [FIX-MIRROR] push timestamp to right
+  },
+  // [FIX-MIRROR] Subtle data-age badge next to TRENDING header
+  countTimeLabel: {
+    fontSize:   10,
+    fontWeight: '500',
+    color:      T.textTertiary,
+    fontFamily: FONT_BODY.regular,
   },
   heroScroll: {
     paddingHorizontal: L.rowPadH,
