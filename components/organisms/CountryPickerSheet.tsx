@@ -101,6 +101,7 @@ import React, {
 } from 'react';
 import {
   AccessibilityInfo,
+  ActivityIndicator,
   Animated,
   Dimensions,
   Easing,
@@ -362,7 +363,12 @@ const BottomSheet = React.forwardRef<BottomSheetHandle, _BottomSheetProps>(
       close:    doClose,
       snapBack: () => snapTo(currentH),
       dragBy:   (dy: number) => {
-        if (dy > 0) translateY.setValue(dy);
+        if (dy > 0) {
+          // [SCROLL-02] Raw 1:1 setValue caused jerky rubber-band feel.
+          // Resistance factor < 1 gives a natural spring-like drag response.
+          const resistanceFactor = 0.6;
+          translateY.setValue(dy * resistanceFactor);
+        }
       },
     }));
 
@@ -489,7 +495,8 @@ export interface CountryPickerSheetProps {
   onSelect: (countryId: string, name: string, emoji: string) => void;
 }
 
-interface FSCountry {
+// [TS-04] Exported so parent apps can type Firestore pre-fetches without copying this interface.
+export interface FSCountry {
   name?:         string;
   flag?:         string;
   iso2?:         string;
@@ -606,6 +613,23 @@ function mapFSDoc(docId: string, data: Partial<FSCountry>): CountryDoc {
   };
 }
 
+// ─── [FEAT-06] One-time recents cache migration: v2 → v3 ──────────────────────
+// Users upgrading from the previous version would silently lose their recently-
+// visited list. Run once on mount; safe to call multiple times (guarded by v3 key).
+async function migrateRecentsCache(): Promise<void> {
+  try {
+    const v2 = await AsyncStorage.getItem('@cw/recent_countries_v2');
+    if (!v2) return;
+    const alreadyMigrated = await AsyncStorage.getItem(CW_RECENTS_KEY);
+    if (alreadyMigrated) {
+      await AsyncStorage.removeItem('@cw/recent_countries_v2');
+      return;
+    }
+    await AsyncStorage.setItem(CW_RECENTS_KEY, v2);
+    await AsyncStorage.removeItem('@cw/recent_countries_v2');
+  } catch { /* non-critical */ }
+}
+
 // ─── Firestore fetch — cache-first (AsyncStorage) ─────────────────────────────
 async function fetchCountries(bypassCache = false): Promise<[CountryDoc[], number]> {
   if (!bypassCache) {
@@ -689,36 +713,60 @@ function precomputeLayouts(
   return out;
 }
 
-// ─── [CRIT-01] usePulse — ref-counted, module-level animation ─────────────────
-const _pulse = {
-  anim: new Animated.Value(1),
-  refs: 0,
-  loop: null as Animated.CompositeAnimation | null,
-};
+// ─── [BUG-03] PulseContext — instance-safe, ref-counted pulse animation ────────
+// Module-level `_pulse` survived Fast Refresh, hot reloads, and test reruns.
+// Two CountryPickerSheet instances in a Navigator stack shared the same
+// Animated.Value, causing visual glitches and ref-count corruption in Concurrent Mode.
+// Solution: move state into React Context so each sheet tree gets its own animation.
+interface _PulseCtx {
+  anim:     Animated.Value;
+  register: () => () => void;
+}
 
-function usePulse(enabled: boolean): Animated.Value {
-  useEffect(() => {
-    if (!enabled) return;
-    _pulse.refs++;
-    if (_pulse.loop === null) {
-      _pulse.loop = Animated.loop(
+const PulseContext = React.createContext<_PulseCtx | null>(null);
+
+const PulseProvider = memo<{ children: React.ReactNode }>(({ children }) => {
+  const anim    = useRef(new Animated.Value(1)).current;
+  const refs    = useRef(0);
+  const loopRef = useRef<Animated.CompositeAnimation | null>(null);
+
+  const register = useCallback((): (() => void) => {
+    refs.current++;
+    if (loopRef.current === null) {
+      loopRef.current = Animated.loop(
         Animated.sequence([
-          Animated.timing(_pulse.anim, { toValue: 0.2, duration: 850, useNativeDriver: true }),
-          Animated.timing(_pulse.anim, { toValue: 1.0, duration: 850, useNativeDriver: true }),
+          Animated.timing(anim, { toValue: 0.2, duration: 850, useNativeDriver: true }),
+          Animated.timing(anim, { toValue: 1.0, duration: 850, useNativeDriver: true }),
         ]),
       );
-      _pulse.loop.start();
+      loopRef.current.start();
     }
     return () => {
-      _pulse.refs = Math.max(0, _pulse.refs - 1);
-      if (_pulse.refs === 0 && _pulse.loop !== null) {
-        _pulse.loop.stop();
-        _pulse.loop = null;
-        _pulse.anim.setValue(1);
+      refs.current = Math.max(0, refs.current - 1);
+      if (refs.current === 0 && loopRef.current !== null) {
+        loopRef.current.stop();
+        loopRef.current = null;
+        anim.setValue(1);
       }
     };
-  }, [enabled]);
-  return _pulse.anim;
+  }, [anim]);
+
+  const ctx = useMemo(() => ({ anim, register }), [anim, register]);
+
+  return <PulseContext.Provider value={ctx}>{children}</PulseContext.Provider>;
+});
+
+function usePulse(enabled: boolean): Animated.Value {
+  const ctx = React.useContext(PulseContext);
+  // Fallback value when rendered outside PulseProvider (e.g. tests/Storybook)
+  const fallbackAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (!enabled || !ctx) return;
+    return ctx.register();
+  }, [enabled, ctx]);
+
+  return ctx?.anim ?? fallbackAnim;
 }
 
 // ─── LiveDot ───────────────────────────────────────────────────────────────────
@@ -1475,6 +1523,7 @@ function CountryPickerSheetBase({
   const isMountedRef  = useRef(true);
   const isSwitchingRef  = useRef(false);
   const retryCountRef   = useRef(0);
+  const [retryCount,    setRetryCount]   = useState(0); // [A11Y-03] state mirrors ref so a11y label re-renders
   const selectedRef     = useRef(selected);
   const recentIdsRef    = useRef(recentIds);
 
@@ -1486,12 +1535,14 @@ function CountryPickerSheetBase({
     return () => { isMountedRef.current = false; };
   }, []);
 
+  // ── [FEAT-06] One-time v2→v3 recents migration ───────────────────────────────
+  useEffect(() => { void migrateRecentsCache(); }, []);
+
   // ── [v4-ARCH-01] Imperative open/close via sheetRef ──────────────────────────
-  // v3.3 used conditional render; v4.0 uses gorhom's imperative API.
-  // Callers can still use visible=true/false — the API is identical from outside.
   useEffect(() => {
     if (visible) {
-      sheetRef.current?.snapToIndex(0); // 92% — full open directly
+      void hapticLight(); // [UX-02] Subtle haptic matches iOS Share Sheet behaviour
+      sheetRef.current?.snapToIndex(0);
     } else {
       sheetRef.current?.close();
     }
@@ -1694,6 +1745,7 @@ function CountryPickerSheetBase({
     if (!visible) return;
 
     retryCountRef.current  = 0;
+    setRetryCount(0); // [A11Y-03] keep state in sync for fresh a11y label
     isSwitchingRef.current = false;
 
     const currentFetchId = ++fetchIdRef.current;
@@ -1762,6 +1814,7 @@ function CountryPickerSheetBase({
       return;
     }
     retryCountRef.current++;
+    setRetryCount(retryCountRef.current); // [A11Y-03] re-render a11y label with new attempt count
     isFetchingRef.current = true;
 
     const currentFetchId = ++fetchIdRef.current;
@@ -1868,7 +1921,14 @@ function CountryPickerSheetBase({
     return buildAlphaSections(sortedRegionFiltered);
   }, [displayCountries, searchQuery, sortedRegionFiltered]);
 
-  const itemLayouts = useMemo(() => precomputeLayouts(flatData), [flatData]);
+  // [PERF-01] During search, flatData contains only CountryItem rows (no sections
+  // or dividers), so every item is exactly L.rowH tall. Skip the O(n) precomputation
+  // on every keystroke; use a simple formula instead. Precompute only in browse mode
+  // where section/divider heights vary and scrollToIndex accuracy matters.
+  const itemLayouts = useMemo(
+    () => (searchQuery.trim() ? null : precomputeLayouts(flatData)),
+    [flatData, searchQuery],
+  );
 
   // ── Alphabet sidebar ──────────────────────────────────────────────────────────
   const alphabetLetters = useMemo<string[]>(() => {
@@ -2020,21 +2080,30 @@ function CountryPickerSheetBase({
     return `country-${item.country.id}-${i}`;
   }, []);
 
+  // [PERF-04] `selected` was in the useCallback dep array, so every selection
+  // change recreated renderItem → ALL CountryRow instances re-rendered (even
+  // un-selected ones). Fix: read selected from selectedRef inside renderItem
+  // (stable reference) and tell FlatList about the change via `extraData`.
+  // FlatList calls renderItem again for each cell; memo on CountryRow ensures
+  // only the actually-changed rows (old selected + new selected) paint.
   const renderItem = useCallback(({ item }: { item: ListItem }) => {
     if (item.type === 'section') return <SectionHeader letter={item.letter} />;
     if (item.type === 'divider') return <RowDivider />;
     return (
       <CountryRow
         country={item.country}
-        isSelected={item.country.id === selected}
+        isSelected={item.country.id === selectedRef.current}
         onPress={handleSelect}
       />
     );
-  }, [selected, handleSelect]);
+  }, [handleSelect]); // no `selected` dep — selectedRef + extraData handle reactivity
 
   const getItemLayout = useCallback(
-    (_: unknown, index: number) =>
-      itemLayouts[index] ?? { length: L.rowH, offset: L.rowH * index, index },
+    (_: unknown, index: number) => {
+      // [PERF-01] itemLayouts is null during search — use fast O(1) formula.
+      if (!itemLayouts) return { length: L.rowH, offset: L.rowH * index, index };
+      return itemLayouts[index] ?? { length: L.rowH, offset: L.rowH * index, index };
+    },
     [itemLayouts],
   );
 
@@ -2332,6 +2401,20 @@ function CountryPickerSheetBase({
             </ScrollView>
             <View style={sh.hairline} />
           </View>
+          {/* [UX-03] Skeleton recents prevent the jarring pop-in. Show only when we
+              already know recentIds exist (loaded from AsyncStorage before fetch). */}
+          {recentIds.length > 0 && (
+            <View>
+              <View style={rv.headerRow}>
+                <Feather name="clock" size={12} color={T.gold} />
+                <Text style={rv.label}>RECENTLY VISITED</Text>
+              </View>
+              {recentIds.map((id) => (
+                <SkeletonRow key={id} shimmer={shimmerAnim} />
+              ))}
+              <View style={rv.sectionDivider} />
+            </View>
+          )}
           <View
             accessibilityRole="progressbar"
             accessibilityLabel="Loading countries"
@@ -2356,7 +2439,7 @@ function CountryPickerSheetBase({
               onPress={handleRetry}
               style={({ pressed }) => [sh.retryBtn, pressed && sh.retryBtnPressed]}
               accessibilityRole="button"
-              accessibilityLabel={`Retry loading countries (attempt ${retryCountRef.current + 1} of ${MAX_RETRIES})`}
+              accessibilityLabel={`Retry loading countries (attempt ${retryCount + 1} of ${MAX_RETRIES})`}
             >
               <Feather name="refresh-cw" size={14} color={T.sheetBg} />
               <Text style={sh.retryBtnText}>Try Again</Text>
@@ -2375,11 +2458,22 @@ function CountryPickerSheetBase({
           accessibilityRole="radiogroup"
           accessibilityLabel="Country list"
         >
+          {/* [A11Y-02] Hidden view announces search result count to screen readers.
+              polite = waits for current speech to finish before announcing. */}
+          {searchQuery.trim().length > 0 && (
+            <View
+              accessible
+              accessibilityLiveRegion="polite"
+              accessibilityLabel={`${displayCountries.length} ${displayCountries.length === 1 ? 'country' : 'countries'} found`}
+              style={sh.srOnly}
+            />
+          )}
           {/* [v4-ARCH-02] BottomSheetFlatList — required for gorhom gesture integration */}
           {/* All existing getItemLayout / renderItem / ListHeaderComponent logic preserved */}
           <BottomSheetFlatList
-            ref={listRef as any}
+            ref={listRef}
             data={flatData}
+            extraData={selected}
             renderItem={renderItem}
             keyExtractor={keyExtractor}
             // [FIX-LAYOUT-1] Trending + Recents scroll WITH the list
@@ -2403,9 +2497,9 @@ function CountryPickerSheetBase({
             onScrollToIndexFailed={(info) => {
               // [BUG-04] ScrollToIndexFailedInfo has no `averageItemLength` property.
               // Safe fallback: use precomputed offset if available, else L.rowH * index.
-              const offset = itemLayouts[info.index]?.offset
+              const offset = itemLayouts?.[info.index]?.offset
                 ?? L.rowH * info.index;
-              (listRef.current as any)?.scrollToOffset({ offset, animated: false });
+              listRef.current?.scrollToOffset({ offset, animated: false });
             }}
             // ── Scroll-to-dismiss ────────────────────────────────────────────────
             // iOS:     overscroll (y<0) moves sheet; fast-flick → close.
@@ -2453,11 +2547,20 @@ function CountryPickerSheetBase({
           style={sh.switchOverlay}
           pointerEvents="auto"
         >
-          <View style={sh.switchSpinner}>
-            {/* [HIGH-03] switchingTo.emoji shows the NEW country's flag */}
-            <Text style={sh.switchFlag}>
-              {switchingTo?.emoji ?? selectedCountry?.emoji ?? '🌐'}
-            </Text>
+          {/* [UX-01] Spinner ring around the emoji clarifies "loading in progress".  */}
+          {/* Without it, users on slow connections tapped repeatedly thinking the  */}
+          {/* first tap didn't register (isSwitchingRef guard silently ate the taps). */}
+          <View style={sh.switchSpinnerWrap}>
+            <ActivityIndicator
+              size={60}
+              color={T.gold}
+              style={sh.switchActivityRing}
+            />
+            <View style={sh.switchSpinner}>
+              <Text style={sh.switchFlag}>
+                {switchingTo?.emoji ?? selectedCountry?.emoji ?? '🌐'}
+              </Text>
+            </View>
           </View>
         </ReAnimated.View>
       )}
@@ -2465,7 +2568,14 @@ function CountryPickerSheetBase({
   );
 }
 
-export const CountryPickerSheet = memo(CountryPickerSheetBase);
+// [BUG-03] Wrap in PulseProvider so each mounted sheet gets its own isolated
+// Animated.Value. Without this, two sheets in a Navigator stack share the module-
+// level `_pulse` object, corrupting ref counts and causing visual glitches.
+export const CountryPickerSheet = memo((props: CountryPickerSheetProps) => (
+  <PulseProvider>
+    <CountryPickerSheetBase {...props} />
+  </PulseProvider>
+));
 export default CountryPickerSheet;
 
 // ─── Styles ────────────────────────────────────────────────────────────────────
@@ -2741,6 +2851,7 @@ const sh = StyleSheet.create({
     zIndex:               99,
   },
   switchSpinner: {
+    position:        'absolute',
     width:           60,
     height:          60,
     borderRadius:    30,
@@ -2753,5 +2864,21 @@ const sh = StyleSheet.create({
     shadowOffset:    { width:0, height:8 },
     elevation:       10,
   },
+  // [UX-01] Wrapper centres the spinner ring + emoji card together
+  switchSpinnerWrap: {
+    width:           80,
+    height:          80,
+    alignItems:      'center',
+    justifyContent:  'center',
+  },
+  // [UX-01] ActivityIndicator absolutely fills the wrap so it rings the card
+  switchActivityRing: {
+    position: 'absolute',
+    width:    80,
+    height:   80,
+  },
   switchFlag: { fontSize:30 },
+
+  // [A11Y-02] Visually hidden — zero-size container used only for live region announcements
+  srOnly: { width: 0, height: 0, overflow: 'hidden' },
 });
