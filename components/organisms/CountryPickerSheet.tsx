@@ -108,6 +108,8 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   Modal,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
   PanResponder,
   Platform,
   Pressable,
@@ -237,6 +239,10 @@ export type BottomSheetBackdropProps = {
 export type BottomSheetHandle = {
   snapToIndex: (index: number) => void;
   close:       () => void;
+  /** Spring back to open position (call when scroll-drag was released without enough velocity) */
+  snapBack:    () => void;
+  /** Pull sheet down by dy pixels — driven by overscroll in the inner list */
+  dragBy:      (dy: number) => void;
 };
 
 // ── BottomSheetView — plain View ──────────────────────────────────────────────
@@ -346,7 +352,11 @@ const BottomSheet = React.forwardRef<BottomSheetHandle, _BottomSheetProps>(
           snapTo(h);
         }
       },
-      close: doClose,
+      close:    doClose,
+      snapBack: () => snapTo(currentH),
+      dragBy:   (dy: number) => {
+        if (dy > 0) translateY.setValue(dy);
+      },
     }));
 
     // Swipe-down-to-close on the handle bar
@@ -1795,6 +1805,55 @@ function CountryPickerSheetBase({
     listRef.current?.scrollToOffset({ offset: 0, animated: false });
   }, []);
 
+  // ── Scroll-to-dismiss — list drives sheet close gesture ───────────────────────
+  //
+  // iOS:   contentOffset.y goes NEGATIVE during overscroll at the top.
+  //        We mirror that as a positive translateY on the sheet (sheet follows
+  //        finger downward). On release, fast-flick (vy < -1.0) → close;
+  //        slow/no velocity → spring back.
+  //
+  // Android: contentOffset.y stays at 0 at the top; overscroll doesn't give
+  //          negative values. We rely on velocity.y from onScrollEndDrag.
+  //          Threshold is a little lower (-0.5) because Android velocities
+  //          tend to be smaller numbers.
+  //
+  // Guard: never interfere while a pull-to-refresh is in progress.
+  // ─────────────────────────────────────────────────────────────────────────────
+  const handleListScroll = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      if (isRefreshing) return;
+      const y = e.nativeEvent.contentOffset.y;
+      // iOS only: pull past top → drag sheet downward proportionally
+      if (Platform.OS === 'ios' && y < 0) {
+        sheetRef.current?.dragBy(-y * 1.4);
+      }
+    },
+    [isRefreshing],
+  );
+
+  const handleListScrollEndDrag = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      if (isRefreshing) return;
+      const { contentOffset, velocity } = e.nativeEvent;
+      const atTop = contentOffset.y <= 1;
+      const vy    = velocity?.y ?? 0;
+
+      const CLOSE_VY_IOS     = -1.0;  // fast flick threshold on iOS
+      const CLOSE_VY_ANDROID = -0.5;  // android velocities are smaller
+      const closeThreshold   = Platform.OS === 'ios' ? CLOSE_VY_IOS : CLOSE_VY_ANDROID;
+
+      if (atTop && vy < closeThreshold) {
+        // Fast downward flick at the top → dismiss sheet
+        void hapticLight();
+        sheetRef.current?.close();
+      } else if (Platform.OS === 'ios' && atTop) {
+        // Slow overscroll that didn't reach threshold → spring back open
+        sheetRef.current?.snapBack();
+      }
+    },
+    [isRefreshing],
+  );
+
   // ── Selection ─────────────────────────────────────────────────────────────────
   const handleSelect = useCallback(async (country: CountryDoc) => {
     if (isSwitchingRef.current) return;
@@ -2213,6 +2272,17 @@ function CountryPickerSheetBase({
                 ?? (info.averageItemLength ?? L.rowH) * info.index;
               (listRef.current as any)?.scrollToOffset({ offset, animated: false });
             }}
+            // ── Scroll-to-dismiss ────────────────────────────────────────────────
+            // iOS:     overscroll (y<0) moves sheet; fast-flick → close.
+            // Android: fast downward flick from top → close.
+            onScroll={handleListScroll}
+            scrollEventThrottle={16}
+            onScrollEndDrag={handleListScrollEndDrag}
+            // Allow overscroll on both platforms so the gesture is detectable
+            bounces={true}
+            alwaysBounceVertical={true}
+            overScrollMode="always"
+            // ── Pull-to-refresh ──────────────────────────────────────────────────
             // [ADD-03] Pull-to-refresh
             refreshControl={
               <RefreshControl
