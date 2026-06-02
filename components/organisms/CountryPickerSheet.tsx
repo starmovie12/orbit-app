@@ -1433,7 +1433,9 @@ function CountryPickerSheetBase({
   // [v4-ARCH-01] BottomSheet ref — imperative present/dismiss instead of
   // conditional render. Snap points replace SHEET_MAX.
   const sheetRef = useRef<BottomSheetHandle>(null);
-  const snapPoints = useMemo(() => ['55%', '92%'], []);
+  // Single snap point — sheet always opens fully (no 55% peek).
+  // Scroll happens inside the sheet; sheet itself stays at fixed full height.
+  const snapPoints = useMemo(() => ['92%'], []);
 
   const [countries,     setCountries]    = useState<CountryDoc[]>([]);
   const [sheetState,    setSheetState]   = useState<SheetState>('loading');
@@ -1473,7 +1475,7 @@ function CountryPickerSheetBase({
   // Callers can still use visible=true/false — the API is identical from outside.
   useEffect(() => {
     if (visible) {
-      sheetRef.current?.snapToIndex(0); // 55% — comfortable entry
+      sheetRef.current?.snapToIndex(0); // 92% — full open directly
     } else {
       sheetRef.current?.close();
     }
@@ -1532,8 +1534,8 @@ function CountryPickerSheetBase({
   });
 
   const handleSearchFocus = useCallback(() => {
-    // [v4-ARCH-04] Auto-snap to 92% on search — maximum space for results
-    sheetRef.current?.snapToIndex(1);
+    // Sheet is already at full height (single snap point) — no expansion needed.
+    // Just animate the border glow.
     Animated.timing(searchBorderAnim, {
       toValue:         1,
       duration:        180,
