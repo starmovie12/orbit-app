@@ -1510,11 +1510,32 @@ function CountryPickerSheetBase({
     onClose();
   }, [onClose]);
 
+  // ── [v4-SCROLL-HIDE] Reset shell to visible each time sheet opens ─────────────
+  useEffect(() => {
+    if (!visible) return;
+    // Reset scroll-hide state so header is always visible on fresh open
+    lastScrollYRef.current  = 0;
+    isShellVisible.current  = true;
+    shellClipH.setValue(storedShellH.current > 0 ? storedShellH.current : 300);
+  }, [visible, shellClipH]);
+
   // ── [v4-ARCH-06] AnimatedPillsRow — height + opacity ─────────────────────────
   // Note: height uses useNativeDriver:false (layout prop); opacity uses true (UI thread).
   // Animated.parallel supports mixed useNativeDriver values — each runs independently.
   const pillsHeight  = useRef(new Animated.Value(L.pillRowH)).current;
   const pillsOpacity = useRef(new Animated.Value(1)).current;
+
+  // ── [v4-SCROLL-HIDE] Pinned shell auto-hide on scroll ────────────────────────
+  // shellClipH: Animated.Value driving the outer clip-wrapper height.
+  //   • Starts at 300 (safe upper-bound before first onLayout measurement).
+  //   • After onLayout fires → snapped to exact measured height.
+  //   • On scroll-down → animates to 0 (clips shell out of view).
+  //   • On scroll-up or near-top → animates back to storedShellH.
+  // useNativeDriver:false is required — we are animating a layout prop (height).
+  const shellClipH     = useRef(new Animated.Value(300)).current;
+  const storedShellH   = useRef(300);    // updated every onLayout
+  const isShellVisible = useRef(true);   // debounce guard — avoids re-triggering anim
+  const lastScrollYRef = useRef(0);      // previous scroll offset for delta calculation
 
   useEffect(() => {
     const isSearching = rawQuery.length > 0;
@@ -1544,6 +1565,20 @@ function CountryPickerSheetBase({
   });
 
   const handleSearchFocus = useCallback(() => {
+    // [v4-SCROLL-HIDE] Reveal shell if it was hidden when user taps the search
+    // bar. We inline the animation here (rather than calling showShell) because
+    // showShell is declared after this callback — calling it would hit the
+    // temporal dead zone on mount. shellClipH / storedShellH / isShellVisible
+    // are all declared before this callback so they are safe to reference.
+    if (!isShellVisible.current) {
+      isShellVisible.current = true;
+      Animated.timing(shellClipH, {
+        toValue:         storedShellH.current,
+        duration:        220,
+        easing:          Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }).start();
+    }
     // Sheet is already at full height (single snap point) — no expansion needed.
     // Just animate the border glow.
     Animated.timing(searchBorderAnim, {
@@ -1551,7 +1586,7 @@ function CountryPickerSheetBase({
       duration:        180,
       useNativeDriver: false,
     }).start();
-  }, [searchBorderAnim]);
+  }, [searchBorderAnim, shellClipH]);
 
   const handleSearchBlur = useCallback(() => {
     Animated.timing(searchBorderAnim, {
@@ -1560,6 +1595,47 @@ function CountryPickerSheetBase({
       useNativeDriver: false,
     }).start();
   }, [searchBorderAnim]);
+
+  // ── [v4-SCROLL-HIDE] Shell layout measurement ─────────────────────────────────
+  // Called every time the pinnedShell's intrinsic height changes (e.g. pills
+  // animate in/out, selectedCountry loads). We always update storedShellH so
+  // showShell() can snap back to the correct height.
+  const onShellLayout = useCallback(
+    (e: { nativeEvent: { layout: { height: number } } }) => {
+      const h = e.nativeEvent.layout.height;
+      if (h <= 0) return;
+      storedShellH.current = h;
+      // Only sync the Animated.Value while shell is visible — avoids snapping
+      // height mid-collapse and breaking the animation.
+      if (isShellVisible.current) {
+        shellClipH.setValue(h);
+      }
+    },
+    [shellClipH],
+  );
+
+  // ── [v4-SCROLL-HIDE] Hide / Show shell ───────────────────────────────────────
+  const hideShell = useCallback(() => {
+    if (!isShellVisible.current) return;
+    isShellVisible.current = false;
+    Animated.timing(shellClipH, {
+      toValue:         0,
+      duration:        220,
+      easing:          Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [shellClipH]);
+
+  const showShell = useCallback(() => {
+    if (isShellVisible.current) return;
+    isShellVisible.current = true;
+    Animated.timing(shellClipH, {
+      toValue:         storedShellH.current,
+      duration:        220,
+      easing:          Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [shellClipH]);
 
   // ── Shimmer animation ─────────────────────────────────────────────────────────
   const shimmerAnim = useRef(new Animated.Value(0)).current;
@@ -1823,12 +1899,34 @@ function CountryPickerSheetBase({
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
       if (isRefreshing) return;
       const y = e.nativeEvent.contentOffset.y;
-      // iOS only: pull past top → drag sheet downward proportionally
+
+      // ── Existing iOS overscroll-to-dismiss (must return early — negative y
+      //    means we're in rubber-band territory, no delta logic needed) ──────────
       if (Platform.OS === 'ios' && y < 0) {
         sheetRef.current?.dragBy(-y * 1.4);
+        // Also ensure header is visible during overscroll (looks wrong hidden)
+        showShell();
+        return;
+      }
+
+      // ── [v4-SCROLL-HIDE] Direction detection ──────────────────────────────────
+      // delta > 0 → user scrolling DOWN (content moving up)
+      // delta < 0 → user scrolling UP (content moving down)
+      const delta = y - lastScrollYRef.current;
+      lastScrollYRef.current = y;
+
+      if (y <= 60) {
+        // Near the top of the list → always reveal header
+        showShell();
+      } else if (delta > 8) {
+        // Meaningful downward scroll → hide header to give list more room
+        hideShell();
+      } else if (delta < -5) {
+        // Upward scroll → bring header back
+        showShell();
       }
     },
-    [isRefreshing],
+    [isRefreshing, showShell, hideShell],
   );
 
   const handleListScrollEndDrag = useCallback(
@@ -2052,8 +2150,14 @@ function CountryPickerSheetBase({
       handleIndicatorStyle={sh.handleIndicator}
     >
       {/* ── PINNED SHELL — The "Shell vs Content" principle (PRD §2 Principle 5) ── */}
-      {/* SearchBar, title, pills live here. They CANNOT scroll away. */}
-      <BottomSheetView style={sh.pinnedShell}>
+      {/* SearchBar, title, pills live here. They CANNOT scroll away.             */}
+      {/*                                                                          */}
+      {/* [v4-SCROLL-HIDE] Outer Animated.View clips the shell as height → 0.     */}
+      {/* • overflow:'hidden' = content clips cleanly as height collapses.         */}
+      {/* • onLayout fires on the inner View (actual content), not this wrapper,  */}
+      {/*   so measurement is always correct regardless of animation state.        */}
+      <Animated.View style={{ height: shellClipH, overflow: 'hidden' }}>
+        <BottomSheetView style={sh.pinnedShell} onLayout={onShellLayout}>
 
         {/* ── [v4-ARCH-05] MERGED TITLE ROW — saves 52px vs v3.3 ──────────────── */}
         {/* Old: [Title row 54px] + [Active strip 52px] = 106px */}
@@ -2174,7 +2278,8 @@ function CountryPickerSheetBase({
         </Animated.View>
 
         <View style={sh.hairline} />
-      </BottomSheetView>
+        </BottomSheetView>
+      </Animated.View>
 
       {/* ── CONTENT ZONE — Everything below the shell ─────────────────────────── */}
 
