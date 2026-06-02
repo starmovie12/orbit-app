@@ -94,6 +94,7 @@ import React, {
   memo,
   useCallback,
   useEffect,
+  useImperativeHandle,
   useMemo,
   useRef,
   useState,
@@ -101,9 +102,13 @@ import React, {
 import {
   AccessibilityInfo,
   Animated,
+  Dimensions,
   Easing,
   FlatList,
   Keyboard,
+  KeyboardAvoidingView,
+  Modal,
+  PanResponder,
   Platform,
   Pressable,
   RefreshControl,
@@ -118,13 +123,7 @@ import * as Haptics      from 'expo-haptics';
 import AsyncStorage      from '@react-native-async-storage/async-storage';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 
-// ── @gorhom/bottom-sheet v5 ───────────────────────────────────────────────────
-import BottomSheet, {
-  BottomSheetView,
-  BottomSheetFlatList,
-  BottomSheetBackdrop,
-} from '@gorhom/bottom-sheet';
-import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
+// ── @gorhom/bottom-sheet — replaced with local implementation below ──────────
 
 // ── react-native-reanimated v3 ────────────────────────────────────────────────
 // Used for: HeroCard stagger entry, LetterOverlay spring, SwitchingOverlay fade
@@ -210,6 +209,230 @@ const DV = {
   regionPurple:   'rgba(139,92,246,1)'   as const,
   regionRed:      'rgba(220,38,38,1)'    as const,
 } as const;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── Local @gorhom/bottom-sheet replacement ──────────────────────────────────
+// Drop-in custom implementation using React Native primitives only.
+// Preserves the same ref API (snapToIndex / close), backdrop, and snap points.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const _SCREEN_H = Dimensions.get('window').height;
+
+function _parseSnap(sp: string | number): number {
+  if (typeof sp === 'number') return sp;
+  return (parseFloat(sp) / 100) * _SCREEN_H;
+}
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+export type BottomSheetBackdropProps = {
+  pressBehavior?:     'close' | 'none' | 'collapse' | number;
+  appearsOnIndex?:    number;
+  disappearsOnIndex?: number;
+  opacity?:           number;
+  style?:             any;
+  /** Injected by BottomSheet when it calls backdropComponent */
+  onClose?:           () => void;
+};
+
+export type BottomSheetHandle = {
+  snapToIndex: (index: number) => void;
+  close:       () => void;
+};
+
+// ── BottomSheetView — plain View ──────────────────────────────────────────────
+const BottomSheetView = View;
+
+// ── BottomSheetFlatList — plain FlatList ──────────────────────────────────────
+const BottomSheetFlatList = FlatList;
+
+// ── BottomSheetBackdrop ───────────────────────────────────────────────────────
+const BottomSheetBackdrop = memo<BottomSheetBackdropProps>(
+  ({ opacity = 0.5, pressBehavior = 'none', onClose, style }) => (
+    <Pressable
+      style={[StyleSheet.absoluteFill, { backgroundColor: `rgba(0,0,0,${opacity})` }, style]}
+      onPress={pressBehavior === 'close' ? onClose : undefined}
+    />
+  ),
+);
+
+// ── BottomSheet ───────────────────────────────────────────────────────────────
+interface _BottomSheetProps {
+  index?:                  number;
+  snapPoints?:             Array<string | number>;
+  keyboardBehavior?:       string;
+  keyboardBlurBehavior?:   string;
+  android_keyboardInputMode?: string;
+  backdropComponent?:      ((props: BottomSheetBackdropProps) => React.ReactElement | null) | null;
+  enablePanDownToClose?:   boolean;
+  onClose?:                () => void;
+  backgroundStyle?:        any;
+  handleStyle?:            any;
+  handleIndicatorStyle?:   any;
+  children?:               React.ReactNode;
+}
+
+const BottomSheet = React.forwardRef<BottomSheetHandle, _BottomSheetProps>(
+  (
+    {
+      snapPoints           = ['50%'],
+      backdropComponent,
+      enablePanDownToClose = true,
+      onClose,
+      backgroundStyle,
+      handleStyle,
+      handleIndicatorStyle,
+      children,
+    },
+    ref,
+  ) => {
+    const heights           = useMemo(() => snapPoints.map(_parseSnap), [snapPoints]);
+    const [open, setOpen]   = useState(false);
+    const [snapIdx, setSnapIdx] = useState(0);
+    const openRef           = useRef(false);
+    const pendingSnapH      = useRef<number | null>(null);
+    const translateY        = useRef(new Animated.Value(_SCREEN_H)).current;
+
+    const currentH = heights[snapIdx] ?? heights[0] ?? _SCREEN_H * 0.5;
+
+    const doClose = useCallback(() => {
+      Animated.timing(translateY, {
+        toValue:         _SCREEN_H,
+        duration:        280,
+        easing:          Easing.in(Easing.cubic),
+        useNativeDriver: true,
+      }).start(() => {
+        openRef.current = false;
+        setOpen(false);
+        onClose?.();
+      });
+    }, [translateY, onClose]);
+
+    const snapTo = useCallback((h: number) => {
+      Animated.spring(translateY, {
+        toValue:         _SCREEN_H - h,
+        damping:         22,
+        mass:            0.9,
+        stiffness:       160,
+        useNativeDriver: true,
+      }).start();
+    }, [translateY]);
+
+    // Called when Modal finishes showing — fire any pending snap animation
+    const handleModalShow = useCallback(() => {
+      if (pendingSnapH.current !== null) {
+        const h = pendingSnapH.current;
+        pendingSnapH.current = null;
+        snapTo(h);
+      }
+    }, [snapTo]);
+
+    useImperativeHandle(ref, () => ({
+      snapToIndex: (idx) => {
+        const h = heights[idx];
+        if (h === undefined) return;
+        setSnapIdx(idx);
+        if (!openRef.current) {
+          openRef.current      = true;
+          pendingSnapH.current = h;
+          translateY.setValue(_SCREEN_H);
+          setOpen(true);
+        } else {
+          snapTo(h);
+        }
+      },
+      close: doClose,
+    }));
+
+    // Swipe-down-to-close on the handle bar
+    const panResponder = useMemo(
+      () =>
+        PanResponder.create({
+          onStartShouldSetPanResponder: () => true,
+          onMoveShouldSetPanResponder:  (_, g) => g.dy > 5,
+          onPanResponderMove: (_, g) => {
+            if (g.dy > 0)
+              translateY.setValue(Math.max(0, _SCREEN_H - currentH + g.dy));
+          },
+          onPanResponderRelease: (_, g) => {
+            if (enablePanDownToClose && g.dy > currentH * 0.3) {
+              doClose();
+            } else {
+              snapTo(currentH);
+            }
+          },
+        }),
+      [currentH, enablePanDownToClose, doClose, snapTo, translateY],
+    );
+
+    const backdropEl = backdropComponent
+      ? backdropComponent({ onClose: doClose } as BottomSheetBackdropProps)
+      : null;
+
+    return (
+      <Modal
+        visible={open}
+        transparent
+        animationType="none"
+        statusBarTranslucent
+        onRequestClose={doClose}
+        onShow={handleModalShow}
+      >
+        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+          {backdropEl}
+          <Animated.View
+            style={[
+              {
+                position:             'absolute',
+                left:                 0,
+                right:                0,
+                bottom:               0,
+                height:               currentH,
+                backgroundColor:      T.sheetBg,
+                borderTopLeftRadius:  28,
+                borderTopRightRadius: 28,
+                shadowColor:          '#000',
+                shadowOpacity:        0.18,
+                shadowRadius:         24,
+                shadowOffset:         { width: 0, height: -6 },
+                elevation:            16,
+              },
+              backgroundStyle,
+              { transform: [{ translateY }] },
+            ]}
+          >
+            {/* Handle — pan responder lets user swipe down to dismiss */}
+            <View
+              style={[{ alignItems: 'center' }, handleStyle]}
+              {...panResponder.panHandlers}
+            >
+              <View
+                style={[
+                  {
+                    width:           40,
+                    height:          4,
+                    borderRadius:    2,
+                    backgroundColor: T.border,
+                  },
+                  handleIndicatorStyle,
+                ]}
+              />
+            </View>
+
+            {/* Sheet content — keyboard-aware on iOS */}
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+              style={{ flex: 1 }}
+            >
+              {children}
+            </KeyboardAvoidingView>
+          </Animated.View>
+        </View>
+      </Modal>
+    );
+  },
+);
+
+// ─── End local @gorhom/bottom-sheet replacement ───────────────────────────────
 
 // ─── Haptic helpers ────────────────────────────────────────────────────────────
 const hapticLight  = (): Promise<void> => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -1201,7 +1424,7 @@ function CountryPickerSheetBase({
 
   // [v4-ARCH-01] BottomSheet ref — imperative present/dismiss instead of
   // conditional render. Snap points replace SHEET_MAX.
-  const sheetRef = useRef<BottomSheet>(null);
+  const sheetRef = useRef<BottomSheetHandle>(null);
   const snapPoints = useMemo(() => ['55%', '92%'], []);
 
   const [countries,     setCountries]    = useState<CountryDoc[]>([]);
