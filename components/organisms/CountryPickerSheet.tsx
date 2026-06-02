@@ -106,7 +106,6 @@ import {
   Easing,
   FlatList,
   Keyboard,
-  KeyboardAvoidingView,
   Modal,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
@@ -179,6 +178,12 @@ const L = {
   pillRowH:     50,
   alphaItemH:   18,
   alphaBarW:    22,
+  // [CODE-01] Scroll-hide & close-gesture thresholds — replaces inline magic numbers
+  scrollHideThreshold:  60,
+  scrollDeltaHide:       8,
+  scrollDeltaShow:       5,
+  closeVelocityIOS:     -1.0,
+  closeVelocityAndroid: -0.5,
 } as const;
 
 // ─── Design token aliases ──────────────────────────────────────────────────────
@@ -218,7 +223,10 @@ const DV = {
 // Preserves the same ref API (snapToIndex / close), backdrop, and snap points.
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const _SCREEN_H = Dimensions.get('window').height;
+// [ARCH-03] Use mutable variable updated on orientation/fold/split-screen changes
+// instead of a one-time snapshot that goes stale on iPads and foldables.
+let _SCREEN_H = Dimensions.get('window').height;
+Dimensions.addEventListener('change', ({ window }) => { _SCREEN_H = window.height; });
 
 function _parseSnap(sp: string | number): number {
   if (typeof sp === 'number') return sp;
@@ -313,13 +321,12 @@ const BottomSheet = React.forwardRef<BottomSheetHandle, _BottomSheetProps>(
       });
     }, [translateY, onClose]);
 
-    const snapTo = useCallback((_h: number) => {
-      // Sheet is position:'absolute' + bottom:0 + height:currentH.
-      // translateY:0  → sheet sits flush at the bottom (fully visible).
-      // translateY:_SCREEN_H → sheet is pushed completely off-screen (hidden).
-      // We only need to snap to 0; the height prop already controls how tall
-      // the sheet is. The old formula (_SCREEN_H - h) was wrong: it left a
-      // tiny ~10% sliver visible instead of opening the sheet fully.
+    const snapTo = useCallback((h: number) => {
+      // [BUG-01] Parameter was prefixed `_h` (intentionally unused) so toValue was
+      // always 0 regardless of the requested snap point. Now we update snapIdx so
+      // currentH reflects the new height, enabling dual-snap (55%/92%) correctly.
+      const idx = heights.indexOf(h);
+      if (idx !== -1) setSnapIdx(idx);
       Animated.spring(translateY, {
         toValue:         0,
         damping:         22,
@@ -327,7 +334,7 @@ const BottomSheet = React.forwardRef<BottomSheetHandle, _BottomSheetProps>(
         stiffness:       160,
         useNativeDriver: true,
       }).start();
-    }, [translateY]);
+    }, [translateY, heights]);
 
     // Called when Modal finishes showing — fire any pending snap animation
     const handleModalShow = useCallback(() => {
@@ -436,13 +443,12 @@ const BottomSheet = React.forwardRef<BottomSheetHandle, _BottomSheetProps>(
               />
             </View>
 
-            {/* Sheet content — keyboard-aware on iOS */}
-            <KeyboardAvoidingView
-              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-              style={{ flex: 1 }}
-            >
+            {/* Sheet content — no KeyboardAvoidingView; gorhom's fillParent */}
+            {/* handles keyboard insets. Re-adding KAV here (ARCH-04) caused  */}
+            {/* the ~0–6px iPhone SE visible-space bug we fixed in v4.         */}
+            <View style={{ flex: 1 }}>
               {children}
-            </KeyboardAvoidingView>
+            </View>
           </Animated.View>
         </View>
       </Modal>
@@ -871,7 +877,7 @@ const HeroCard = memo<HeroCardProps>(({
       onPressOut={onPressOut}
       accessibilityRole="radio"
       accessibilityLabel={`${country.name}, ${fmtCount(country.onlineCount)} online`}
-      accessibilityState={{ checked: isSelected }}
+      accessibilityState={{ selected: isSelected }}
     >
       <ReAnimated.View
         entering={entering}
@@ -998,7 +1004,7 @@ const CountryRow = memo<CountryRowProps>(({ country, isSelected, onPress }) => {
       accessibilityLabel={`${country.name} (${country.id}), ${
         country.onlineCount > 0 ? fmtCount(country.onlineCount) + ' online' : 'no one online'
       }`}
-      accessibilityState={{ checked: isSelected }}
+      accessibilityState={{ selected: isSelected }}
     >
       <Animated.View
         style={[
@@ -1202,8 +1208,8 @@ const AlphabetSidebar = memo<AlphabetSidebarProps>(
     useEffect(() => { onLetterChangeRef.current = onLetterChange; }, [onLetterChange]);
     useEffect(() => { lettersRef.current        = letters;        }, [letters]);
 
-    const { PanResponder } = require('react-native');
-
+    // [BUG-02] PanResponder is already imported at module scope — removed the
+    // erroneous require() call that ran on every render and defeated tree-shaking.
     const hitLetter = useCallback((locationY: number) => {
       const ls = lettersRef.current;
       if (heightRef.current <= 0 || ls.length === 0) return;
@@ -1514,13 +1520,14 @@ function CountryPickerSheetBase({
   // Declared here — before ANY useEffect or useCallback that references them —
   // to satisfy React Compiler's strict temporal dead zone enforcement.
   // shellClipH: Animated.Value driving the outer clip-wrapper height.
-  //   • Starts at 300 (safe upper-bound before first onLayout measurement).
-  //   • After onLayout fires → snapped to exact measured height.
+  //   • Starts at 0 — shell invisible until first onLayout fires (no jump).
+  //   • [BUG-05] Old value 300 caused a visible snap on iPads/large-font devices
+  //     where actual height exceeded 300px. Now onLayout drives the first reveal.
   //   • On scroll-down → animates to 0 (clips shell out of view).
   //   • On scroll-up or near-top → animates back to storedShellH.
   // useNativeDriver:false is required — we are animating a layout prop (height).
-  const shellClipH     = useRef(new Animated.Value(300)).current;
-  const storedShellH   = useRef(300);    // updated every onLayout
+  const shellClipH     = useRef(new Animated.Value(0)).current;
+  const storedShellH   = useRef(0);    // 0 until first onLayout; always updated after
   const isShellVisible = useRef(true);   // debounce guard — avoids re-triggering anim
   const lastScrollYRef = useRef(0);      // previous scroll offset for delta calculation
 
@@ -1530,7 +1537,7 @@ function CountryPickerSheetBase({
     // Reset scroll-hide state so header is always visible on fresh open
     lastScrollYRef.current  = 0;
     isShellVisible.current  = true;
-    shellClipH.setValue(storedShellH.current > 0 ? storedShellH.current : 300);
+    shellClipH.setValue(storedShellH.current > 0 ? storedShellH.current : 0);
   }, [visible, shellClipH]);
 
   // ── [v4-ARCH-06] AnimatedPillsRow — height + opacity ─────────────────────────
@@ -1660,11 +1667,20 @@ function CountryPickerSheetBase({
     return () => clearInterval(id);
   }, [fetchedAt]);
 
-  // ── Debounced search ──────────────────────────────────────────────────────────
+  // ── Debounced search — 150ms (was 300ms, [PERF-02]) ─────────────────────────
+  // 300ms lagged behind 1–2 keystrokes at normal typing speed. 150ms feels
+  // instant while still avoiding a filter on every single keystroke.
   useEffect(() => {
-    const id = setTimeout(() => setSearchQuery(rawQuery), 300);
+    const id = setTimeout(() => setSearchQuery(rawQuery), 150);
     return () => clearTimeout(id);
   }, [rawQuery]);
+
+  // ── [SCROLL-05] Reset list scroll when search query settles ──────────────────
+  // Without this, changing search terms while mid-list leaves a blank area at
+  // top because the previous scroll position doesn't match the new result set.
+  useEffect(() => {
+    listRef.current?.scrollToOffset({ offset: 0, animated: false });
+  }, [searchQuery]);
 
   // ── Reduced motion ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -1917,13 +1933,13 @@ function CountryPickerSheetBase({
       const delta = y - lastScrollYRef.current;
       lastScrollYRef.current = y;
 
-      if (y <= 60) {
+      if (y <= L.scrollHideThreshold) {
         // Near the top of the list → always reveal header
         showShell();
-      } else if (delta > 8) {
+      } else if (delta > L.scrollDeltaHide) {
         // Meaningful downward scroll → hide header to give list more room
         hideShell();
-      } else if (delta < -5) {
+      } else if (delta < -L.scrollDeltaShow) {
         // Upward scroll → bring header back
         showShell();
       }
@@ -1938,12 +1954,18 @@ function CountryPickerSheetBase({
       const atTop = contentOffset.y <= 1;
       const vy    = velocity?.y ?? 0;
 
-      const CLOSE_VY_IOS     = -1.0;  // fast flick threshold on iOS
-      const CLOSE_VY_ANDROID = -0.5;  // android velocities are smaller
+      const CLOSE_VY_IOS     = L.closeVelocityIOS;
+      const CLOSE_VY_ANDROID = L.closeVelocityAndroid;
       const closeThreshold   = Platform.OS === 'ios' ? CLOSE_VY_IOS : CLOSE_VY_ANDROID;
 
-      if (atTop && vy < closeThreshold) {
-        // Fast downward flick at the top → dismiss sheet
+      // [SCROLL-04] Samsung (and some other OEM) devices return velocity=undefined
+      // from onScrollEndDrag. Fallback: also close when content pulled down >30px
+      // (rubber-band displacement). This ensures the gesture works on all Android.
+      const didFlick      = vy < closeThreshold;
+      const didDragEnough = contentOffset.y < -30;
+
+      if (atTop && (didFlick || didDragEnough)) {
+        // Fast downward flick OR enough rubber-band drag at the top → dismiss sheet
         void hapticLight();
         sheetRef.current?.close();
       } else if (Platform.OS === 'ios' && atTop) {
@@ -2022,7 +2044,11 @@ function CountryPickerSheetBase({
   }, []);
 
   // ── Dynamic labels ────────────────────────────────────────────────────────────
-  const placeholder  = `Search ${countries.length > 0 ? countries.length : 195} countries…`;
+  // [UX-04] Removed hardcoded 195 — it was wrong when collection size differs
+  // and caused a jarring number-jump when data loaded. Empty string avoids any count.
+  const placeholder  = countries.length > 0
+    ? `Search ${countries.length} countries…`
+    : 'Search countries…';
   const showTrending = !searchQuery.trim() && regionFilter === 'All' && trendingCountries.length > 0;
   const showAlpha    = alphabetLetters.length > 0 && !searchQuery.trim();
   const showRecents  = recentCountries.length > 0 && !searchQuery.trim();
@@ -2375,8 +2401,10 @@ function CountryPickerSheetBase({
             windowSize={8}
             getItemLayout={getItemLayout}
             onScrollToIndexFailed={(info) => {
+              // [BUG-04] ScrollToIndexFailedInfo has no `averageItemLength` property.
+              // Safe fallback: use precomputed offset if available, else L.rowH * index.
               const offset = itemLayouts[info.index]?.offset
-                ?? (info.averageItemLength ?? L.rowH) * info.index;
+                ?? L.rowH * info.index;
               (listRef.current as any)?.scrollToOffset({ offset, animated: false });
             }}
             // ── Scroll-to-dismiss ────────────────────────────────────────────────
