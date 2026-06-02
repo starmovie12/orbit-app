@@ -1510,6 +1510,20 @@ function CountryPickerSheetBase({
     onClose();
   }, [onClose]);
 
+  // ── [v4-SCROLL-HIDE] Pinned shell auto-hide on scroll ────────────────────────
+  // Declared here — before ANY useEffect or useCallback that references them —
+  // to satisfy React Compiler's strict temporal dead zone enforcement.
+  // shellClipH: Animated.Value driving the outer clip-wrapper height.
+  //   • Starts at 300 (safe upper-bound before first onLayout measurement).
+  //   • After onLayout fires → snapped to exact measured height.
+  //   • On scroll-down → animates to 0 (clips shell out of view).
+  //   • On scroll-up or near-top → animates back to storedShellH.
+  // useNativeDriver:false is required — we are animating a layout prop (height).
+  const shellClipH     = useRef(new Animated.Value(300)).current;
+  const storedShellH   = useRef(300);    // updated every onLayout
+  const isShellVisible = useRef(true);   // debounce guard — avoids re-triggering anim
+  const lastScrollYRef = useRef(0);      // previous scroll offset for delta calculation
+
   // ── [v4-SCROLL-HIDE] Reset shell to visible each time sheet opens ─────────────
   useEffect(() => {
     if (!visible) return;
@@ -1524,18 +1538,6 @@ function CountryPickerSheetBase({
   // Animated.parallel supports mixed useNativeDriver values — each runs independently.
   const pillsHeight  = useRef(new Animated.Value(L.pillRowH)).current;
   const pillsOpacity = useRef(new Animated.Value(1)).current;
-
-  // ── [v4-SCROLL-HIDE] Pinned shell auto-hide on scroll ────────────────────────
-  // shellClipH: Animated.Value driving the outer clip-wrapper height.
-  //   • Starts at 300 (safe upper-bound before first onLayout measurement).
-  //   • After onLayout fires → snapped to exact measured height.
-  //   • On scroll-down → animates to 0 (clips shell out of view).
-  //   • On scroll-up or near-top → animates back to storedShellH.
-  // useNativeDriver:false is required — we are animating a layout prop (height).
-  const shellClipH     = useRef(new Animated.Value(300)).current;
-  const storedShellH   = useRef(300);    // updated every onLayout
-  const isShellVisible = useRef(true);   // debounce guard — avoids re-triggering anim
-  const lastScrollYRef = useRef(0);      // previous scroll offset for delta calculation
 
   useEffect(() => {
     const isSearching = rawQuery.length > 0;
