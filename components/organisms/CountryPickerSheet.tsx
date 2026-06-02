@@ -307,9 +307,15 @@ const BottomSheet = React.forwardRef<BottomSheetHandle, _BottomSheetProps>(
       });
     }, [translateY, onClose]);
 
-    const snapTo = useCallback((h: number) => {
+    const snapTo = useCallback((_h: number) => {
+      // Sheet is position:'absolute' + bottom:0 + height:currentH.
+      // translateY:0  → sheet sits flush at the bottom (fully visible).
+      // translateY:_SCREEN_H → sheet is pushed completely off-screen (hidden).
+      // We only need to snap to 0; the height prop already controls how tall
+      // the sheet is. The old formula (_SCREEN_H - h) was wrong: it left a
+      // tiny ~10% sliver visible instead of opening the sheet fully.
       Animated.spring(translateY, {
-        toValue:         _SCREEN_H - h,
+        toValue:         0,
         damping:         22,
         mass:            0.9,
         stiffness:       160,
@@ -350,8 +356,10 @@ const BottomSheet = React.forwardRef<BottomSheetHandle, _BottomSheetProps>(
           onStartShouldSetPanResponder: () => true,
           onMoveShouldSetPanResponder:  (_, g) => g.dy > 5,
           onPanResponderMove: (_, g) => {
-            if (g.dy > 0)
-              translateY.setValue(Math.max(0, _SCREEN_H - currentH + g.dy));
+            // When open, translateY is 0.  As the user drags down, g.dy grows
+            // from 0 — we mirror that directly so the sheet follows the finger.
+            // Clamp at 0 so the sheet can't be dragged upward past its snap height.
+            if (g.dy > 0) translateY.setValue(g.dy);
           },
           onPanResponderRelease: (_, g) => {
             if (enablePanDownToClose && g.dy > currentH * 0.3) {
