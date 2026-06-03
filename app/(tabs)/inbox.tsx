@@ -31,6 +31,7 @@ import {
   StyleSheet,
   Platform,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -224,7 +225,17 @@ export default function InboxScreen() {
     <TouchableOpacity
       style={styles.listItem}
       activeOpacity={0.7}
-      onPress={() => router.push(`/dm/${item.id}` as never)}
+      onPress={() => {
+        if (usingMock) {
+          Alert.alert(
+            'Demo Conversation',
+            `Yeh "${item.name}" wali chat sirf ek sample hai.\n\nReal DMs tab dikhenge jab aap kisi ke profile se message karein.`,
+            [{ text: 'Samjha!', style: 'default' }]
+          );
+          return;
+        }
+        router.push(`/dm/${item.id}` as never);
+      }}
       accessibilityRole="button"
       accessibilityLabel={`Chat with ${item.name}${item.unread > 0 ? `, ${item.unread} unread` : ''}`}
     >
@@ -317,7 +328,7 @@ export default function InboxScreen() {
         <View style={styles.demoNotice}>
           <Feather name="info" size={12} color={orbit.textTertiary} />
           <Text style={styles.demoNoticeText}>
-            Sample conversations — start chatting to see real DMs
+            Sample conversations — kisi ka profile kholo aur "Message" dabao real DMs ke liye
           </Text>
         </View>
       )}
