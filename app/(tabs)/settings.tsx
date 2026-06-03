@@ -55,6 +55,14 @@ export default function SettingsScreen() {
     return `+91 ••••• ${last4.slice(0, 2)} ${last4.slice(2)}`;
   })();
 
+  const showComingSoon = (label: string) => {
+    Alert.alert(
+      'Jald Aayega! 🚀',
+      `"${label}" feature abhi development mein hai. Thodi der mein launch hoga!`,
+      [{ text: 'OK', style: 'default' }]
+    );
+  };
+
   const handleLogOut = () => {
     Alert.alert(
       'Log Out',
@@ -86,6 +94,25 @@ export default function SettingsScreen() {
     );
   };
 
+  const handleContactSupport = () => {
+    Alert.alert(
+      'Contact Support',
+      'Kisi bhi issue ke liye humse sampark karo:\n\n📧 support@orbitapp.in\n\nHum 24–48 ghante mein jawab dete hain.',
+      [{ text: 'OK' }]
+    );
+  };
+
+  const handleExportData = () => {
+    Alert.alert(
+      'Export My Data',
+      'Aapka data download link aapki registered email par bheja jayega. Kya aap continue karna chahte hain?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Request Export', onPress: () => showComingSoon('Export My Data') },
+      ]
+    );
+  };
+
   const groups: Group[] = [
     {
       title: 'ACCOUNT',
@@ -100,15 +127,18 @@ export default function SettingsScreen() {
           icon: 'phone',
           label: 'Phone Number',
           hint: maskedPhone,
+          onPress: () => showComingSoon('Phone Number Change'),
         },
         {
           icon: 'mail',
           label: 'Email',
           hint: 'Not set',
+          onPress: () => Alert.alert('Email Add Karo', 'Account recovery ke liye email add karna recommended hai.', [{ text: 'OK' }]),
         },
         {
           icon: 'key',
           label: 'Change PIN / Password',
+          onPress: () => showComingSoon('Change PIN / Password'),
         },
       ],
     },
@@ -133,16 +163,17 @@ export default function SettingsScreen() {
           icon: 'moon',
           label: 'Do not disturb',
           hint: 'Off',
+          onPress: () => showComingSoon('Do Not Disturb'),
         },
       ],
     },
     {
       title: 'PRIVACY & SECURITY',
       rows: [
-        { icon: 'lock',   label: 'Privacy controls',        hint: 'Who can DM you' },
-        { icon: 'shield', label: 'DPDP Privacy Settings',   hint: 'Data rights (India)' },
-        { icon: 'user-x', label: 'Blocked accounts' },
-        { icon: 'eye',    label: 'Active sessions',         hint: '1 device' },
+        { icon: 'lock',   label: 'Privacy controls',       hint: 'Who can DM you',    onPress: () => showComingSoon('Privacy Controls') },
+        { icon: 'shield', label: 'DPDP Privacy Settings',  hint: 'Data rights (India)', onPress: () => showComingSoon('DPDP Privacy Settings') },
+        { icon: 'user-x', label: 'Blocked accounts',                                   onPress: () => showComingSoon('Blocked Accounts') },
+        { icon: 'eye',    label: 'Active sessions',        hint: '1 device',           onPress: () => showComingSoon('Active Sessions') },
       ],
     },
     {
@@ -152,17 +183,26 @@ export default function SettingsScreen() {
           icon: 'credit-card',
           label: 'Credits Balance',
           hint: `${user?.credits ?? 0} credits`,
+          onPress: () => router.push('/credits' as never),
         },
-        { icon: 'zap',       label: 'Top up credits' },
-        { icon: 'file-text', label: 'Transaction history' },
+        {
+          icon: 'zap',
+          label: 'Top up credits',
+          onPress: () => router.push('/credits/purchase' as never),
+        },
+        {
+          icon: 'file-text',
+          label: 'Transaction history',
+          onPress: () => showComingSoon('Transaction History'),
+        },
       ],
     },
     {
       title: 'APP',
       rows: [
-        { icon: 'globe',        label: 'Language',       hint: user?.language?.toUpperCase() ?? 'EN' },
-        { icon: 'map-pin',      label: 'Region',         hint: user?.region ?? 'India' },
-        { icon: 'droplet',      label: 'Appearance',     hint: 'Dark' },
+        { icon: 'globe',        label: 'Language',       hint: user?.language?.toUpperCase() ?? 'EN', onPress: () => showComingSoon('Language') },
+        { icon: 'map-pin',      label: 'Region',         hint: user?.region ?? 'India',               onPress: () => showComingSoon('Region') },
+        { icon: 'droplet',      label: 'Appearance',     hint: 'Dark',                                onPress: () => showComingSoon('Appearance / Themes') },
         {
           icon: 'bar-chart-2',
           label: 'Usage analytics',
@@ -175,18 +215,18 @@ export default function SettingsScreen() {
     {
       title: 'DATA',
       rows: [
-        { icon: 'download',     label: 'Export my data' },
-        { icon: 'upload-cloud', label: 'Backup' },
+        { icon: 'download',     label: 'Export my data',  onPress: handleExportData },
+        { icon: 'upload-cloud', label: 'Backup',          onPress: () => showComingSoon('Backup') },
       ],
     },
     {
       title: 'SUPPORT',
       rows: [
-        { icon: 'help-circle',    label: 'Help & FAQs' },
-        { icon: 'message-square', label: 'Contact support' },
-        { icon: 'file-text',      label: 'Terms of Service' },
-        { icon: 'shield',         label: 'Privacy Policy' },
-        { icon: 'star',           label: 'Rate Orbit' },
+        { icon: 'help-circle',    label: 'Help & FAQs',       onPress: () => showComingSoon('Help & FAQs') },
+        { icon: 'message-square', label: 'Contact support',   onPress: handleContactSupport },
+        { icon: 'file-text',      label: 'Terms of Service',  onPress: () => showComingSoon('Terms of Service') },
+        { icon: 'shield',         label: 'Privacy Policy',    onPress: () => showComingSoon('Privacy Policy') },
+        { icon: 'star',           label: 'Rate Orbit',        onPress: () => showComingSoon('Rate Orbit') },
       ],
     },
     {
@@ -227,7 +267,7 @@ export default function SettingsScreen() {
       <ScreenHeader
         title="Settings"
         showBack
-        onBack={() => router.back()}
+        onBack={() => router.navigate('/(tabs)/profile' as never)}
       />
       <SearchBar
         placeholder="Search settings…"
@@ -249,7 +289,6 @@ export default function SettingsScreen() {
                     style={styles.row}
                     activeOpacity={0.7}
                     onPress={row.onPress}
-                    disabled={!row.onPress && !row.toggle}
                     accessibilityRole={row.toggle ? 'switch' : 'button'}
                     accessibilityLabel={row.label}
                     accessibilityState={row.toggle ? { checked: !!row.value } : undefined}
