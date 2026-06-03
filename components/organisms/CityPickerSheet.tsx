@@ -185,6 +185,28 @@ const T = {
 // ─── AsyncStorage keys ────────────────────────────────────────────────────────
 const CW_CITY_KEY          = 'cw:selected_city'   as const;
 const CW_RECENT_CITIES_KEY = 'cw:recent_cities'   as const;
+
+/**
+ * Fallback city list — shown when Firestore does not respond within CITY_LOAD_TIMEOUT_MS.
+ * Covers the top Indian cities from the blueprint. Firestore data takes precedence
+ * whenever it arrives; this only kicks in on slow / offline connections.
+ */
+const CITY_LOAD_TIMEOUT_MS = 7000;
+
+const FALLBACK_CITIES: CityDoc[] = [
+  { id: 'chandigarh',  name: 'Chandigarh',  state: 'Punjab',        online_count: 0, sector_count: 0, is_active: true },
+  { id: 'delhi',       name: 'Delhi',       state: 'Delhi NCR',     online_count: 0, sector_count: 0, is_active: true },
+  { id: 'mumbai',      name: 'Mumbai',      state: 'Maharashtra',   online_count: 0, sector_count: 0, is_active: true },
+  { id: 'bangalore',   name: 'Bangalore',   state: 'Karnataka',     online_count: 0, sector_count: 0, is_active: true },
+  { id: 'hyderabad',   name: 'Hyderabad',   state: 'Telangana',     online_count: 0, sector_count: 0, is_active: true },
+  { id: 'pune',        name: 'Pune',        state: 'Maharashtra',   online_count: 0, sector_count: 0, is_active: true },
+  { id: 'kolkata',     name: 'Kolkata',     state: 'West Bengal',   online_count: 0, sector_count: 0, is_active: true },
+  { id: 'chennai',     name: 'Chennai',     state: 'Tamil Nadu',    online_count: 0, sector_count: 0, is_active: true },
+  { id: 'ahmedabad',   name: 'Ahmedabad',   state: 'Gujarat',       online_count: 0, sector_count: 0, is_active: true },
+  { id: 'jaipur',      name: 'Jaipur',      state: 'Rajasthan',     online_count: 0, sector_count: 0, is_active: true },
+  { id: 'lucknow',     name: 'Lucknow',     state: 'Uttar Pradesh', online_count: 0, sector_count: 0, is_active: true },
+  { id: 'amritsar',    name: 'Amritsar',    state: 'Punjab',        online_count: 0, sector_count: 0, is_active: true },
+];
 const MAX_RECENT_CITIES    = 5                     as const;
 
 // ─── Firestore collection path ────────────────────────────────────────────────
@@ -512,15 +534,32 @@ function CityPickerSheetBase({
           setRecentIds(JSON.parse(rawRecent) as string[]);
         }
 
+        // Safety timeout: if Firestore doesn't respond within CITY_LOAD_TIMEOUT_MS,
+        // fall back to the built-in city list so the picker never stays blank forever.
+        const timeoutId = setTimeout(() => {
+          setSheetState(prev => {
+            if (prev === 'loading') {
+              setCities(existingCities => {
+                if (existingCities.length === 0) return FALLBACK_CITIES;
+                return existingCities;
+              });
+              return 'idle';
+            }
+            return prev;
+          });
+        }, CITY_LOAD_TIMEOUT_MS);
+
         // Subscribe to Firestore cities collection
         unsub = getCities((docs: CityDoc[]) => {
-          setCities(docs);
+          clearTimeout(timeoutId);
+          setCities(docs.length > 0 ? docs : FALLBACK_CITIES);
           setSheetState('idle');
         });
 
       } catch (err) {
         console.error('[CityPickerSheet] init error:', err);
-        setSheetState('error');
+        setCities(FALLBACK_CITIES);
+        setSheetState('idle');
       }
     };
 
@@ -620,7 +659,7 @@ function CityPickerSheetBase({
     // Re-trigger the useEffect by toggling — done by briefly hiding (parent controls visible)
     // Alternatively, re-fetch directly:
     getCities((docs: CityDoc[]) => {
-      setCities(docs);
+      setCities(docs.length > 0 ? docs : FALLBACK_CITIES);
       setSheetState('idle');
     });
   }, []);
