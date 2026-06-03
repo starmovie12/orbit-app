@@ -453,7 +453,18 @@ export default function DMChatScreen() {
   }, [thread, myUid]);
 
   const otherProfile = otherUid ? thread?.participantProfiles?.[otherUid] : undefined;
-  const otherName = otherProfile?.username ?? "User";
+
+  // If this is a mock ID (d1, d2, …) the thread won't exist in Firestore.
+  // Show a generic name derived from the id so the screen still renders.
+  const isMockId = /^d\d+$/.test(id ?? "");
+  const MOCK_NAMES: Record<string, string> = {
+    d1: "Aryan Verma",
+    d2: "Priya Singh",
+    d3: "Rahul Sharma",
+    d4: "Sneha Kapoor",
+    d5: "Dev Nair",
+  };
+  const otherName = otherProfile?.username ?? (isMockId ? (MOCK_NAMES[id ?? ""] ?? "User") : "User");
 
   /** How many of my recent messages the other person has not yet read. */
   const otherUnread: number = useMemo(() => {
@@ -606,6 +617,16 @@ export default function DMChatScreen() {
       </View>
       <View style={styles.headerRule} />
 
+      {/* ── DEMO BANNER — shown only for mock/non-existent threads ── */}
+      {isMockId && (
+        <View style={styles.demoBanner}>
+          <Feather name="info" size={12} color={orbit.textTertiary} />
+          <Text style={styles.demoBannerText}>
+            Demo chat — real conversations tab dikhenge jab dono users online hon
+          </Text>
+        </View>
+      )}
+
       {/* ── MESSAGES ─────────────────────────────────────────────── */}
       <FlatList
         ref={listRef}
@@ -728,6 +749,26 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   headerRule: { height: 1, backgroundColor: orbit.borderSubtle },
+
+  /* ── Demo banner ─────────────────────────────────────────── */
+  demoBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 2,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: orbit.surface2,
+    borderRadius: 8,
+  },
+  demoBannerText: {
+    flex: 1,
+    color: orbit.textTertiary,
+    fontSize: 12,
+    lineHeight: 16,
+  },
 
   /* Message list */
   msgList: { paddingHorizontal: 12, paddingTop: 8, paddingBottom: 12 },
