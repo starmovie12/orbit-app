@@ -40,6 +40,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import {
   ScreenHeader,
   SearchBar,
@@ -83,6 +84,18 @@ export type PostDoc = {
 const FILTERS = ['All', 'Gaming', 'Music', 'Business', 'Art'];
 const POSTS_COLLECTION = 'posts';
 const POSTS_LIMIT = 30;
+
+/**
+ * Maps each mock Mood Room id → a valid mood slug recognised by /mood/[mood].tsx
+ * Valid slugs: chill | hype | study | random
+ */
+const MOOD_SLUG_MAP: Record<string, string> = {
+  m1: 'chill',   // Late Night Feels
+  m2: 'hype',    // Morning Motivation
+  m3: 'random',  // Meme Drop Zone
+  m4: 'study',   // Grind Mode ON
+  m5: 'chill',   // Vent & Heal
+};
 
 /* ─── Firestore helpers ─────────────────────────────────────────────── */
 
@@ -203,12 +216,17 @@ function SpotlightCard({
   );
 }
 
-function MoodRoomsSection() {
+function MoodRoomsSection({ onMoodPress }: { onMoodPress: (moodId: string) => void }) {
   return (
     <View style={styles.moodSection}>
       <View style={styles.sectionTitleRow}>
         <Text style={styles.sectionTitle}>Mood Rooms</Text>
-        <TouchableOpacity hitSlop={6} accessibilityRole="link" accessibilityLabel="See all mood rooms">
+        <TouchableOpacity
+          hitSlop={6}
+          accessibilityRole="link"
+          accessibilityLabel="See all mood rooms"
+          onPress={() => onMoodPress('random')}
+        >
           <Text style={styles.seeAll}>See all</Text>
         </TouchableOpacity>
       </View>
@@ -218,7 +236,14 @@ function MoodRoomsSection() {
         contentContainerStyle={{ paddingHorizontal: 20, gap: 12, paddingVertical: 4 }}
       >
         {MOOD_ROOMS.map(m => (
-          <TouchableOpacity key={m.id} style={styles.moodCard} activeOpacity={0.85}>
+          <TouchableOpacity
+            key={m.id}
+            style={styles.moodCard}
+            activeOpacity={0.85}
+            onPress={() => onMoodPress(m.id)}
+            accessibilityRole="button"
+            accessibilityLabel={`Enter ${m.name} mood room`}
+          >
             <View style={[styles.moodStripe, { backgroundColor: m.accent }]} />
             <View style={styles.moodInner}>
               <View style={styles.moodIconBox}>
@@ -237,7 +262,7 @@ function MoodRoomsSection() {
   );
 }
 
-function WeeklyChallengesSection() {
+function WeeklyChallengesSection({ onChallengePress }: { onChallengePress: (id: string) => void }) {
   return (
     <View style={styles.challengeSection}>
       <View style={styles.sectionTitleRow}>
@@ -246,7 +271,13 @@ function WeeklyChallengesSection() {
       </View>
       {WEEKLY_CHALLENGES.map((c, i) => (
         <React.Fragment key={c.id}>
-          <TouchableOpacity style={styles.challengeItem} activeOpacity={0.7}>
+          <TouchableOpacity
+            style={styles.challengeItem}
+            activeOpacity={0.7}
+            onPress={() => onChallengePress(c.id)}
+            accessibilityRole="button"
+            accessibilityLabel={`Enter challenge: ${c.title}`}
+          >
             <IconBox icon={c.icon} size={40} />
             <View style={styles.challengeBody}>
               <Text style={styles.challengeTitle} numberOfLines={1}>{c.title}</Text>
@@ -311,6 +342,7 @@ function PostRow({
 
 export default function DiscoverScreen() {
   const insets        = useSafeAreaInsets();
+  const router        = useRouter();
   const { user }      = useAuth();
 
   const [search, setSearch]         = useState('');
@@ -324,6 +356,17 @@ export default function DiscoverScreen() {
   const [usingMock, setUsingMock]   = useState(false);
 
   const credits = user?.credits ?? MY_PROFILE.watchCredits;
+
+  /* ── Navigation handlers ── */
+
+  const handleMoodPress = (moodId: string) => {
+    const slug = MOOD_SLUG_MAP[moodId] ?? 'random';
+    router.push(`/mood/${slug}` as never);
+  };
+
+  const handleChallengePress = (challengeId: string) => {
+    router.push(`/challenges/${challengeId}` as never);
+  };
 
   /* ── Subscribe to /posts ── */
   useEffect(() => {
@@ -412,10 +455,10 @@ export default function DiscoverScreen() {
         contentContainerStyle={{ paddingBottom: bottomPad }}
       >
         {/* ── Mood Rooms ── */}
-        <MoodRoomsSection />
+        <MoodRoomsSection onMoodPress={handleMoodPress} />
 
         {/* ── Weekly Challenges ── */}
-        <WeeklyChallengesSection />
+        <WeeklyChallengesSection onChallengePress={handleChallengePress} />
 
         {/* ── Spotlight Feed header ── */}
         <View style={styles.feedHeader}>
