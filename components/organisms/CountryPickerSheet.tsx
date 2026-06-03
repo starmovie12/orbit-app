@@ -26,8 +26,11 @@
  *
  *  [v4-ARCH-04] Two snap points ['55%', '92%']. Sheet opens at 55% (comfortable
  *               peek). Auto-snaps to 92% on search focus (max space for results).
- *               keyboardBlurBehavior="restore" returns sheet to previous snap
- *               when keyboard dismisses.
+ *               keyboardBlurBehavior="restore" — custom BottomSheet now listens
+ *               for keyboardWillHide/keyboardDidHide and snaps back to 55%.
+ *               keyboardBehavior="fillParent" — custom BottomSheet tracks kbH and
+ *               applies paddingBottom to content wrapper, keeping FlatList visible
+ *               above keyboard on both iOS and Android.
  *
  *  [v4-ARCH-05] Active country strip merged into the title row (saves 52px).
  *               Old: separate 52px row. New: inline right of the title text.
@@ -39,6 +42,10 @@
  *  [v4-ARCH-07] BottomSheetBackdrop added — tap outside to close (pressBehavior
  *               ="close", opacity 0.55). Zero custom code.
  *
+ *  [v4-STATE]   handleSearchFocus now calls sheetRef.current?.snapToIndex(1) to
+ *               auto-expand to 92% on search tap (PRD Section 10 state machine:
+ *               SEARCH_FOCUSED → snapToIndex(1) [92%]).
+ *
  *  [v4-FEAT-01] Search bar focus glow: border animates cream[300]→gold[600]
  *               on focus (180ms), reverses on blur (150ms). useNativeDriver:false.
  *
@@ -49,9 +56,17 @@
  *  [v4-FEAT-03] SwitchingOverlay fades in (opacity 0→1, 150ms FadeIn) instead
  *               of snapping. Intentional feel vs. bug-like snap.
  *
- *  [v4-FEAT-04] LetterOverlay spring enter (scale 0.7→1, damping:15,
+ *  [v4-FEAT-04a] LetterOverlay spring enter (scale 0.7→1, damping:15,
  *               stiffness:350) + ease-out exit (scale+opacity, 100ms) via
  *               Reanimated useAnimatedStyle + withSpring/withTiming.
+ *
+ *  [v4-FEAT-04b] CountryRow background flash: 80ms gold tint overlay on pressIn
+ *               (flashAnim: 0→1 in 40ms, 1→0 in 40ms). Confirms tap instantly
+ *               before SwitchingOverlay appears. pointerEvents="none" overlay.
+ *
+ *  [v4-FEAT-07] Empty state fade-in: both empty states (no results / region empty)
+ *               wrapped in ReAnimated.View with FadeIn.duration(200), gated by
+ *               reducedMotion. Replaces jarring instant-pop appearance.
  *
  * ── PRESERVED FROM v3.3 (zero changes) ───────────────────────────────────────
  *
@@ -290,6 +305,8 @@ const BottomSheet = React.forwardRef<BottomSheetHandle, _BottomSheetProps>(
   (
     {
       snapPoints           = ['50%'],
+      keyboardBehavior,
+      keyboardBlurBehavior,
       backdropComponent,
       enablePanDownToClose = true,
       onClose,
@@ -306,6 +323,10 @@ const BottomSheet = React.forwardRef<BottomSheetHandle, _BottomSheetProps>(
     const openRef           = useRef(false);
     const pendingSnapH      = useRef<number | null>(null);
     const translateY        = useRef(new Animated.Value(_SCREEN_H)).current;
+
+    // [v4-ADR-04] fillParent: track keyboard height to push content above the keyboard.
+    // kbH > 0 while keyboard is visible; applied as paddingBottom on content wrapper.
+    const [kbH, setKbH] = useState(0);
 
     const currentH = heights[snapIdx] ?? heights[0] ?? _SCREEN_H * 0.5;
 
@@ -371,6 +392,35 @@ const BottomSheet = React.forwardRef<BottomSheetHandle, _BottomSheetProps>(
         }
       },
     }));
+
+    // [v4-ADR-04] keyboardBehavior="fillParent": listen for keyboard show/hide and track
+    // height so content wrapper can pad itself above the keyboard.
+    // iOS uses Will events (smoother — fires before keyboard animation begins).
+    // Android uses Did events (Will events are unreliable on Android).
+    useEffect(() => {
+      if (keyboardBehavior !== 'fillParent') return;
+      const showE = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+      const hideE = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+      const showSub = Keyboard.addListener(showE, (e) => setKbH(e.endCoordinates.height));
+      const hideSub = Keyboard.addListener(hideE, () => setKbH(0));
+      return () => { showSub.remove(); hideSub.remove(); };
+    }, [keyboardBehavior]);
+
+    // [v4-ADR-04] keyboardBlurBehavior="restore": snap to index 0 (55%) when keyboard hides.
+    // Section 10 state machine: KEYBOARD_DISMISS → snapToIndex(0) [55%].
+    useEffect(() => {
+      if (keyboardBlurBehavior !== 'restore') return;
+      const hideE = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+      const sub = Keyboard.addListener(hideE, () => {
+        if (!openRef.current) return;
+        const restoreH = heights[0];
+        if (restoreH !== undefined) {
+          setSnapIdx(0);
+          snapTo(restoreH);
+        }
+      });
+      return () => sub.remove();
+    }, [keyboardBlurBehavior, heights, snapTo]);
 
     // Swipe-down-to-close on the handle bar
     const panResponder = useMemo(
@@ -449,10 +499,10 @@ const BottomSheet = React.forwardRef<BottomSheetHandle, _BottomSheetProps>(
               />
             </View>
 
-            {/* Sheet content — no KeyboardAvoidingView; gorhom's fillParent */}
-            {/* handles keyboard insets. Re-adding KAV here (ARCH-04) caused  */}
-            {/* the ~0–6px iPhone SE visible-space bug we fixed in v4.         */}
-            <View style={{ flex: 1 }}>
+            {/* Sheet content — fillParent equivalent: paddingBottom adjusts when keyboard shows. */}
+            {/* [v4-ADR-04] kbH > 0 while keyboard is visible; content shifts up naturally,   */}
+            {/* giving BottomSheetFlatList the full space above the keyboard to show results.   */}
+            <View style={{ flex: 1, paddingBottom: kbH }}>
               {children}
             </View>
           </Animated.View>
@@ -1030,17 +1080,26 @@ interface CountryRowProps {
 }
 
 const CountryRow = memo<CountryRowProps>(({ country, isSelected, onPress }) => {
-  const scale    = useRef(new Animated.Value(1)).current;
-  const regionBg = REGION_FLAG_BG[country.region];
-  const heatFill = Math.max(0, Math.min(1, country.heat / 100));
-  const accent   = REGION_ACCENT[country.region] as string;
+  const scale     = useRef(new Animated.Value(1)).current;
+  // [v4-FEAT-04] Background flash — gold tint overlay, 80ms total (40ms ramp-up + 40ms ramp-down).
+  // Confirms the tap instantly before the SwitchingOverlay appears (~160ms later).
+  const flashAnim = useRef(new Animated.Value(0)).current;
+  const regionBg  = REGION_FLAG_BG[country.region];
+  const heatFill  = Math.max(0, Math.min(1, country.heat / 100));
+  const accent    = REGION_ACCENT[country.region] as string;
 
   const handlePress = useCallback(() => onPress(country), [onPress, country]);
-  const onPressIn   = useCallback(() =>
-    Animated.spring(scale, { toValue:0.97, useNativeDriver:true, speed:60, bounciness:0 }).start(),
-  [scale]);
+  const onPressIn   = useCallback(() => {
+    // Scale press — 0.97 "press" confirm
+    Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 60, bounciness: 0 }).start();
+    // [v4-FEAT-04] 80ms background flash: ramp to gold tint in 40ms, ramp back in 40ms
+    Animated.sequence([
+      Animated.timing(flashAnim, { toValue: 1, duration: 40, useNativeDriver: false }),
+      Animated.timing(flashAnim, { toValue: 0, duration: 40, useNativeDriver: false }),
+    ]).start();
+  }, [scale, flashAnim]);
   const onPressOut  = useCallback(() =>
-    Animated.spring(scale, { toValue:1.00, useNativeDriver:true, speed:55, bounciness:4 }).start(),
+    Animated.spring(scale, { toValue: 1.00, useNativeDriver: true, speed: 55, bounciness: 4 }).start(),
   [scale]);
 
   return (
@@ -1112,6 +1171,17 @@ const CountryRow = memo<CountryRowProps>(({ country, isSelected, onPress }) => {
         ) : (
           <Feather name="chevron-right" size={16} color={T.textTertiary} />
         )}
+
+        {/* [v4-FEAT-04] Background flash overlay — absolutely fills the row,
+            opacity driven by flashAnim (0→1→0 over 80ms on press).
+            pointerEvents="none" so it never intercepts touches. */}
+        <Animated.View
+          style={[
+            StyleSheet.absoluteFill,
+            { backgroundColor: DV.activeRowBg, opacity: flashAnim },
+          ]}
+          pointerEvents="none"
+        />
       </Animated.View>
     </Pressable>
   );
@@ -1497,9 +1567,10 @@ function CountryPickerSheetBase({
   // [v4-ARCH-01] BottomSheet ref — imperative present/dismiss instead of
   // conditional render. Snap points replace SHEET_MAX.
   const sheetRef = useRef<BottomSheetHandle>(null);
-  // Single snap point — sheet always opens fully (no 55% peek).
-  // Scroll happens inside the sheet; sheet itself stays at fixed full height.
-  const snapPoints = useMemo(() => ['92%'], []);
+  // [v4-ADR-05] Two snap points: 55% comfortable peek (default open), 92% on search focus.
+  // Sheet opens at 55% → user taps search → auto-expands to 92% (max result viewport).
+  // keyboardBlurBehavior="restore" in the custom BottomSheet returns it to 55% on KB dismiss.
+  const snapPoints = useMemo(() => ['55%', '92%'], []);
 
   const [countries,     setCountries]    = useState<CountryDoc[]>([]);
   const [sheetState,    setSheetState]   = useState<SheetState>('loading');
@@ -1639,8 +1710,10 @@ function CountryPickerSheetBase({
         useNativeDriver: false,
       }).start();
     }
-    // Sheet is already at full height (single snap point) — no expansion needed.
-    // Just animate the border glow.
+    // [v4-ADR-05] Auto-snap to 92% on search focus — maximum space for results.
+    // WhatsApp contact picker pattern: tap search → full height immediately.
+    sheetRef.current?.snapToIndex(1);
+    // Animate the search bar border glow (cream[300] → gold[600]).
     Animated.timing(searchBorderAnim, {
       toValue:         1,
       duration:        180,
@@ -2172,10 +2245,15 @@ function CountryPickerSheetBase({
   ), [showTrending, showRecents, trendingCountries, recentCountries, selected, handleSelect, countTimeLabel, reducedMotion]);
 
   // ── [FIX-LAYOUT-2] ListEmptyComponent: empty states inside FlatList ──────────
+  // [v4-FEAT-07] Empty state fade-in — opacity 0→1 over 200ms.
+  // Empty states that "pop" onto screen feel like layout thrash; a gentle fade feels intentional.
   const renderListEmpty = useCallback(() => {
     if (isRegionSearchEmpty) {
       return (
-        <View style={sh.stateWrap}>
+        <ReAnimated.View
+          entering={!reducedMotion ? FadeIn.duration(200) : undefined}
+          style={sh.stateWrap}
+        >
           <View style={sh.stateIconCircle}>
             <Feather name="search" size={28} color={T.textTertiary} />
           </View>
@@ -2192,11 +2270,14 @@ function CountryPickerSheetBase({
             <Feather name="globe" size={14} color={T.gold} />
             <Text style={sh.ctaBtnText}>Search All Countries</Text>
           </Pressable>
-        </View>
+        </ReAnimated.View>
       );
     }
     return (
-      <View style={sh.stateWrap}>
+      <ReAnimated.View
+        entering={!reducedMotion ? FadeIn.duration(200) : undefined}
+        style={sh.stateWrap}
+      >
         <View style={sh.stateIconCircle}>
           <Feather name="globe" size={28} color={T.textTertiary} />
         </View>
@@ -2206,9 +2287,9 @@ function CountryPickerSheetBase({
             ? `"${searchQuery}" didn't match any country`
             : 'No countries in this region yet'}
         </Text>
-      </View>
+      </ReAnimated.View>
     );
-  }, [isRegionSearchEmpty, regionFilter, searchQuery]);
+  }, [isRegionSearchEmpty, regionFilter, searchQuery, reducedMotion]);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // RENDER — v4.0 Tree
