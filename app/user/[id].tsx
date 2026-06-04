@@ -1,5 +1,5 @@
 /**
- * ORBIT — User Profile Screen v2
+ * CROWN — User Profile Screen v2
  *
  * Route: /user/[id]  where id = target user's uid
  *
@@ -11,7 +11,7 @@
  *       101-500 → PRO     (1.25x)
  *       501-2K  → MASTER  (1.5x)
  *       2K+     → LEGEND  (2.0x)
- *   • ORBIT Card — shareable digital identity card (name, handle, karma, tier,
+ *   • CROWN Card — shareable digital identity card (name, handle, karma, tier,
  *     trust score, top interests, bio snippet). Tapping "Share Card" is stubbed
  *     — wire to Share API or QR modal in Phase 2.
  *   • Functional DM button: calls ensureThread() and navigates to /dm/{threadId}.
@@ -186,7 +186,7 @@ function KarmaTierCard({ karma }: { karma: number }) {
 }
 
 /* ─────────────────────────────────────────────────────────────────────
-   ORBIT Card — digital identity card (shareable)
+   CROWN Card — digital identity card (shareable)
 ───────────────────────────────────────────────────────────────────── */
 
 function OrbitCard({ target }: { target: UserDoc }) {
@@ -210,8 +210,8 @@ function OrbitCard({ target }: { target: UserDoc }) {
     ]).start();
     try {
       await Share.share({
-        message: `Check out ${displayName}'s ORBIT profile: https://orbitapp.in/u/${target.username ?? target.uid}`,
-        title: `${displayName} on ORBIT`,
+        message: `Check out ${displayName}'s CROWN profile: https://crownapp.in/u/${target.username ?? target.uid}`,
+        title: `${displayName} on CROWN`,
       });
     } catch {
       /* user dismissed */
@@ -277,14 +277,14 @@ function OrbitCard({ target }: { target: UserDoc }) {
         <View style={styles.orbitCardFooter}>
           <View style={styles.orbitCardBrand}>
             <Feather name="zap" size={11} color={orbit.accent} />
-            <Text style={styles.orbitCardBrandText}>ORBIT</Text>
+            <Text style={styles.orbitCardBrandText}>CROWN</Text>
           </View>
           <TouchableOpacity
             style={styles.orbitCardShareBtn}
             onPress={handleShare}
             activeOpacity={0.82}
             accessibilityRole="button"
-            accessibilityLabel="Share ORBIT Card"
+            accessibilityLabel="Share CROWN Card"
             hitSlop={8}
           >
             <Feather name="share-2" size={13} color={orbit.accent} />
@@ -483,9 +483,9 @@ export default function UserProfileScreen() {
           <KarmaTierCard karma={target.karma ?? 0} />
         </View>
 
-        {/* ── ORBIT CARD ─────────────────────────────────────────── */}
+        {/* ── CROWN CARD ─────────────────────────────────────────── */}
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>ORBIT CARD</Text>
+          <Text style={styles.sectionLabel}>CROWN CARD</Text>
           <OrbitCard target={target} />
         </View>
 
@@ -704,7 +704,7 @@ const styles = StyleSheet.create({
   karmaValue: { fontSize: 28, fontWeight: "700", letterSpacing: -0.5 },
   karmaLbl: { color: orbit.textTertiary, fontSize: 14, fontWeight: "500" },
 
-  /* ORBIT Card */
+  /* CROWN Card */
   orbitCard: {
     borderRadius: 16,
     backgroundColor: orbit.surface1,
