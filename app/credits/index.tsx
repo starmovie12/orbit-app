@@ -1,5 +1,5 @@
 /**
- * ORBIT — Credits Wallet Screen (app/credits/index.tsx)
+ * CROWN — Credits Wallet Screen (app/credits/index.tsx)
  *
  * Features:
  *   • Live balance from Firestore (real-time subscription via useAuth)
@@ -42,7 +42,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { firestore, serverTimestamp } from "@/lib/firebase";
 
 // Cross-platform Firestore .exists helper (web compat vs native SDK)
-function snapExists(s: any): boolean { return typeof s.exists === 'function' ? s.exists() : !!s.exists; }
+function snapExists(s: { exists: boolean }): boolean { // @react-native-firebase: .exists is boolean property
+  return !!s.exists; }
 
 /* ─────────────────────────────────────────────────────────────────────
    Types
@@ -257,7 +258,7 @@ function CashoutSheet({
       );
       setUpiId("");
       setCreditsToRedeem(MIN_CASHOUT_CREDITS.toString());
-    } catch (e: any) {
+    } catch (e: unknown) {
       Alert.alert("Cashout Failed", e?.message ?? "Try again.");
     } finally {
       setLoading(false);
