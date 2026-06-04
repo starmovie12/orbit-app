@@ -312,7 +312,7 @@ export default function Welcome() {
 
       {/* ═══════════════════════════════════════════════════════════════════
           [2] BRAND ZONE — 96px + safe-area-top
-              CROWD WORLD wordmark · centered · spring animated
+              CROWN wordmark · centered · spring animated
               LAW 15: wordmark must be CrowdWorldWordmark — never substituted
          ═══════════════════════════════════════════════════════════════════ */}
       <View style={[styles.brandZone, { paddingTop: insets.top + 24 }]}>
