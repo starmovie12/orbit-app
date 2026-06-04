@@ -124,6 +124,8 @@ import {
   Keyboard,
   Modal,
   type NativeScrollEvent,
+  type GestureResponderEvent,
+  type AccessibilityActionEvent,
   type NativeSyntheticEvent,
   PanResponder,
   Platform,
@@ -1353,8 +1355,8 @@ const AlphabetSidebar = memo<AlphabetSidebarProps>(
         onStartShouldSetPanResponder: () => true,
         // [HIGH-06] Don't claim moves — lets BottomSheetFlatList scroll normally
         onMoveShouldSetPanResponder:  () => false,
-        onPanResponderGrant:   (e: any) => { lastIdxRef.current = -1; hitLetter(e.nativeEvent.locationY); },
-        onPanResponderMove:    (e: any) => { hitLetter(e.nativeEvent.locationY); },
+        onPanResponderGrant:   (e: GestureResponderEvent) => { lastIdxRef.current = -1; hitLetter(e.nativeEvent.locationY); },
+        onPanResponderMove:    (e: GestureResponderEvent) => { hitLetter(e.nativeEvent.locationY); },
         onPanResponderRelease: () => {
           lastIdxRef.current = -1;
           onLetterChangeRef.current(null);
@@ -1374,7 +1376,7 @@ const AlphabetSidebar = memo<AlphabetSidebarProps>(
           { name: 'increment', label: 'Next letter' },
           { name: 'decrement', label: 'Previous letter' },
         ]}
-        onAccessibilityAction={(event: any) => {
+        onAccessibilityAction={(event: AccessibilityActionEvent) => {
           const ls = lettersRef.current;
           if (ls.length === 0) return;
           const cur  = lastIdxRef.current < 0 ? 0 : lastIdxRef.current;
