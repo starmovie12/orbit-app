@@ -1,7 +1,7 @@
 /**
  * components/ORBITCard.tsx
  *
- * ORBIT — Standalone ORBIT Card Component
+ * CROWN — Standalone CROWN Card Component
  *
  * A premium social-identity card that can be embedded in the Profile screen,
  * the public /orbit-card/[username] route, or exported as an image.
@@ -42,7 +42,7 @@
  *   <ORBITCard user={target} compact />
  */
 
-import React, { useCallback, useRef, useState } from "react";
+import React, { memo, useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -230,7 +230,7 @@ function StatCell({
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function ORBITCard({
+const ORBITCardBase = function ORBITCard({
   user,
   compact = false,
   onShare,
@@ -277,14 +277,14 @@ export default function ORBITCard({
     setSharing(true);
     try {
       const message =
-        `Check out ${displayName}'s ORBIT Card 🚀\n` +
+        `Check out ${displayName}'s CROWN Card 🚀\n` +
         `Karma: ${karma.toLocaleString("en-IN")} · Tier: ${tier}\n\n${shareUrl}`;
 
       await Share.share(
         Platform.OS === "ios"
           ? { url: shareUrl, message }
           : { message },
-        { dialogTitle: `Share ${displayName}'s ORBIT Card` },
+        { dialogTitle: `Share ${displayName}'s CROWN Card` },
       );
       onShare?.();
     } catch {
@@ -312,7 +312,7 @@ export default function ORBITCard({
       >
         {/* ORBIT watermark */}
         <Text style={styles.watermark} accessibilityElementsHidden>
-          ORBIT
+          CROWN
         </Text>
 
         {/* Avatar + identity */}
@@ -407,7 +407,7 @@ export default function ORBITCard({
             disabled={sharing}
             activeOpacity={0.82}
             accessibilityRole="button"
-            accessibilityLabel={`Share ${displayName}'s ORBIT Card`}
+            accessibilityLabel={`Share ${displayName}'s CROWN Card`}
           >
             {sharing ? (
               <ActivityIndicator size="small" color={orbit.white} />
@@ -661,3 +661,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 });
+
+/** @performance React.memo — prevents re-renders when user prop is stable */
+export default memo(ORBITCardBase);
