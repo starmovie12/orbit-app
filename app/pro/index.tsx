@@ -88,8 +88,9 @@ const DAY_MS = 24 * 60 * 60 * 1000 as const;
 const LOW_BALANCE_THRESHOLD = PASS_PRICE_CREDITS + 50 as const;
 
 /** Cross-platform snap.exists safety — boolean property, never function. */
-function snapExists(s: { exists: boolean | (() => boolean) }): boolean {
-  return typeof s.exists === 'function' ? s.exists() : !!s.exists;
+function snapExists(s: { exists: boolean }): boolean {
+  // @react-native-firebase: .exists is boolean property
+  return !!s.exists;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -976,7 +977,7 @@ const SectionLabel = memo(function SectionLabel({
 /**
  * CrownPassScreen — CROWN Pass monthly progression screen.
  *
- * Replaces the former ORBIT Pro subscription. The CROWN Pass is Credits-based
+ * Replaces the former CROWN Pro subscription. The CROWN Pass is Credits-based
  * (no ₹ symbol), deterministic (zero random rewards), and fully transparent
  * about what users receive before they purchase.
  *
