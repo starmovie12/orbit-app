@@ -1,6 +1,6 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  CROWD WORLD — components/molecules/AvatarStack.tsx                     ║
+ * ║  CROWN — components/molecules/AvatarStack.tsx                     ║
  * ║  Molecule · P2 · Blueprint v5.0 BAAP EDITION                            ║
  * ║                                                                          ║
  * ║  Used in: Room cards (host avatars) · Discover featured section         ║
