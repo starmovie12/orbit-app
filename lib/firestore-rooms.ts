@@ -94,7 +94,7 @@ const SECTORS = 'sectors';
  * Correct approach: read the property unconditionally. Both SDKs agree on the
  * boolean property shape. Never call it as a function anywhere in this file.
  */
-function snapExists(snap: any): boolean {
+function snapExists(snap: { exists: boolean }): boolean {
   return !!snap.exists;
 }
 
@@ -421,7 +421,7 @@ export interface SectorRow {
  * @returns   Unsubscribe — call in useEffect cleanup.
  */
 export function getCities(
-  cb: (cities: any[]) => void,
+  cb: (cities: Array<{ id: string; name: string; is_active: boolean; [key: string]: unknown }>) => void,
 ): Unsubscribe {
   return firestore()
     .collection(CITIES)
@@ -429,7 +429,7 @@ export function getCities(
     .orderBy('name', 'asc')
     .onSnapshot(
       (qs) => {
-        const list: any[] = [];
+        const list: Array<{ id: string; name: string; is_active: boolean; [key: string]: unknown }> = [];
         qs.forEach((doc) => {
           list.push({ id: doc.id, ...doc.data() });
         });
