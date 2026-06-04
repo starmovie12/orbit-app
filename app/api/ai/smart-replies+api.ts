@@ -113,7 +113,7 @@ function buildPrompt(
     .join("\n");
 
   return `
-You are an AI assistant inside ORBIT — an Indian social chat app used by Gen-Z and young adults.
+You are an AI assistant inside CROWN — an Indian social chat app used by Gen-Z and young adults.
 Your job is to suggest 3 short, natural reply options the user can tap to quickly respond.
 
 Rules:
@@ -268,7 +268,7 @@ export async function POST(request: Request): Promise<Response> {
       const model  = getGeminiModel();
       const result = await model.generateContent(prompt);
       rawResponse  = result.response.text();
-    } catch (geminiErr: any) {
+    } catch (geminiErr: unknown) {
       console.error("[ai/smart-replies] Gemini API error:", geminiErr?.message ?? geminiErr);
       return Response.json(
         { error: "AI service temporarily unavailable. Please try again." },
@@ -291,7 +291,7 @@ export async function POST(request: Request): Promise<Response> {
     // ── 6. Return ─────────────────────────────────────────────────────────
     return Response.json({ ok: true, suggestions });
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[ai/smart-replies] Unhandled error:", err?.message ?? err);
     return Response.json(
       { error: err?.message ?? "Internal server error" },
