@@ -1,6 +1,6 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  CROWD WORLD — components/EmptyState.tsx                                ║
+ * ║  CROWN — components/EmptyState.tsx                                ║
  * ║  Atom · P2 · Blueprint v5.0 Polish                                      ║
  * ║                                                                          ║
  * ║  Props:                                                                  ║
