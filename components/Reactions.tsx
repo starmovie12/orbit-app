@@ -1,7 +1,7 @@
 /**
  * Reactions.tsx — components/Reactions.tsx
  * ─────────────────────────────────────────────────────────────────────────────
- * CROWD WORLD — Three exports:
+ * CROWN — Three exports:
  *
  *   Reactions       → P1 molecule  (NEW — main consumer-facing API)
  *                     Props: { reactions, onReact, style? }
