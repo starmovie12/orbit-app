@@ -81,7 +81,7 @@ import { firestore, serverTimestamp } from '@/lib/firebase';
 
 // ─── snap.exists — boolean property, NEVER a function call ──────────────────
 /** Reads DocumentSnapshot.exists as a boolean property (never call it). */
-function snapExists(snap: { exists: boolean | (() => boolean) }): boolean {
+function snapExists(snap: { exists: boolean }): boolean {
   return !!snap.exists;
 }
 
