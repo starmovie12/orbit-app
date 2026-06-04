@@ -1,6 +1,6 @@
 /**
  * types/cw.ts
- * Central TypeScript definitions for CROWD WORLD v1.0.
+ * Central TypeScript definitions for CROWN v1.0.
  * Single source of truth — all Firestore collections and app state derive from here.
  *
  * Naming convention
