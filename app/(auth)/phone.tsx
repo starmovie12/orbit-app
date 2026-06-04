@@ -113,7 +113,7 @@ const CrownWordmark = memo(function CrownWordmark() {
 
 declare global {
   // eslint-disable-next-line no-var
-  var __crownOtp: { handle: any; phone: string } | undefined;
+  var __crownOtp: { handle: unknown; phone: string } | undefined;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -141,9 +141,9 @@ const FIREBASE_WEB_CONFIG = {
   appId:             '1:250454225022:android:44b3e0a7ac0268cfe6a82f',
 };
 
-let webVerifierRef: any = null;
+let webVerifierRef: unknown = null;
 
-async function sendOtpWeb(phoneE164: string): Promise<any> {
+async function sendOtpWeb(phoneE164: string): Promise<unknown> {
   const { initializeApp, getApps, getApp } = await import('firebase/app');
   const { getAuth, RecaptchaVerifier, signInWithPhoneNumber } = await import(
     'firebase/auth'
@@ -173,7 +173,7 @@ async function sendOtpWeb(phoneE164: string): Promise<any> {
  * On native, @react-native-firebase/auth handles SafetyNet / App Attest
  * reCAPTCHA at the SDK level — no ApplicationVerifier needed.
  */
-async function sendOtpNative(phoneE164: string): Promise<any> {
+async function sendOtpNative(phoneE164: string): Promise<unknown> {
   const rnAuth = (await import('@react-native-firebase/auth')).default;
   return rnAuth().signInWithPhoneNumber(phoneE164);
 }
@@ -264,7 +264,7 @@ export default memo(function PhoneScreen() {
       // Store under __crownOtp — otp.tsx must read from same key
       globalThis.__crownOtp = { handle, phone: e164 };
       router.push('/(auth)/otp');
-    } catch (err: any) {
+    } catch (err: unknown) {
       const detail =
         (err?.code ? `[${err.code}]\n` : '') +
         (err?.message ?? authErrorMessage(err) ?? String(err));
