@@ -292,7 +292,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Step 3 — sign out of Firebase Auth (clears AsyncStorage session)
       await firebaseSignOut();
-    } catch (error: any) {
+    } catch (error: unknown) {
       Alert.alert(
         'Logout failed',
         error?.message ?? 'Kuch issue hai. Dobara try karo.',
