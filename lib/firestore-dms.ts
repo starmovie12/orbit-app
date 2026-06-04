@@ -132,7 +132,7 @@ const MESSAGES = 'messages';
  * Reads DocumentSnapshot.exists as a boolean property.
  * Never calls it as a function — see file header note.
  */
-function snapExists(snap: any): boolean {
+function snapExists(snap: { exists: boolean }): boolean {
   return !!snap.exists;
 }
 
