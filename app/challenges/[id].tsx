@@ -1,5 +1,5 @@
 /**
- * ORBIT — Challenge Detail + Entry Screen (app/challenges/[id].tsx)
+ * CROWN — Challenge Detail + Entry Screen (app/challenges/[id].tsx)
  *
  * Route: /challenges/[id]  where id = Firestore document id in /challenges/{id}
  *
@@ -78,8 +78,9 @@ type EntryDoc = {
 
 /* ─── Helpers ────────────────────────────────────────────────────────────── */
 
-function snapExists(s: any): boolean {
-  return typeof s.exists === 'function' ? s.exists() : !!s.exists;
+function snapExists(s: { exists: boolean }): boolean {
+  // @react-native-firebase: .exists is boolean property
+  return !!s.exists;
 }
 
 function msUntilNextSunday(): number {
@@ -584,7 +585,7 @@ export default function ChallengeDetailScreen() {
           .catch(() => {}); // non-critical
         Alert.alert('Submitted', 'Entry submitted! Share it to get more votes.');
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       Alert.alert('Error', e?.message ?? 'Submission failed. Try again.');
     } finally {
       setSubmitting(false);
@@ -605,7 +606,7 @@ export default function ChallengeDetailScreen() {
         .collection(ENTRIES_COL)
         .doc(entryId);
 
-      await firestore().runTransaction(async (tx: any) => {
+      await firestore().runTransaction(async (tx) => {
         const snap = await tx.get(entryRef);
         if (!snapExists(snap)) throw new Error('Entry not found');
         const data     = snap.data();
@@ -616,7 +617,7 @@ export default function ChallengeDetailScreen() {
           votedBy: [...votedBy, myUid],
         });
       });
-    } catch (e: any) {
+    } catch (e: unknown) {
       if (e?.message !== 'Entry not found') {
         Alert.alert('Error', 'Vote failed. Try again.');
       }
