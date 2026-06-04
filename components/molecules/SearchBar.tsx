@@ -1,6 +1,6 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  CROWD WORLD — components/molecules/SearchBar.tsx                       ║
+ * ║  CROWN — components/molecules/SearchBar.tsx                       ║
  * ║  Molecule · P1 · Blueprint v5.0 BAAP EDITION                            ║
  * ║                                                                          ║
  * ║  Used in: Discover · SavedMessages · Notifications filter               ║
