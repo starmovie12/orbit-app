@@ -298,7 +298,7 @@ AvatarSlot.displayName = 'NotificationRow.AvatarSlot';
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface NotificationRowProps {
-  /** Fully-typed CROWD WORLD notification deserialized from Firestore. */
+  /** Fully-typed CROWN notification deserialized from Firestore. */
   notification: CWNotification;
   /**
    * Called on row tap.
