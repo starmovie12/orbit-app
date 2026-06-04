@@ -1,6 +1,6 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  CROWD WORLD — components/molecules/SegmentedControl.tsx                ║
+ * ║  CROWN — components/molecules/SegmentedControl.tsx                ║
  * ║  Molecule · P1 · Blueprint v5.0 BAAP EDITION                            ║
  * ║                                                                          ║
  * ║  Used in: Discover sub-tabs · Notifications filter · Saved Messages     ║
