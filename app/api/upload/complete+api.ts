@@ -87,7 +87,7 @@ function variantKey(original: string, suffix: string): string {
 }
 
 /**
- * Map OpenAI moderation category flags to ORBIT severity levels
+ * Map OpenAI moderation category flags to CROWN severity levels
  * (blueprint §16 Tier 1 / 2 / 3).
  */
 function detectSeverity(cats: Record<string, boolean>): "crit" | "high" | "med" {
@@ -271,7 +271,7 @@ export async function POST(request: Request): Promise<Response> {
     await msgRef.update(msgUpdate);
 
     return Response.json({ ok: true, flagged, urls: variantUrls });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[upload/complete] unhandled error:", err);
     return Response.json(
       { error: err?.message ?? "Internal server error" },
