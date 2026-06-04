@@ -269,6 +269,10 @@ export type BottomSheetHandle = {
   snapBack:    () => void;
   /** Pull sheet down by dy pixels — driven by overscroll in the inner list */
   dragBy:      (dy: number) => void;
+  /** [FIX-HEIGHT-02] Dynamically resize sheet to an exact pixel height.
+   *  Clamped to 30%–92% of screen. Spring-animated for smooth feel.
+   *  Used by FlatList.onContentSizeChange for adaptive content-fit height. */
+  setHeight:   (h: number) => void;
 };
 
 // ── BottomSheetView — plain View ──────────────────────────────────────────────
@@ -325,6 +329,10 @@ const BottomSheet = React.forwardRef<BottomSheetHandle, _BottomSheetProps>(
     const openRef           = useRef(false);
     const pendingSnapH      = useRef<number | null>(null);
     const translateY        = useRef(new Animated.Value(_SCREEN_H)).current;
+    // [FIX-HEIGHT-01] animatedH — replaces instant state-based height jump.
+    // When snapToIndex(1) is called (55%→92%), this springs smoothly instead of snapping.
+    // useNativeDriver:false required (height is a layout prop, not a composited prop).
+    const animatedH         = useRef(new Animated.Value(heights[0] ?? _SCREEN_H * 0.55)).current;
 
     // [v4-ADR-04] fillParent: track keyboard height to push content above the keyboard.
     // kbH > 0 while keyboard is visible; applied as paddingBottom on content wrapper.
@@ -346,19 +354,30 @@ const BottomSheet = React.forwardRef<BottomSheetHandle, _BottomSheetProps>(
     }, [translateY, onClose]);
 
     const snapTo = useCallback((h: number) => {
-      // [BUG-01] Parameter was prefixed `_h` (intentionally unused) so toValue was
-      // always 0 regardless of the requested snap point. Now we update snapIdx so
-      // currentH reflects the new height, enabling dual-snap (55%/92%) correctly.
+      // [BUG-01] Fixed: parameter was prefixed `_h` so toValue was always 0.
+      // [FIX-HEIGHT-01] Animate height AND position in parallel.
+      //   translateY  → useNativeDriver:true  (UI thread, 60fps, no JS involvement)
+      //   animatedH   → useNativeDriver:false (layout prop — JS thread unavoidable,
+      //                 but height only changes on snap, not every scroll frame)
       const idx = heights.indexOf(h);
       if (idx !== -1) setSnapIdx(idx);
-      Animated.spring(translateY, {
-        toValue:         0,
-        damping:         22,
-        mass:            0.9,
-        stiffness:       160,
-        useNativeDriver: true,
-      }).start();
-    }, [translateY, heights]);
+      Animated.parallel([
+        Animated.spring(translateY, {
+          toValue:         0,
+          damping:         22,
+          mass:            0.9,
+          stiffness:       160,
+          useNativeDriver: true,
+        }),
+        Animated.spring(animatedH, {
+          toValue:         h,
+          damping:         22,
+          mass:            0.9,
+          stiffness:       160,
+          useNativeDriver: false,
+        }),
+      ]).start();
+    }, [translateY, animatedH, heights]);
 
     // Called when Modal finishes showing — fire any pending snap animation
     const handleModalShow = useCallback(() => {
@@ -378,6 +397,10 @@ const BottomSheet = React.forwardRef<BottomSheetHandle, _BottomSheetProps>(
           openRef.current      = true;
           pendingSnapH.current = h;
           translateY.setValue(_SCREEN_H);
+          // [FIX-HEIGHT-01] Set animatedH immediately on first open — sheet is still
+          // off-screen (translateY = _SCREEN_H), so there is nothing to animate yet.
+          // Without this, animatedH stays at heights[0] while we open at heights[1].
+          animatedH.setValue(h);
           setOpen(true);
         } else {
           snapTo(h);
@@ -387,11 +410,22 @@ const BottomSheet = React.forwardRef<BottomSheetHandle, _BottomSheetProps>(
       snapBack: () => snapTo(currentH),
       dragBy:   (dy: number) => {
         if (dy > 0) {
-          // [SCROLL-02] Raw 1:1 setValue caused jerky rubber-band feel.
-          // Resistance factor < 1 gives a natural spring-like drag response.
+          // [SCROLL-02] Resistance factor < 1 gives a natural spring-like drag response.
           const resistanceFactor = 0.6;
           translateY.setValue(dy * resistanceFactor);
         }
+      },
+      // [FIX-HEIGHT-02] setHeight — dynamically resizes the sheet.
+      // Called from FlatList.onContentSizeChange when search results are few.
+      // Clamps: floor=30%, ceiling=92%. Spring for smooth feel.
+      setHeight: (h: number) => {
+        const clamped = Math.min(Math.max(h, _SCREEN_H * 0.30), _SCREEN_H * 0.92);
+        Animated.spring(animatedH, {
+          toValue:         clamped,
+          damping:         28,
+          stiffness:       200,
+          useNativeDriver: false,
+        }).start();
       },
     }));
 
@@ -469,7 +503,7 @@ const BottomSheet = React.forwardRef<BottomSheetHandle, _BottomSheetProps>(
                 left:                 0,
                 right:                0,
                 bottom:               0,
-                height:               currentH,
+                height:               animatedH,
                 backgroundColor:      T.sheetBg,
                 borderTopLeftRadius:  28,
                 borderTopRightRadius: 28,
@@ -1599,9 +1633,14 @@ function CountryPickerSheetBase({
   const [retryCount,    setRetryCount]   = useState(0); // [A11Y-03] state mirrors ref so a11y label re-renders
   const selectedRef     = useRef(selected);
   const recentIdsRef    = useRef(recentIds);
+  // [FIX-HEIGHT-03] Ref mirror of searchQuery — used in onContentSizeChange to avoid
+  // stale closure. Cannot use searchQuery directly in onContentSizeChange because
+  // the callback captures the value at definition time.
+  const searchQueryRef  = useRef(searchQuery);
 
-  useEffect(() => { selectedRef.current  = selected;  }, [selected]);
-  useEffect(() => { recentIdsRef.current = recentIds; }, [recentIds]);
+  useEffect(() => { selectedRef.current  = selected;     }, [selected]);
+  useEffect(() => { recentIdsRef.current = recentIds;    }, [recentIds]);
+  useEffect(() => { searchQueryRef.current = searchQuery; }, [searchQuery]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -1640,29 +1679,29 @@ function CountryPickerSheetBase({
     onClose();
   }, [onClose]);
 
-  // ── [v4-SCROLL-HIDE] Pinned shell auto-hide on scroll ────────────────────────
-  // Declared here — before ANY useEffect or useCallback that references them —
-  // to satisfy React Compiler's strict temporal dead zone enforcement.
-  // shellClipH: Animated.Value driving the outer clip-wrapper height.
-  //   • Starts at 0 — shell invisible until first onLayout fires (no jump).
-  //   • [BUG-05] Old value 300 caused a visible snap on iPads/large-font devices
-  //     where actual height exceeded 300px. Now onLayout drives the first reveal.
-  //   • On scroll-down → animates to 0 (clips shell out of view).
-  //   • On scroll-up or near-top → animates back to storedShellH.
-  // useNativeDriver:false is required — we are animating a layout prop (height).
-  const shellClipH     = useRef(new Animated.Value(0)).current;
-  const storedShellH   = useRef(0);    // 0 until first onLayout; always updated after
-  const isShellVisible = useRef(true);   // debounce guard — avoids re-triggering anim
-  const lastScrollYRef = useRef(0);      // previous scroll offset for delta calculation
+  // ── [FIX-SCROLL-01] REMOVED: shellClipH / storedShellH / isShellVisible / lastScrollYRef
+  // ─────────────────────────────────────────────────────────────────────────────────────────
+  // ROOT CAUSE OF SCROLL JITTER IDENTIFIED:
+  //
+  //   shellClipH was an Animated.Value (useNativeDriver:false — layout prop) wired to the
+  //   *height* of an Animated.View that sat in a flex-column ABOVE the FlatList (flex:1).
+  //
+  //   On every scroll event (scrollEventThrottle:16 = 60fps), hideShell() or showShell()
+  //   started a new Animated.timing on shellClipH. Each animation caused React Native to
+  //   recalculate the entire flex tree. Since the FlatList's height = parent – shellClipH,
+  //   the FlatList's layout bounds changed on every frame of the shell animation.
+  //
+  //   Native scroll engine holds the scroll position in native memory. When JS-side layout
+  //   changes the FlatList's frame (height shrinks/grows), the native engine adjusts the
+  //   visible content offset to compensate — creating the "list auto-scrolls up/down" effect
+  //   the user observed.
+  //
+  // FIX: shell always occupies its natural height in the flex layout. FlatList height is
+  //      100% stable during scroll. No showShell/hideShell animations. No jitter.
+  //
+  // [FIX-HEIGHT-03] shellHRef — measure shell height for adaptive height calculation only.
+  const shellHRef = useRef(0);
 
-  // ── [v4-SCROLL-HIDE] Reset shell to visible each time sheet opens ─────────────
-  useEffect(() => {
-    if (!visible) return;
-    // Reset scroll-hide state so header is always visible on fresh open
-    lastScrollYRef.current  = 0;
-    isShellVisible.current  = true;
-    shellClipH.setValue(storedShellH.current > 0 ? storedShellH.current : 0);
-  }, [visible, shellClipH]);
 
   // ── [v4-ARCH-06] AnimatedPillsRow — height + opacity ─────────────────────────
   // Note: height uses useNativeDriver:false (layout prop); opacity uses true (UI thread).
@@ -1698,20 +1737,8 @@ function CountryPickerSheetBase({
   });
 
   const handleSearchFocus = useCallback(() => {
-    // [v4-SCROLL-HIDE] Reveal shell if it was hidden when user taps the search
-    // bar. We inline the animation here (rather than calling showShell) because
-    // showShell is declared after this callback — calling it would hit the
-    // temporal dead zone on mount. shellClipH / storedShellH / isShellVisible
-    // are all declared before this callback so they are safe to reference.
-    if (!isShellVisible.current) {
-      isShellVisible.current = true;
-      Animated.timing(shellClipH, {
-        toValue:         storedShellH.current,
-        duration:        220,
-        easing:          Easing.out(Easing.cubic),
-        useNativeDriver: false,
-      }).start();
-    }
+    // [FIX-SCROLL-01] Removed: inline shell-clip animation (was adding JS-thread
+    // layout work on search focus, contributing to the scroll jitter problem).
     // [v4-ADR-05] Auto-snap to 92% on search focus — maximum space for results.
     // WhatsApp contact picker pattern: tap search → full height immediately.
     sheetRef.current?.snapToIndex(1);
@@ -1721,7 +1748,7 @@ function CountryPickerSheetBase({
       duration:        180,
       useNativeDriver: false,
     }).start();
-  }, [searchBorderAnim, shellClipH]);
+  }, [searchBorderAnim]);
 
   const handleSearchBlur = useCallback(() => {
     Animated.timing(searchBorderAnim, {
@@ -1731,46 +1758,20 @@ function CountryPickerSheetBase({
     }).start();
   }, [searchBorderAnim]);
 
-  // ── [v4-SCROLL-HIDE] Shell layout measurement ─────────────────────────────────
-  // Called every time the pinnedShell's intrinsic height changes (e.g. pills
-  // animate in/out, selectedCountry loads). We always update storedShellH so
-  // showShell() can snap back to the correct height.
+  // ── [FIX-HEIGHT-03] Shell layout measurement ─────────────────────────────────
+  // [FIX-SCROLL-01] Removed: shellClipH sync + isShellVisible guard (no longer needed).
+  // Now only records height for FlatList.onContentSizeChange adaptive height calc.
+  // Still called on every render where shell height changes (pills in/out, active country).
   const onShellLayout = useCallback(
     (e: { nativeEvent: { layout: { height: number } } }) => {
       const h = e.nativeEvent.layout.height;
-      if (h <= 0) return;
-      storedShellH.current = h;
-      // Only sync the Animated.Value while shell is visible — avoids snapping
-      // height mid-collapse and breaking the animation.
-      if (isShellVisible.current) {
-        shellClipH.setValue(h);
-      }
+      if (h > 0) shellHRef.current = h;
     },
-    [shellClipH],
+    [],
   );
 
-  // ── [v4-SCROLL-HIDE] Hide / Show shell ───────────────────────────────────────
-  const hideShell = useCallback(() => {
-    if (!isShellVisible.current) return;
-    isShellVisible.current = false;
-    Animated.timing(shellClipH, {
-      toValue:         0,
-      duration:        220,
-      easing:          Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start();
-  }, [shellClipH]);
-
-  const showShell = useCallback(() => {
-    if (isShellVisible.current) return;
-    isShellVisible.current = true;
-    Animated.timing(shellClipH, {
-      toValue:         storedShellH.current,
-      duration:        220,
-      easing:          Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start();
-  }, [shellClipH]);
+  // [FIX-SCROLL-01] hideShell / showShell removed.
+  // They were the proximate cause of the scroll jitter — see the root cause analysis above.
 
   // ── Shimmer animation ─────────────────────────────────────────────────────────
   const shimmerAnim = useRef(new Animated.Value(0)).current;
@@ -2034,52 +2035,29 @@ function CountryPickerSheetBase({
     listRef.current?.scrollToOffset({ offset: 0, animated: false });
   }, []);
 
-  // ── Scroll-to-dismiss — list drives sheet close gesture ───────────────────────
+  // [FIX-SCROLL-01] Simplified handleListScroll.
   //
-  // iOS:   contentOffset.y goes NEGATIVE during overscroll at the top.
-  //        We mirror that as a positive translateY on the sheet (sheet follows
-  //        finger downward). On release, fast-flick (vy < -1.0) → close;
-  //        slow/no velocity → spring back.
+  // BEFORE: Every scroll event called showShell/hideShell, which animated shellClipH
+  //         (useNativeDriver:false, layout prop). This changed the FlatList's flex height
+  //         60× per second while the user was scrolling → native scroll engine compensated
+  //         by adjusting content offset → felt like list auto-scrolled up/down.
   //
-  // Android: contentOffset.y stays at 0 at the top; overscroll doesn't give
-  //          negative values. We rely on velocity.y from onScrollEndDrag.
-  //          Threshold is a little lower (-0.5) because Android velocities
-  //          tend to be smaller numbers.
+  // AFTER:  Only handle iOS overscroll-to-dismiss (y < 0 = rubber-band at list top).
+  //         FlatList height never changes during scroll. Zero layout thrash. Zero jitter.
   //
-  // Guard: never interfere while a pull-to-refresh is in progress.
-  // ─────────────────────────────────────────────────────────────────────────────
+  // Android dismiss: handled via onScrollEndDrag velocity check (below) — unchanged.
   const handleListScroll = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
       if (isRefreshing) return;
       const y = e.nativeEvent.contentOffset.y;
 
-      // ── Existing iOS overscroll-to-dismiss (must return early — negative y
-      //    means we're in rubber-band territory, no delta logic needed) ──────────
+      // iOS overscroll-to-dismiss: y < 0 means user is rubber-banding past the top.
+      // Mirror as translateY on the sheet so sheet follows finger downward.
       if (Platform.OS === 'ios' && y < 0) {
         sheetRef.current?.dragBy(-y * 1.4);
-        // Also ensure header is visible during overscroll (looks wrong hidden)
-        showShell();
-        return;
-      }
-
-      // ── [v4-SCROLL-HIDE] Direction detection ──────────────────────────────────
-      // delta > 0 → user scrolling DOWN (content moving up)
-      // delta < 0 → user scrolling UP (content moving down)
-      const delta = y - lastScrollYRef.current;
-      lastScrollYRef.current = y;
-
-      if (y <= L.scrollHideThreshold) {
-        // Near the top of the list → always reveal header
-        showShell();
-      } else if (delta > L.scrollDeltaHide) {
-        // Meaningful downward scroll → hide header to give list more room
-        hideShell();
-      } else if (delta < -L.scrollDeltaShow) {
-        // Upward scroll → bring header back
-        showShell();
       }
     },
-    [isRefreshing, showShell, hideShell],
+    [isRefreshing],
   );
 
   const handleListScrollEndDrag = useCallback(
@@ -2332,12 +2310,10 @@ function CountryPickerSheetBase({
       {/* ── PINNED SHELL — The "Shell vs Content" principle (PRD §2 Principle 5) ── */}
       {/* SearchBar, title, pills live here. They CANNOT scroll away.             */}
       {/*                                                                          */}
-      {/* [v4-SCROLL-HIDE] Outer Animated.View clips the shell as height → 0.     */}
-      {/* • overflow:'hidden' = content clips cleanly as height collapses.         */}
-      {/* • onLayout fires on the inner View (actual content), not this wrapper,  */}
-      {/*   so measurement is always correct regardless of animation state.        */}
-      <Animated.View style={{ height: shellClipH, overflow: 'hidden' }}>
-        <BottomSheetView style={sh.pinnedShell} onLayout={onShellLayout}>
+      {/* [FIX-SCROLL-01] No Animated.View wrapper with height:shellClipH.        */}
+      {/* Shell occupies its natural flex height — FlatList height is always       */}
+      {/* stable during scroll. The old wrapper was the root cause of jitter.      */}
+      <BottomSheetView style={sh.pinnedShell} onLayout={onShellLayout}>
 
         {/* ── [v4-ARCH-05] MERGED TITLE ROW — saves 52px vs v3.3 ──────────────── */}
         {/* Old: [Title row 54px] + [Active strip 52px] = 106px */}
@@ -2459,7 +2435,6 @@ function CountryPickerSheetBase({
 
         <View style={sh.hairline} />
         </BottomSheetView>
-      </Animated.View>
 
       {/* ── CONTENT ZONE — Everything below the shell ─────────────────────────── */}
 
@@ -2594,6 +2569,19 @@ function CountryPickerSheetBase({
             bounces={true}
             alwaysBounceVertical={true}
             overScrollMode="always"
+            // ── [FIX-HEIGHT-03] Adaptive height ──────────────────────────────────
+            // When search results are few (e.g. 1-3 countries), shrink the sheet to
+            // fit so there isn't a vast empty gap below the results.
+            // Logic: only activates during active search (searchQueryRef guards it).
+            // When search clears, keyboardBlurBehavior="restore" already snaps back
+            // to 55% via BottomSheet's keyboard listener — no manual restore needed.
+            // Floor: 40% (never collapse to nothing). Ceiling: 92% (already clamped
+            // in setHeight). Handle bar ≈14px + bottom pad 24px + buffer 6px = 44px.
+            onContentSizeChange={(_w, contentH) => {
+              if (!searchQueryRef.current.trim()) return; // browse mode — snap points drive height
+              const totalH = contentH + shellHRef.current + 44;
+              sheetRef.current?.setHeight(Math.max(_parseSnap('40%'), totalH));
+            }}
             // ── Pull-to-refresh ──────────────────────────────────────────────────
             // [ADD-03] Pull-to-refresh
             refreshControl={
