@@ -1,5 +1,5 @@
 /**
- * ORBIT — Profile Tab (v2 — Firestore-wired)
+ * CROWN — Profile Tab (v2 — Firestore-wired)
  *
  * Changes from v1 (mock MY_PROFILE) → v2 (live auth user):
  *   • All data comes from useAuth() — real Firestore UserDoc.
@@ -287,7 +287,7 @@ export default function ProfileScreen() {
           text: 'Delete',
           style: 'destructive',
           onPress: () =>
-            Alert.alert('Contact Support', 'Account delete karne ke liye email karo: grievance@orbitapp.in'),
+            Alert.alert('Contact Support', 'Account delete karne ke liye email karo: grievance@crownapp.in'),
         },
       ]
     );
@@ -369,7 +369,7 @@ export default function ProfileScreen() {
 
         {/* ── Orbit Card ───────────────────────────────────────── */}
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>ORBIT CARD</Text>
+          <Text style={styles.sectionLabel}>CROWN CARD</Text>
           <OrbitCard user={user} />
         </View>
 
