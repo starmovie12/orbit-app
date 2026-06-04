@@ -1,5 +1,5 @@
 /**
- * ORBIT — Bazaar Create Listing Screen (app/bazaar/create.tsx)
+ * CROWN — Bazaar Create Listing Screen (app/bazaar/create.tsx)
  *
  * Features:
  *   • Full-screen form: title, category, price, delivery, description,
@@ -319,7 +319,7 @@ export default function CreateBazaarListingScreen() {
         'Tera gig Bazaar mein live ho gaya.',
         [{ text: 'Great!', onPress: () => router.back() }],
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       Alert.alert('Error', err?.message ?? 'Kuch gadbad ho gayi. Dobara try karo.');
     } finally {
       setSubmitting(false);
