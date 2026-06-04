@@ -1,7 +1,7 @@
 /**
  * components/organisms/MessageActionSheet.tsx
  *
- * CROWD WORLD — Message Action Sheet
+ * CROWN — Message Action Sheet
  * Blueprint v5.0 BAAP EDITION · § 18 · Production Ready
  *
  * ── WHAT THIS IS ─────────────────────────────────────────────────────────────
@@ -327,8 +327,8 @@ export const MessageActionSheet = memo(function MessageActionSheet({
     const shareText =
       `Yeh dekh ${message.sector_id} ke chat mein kya scene hai 👇\n\n` +
       `'${messageText.slice(0, 100)}${messageText.length > 100 ? '…' : ''}'\n` +
-      `— ${senderName}\n\nCROWD WORLD pe full chat dekho:\n` +
-      `https://crowdworld.app/sector/${message.city_id}-${message.sector_id}`;
+      `— ${senderName}\n\nCROWN pe full chat dekho:\n` +
+      `https://crownapp.in/sector/${message.city_id}-${message.sector_id}`;
     try {
       await Share.share({ message: shareText });
     } catch {
