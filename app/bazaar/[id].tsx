@@ -1,5 +1,5 @@
 /**
- * ORBIT — Bazaar Listing Detail Screen (app/bazaar/[id].tsx)
+ * CROWN — Bazaar Listing Detail Screen (app/bazaar/[id].tsx)
  *
  * Route: /bazaar/[id]  where id = Firestore document id in /bazaar/{id}
  *
@@ -7,7 +7,7 @@
  *   • Fetches the full listing doc from /bazaar/{id} in real-time
  *   • Gig preview: cover images carousel, title, category, delivery,
  *     rating, tags, full description
- *   • Seller ORBIT Card: avatar, handle, karma, rank, trust score,
+ *   • Seller CROWN Card: avatar, handle, karma, rank, trust score,
  *     skills/interests — same design as /app/(tabs)/profile.tsx
  *   • Reviews: real-time subscription to /bazaar/{id}/reviews subcollection,
  *     sorted by createdAt desc; inline "Write a review" form for buyers
@@ -85,7 +85,7 @@ declare module 'react-native-razorpay' {
 }
 
 const RazorpayCheckout = {
-  open: async (_opts: any): Promise<any> => {
+  open: async (_opts: Record<string, unknown>): Promise<Record<string, unknown>> => {
     throw Object.assign(
       new Error('Razorpay not installed. Run: npm install react-native-razorpay'),
       { code: -1, description: 'Package not installed' },
@@ -122,8 +122,9 @@ type ReviewDoc = {
 
 /* ─── Helpers ────────────────────────────────────────────────────────────── */
 
-function snapExists(s: any): boolean {
-  return typeof s.exists === 'function' ? s.exists() : !!s.exists;
+function snapExists(s: { exists: boolean }): boolean {
+  // @react-native-firebase: .exists is boolean property
+  return !!s.exists;
 }
 
 type KarmaTier = 'LEGEND' | 'MASTER' | 'PRO' | 'RISING';
@@ -213,7 +214,7 @@ function ImageCarousel({ images, icon }: { images: string[]; icon: string }) {
   );
 }
 
-/** Seller ORBIT Card — mirrors profile screen design */
+/** Seller CROWN Card — mirrors profile screen design */
 function SellerOrbitCard({
   seller,
   onMessage,
@@ -500,7 +501,7 @@ export default function BazaarDetailScreen() {
     try {
       const threadId = await ensureThread(myUid, listing.author.uid);
       router.push(`/dm/${threadId}`);
-    } catch (e: any) {
+    } catch (e: unknown) {
       Alert.alert('Error', e?.message ?? 'Message start nahi ho paya.');
     }
   }, [myUid, listing, isOwner, router]);
@@ -527,7 +528,7 @@ export default function BazaarDetailScreen() {
         currency:    'INR',
         key:         RAZORPAY_KEY_ID,
         amount:      listing.priceINR * 100, // paise
-        name:        'ORBIT Bazaar',
+        name:        'CROWN Bazaar',
         order_id:    orderId,
         prefill: {
           contact: myPhone.replace('+91', ''),
@@ -562,7 +563,7 @@ export default function BazaarDetailScreen() {
         `Tumhara order confirm ho gaya. Seller se miloge jaldi.`,
         [{ text: 'Message Seller', onPress: handleMessage }, { text: 'OK' }],
       );
-    } catch (e: any) {
+    } catch (e: unknown) {
       if (e?.code === 0 || e?.description === 'Payment cancelled.') return;
       Alert.alert(
         'Payment Failed',
@@ -600,7 +601,7 @@ export default function BazaarDetailScreen() {
       });
 
       setHasReviewed(true);
-    } catch (e: any) {
+    } catch (e: unknown) {
       Alert.alert('Error', e?.message ?? 'Review post nahi ho paya.');
     } finally {
       setReviewSubmitting(false);
@@ -710,7 +711,7 @@ export default function BazaarDetailScreen() {
             </View>
           ) : null}
 
-          {/* ── Seller ORBIT Card ─────────────────────────────── */}
+          {/* ── Seller CROWN Card ─────────────────────────────── */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>About the Seller</Text>
             {seller ? (
@@ -1018,7 +1019,7 @@ const styles = StyleSheet.create({
     lineHeight: 23,
   },
 
-  /* ── ORBIT Card ── */
+  /* ── CROWN Card ── */
   orbitCard: {
     backgroundColor: orbit.surface1,
     borderWidth:     1,
