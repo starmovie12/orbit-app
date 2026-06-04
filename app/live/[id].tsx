@@ -1,5 +1,5 @@
 /**
- * ORBIT — Live Audio Room Screen  (app/live/[id].tsx)
+ * CROWN — Live Audio Room Screen  (app/live/[id].tsx)
  *
  * Blueprint §11: Agora RTC <300ms audio, credit-gated entry,
  * speaker grid, raise-hand queue, host revenue flow via Firestore.
@@ -49,7 +49,8 @@ import { firestore, serverTimestamp, increment } from "@/lib/firebase";
 import type { RoomDoc } from "@/lib/firestore-rooms";
 
 // Cross-platform Firestore .exists helper (web compat vs native SDK)
-function snapExists(s: any): boolean { return typeof s.exists === 'function' ? s.exists() : !!s.exists; }
+function snapExists(s: { exists: boolean }): boolean { // @react-native-firebase: .exists is boolean property
+  return !!s.exists; }
 
 /* ─────────────────────────────────────────────────────────────────────
    Agora RTC — stub until react-native-agora is installed
@@ -69,7 +70,7 @@ const AgoraStub = {
   leaveChannel: () => 0,
   muteLocalAudioStream: (_muted: boolean) => 0,
   destroy: () => {},
-  addListener: (_event: string, _cb: (...args: any[]) => void) => ({ remove: () => {} }),
+  addListener: (_event: string, _cb: (...args: unknown[]) => void) => ({ remove: () => {} }),
 };
 
 function buildAgoraEngine() {
@@ -549,7 +550,7 @@ export default function LiveRoomScreen() {
         .collection("liveUsage")
         .doc(todayKey());
       const usageSnap = await usageRef.get();
-      const usedToday: number = usageSnap.exists()
+      const usedToday: number = snapExists(usageSnap)
         ? (usageSnap.data() as any)?.creditsUsed ?? 0
         : 0;
 
