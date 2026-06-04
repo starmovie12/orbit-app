@@ -222,7 +222,7 @@ interface FailedMsg {
 // § 3 — PURE HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
 
-function formatTime(ts: any): string {
+function formatTime(ts: { toDate(): Date } | null | undefined): string {
   try {
     const date: Date = ts?.toDate?.() ?? new Date(ts as number);
     let h = date.getHours();
