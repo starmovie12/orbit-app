@@ -1,5 +1,5 @@
 /**
- * ORBIT — Weekly Challenges Screen (app/challenges/index.tsx)
+ * CROWN — Weekly Challenges Screen (app/challenges/index.tsx)
  *
  * Features:
  *   • 5 active weekly challenges from Firestore /challenges collection
@@ -125,8 +125,9 @@ function fmtTimeLeft(endsAt: number): string {
   return fmtCountdown(Math.max(0, ms));
 }
 
-function snapExists(s: any): boolean {
-  return typeof s.exists === 'function' ? s.exists() : !!s.exists;
+function snapExists(s: { exists: boolean }): boolean {
+  // @react-native-firebase: .exists is boolean property
+  return !!s.exists;
 }
 
 /* ─── Mock leaderboard from RANKS_DATA ──────────────────────────────────── */
