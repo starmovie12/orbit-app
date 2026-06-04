@@ -1,6 +1,6 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  CROWD WORLD — components/atoms/Divider.tsx                             ║
+ * ║  CROWN — components/atoms/Divider.tsx                             ║
  * ║  Atom · P3 · Blueprint v5.0                                             ║
  * ║                                                                          ║
  * ║  Variants:                                                               ║
