@@ -1,5 +1,5 @@
 /**
- * ORBIT — Notifications Screen
+ * CROWN — Notifications Screen
  * Route: /notifications/index (or tab link)
  *
  * Displays and groups all notification events for the current user:
@@ -171,19 +171,19 @@ const MOCK_NOTIFS: NotifItem[] = [
    Helpers
 ───────────────────────────────────────────────────────────────────── */
 
-function snapExists(snap: any): boolean {
-  if (typeof snap.exists === 'function') return snap.exists();
+function snapExists(snap: { exists: boolean }): boolean {
+  // @react-native-firebase: .exists is a boolean property, never a function
   return !!snap.exists;
 }
 
-function tsToDate(ts: any): Date | null {
+function tsToDate(ts: { toDate(): Date } | null | undefined): Date | null {
   if (!ts) return null;
   if (typeof ts?.toDate === 'function') return ts.toDate() as Date;
   if (ts instanceof Date) return ts;
   return null;
 }
 
-function dateGroup(ts: any): 'today' | 'yesterday' | 'earlier' {
+function dateGroup(ts: { toDate(): Date } | null | undefined): 'today' | 'yesterday' | 'earlier' {
   const d = tsToDate(ts);
   if (!d) return 'earlier';
   const today     = new Date(); today.setHours(0,0,0,0);
@@ -193,7 +193,7 @@ function dateGroup(ts: any): 'today' | 'yesterday' | 'earlier' {
   return 'earlier';
 }
 
-function fmtTime(ts: any): string {
+function fmtTime(ts: { toDate(): Date } | null | undefined): string {
   const d = tsToDate(ts);
   if (!d) return '';
   const now = Date.now();
