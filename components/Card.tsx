@@ -1,6 +1,6 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  CROWD WORLD — Card Component                                            ║
+ * ║  CROWN — Card Component                                            ║
  * ║  Atom · P1 · Updated                                                     ║
  * ║                                                                          ║
  * ║  Variants : default | elevated | bordered | gold                         ║
