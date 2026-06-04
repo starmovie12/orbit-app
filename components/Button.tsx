@@ -1,6 +1,6 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  CROWD WORLD — components/Button.tsx                                    ║
+ * ║  CROWN — components/Button.tsx                                    ║
  * ║  Atom · P0 · Blueprint v5.0 Polish                                      ║
  * ║                                                                          ║
  * ║  Variants  : primary | secondary | ghost | danger | gold                ║
