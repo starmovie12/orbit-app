@@ -200,7 +200,7 @@ async function sendToUser(args: {
 
     try {
       batchResponse = await messaging.sendEachForMulticast(multicastMsg);
-    } catch (fcmErr: any) {
+    } catch (fcmErr: unknown) {
       // Whole batch failed (network or auth error) — log and continue to next batch
       console.error(
         `[notifications/send] FCM multicast batch error for uid=${args.targetUid}:`,
@@ -251,7 +251,7 @@ async function sendToUser(args: {
         `[notifications/send] Removed ${deadDeviceKeys.length} stale token(s) ` +
         `for uid=${args.targetUid}: ${deadDeviceKeys.join(", ")}`
       );
-    } catch (cleanupErr: any) {
+    } catch (cleanupErr: unknown) {
       // Non-fatal — token will be pruned on the next delivery attempt
       console.warn(
         "[notifications/send] Failed to remove stale tokens:",
@@ -415,7 +415,7 @@ export async function POST(request: Request): Promise<Response> {
       failed:        result.failed,
       removedTokens: result.removedTokens,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err?.statusCode === 404) {
       return Response.json({ error: err.message }, { status: 404 });
     }
