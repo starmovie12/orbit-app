@@ -1,6 +1,6 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  CROWD WORLD — Input Component                                           ║
+ * ║  CROWN — Input Component                                           ║
  * ║  Atom · P1 · Updated                                                     ║
  * ║                                                                          ║
  * ║  Variants: default | phone | otp | search                               ║
@@ -33,6 +33,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  TextInputFocusEventData,
   TextInputKeyPressEventData,
   TextInputProps,
   View,
@@ -240,7 +241,7 @@ export const Input = memo(
     const horizontalPad = spacing.inputH - (borderWidth - 1);
 
     const handleFocus = useCallback(
-      (e: any) => {
+      (e: NativeSyntheticEvent<TextInputFocusEventData>) => {
         setFocused(true);
         onFocus?.(e);
       },
@@ -248,7 +249,7 @@ export const Input = memo(
     );
 
     const handleBlur = useCallback(
-      (e: any) => {
+      (e: NativeSyntheticEvent<TextInputFocusEventData>) => {
         setFocused(false);
         onBlur?.(e);
       },
