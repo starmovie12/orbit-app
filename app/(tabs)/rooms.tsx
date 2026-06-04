@@ -1,5 +1,5 @@
 /**
- * ORBIT — Rooms Tab (v3 Golden Edition)
+ * CROWN — Rooms Tab (v3 Golden Edition)
  *
  * Complete redesign matching the CROWN HTML design:
  *   • White + Golden premium theme (#FDF8F2 bg, #C8871A gold accent)
@@ -267,7 +267,7 @@ export default function RoomsScreen() {
             <View style={styles.logoIcon}>
               <Feather name="globe" size={18} color="#FFF" />
             </View>
-            <Text style={styles.appTitle}>ORBIT</Text>
+            <Text style={styles.appTitle}>CROWN</Text>
           </View>
 
           <View style={styles.headerActions}>
