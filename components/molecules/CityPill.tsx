@@ -1,6 +1,6 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  CROWD WORLD — components/molecules/CityPill.tsx                        ║
+ * ║  CROWN — components/molecules/CityPill.tsx                        ║
  * ║  Molecule · P0 · Blueprint v5.0                                         ║
  * ║                                                                          ║
  * ║  Purpose:                                                                ║
