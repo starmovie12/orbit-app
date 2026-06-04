@@ -1,5 +1,5 @@
 /**
- * ORBIT — Buy Credits Screen (app/credits/purchase.tsx)
+ * CROWN — Buy Credits Screen (app/credits/purchase.tsx)
  *
  * Features:
  *   • Three credit packs: ₹99/1000cr · ₹299/3500cr · ₹999/15000cr
@@ -95,7 +95,7 @@ declare module "react-native-razorpay" {
 //   npm install react-native-razorpay
 // and rebuild the dev client.
 const RazorpayCheckout = {
-  open: async (_opts: any): Promise<any> => {
+  open: async (_opts: Record<string, unknown>): Promise<Record<string, unknown>> => {
     throw Object.assign(
       new Error("Razorpay not installed. Run: npm install react-native-razorpay"),
       { code: -1, description: "Package not installed" }
@@ -104,7 +104,8 @@ const RazorpayCheckout = {
 };
 
 // Cross-platform Firestore .exists helper (web compat vs native SDK)
-function snapExists(s: any): boolean { return typeof s.exists === 'function' ? s.exists() : !!s.exists; }
+function snapExists(s: { exists: boolean }): boolean { // @react-native-firebase: .exists is boolean property
+  return !!s.exists; }
 
 /* ─────────────────────────────────────────────────────────────────────
    Config — replace with your real key / Cloud Function URL
@@ -381,7 +382,7 @@ export default function PurchaseCreditsScreen() {
         currency: "INR",
         key: RAZORPAY_KEY_ID,
         amount: selectedPack.priceInr * 100,  // Razorpay expects paise
-        name: "ORBIT",
+        name: "CROWN",
         order_id: orderId,
         prefill: {
           contact: phone.replace("+91", ""),
@@ -409,7 +410,7 @@ export default function PurchaseCreditsScreen() {
         `${selectedPack.credits.toLocaleString()} credits added to your wallet!`,
         [{ text: "Great!", onPress: () => router.back() }]
       );
-    } catch (e: any) {
+    } catch (e: unknown) {
       // Razorpay dismissal (user pressed back) has code 0
       if (e?.code === 0 || e?.description === "Payment cancelled.") {
         return; // silent — user backed out
