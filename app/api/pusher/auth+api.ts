@@ -212,7 +212,7 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     return Response.json(authPayload);
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[pusher/auth] unhandled error:", err);
     return Response.json(
       { error: err?.message ?? "Internal server error" },
