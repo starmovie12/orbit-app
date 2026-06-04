@@ -1,7 +1,7 @@
 /**
  * components/atoms/Tag.tsx
  *
- * Identity chip / status pill for CROWD WORLD.
+ * Identity chip / status pill for CROWN.
  *
  * Variants
  * ────────
