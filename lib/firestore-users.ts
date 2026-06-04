@@ -103,7 +103,7 @@ const USERNAMES = 'usernames';
  *   snap.exists   ✅  boolean property — always correct
  *   snap.exists() ❌  TypeError on native / wrong value on web — NEVER USE
  */
-function snapExists(snap: any): boolean {
+function snapExists(snap: { exists: boolean }): boolean {
   return !!snap.exists;
 }
 
