@@ -1,5 +1,5 @@
 /**
- * ORBIT — Inbox Tab (inbox.tsx)
+ * CROWN — Inbox Tab (inbox.tsx)
  *
  * Upgraded from mock → live Firestore.
  *
@@ -64,7 +64,7 @@ type ChatVM = {
 
 /* ─── Helpers ───────────────────────────────────────────────────────── */
 
-function fmtTime(ts: any): string {
+function fmtTime(ts: { toDate(): Date } | null | undefined): string {
   if (!ts) return '';
   const d: Date | null =
     typeof ts?.toDate === 'function' ? ts.toDate() :
