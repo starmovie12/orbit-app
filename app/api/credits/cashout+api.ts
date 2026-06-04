@@ -111,7 +111,7 @@ async function upsertContact(uid: string, name: string, phone: string): Promise<
   }
 
   const contact = await rzPost<{ id: string }>("/contacts", {
-    name:         name || "ORBIT User",
+    name:         name || "CROWN User",
     contact:      phone.startsWith("+91") ? phone.slice(3) : phone.replace(/^\+/, ""),
     type:         "employee",
     reference_id: uid,
@@ -150,7 +150,7 @@ async function createPayout(args: {
     purpose:               "payout",
     queue_if_low_balance:  true,
     reference_id:          args.requestId,         // idempotency key
-    narration:             "ORBIT Credits Cashout",
+    narration:             "CROWN Credits Cashout",
   });
   return payout.id;
 }
@@ -429,7 +429,7 @@ export async function POST(request: Request): Promise<Response> {
 
     try {
       const phone = userData.phone ?? tokenPhone ?? "";
-      const name  = userData.displayName ?? "ORBIT User";
+      const name  = userData.displayName ?? "CROWN User";
 
       // a. Create / retrieve Contact
       razorpayContactId = await upsertContact(uid, name, phone);
@@ -453,7 +453,7 @@ export async function POST(request: Request): Promise<Response> {
         processedAt:       FieldValue.serverTimestamp(),
         processedAtMs:     Date.now(),
       });
-    } catch (payoutErr: any) {
+    } catch (payoutErr: unknown) {
       // Razorpay call failed — refund credits and mark request failed
       console.error("[cashout] Razorpay payout failed for", requestId, payoutErr?.message);
 
@@ -493,7 +493,7 @@ export async function POST(request: Request): Promise<Response> {
       status:           finalStatus,
       message:          `₹${amountInr} payout initiated. Funds reach ${upiId} within 24 hours.`,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[cashout] unhandled error:", err);
     return Response.json(
       { error: err?.message ?? "Internal server error" },
