@@ -1,5 +1,5 @@
 /**
- * ORBIT — Room Chat Screen (Firestore-wired)
+ * CROWN — Room Chat Screen (Firestore-wired)
  *
  * v2 changes from v1 (mock):
  *   • Room header reads from /rooms/{id} via subscribeRoom.
@@ -85,7 +85,7 @@ const BASE_MSGS: ChatMessage[] = [
    Helpers
 ───────────────────────────────────────────────────────────────────── */
 
-function tsToSeconds(ts: any): number {
+function tsToSeconds(ts: { seconds: number } | null | undefined): number {
   if (!ts) return 0;
   if (typeof ts?.toDate === "function") return Math.floor(ts.toDate().getTime() / 1000);
   if (ts instanceof Date) return Math.floor(ts.getTime() / 1000);
@@ -93,7 +93,7 @@ function tsToSeconds(ts: any): number {
   return 0;
 }
 
-function fmtHHMM(ts: any): string {
+function fmtHHMM(ts: { toDate(): Date } | null | undefined): string {
   if (!ts) return "";
   const d: Date | null =
     typeof ts?.toDate === "function" ? ts.toDate() :
@@ -276,7 +276,7 @@ export default function RoomChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const listRef = useRef<FlatList<any>>(null);
+  const listRef = useRef<FlatList<ChatMessage>>(null);
 
   const { firebaseUser, user } = useAuth();
   const myUid = firebaseUser?.uid ?? FALLBACK_UID;
