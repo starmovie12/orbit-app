@@ -1,5 +1,5 @@
 /**
- * ORBIT — Admin Dashboard (app/admin/index.tsx)
+ * CROWN — Admin Dashboard (app/admin/index.tsx)
  *
  * Features:
  *   • Strict admin role check via Firebase custom claim `role: "admin"`
@@ -86,11 +86,12 @@ type CreditAuditEntry = {
    Helpers
 ───────────────────────────────────────────────────────────────────── */
 
-function snapExists(s: any): boolean {
-  return typeof s.exists === 'function' ? s.exists() : !!s.exists;
+function snapExists(s: { exists: boolean }): boolean {
+  // @react-native-firebase: .exists is boolean property
+  return !!s.exists;
 }
 
-function fmtTs(ts: any): string {
+function fmtTs(ts: { toDate(): Date } | null | undefined): string {
   if (!ts) return '—';
   const d: Date = ts.toDate ? ts.toDate() : new Date(ts);
   const diff = Date.now() - d.getTime();
@@ -227,7 +228,7 @@ export default function AdminDashboard() {
           };
         })
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[Admin] loadData error:', err);
       Alert.alert('Error', err?.message ?? 'Failed to load admin data.');
     } finally {
@@ -262,7 +263,7 @@ export default function AdminDashboard() {
                 await db.collection('bannedUsers').doc(item.id).delete();
               }
               loadData();
-            } catch (e: any) {
+            } catch (e: unknown) {
               Alert.alert('Error', e?.message ?? 'Unban failed.');
             }
           },
@@ -450,7 +451,7 @@ export default function AdminDashboard() {
 function StatCard({
   icon, label, value, tint, onPress,
 }: {
-  icon: any; label: string; value: string; tint: string; onPress?: () => void;
+  icon: React.ComponentProps<typeof Feather>['name']; label: string; value: string; tint: string; onPress?: () => void;
 }) {
   const Wrapper = onPress ? TouchableOpacity : View;
   return (
@@ -471,7 +472,7 @@ function StatCard({
 function ActionBtn({
   icon, label, onPress, tint,
 }: {
-  icon: any; label: string; onPress: () => void; tint: string;
+  icon: React.ComponentProps<typeof Feather>['name']; label: string; onPress: () => void; tint: string;
 }) {
   return (
     <TouchableOpacity style={styles.actionBtn} onPress={onPress} activeOpacity={0.75}>
