@@ -300,7 +300,7 @@ export async function POST(request: Request): Promise<Response> {
     let moderationResult: OpenAIModerationResult;
     try {
       moderationResult = await callOpenAIModeration(text);
-    } catch (modErr: any) {
+    } catch (modErr: unknown) {
       console.error("[moderation/flag] OpenAI API error:", modErr?.message);
       return Response.json(
         { error: "Moderation service unavailable. Please try again." },
@@ -375,7 +375,7 @@ export async function POST(request: Request): Promise<Response> {
             hiddenAt:     FieldValue.serverTimestamp(),
           });
         }
-      } catch (hideErr: any) {
+      } catch (hideErr: unknown) {
         // Non-fatal — content may not exist or we may lack the field path
         console.warn("[moderation/flag] auto-hide write failed:", hideErr?.message);
       }
@@ -396,7 +396,7 @@ export async function POST(request: Request): Promise<Response> {
       adminQueueId,
       remaining:    rl.remaining,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[moderation/flag] Unhandled error:", err?.message ?? err);
     return Response.json(
       { error: err?.message ?? "Internal server error" },
