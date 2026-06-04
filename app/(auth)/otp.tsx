@@ -20,7 +20,7 @@ import { authErrorMessage, confirmOtp } from "@/lib/auth";
 
 declare global {
   // eslint-disable-next-line no-var
-  var __orbitOtp: { handle: any; phone: string } | undefined;
+  var __orbitOtp: { handle: unknown; phone: string } | undefined;
 }
 
 const FIREBASE_WEB_CONFIG = {
@@ -32,9 +32,9 @@ const FIREBASE_WEB_CONFIG = {
   appId: "1:250454225022:android:44b3e0a7ac0268cfe6a82f",
 };
 
-let webVerifierRef: any = null;
+let webVerifierRef: unknown = null;
 
-async function sendOtpWeb(phoneE164: string): Promise<any> {
+async function sendOtpWeb(phoneE164: string): Promise<unknown> {
   const { initializeApp, getApps, getApp } = await import("firebase/app");
   const { getAuth, RecaptchaVerifier, signInWithPhoneNumber } = await import(
     "firebase/auth"
@@ -63,7 +63,7 @@ async function sendOtpWeb(phoneE164: string): Promise<any> {
  * On native we use @react-native-firebase/auth which handles SafetyNet /
  * App Attest reCAPTCHA at the SDK level — no ApplicationVerifier needed.
  */
-async function sendOtpNative(phoneE164: string): Promise<any> {
+async function sendOtpNative(phoneE164: string): Promise<unknown> {
   const rnAuth = (await import("@react-native-firebase/auth")).default;
   return rnAuth().signInWithPhoneNumber(phoneE164);
 }
@@ -151,7 +151,7 @@ export default function OtpScreen() {
       await confirmOtp(handle, value);
       globalThis.__orbitOtp = undefined;
       // AuthContext's onAuthStateChanged will fire and handle routing automatically
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("OTP Error: ", e);
       Alert.alert("Verification failed", authErrorMessage(e));
       triggerShake();
@@ -180,7 +180,7 @@ export default function OtpScreen() {
       globalThis.__orbitOtp = { handle, phone };
       setCooldown(RESEND_SECONDS);
       Alert.alert("OTP Sent", "Naya OTP bhej diya gaya hai.");
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("Resend Error: ", e);
       Alert.alert("Couldn't resend", authErrorMessage(e));
       if (Platform.OS === "web" && webVerifierRef) {
