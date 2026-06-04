@@ -1,6 +1,6 @@
 /**
  * app/_layout.tsx
- * CROWD WORLD — Root Layout v4.1
+ * CROWN — Root Layout v4.1
  *
  * ─── Provider hierarchy (outer → inner) ──────────────────────────────────────
  * SafeAreaProvider          → device insets for all screens
