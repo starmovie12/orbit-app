@@ -103,7 +103,7 @@ const USERS      = 'users';
  *
  * Always use snapExists(snap) for any existence check inside this file.
  */
-function snapExists(snap: any): boolean {
+function snapExists(snap: { exists: boolean }): boolean {
   return !!snap.exists;
 }
 
