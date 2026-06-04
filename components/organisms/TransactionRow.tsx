@@ -189,7 +189,7 @@ const STATUS_MAP: Record<CWTransactionStatus, StatusDisplay> = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface TransactionRowProps {
-  /** Fully-typed CROWD WORLD transaction — deserialized from Firestore. */
+  /** Fully-typed CROWN transaction — deserialized from Firestore. */
   tx: CWTransaction;
 }
 
