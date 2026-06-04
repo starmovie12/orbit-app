@@ -240,7 +240,7 @@ const PUSHER_CLUSTER = (process.env.EXPO_PUBLIC_PUSHER_CLUSTER as string) ?? "ap
 
 type PusherChannelStub = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- third-party channel signature
-  bind:       (event: string, cb: (...args: any[]) => void) => void;
+  bind:       (event: string, cb: (...args: unknown[]) => void) => void;
   unbind_all: () => void;
   members:    { count: number; each: (cb: unknown) => void };
 };
@@ -280,8 +280,9 @@ function buildPusherClient(_uid: string, _username: string): PusherClientStub {
  * [AUD-07] Boolean property — NEVER call .exists() as a function.
  * Web SDK uses a getter; RN SDK uses a boolean property.
  */
-function snapExists(s: { exists: boolean | (() => boolean) }): boolean {
-  return typeof s.exists === "function" ? s.exists() : !!s.exists;
+function snapExists(s: { exists: boolean }): boolean {
+  // @react-native-firebase: .exists is boolean property
+  return !!s.exists;
 }
 
 const MOOD_ROOMS_COL      = "moodRooms" as const;
