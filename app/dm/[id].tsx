@@ -1,5 +1,5 @@
 /**
- * ORBIT — DM Chat Screen (1:1) v2
+ * CROWN — DM Chat Screen (1:1) v2
  *
  * Route: /dm/[id]  where id = deterministic threadId from firestore-dms.ts
  *
@@ -83,7 +83,7 @@ const WAVE_HEIGHTS = [5, 10, 7, 14, 9, 17, 7, 13, 9, 15, 7, 11, 5, 13, 9, 17, 7,
    Helpers
 ───────────────────────────────────────────────────────────────────── */
 
-function tsToSeconds(ts: any): number {
+function tsToSeconds(ts: { seconds: number } | null | undefined): number {
   if (!ts) return 0;
   if (typeof ts?.toDate === "function") return Math.floor(ts.toDate().getTime() / 1000);
   if (ts instanceof Date) return Math.floor(ts.getTime() / 1000);
@@ -91,7 +91,7 @@ function tsToSeconds(ts: any): number {
   return 0;
 }
 
-function fmtHHMM(ts: any): string {
+function fmtHHMM(ts: { toDate(): Date } | null | undefined): string {
   if (!ts) return "";
   const d: Date | null =
     typeof ts?.toDate === "function" ? ts.toDate() :
@@ -413,7 +413,7 @@ export default function DMChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const listRef = useRef<FlatList<any>>(null);
+  const listRef = useRef<FlatList<ChatMessage>>(null);
 
   const { firebaseUser, user } = useAuth();
   const myUid = firebaseUser?.uid ?? "";
