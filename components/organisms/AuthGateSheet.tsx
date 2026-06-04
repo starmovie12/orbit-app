@@ -1,7 +1,7 @@
 /**
  * components/organisms/AuthGateSheet.tsx
  *
- * CROWD WORLD — Auth Gate Bottom Sheet
+ * CROWN — Auth Gate Bottom Sheet
  * Blueprint v5.0 BAAP EDITION · § 20 · Production Ready
  *
  * ── WHAT THIS IS ─────────────────────────────────────────────────────────────
