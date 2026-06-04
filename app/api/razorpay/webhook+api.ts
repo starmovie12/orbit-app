@@ -18,7 +18,7 @@
  *     → Write a creditTxn audit record under /users/{uid}/creditTxns/{txnId}.
  *
  *   subscription.activated
- *     → Upgrade the user to the ORBIT Pro tier.
+ *     → Upgrade the user to the CROWN Pro tier.
  *     → Set isPro, proSince, proUntil (+30 days), proSubscriptionId.
  *     → Grant 500 welcome credits atomically.
  *     → Write a proTxn record under /users/{uid}/proTxns/{txnId}.
@@ -350,7 +350,7 @@ export async function POST(request: Request): Promise<Response> {
         console.info(`[webhook] Unhandled event type "${eventType}" — acknowledged.`);
         break;
     }
-  } catch (handlerErr: any) {
+  } catch (handlerErr: unknown) {
     // Log the error but still return 200 so Razorpay does not keep retrying.
     // Persistent failures should be investigated via server logs / Sentry.
     console.error(`[webhook] Handler error for event "${eventType}":`, handlerErr?.message ?? handlerErr);
