@@ -291,7 +291,7 @@ export async function POST(request: Request): Promise<Response> {
   // ── 5. Check & increment daily quota (100/day per user) ───────────────────
   try {
     await checkAndIncrementQuota(uid);
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err?.code === "QUOTA_EXCEEDED") {
       return json<ErrorResponse>(
         {
