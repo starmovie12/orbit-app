@@ -1,13 +1,13 @@
 /**
  * components/organisms/FloatingGlassIsland.tsx
  *
- * CROWD WORLD — Floating Glass Island Navigation Bar
+ * CROWN — Floating Glass Island Navigation Bar
  * Blueprint v5.0 BAAP EDITION · LAW 13 + Rule 03 + Rule 04 COMPLIANT
  * Production Fix: Gold Rim absolute positioning (v5.0.1 — pixel-perfect hairline)
  *
  * ── WHAT THIS IS ─────────────────────────────────────────────────────────────
  *
- * The primary navigation surface of CROWD WORLD — a 280×56px dark glass pill
+ * The primary navigation surface of CROWN — a 280×56px dark glass pill
  * floating 16px above the device safe-area-bottom with backdrop blur, gold rim
  * hairline, and a warm drop shadow. Appears on every authenticated screen.
  *
