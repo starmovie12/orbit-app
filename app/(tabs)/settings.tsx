@@ -1,5 +1,5 @@
 /**
- * ORBIT — Settings Screen (v2 — wired to auth)
+ * CROWN — Settings Screen (v2 — wired to auth)
  *
  * Changes from v1:
  *   • Log Out row calls signOut() from AuthContext.
@@ -27,7 +27,7 @@ import { orbit } from '@/constants/colors';
 import { useAuth } from '@/contexts/AuthContext';
 
 type SettingRow = {
-  icon: any;
+  icon: React.ComponentProps<typeof Ionicons>['name'];
   label: string;
   hint?: string;
   danger?: boolean;
@@ -86,7 +86,7 @@ export default function SettingsScreen() {
           onPress: () => {
             Alert.alert(
               'Contact Support',
-              'Account delete karne ke liye email karo: support@orbitapp.in'
+              'Account delete karne ke liye email karo: support@crownapp.in'
             );
           },
         },
@@ -97,7 +97,7 @@ export default function SettingsScreen() {
   const handleContactSupport = () => {
     Alert.alert(
       'Contact Support',
-      'Kisi bhi issue ke liye humse sampark karo:\n\n📧 support@orbitapp.in\n\nHum 24–48 ghante mein jawab dete hain.',
+      'Kisi bhi issue ke liye humse sampark karo:\n\n📧 support@crownapp.in\n\nHum 24–48 ghante mein jawab dete hain.',
       [{ text: 'OK' }]
     );
   };
