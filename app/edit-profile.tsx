@@ -1,5 +1,5 @@
 /**
- * ORBIT — Edit Profile Screen (NEW)
+ * CROWN — Edit Profile Screen (NEW)
  *
  * Route: /edit-profile
  * Access: Profile tab → Edit Profile row / Settings → Edit Profile
@@ -104,7 +104,7 @@ export default function EditProfileScreen() {
         color,
       });
       router.back();
-    } catch (e: any) {
+    } catch (e: unknown) {
       Alert.alert('Save failed', e?.message ?? 'Kuch issue hai. Dobara try karo.');
     } finally {
       setSaving(false);
