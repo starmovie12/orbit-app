@@ -1,5 +1,5 @@
 /**
- * ORBIT — Cashout to UPI Screen (app/credits/cashout.tsx)
+ * CROWN — Cashout to UPI Screen (app/credits/cashout.tsx)
  *
  * Blueprint §08 — Cashout rules:
  *   500 credits = ₹50 UPI (via Razorpay Payout)
@@ -46,7 +46,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { firestore, serverTimestamp } from "@/lib/firebase";
 
 // Cross-platform Firestore .exists helper (web compat vs native SDK)
-function snapExists(s: any): boolean { return typeof s.exists === 'function' ? s.exists() : !!s.exists; }
+function snapExists(s: { exists: boolean }): boolean { // @react-native-firebase: .exists is boolean property
+  return !!s.exists; }
 
 /* ─────────────────────────────────────────────────────────────────────
    Config — replace with your real Cloud Function URL
@@ -371,7 +372,7 @@ export default function CashoutScreen() {
       setFinalInr(amountInr);
       setFinalUpi(upi);
       setStatus(reqStatus as CashoutStatus);
-    } catch (e: any) {
+    } catch (e: unknown) {
       setStatus("idle");
       Alert.alert("Cashout Failed", e?.message ?? "Please try again.");
     }
