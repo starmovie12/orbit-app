@@ -1,5 +1,5 @@
 /**
- * ORBIT — Bazaar Tab (bazaar.tsx)
+ * CROWN — Bazaar Tab (bazaar.tsx)
  *
  * Upgraded: mock BAZAAR_GIGS → live Firestore /bazaar collection.
  *
@@ -577,7 +577,7 @@ export default function BazaarScreen() {
       });
       setCreateVisible(false);
       Alert.alert('Posted!', 'Tera gig live ho gaya Bazaar mein.');
-    } catch (err: any) {
+    } catch (err: unknown) {
       Alert.alert('Error', err?.message ?? 'Kuch gadbad ho gayi. Dobara try karo.');
     } finally {
       setSubmitting(false);
