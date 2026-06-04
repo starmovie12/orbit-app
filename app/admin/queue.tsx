@@ -1,5 +1,5 @@
 /**
- * ORBIT — Moderation Queue (app/admin/queue.tsx)
+ * CROWN — Moderation Queue (app/admin/queue.tsx)
  *
  * Features:
  *   • Admin role gate (same Firebase custom claim check as /admin/index)
@@ -86,7 +86,7 @@ type QueueItem = {
   content:   QueueContent;
   scores:    Partial<ModScores>;
   topScore:  number;         // highest individual category score
-  createdAt: any;
+  createdAt: { toDate(): Date } | null;
 };
 
 type ActionType = 'approve' | 'reject' | 'ban';
@@ -95,11 +95,12 @@ type ActionType = 'approve' | 'reject' | 'ban';
    Helpers
 ───────────────────────────────────────────────────────────────────── */
 
-function snapExists(s: any): boolean {
-  return typeof s.exists === 'function' ? s.exists() : !!s.exists;
+function snapExists(s: { exists: boolean }): boolean {
+  // @react-native-firebase: .exists is boolean property
+  return !!s.exists;
 }
 
-function fmtTs(ts: any): string {
+function fmtTs(ts: { toDate(): Date } | null | undefined): string {
   if (!ts) return '—';
   const d: Date = ts.toDate ? ts.toDate() : new Date(ts);
   const diff = Date.now() - d.getTime();
@@ -121,7 +122,7 @@ function deriveSeverity(topScore: number): Severity {
   return 'low';
 }
 
-function buildItem(id: string, data: any): QueueItem {
+function buildItem(id: string, data: Record<string, unknown>): QueueItem {
   const scores  = data.scores ?? {};
   const topScore = deriveTopScore(scores);
   return {
@@ -264,7 +265,7 @@ export default function ModerationQueue() {
       } else {
         setItems(snap.docs.map((d) => buildItem(d.id, d.data())));
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.warn('[ModerationQueue] Firestore unavailable, using mock data:', err?.message);
       setItems(MOCK_ITEMS);
     } finally {
@@ -364,7 +365,7 @@ export default function ModerationQueue() {
       // Optimistic remove from local list
       setItems((prev) => prev.filter((i) => i.id !== item.id));
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       Alert.alert('Action failed', err?.message ?? 'Please try again.');
     } finally {
       setActing((prev) => { const n = { ...prev }; delete n[item.id]; return n; });
@@ -631,7 +632,7 @@ function QueueCard({
 function ActionButton({
   icon, label, color, bg, onPress, onPressIn, onPressOut,
 }: {
-  icon: any; label: string; color: string; bg: string;
+  icon: React.ComponentProps<typeof Feather>['name']; label: string; color: string; bg: string;
   onPress: () => void; onPressIn: () => void; onPressOut: () => void;
 }) {
   return (
