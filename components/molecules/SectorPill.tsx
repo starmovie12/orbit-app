@@ -1,6 +1,6 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  CROWD WORLD — components/molecules/SectorPill.tsx                      ║
+ * ║  CROWN — components/molecules/SectorPill.tsx                      ║
  * ║  Molecule · P0 · Blueprint v5.0                                         ║
  * ║                                                                          ║
  * ║  Purpose:                                                                ║
