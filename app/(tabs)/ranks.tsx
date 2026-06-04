@@ -1,5 +1,5 @@
 /**
- * ORBIT — Ranks Tab (ranks.tsx)
+ * CROWN — Ranks Tab (ranks.tsx)
  *
  * Upgraded: mock RANKS_DATA → live Firestore /users collection.
  *
@@ -22,6 +22,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
+  ViewToken,
   Text,
   FlatList,
   TouchableOpacity,
@@ -300,9 +301,9 @@ export default function RanksScreen() {
 
   /* ── Viewability (for sticky YOU pill) ── */
   const handleViewableItemsChanged = useRef(
-    ({ viewableItems }: any) => {
+    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
       const visible = viewableItems.some(
-        (v: any) => v?.item?.id === (myUid ?? sortedLeaders[myIndex]?.id)
+        (v: ViewToken) => v?.item?.id === (myUid ?? sortedLeaders[myIndex]?.id)
       );
       setMyRowVisible(visible);
     }
