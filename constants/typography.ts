@@ -47,12 +47,6 @@
 import { TextStyle as RNTextStyle } from "react-native";
 import { useFonts as useExpoFonts } from "expo-font";
 
-// ── Syne font files (local — bundled in assets/fonts/) ──────────────────────
-const Syne_800ExtraBold = require('../assets/fonts/Syne_800ExtraBold.ttf');
-const Syne_700Bold      = require('../assets/fonts/Syne_700Bold.ttf');
-const Syne_600SemiBold  = require('../assets/fonts/Syne_600SemiBold.ttf');
-const Syne_400Regular   = require('../assets/fonts/Syne_400Regular.ttf');
-
 // ── Inter imports (body · UI · chat messages) ────────────────────────────────
 import {
   Inter_400Regular,
@@ -60,10 +54,6 @@ import {
   Inter_600SemiBold,
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
-
-// ── Space Mono font files (local — bundled in assets/fonts/) ─────────────────
-const SpaceMono_400Regular = require('../assets/fonts/SpaceMono_400Regular.ttf');
-const SpaceMono_700Bold    = require('../assets/fonts/SpaceMono_700Bold.ttf');
 
 // ── Cormorant Garamond imports (profile bio · quotes · decorative text) ───────
 // PRD §1.4.3: "Profile bio, quotes, decorative text → Cormorant Garamond 500/600 · 18/16px"
@@ -1631,11 +1621,11 @@ export type NamedScaleKey = keyof typeof scale;
 
 export function useCrowdFonts() {
   return useExpoFonts({
-    // ── Syne (headings · wordmark · display) ─────────────────────────────
-    Syne_800ExtraBold,
-    Syne_700Bold,
-    Syne_600SemiBold,
-    Syne_400Regular,
+    // ── Syne (headings · wordmark · display) — Google Fonts CDN ──────────
+    Syne_800ExtraBold: 'https://fonts.gstatic.com/s/syne/v22/8vIS7w4qzmVxsWxjBZRjr0FKM_24vj6kR47NCV5Z.ttf',
+    Syne_700Bold:      'https://fonts.gstatic.com/s/syne/v22/8vIS7w4qzmVxsWxjBZRjr0FKM_3fvj6kR47NCV5Z.ttf',
+    Syne_600SemiBold:  'https://fonts.gstatic.com/s/syne/v22/8vIS7w4qzmVxsWxjBZRjr0FKM_3mvj6kR47NCV5Z.ttf',
+    Syne_400Regular:   'https://fonts.gstatic.com/s/syne/v22/8vIS7w4qzmVxsWxjBZRjr0FKM_04uT6kR47NCV5Z.ttf',
 
     // ── Inter (body · UI · chat messages) ────────────────────────────────
     Inter_400Regular,
@@ -1643,12 +1633,11 @@ export function useCrowdFonts() {
     Inter_600SemiBold,
     Inter_700Bold,
 
-    // ── Space Mono (credits · ranks · timers · scores) ───────────────────
-    SpaceMono_400Regular,
-    SpaceMono_700Bold,
+    // ── Space Mono (credits · ranks · timers · scores) — Google Fonts CDN ─
+    SpaceMono_400Regular: 'https://fonts.gstatic.com/s/spacemono/v15/i7dPIFZifjKcF5UAWdDRUEZ2RFq7AwU.ttf',
+    SpaceMono_700Bold:    'https://fonts.gstatic.com/s/spacemono/v15/i7dMIFZifjKcF5UAWdDRaPpZYFKQHwyVd3U.ttf',
 
     // ── Cormorant Garamond (profile bio · quotes · decorative text) ───────
-    // PRD §1.4.3: bio, quotes, decorative text
     CormorantGaramond_400Regular,
     CormorantGaramond_500Medium,
     CormorantGaramond_600SemiBold,
