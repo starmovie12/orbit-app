@@ -47,13 +47,11 @@
 import { TextStyle as RNTextStyle } from "react-native";
 import { useFonts as useExpoFonts } from "expo-font";
 
-// ── Syne imports (headings · wordmark · display) ────────────────────────────
-import {
-  Syne_800ExtraBold,
-  Syne_700Bold,
-  Syne_600SemiBold,
-  Syne_400Regular,
-} from '@expo-google-fonts/syne';
+// ── Syne font files (local — bundled in assets/fonts/) ──────────────────────
+const Syne_800ExtraBold = require('../assets/fonts/Syne_800ExtraBold.ttf');
+const Syne_700Bold      = require('../assets/fonts/Syne_700Bold.ttf');
+const Syne_600SemiBold  = require('../assets/fonts/Syne_600SemiBold.ttf');
+const Syne_400Regular   = require('../assets/fonts/Syne_400Regular.ttf');
 
 // ── Inter imports (body · UI · chat messages) ────────────────────────────────
 import {
@@ -63,11 +61,9 @@ import {
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
 
-// ── Space Mono imports (credits · ranks · timers · scores) ───────────────────
-import {
-  SpaceMono_400Regular,
-  SpaceMono_700Bold,
-} from '@expo-google-fonts/space-mono';
+// ── Space Mono font files (local — bundled in assets/fonts/) ─────────────────
+const SpaceMono_400Regular = require('../assets/fonts/SpaceMono_400Regular.ttf');
+const SpaceMono_700Bold    = require('../assets/fonts/SpaceMono_700Bold.ttf');
 
 // ── Cormorant Garamond imports (profile bio · quotes · decorative text) ───────
 // PRD §1.4.3: "Profile bio, quotes, decorative text → Cormorant Garamond 500/600 · 18/16px"
