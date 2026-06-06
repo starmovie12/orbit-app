@@ -1,23 +1,23 @@
 /**
- * components/organisms/CountryPickerSheet.tsx â€” v5.0
+ * components/organisms/CountryPickerSheet.tsx — v5.0
  *
- * CROWN â€” Country Selection Bottom Sheet
+ * CROWN — Country Selection Bottom Sheet
  * "The gateway to the world. Clean. Fast. Global."
  *
- * â”€â”€ v5.0 CHANGELOG (Real Gorhom Integration) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+ * ── v5.0 CHANGELOG (Real Gorhom Integration) ─────────────────────────────────
  *
  *  Root Cause Fix: The previous "v4.0" file shipped a hand-rolled Modal +
  *  PanResponder BottomSheet in place of the real @gorhom/bottom-sheet library.
  *  Because both the PanResponder and FlatList ran on the JS thread, gesture
  *  arbitration (sheet-pan vs. inner-list-scroll) had an unavoidable one-frame
- *  delay on every gesture â€” the "sticky first frame" problem. This release
+ *  delay on every gesture — the "sticky first frame" problem. This release
  *  deletes that shim entirely and wires up the real library.
  *
  *  [v5-ARCH-01] Deleted the 314-line local BottomSheet / BottomSheetView /
  *               BottomSheetFlatList / BottomSheetBackdrop shim. All four now
  *               come from @gorhom/bottom-sheet v5. Gesture arbitration
  *               (sheet-pan vs. list-scroll) now runs on the UI thread via
- *               Reanimated v3 shared-value worklets â€” zero JS involvement on
+ *               Reanimated v3 shared-value worklets — zero JS involvement on
  *               every scroll frame.
  *
  *  [v5-ARCH-02] Replaced plain <TextInput> with <BottomSheetTextInput>.
@@ -29,7 +29,7 @@
  *               (snapBack / close). Both called non-existent methods on the real
  *               BottomSheet ref and their close() call could fire redundantly.
  *               gorhom's enablePanDownToClose handles the full dismiss gesture
- *               natively â€” when the list is at offset 0 and the user pulls down,
+ *               natively — when the list is at offset 0 and the user pulls down,
  *               the sheet collapses / closes with proper velocity physics on the
  *               UI thread. onScroll / scrollEventThrottle / onScrollEndDrag props
  *               have been removed from BottomSheetFlatList accordingly.
@@ -43,10 +43,10 @@
  *
  *  [v5-ARCH-05] sheetRef is now typed as BottomSheet (the gorhom default export)
  *               instead of the removed local BottomSheetHandle interface.
- *               The imperative API used â€” snapToIndex(0|1) and close() â€” is
+ *               The imperative API used — snapToIndex(0|1) and close() — is
  *               identical to the real library.
  *
- * â”€â”€ PRESERVED FROM v4.0 (zero changes) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+ * ── PRESERVED FROM v4.0 (zero changes) ───────────────────────────────────────
  *
  *  All business logic: Firebase fetch, buildAlphaSections, buildSearchResults,
  *  precomputeLayouts, normalizeDiacritics, mapFSDoc, mapToRegion, computeHeat,
@@ -79,22 +79,22 @@
  *              StyleSheet.create blocks (sh, sk, skh, sec, hc, cr, ab, lo, rv,
  *              rp).
  *
- * â”€â”€ PREREQUISITES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
- *   @gorhom/bottom-sheet v5     â€” keyboardBehavior="fillParent" is v5-only
- *   react-native-reanimated v3  â€” Reanimated plugin in babel.config.js required
- *   react-native-gesture-handler v2 â€” GestureHandlerRootView at app root
+ * ── PREREQUISITES ─────────────────────────────────────────────────────────────
+ *   @gorhom/bottom-sheet v5     — keyboardBehavior="fillParent" is v5-only
+ *   react-native-reanimated v3  — Reanimated plugin in babel.config.js required
+ *   react-native-gesture-handler v2 — GestureHandlerRootView at app root
  *
- * â”€â”€ USAGE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+ * ── USAGE ─────────────────────────────────────────────────────────────────────
  *
  *   // Mount ALWAYS (not inside a conditional) for smooth gorhom behavior:
  *   <CountryPickerSheet
  *     visible={open}
  *     onClose={() => setOpen(false)}
  *     selected="IN"
- *     onSelect={(id, name, emoji) => { â€¦ }}
+ *     onSelect={(id, name, emoji) => { … }}
  *   />
  *
- * â”€â”€ FIREBASE CONFIG â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+ * ── FIREBASE CONFIG ───────────────────────────────────────────────────────────
  *   Adjust @/lib/firebase import path if your db lives elsewhere.
  *   ADD-09: dialCode requires a `dial_code` field in Firestore (e.g. "+91").
  *           If absent, dial-code search silently degrades to name+ISO matching.
@@ -132,9 +132,9 @@ import * as Haptics      from 'expo-haptics';
 import AsyncStorage      from '@react-native-async-storage/async-storage';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 
-// â”€â”€ @gorhom/bottom-sheet v5 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Gesture arbitration (sheet pan â†” list scroll) runs on the UI thread via
-// Reanimated v3 shared-value worklets â€” no JS-thread involvement per scroll frame.
+// ── @gorhom/bottom-sheet v5 ───────────────────────────────────────────────────
+// Gesture arbitration (sheet pan ↔ list scroll) runs on the UI thread via
+// Reanimated v3 shared-value worklets — no JS-thread involvement per scroll frame.
 import BottomSheet, {
   BottomSheetView,
   BottomSheetFlatList,
@@ -143,7 +143,7 @@ import BottomSheet, {
   type BottomSheetBackdropProps,
 } from '@gorhom/bottom-sheet';
 
-// â”€â”€ react-native-reanimated v3 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── react-native-reanimated v3 ────────────────────────────────────────────────
 // Used for: HeroCard stagger entry, LetterOverlay spring, SwitchingOverlay fade
 import ReAnimated, {
   useAnimatedStyle,
@@ -158,44 +158,44 @@ import { db }                    from '@/lib/firebase';
 import { palette }               from '@/constants/colors';
 import { FONT_BODY, FONT_HEADING } from '@/constants/typography';
 
-// â”€â”€â”€ Storage keys â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Storage keys ──────────────────────────────────────────────────────────────
 const CW_COUNTRY_KEY  = '@cw/country_id'           as const;
 const CW_RECENTS_KEY  = '@cw/recent_countries_v3'  as const;
 const MAX_RECENTS     = 3                           as const;
 const TRENDING_COUNT  = 5                           as const;
 const MAX_RETRIES     = 3                           as const;
 
-// â”€â”€â”€ Country cache (AsyncStorage) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Country cache (AsyncStorage) ─────────────────────────────────────────────
 const COUNTRIES_CACHE_KEY = '@cw/countries_v2'     as const;
 const COUNTRIES_CACHE_TTL = 6 * 60 * 60 * 1000    as const;
 
-// â”€â”€â”€ Layout constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Layout constants ──────────────────────────────────────────────────────────
 const L = {
-  rowH:         68,
+  rowH:         74,
   sectionH:     34,
   divH:          1,
   rowPadH:      16,
-  flagBox:      44,
-  flagRadius:   12,
-  flagEmoji:    26,
-  heroW:       142,
-  heroH:        98,
-  heroR:        18,
+  flagBox:      48,
+  flagRadius:   14,
+  flagEmoji:    30,
+  heroW:       154,
+  heroH:       116,
+  heroR:        20,
   heatW:        48,
   heatH:         4,
   heatR:         2,
-  searchH:      48,
-  handleW:      40,
-  handleH:       4,
+  searchH:      52,
+  handleW:      44,
+  handleH:       5,
   closeBtn:     44,
   shimmerRows:   7,
   shimmerDur:  1200,
-  pillH:        32,
+  pillH:        34,
   // [v4-ARCH-06] Expanded pill row height = pillH + vertical padding (9*2)
-  pillRowH:     50,
+  pillRowH:     52,
   alphaItemH:   18,
   alphaBarW:    22,
-  // [CODE-01] Scroll-hide & close-gesture thresholds â€” replaces inline magic numbers
+  // [CODE-01] Scroll-hide & close-gesture thresholds — replaces inline magic numbers
   scrollHideThreshold:  60,
   scrollDeltaHide:       8,
   scrollDeltaShow:       5,
@@ -203,9 +203,9 @@ const L = {
   closeVelocityAndroid: -0.5,
 } as const;
 
-// â”€â”€â”€ Design token aliases â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Design token aliases ──────────────────────────────────────────────────────
 const T = {
-  sheetBg:       palette.cream[50],
+  sheetBg:       '#FFFFFF',
   text:          palette.ink[950],
   textSecondary: palette.ink[600],
   textTertiary:  palette.ink[400],
@@ -223,23 +223,23 @@ const T = {
   amber:         palette.amber[600],
 } as const;
 
-// â”€â”€â”€ Derived overlay values â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Derived overlay values ────────────────────────────────────────────────────
 const DV = {
   activeRowBg:    'rgba(212,160,23,0.09)' as const,
   activeRowBorder:'rgba(212,160,23,0.24)' as const,
-  sectionBg:      'rgba(250,250,250,0.97)'as const,
-  switchOverlay:  'rgba(250,250,250,0.93)'as const,
+  sectionBg:      'rgba(255,255,255,0.97)'as const,
+  switchOverlay:  'rgba(255,255,255,0.93)'as const,
   regionBlue:     'rgba(59,130,246,1)'   as const,
   regionPurple:   'rgba(139,92,246,1)'   as const,
   regionRed:      'rgba(220,38,38,1)'    as const,
 } as const;
 
-// â”€â”€â”€ Haptic helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Haptic helpers ────────────────────────────────────────────────────────────
 const hapticLight  = (): Promise<void> => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 const hapticMedium = (): Promise<void> => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 const hapticSelect = (): Promise<void> => Haptics.selectionAsync();
 
-// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Types ─────────────────────────────────────────────────────────────────────
 type Region = 'Asia' | 'Americas' | 'Africa' | 'Europe' | 'Oceania' | 'Middle East';
 type RegionFilter = 'All' | Region;
 
@@ -263,6 +263,17 @@ export interface CountryPickerSheetProps {
   onClose:  () => void;
   selected: string;
   onSelect: (countryId: string, name: string, emoji: string) => void;
+  /**
+   * [BOTTOM-NAV] Optional: fires with gorhom snap index on every sheet change.
+   * index === -1  → sheet fully closed  → show bottom nav
+   * index >= 0   → sheet open (55% or 92%) → hide bottom nav
+   *
+   * Usage in parent screen:
+   *   onSheetIndexChange={(i) =>
+   *     navigation.setOptions({ tabBarStyle: i === -1 ? undefined : { display: 'none' } })
+   *   }
+   */
+  onSheetIndexChange?: (index: number) => void;
 }
 
 // [TS-04] Exported so parent apps can type Firestore pre-fetches without copying this interface.
@@ -284,7 +295,7 @@ interface CountryCacheEntry {
   expiresAt: number;
 }
 
-// â”€â”€â”€ Region color system â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Region color system ───────────────────────────────────────────────────────
 const MIDDLE_EAST_ISO = new Set<string>([
   'AE','BH','IQ','IR','IL','JO','KW','LB','OM','PS','QA','SA','SY','YE',
 ]);
@@ -311,12 +322,12 @@ const REGION_FILTERS: RegionFilter[] = [
   'All','Asia','Europe','Americas','Africa','Oceania','Middle East',
 ];
 
-// â”€â”€â”€ Utility: diacritic normalization â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Utility: diacritic normalization ─────────────────────────────────────────
 function normalizeDiacritics(str: string): string {
   return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
 
-// â”€â”€â”€ Utility: Region mapping â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Utility: Region mapping ───────────────────────────────────────────────────
 function mapToRegion(continent: string, iso2: string): Region {
   if (MIDDLE_EAST_ISO.has(iso2)) return 'Middle East';
   switch (continent?.trim()) {
@@ -333,14 +344,14 @@ function mapToRegion(continent: string, iso2: string): Region {
     default:
       if (__DEV__ && continent?.trim()) {
         console.warn(
-          `[CountryPickerSheet] Unknown continent: "${continent}" for ${iso2} â€” defaulting to Asia`,
+          `[CountryPickerSheet] Unknown continent: "${continent}" for ${iso2} — defaulting to Asia`,
         );
       }
       return 'Asia';
   }
 }
 
-// â”€â”€â”€ Utility: Heat score â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Utility: Heat score ───────────────────────────────────────────────────────
 function computeHeat(n: number): number {
   if (n <= 0) return 0;
   return Math.min(100, Math.round((Math.log10(n + 1) / 5) * 100));
@@ -353,7 +364,7 @@ function heatColour(heat: number): string {
   return T.border;
 }
 
-// â”€â”€â”€ Utility: Indian short-count formatter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Utility: Indian short-count formatter ─────────────────────────────────────
 function fmtCount(n: number): string {
   if (n <= 0) return '0';
   if (n >= 10_000_000) {
@@ -368,14 +379,14 @@ function fmtCount(n: number): string {
   return n.toLocaleString('en-IN');
 }
 
-// â”€â”€â”€ Firestore mapper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Firestore mapper ──────────────────────────────────────────────────────────
 function mapFSDoc(docId: string, data: Partial<FSCountry>): CountryDoc {
   const iso2 = ((data.iso2 ?? docId) as string).toUpperCase();
   const onlineCount = Number(data.online_count ?? 0);
   return {
     id:          iso2,
     name:        data.name ?? iso2,
-    emoji:       data.flag ?? 'ðŸŒ',
+    emoji:       data.flag ?? '🌐',
     onlineCount,
     heat:        computeHeat(onlineCount),
     region:      mapToRegion(data.continent ?? '', iso2),
@@ -383,7 +394,7 @@ function mapFSDoc(docId: string, data: Partial<FSCountry>): CountryDoc {
   };
 }
 
-// â”€â”€â”€ [FEAT-06] One-time recents cache migration: v2 â†’ v3 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── [FEAT-06] One-time recents cache migration: v2 → v3 ──────────────────────
 // Users upgrading from the previous version would silently lose their recently-
 // visited list. Run once on mount; safe to call multiple times (guarded by v3 key).
 async function migrateRecentsCache(): Promise<void> {
@@ -400,7 +411,7 @@ async function migrateRecentsCache(): Promise<void> {
   } catch { /* non-critical */ }
 }
 
-// â”€â”€â”€ Firestore fetch â€” cache-first (AsyncStorage) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Firestore fetch — cache-first (AsyncStorage) ─────────────────────────────
 async function fetchCountries(bypassCache = false): Promise<[CountryDoc[], number]> {
   if (!bypassCache) {
     try {
@@ -411,7 +422,7 @@ async function fetchCountries(bypassCache = false): Promise<[CountryDoc[], numbe
           return [entry.data, entry.fetchedAt];
         }
       }
-    } catch { /* cache miss â€” fall through */ }
+    } catch { /* cache miss — fall through */ }
   }
 
   const snap = await getDocs(
@@ -424,7 +435,7 @@ async function fetchCountries(bypassCache = false): Promise<[CountryDoc[], numbe
       : a.name.localeCompare(b.name),
   );
 
-  // [CRIT-05] Jitter Â±30 min prevents thundering herd on TTL expiry
+  // [CRIT-05] Jitter ±30 min prevents thundering herd on TTL expiry
   const fetchedAt = Date.now();
   const jitterMs  = (Math.random() - 0.5) * 60 * 60 * 1000;
   const expiresAt = fetchedAt + COUNTRIES_CACHE_TTL + jitterMs;
@@ -436,7 +447,7 @@ async function fetchCountries(bypassCache = false): Promise<[CountryDoc[], numbe
   return [docs, fetchedAt];
 }
 
-// â”€â”€â”€ Build A-Z grouped flat-list data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Build A-Z grouped flat-list data ─────────────────────────────────────────
 // [HIGH-04] Takes a PRE-SORTED array (caller handles sort). No internal sort.
 function buildAlphaSections(sorted: CountryDoc[]): ListItem[] {
   const items: ListItem[] = [];
@@ -483,7 +494,7 @@ function precomputeLayouts(
   return out;
 }
 
-// â”€â”€â”€ [BUG-03] PulseContext â€” instance-safe, ref-counted pulse animation â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── [BUG-03] PulseContext — instance-safe, ref-counted pulse animation ────────
 // Module-level `_pulse` survived Fast Refresh, hot reloads, and test reruns.
 // Two CountryPickerSheet instances in a Navigator stack shared the same
 // Animated.Value, causing visual glitches and ref-count corruption in Concurrent Mode.
@@ -539,7 +550,7 @@ function usePulse(enabled: boolean): Animated.Value {
   return ctx?.anim ?? fallbackAnim;
 }
 
-// â”€â”€â”€ LiveDot â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── LiveDot ───────────────────────────────────────────────────────────────────
 const LiveDot = memo<{ size?: number; gold?: boolean; pulse?: boolean }>(
   ({ size = 7, gold = false, pulse = false }) => {
     const anim = usePulse(pulse);
@@ -558,7 +569,7 @@ const LiveDot = memo<{ size?: number; gold?: boolean; pulse?: boolean }>(
   },
 );
 
-// â”€â”€â”€ SkeletonRow â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── SkeletonRow ───────────────────────────────────────────────────────────────
 const SkeletonRow = memo<{ shimmer: Animated.Value }>(({ shimmer }) => {
   const opacity = shimmer.interpolate({ inputRange: [0, 1], outputRange: [0.3, 0.8] });
   return (
@@ -574,7 +585,7 @@ const SkeletonRow = memo<{ shimmer: Animated.Value }>(({ shimmer }) => {
 });
 
 const sk = StyleSheet.create({
-  row:   { flexDirection:'row', alignItems:'center', paddingHorizontal:L.rowPadH, height:L.rowH, gap:12 },
+  row:   { flexDirection:'row', alignItems:'center', paddingHorizontal:L.rowPadH, height:L.rowH, gap:14 },
   flag:  { width:L.flagBox, height:L.flagBox, borderRadius:L.flagRadius, backgroundColor:T.surfaceWell },
   body:  { flex:1, gap:8 },
   line1: { height:14, borderRadius:7, backgroundColor:T.surfaceWell, width:'60%' as const },
@@ -582,7 +593,7 @@ const sk = StyleSheet.create({
   heat:  { width:L.heatW, height:8, borderRadius:4, backgroundColor:T.surfaceWell },
 });
 
-// â”€â”€â”€ [ADD-10] SkeletonHeroCard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── [ADD-10] SkeletonHeroCard ─────────────────────────────────────────────────
 const SkeletonHeroCard = memo<{ shimmer: Animated.Value }>(({ shimmer }) => {
   const opacity = shimmer.interpolate({ inputRange: [0, 1], outputRange: [0.25, 0.75] });
   return (
@@ -605,8 +616,8 @@ const skh = StyleSheet.create({
     borderWidth:     1.5,
     borderColor:     T.border,
     backgroundColor: T.surfaceWell,
-    padding:         12,
-    gap:             6,
+    padding:         14,
+    gap:             8,
   },
   flag:         { width:28, height:28, borderRadius:8, backgroundColor:T.surfaceSunken },
   line1:        { height:14, borderRadius:7, width:'70%' as const, backgroundColor:T.surfaceSunken },
@@ -615,7 +626,7 @@ const skh = StyleSheet.create({
   heatBar:      { height:L.heatH, borderRadius:L.heatR, backgroundColor:T.surfaceSunken },
 });
 
-// â”€â”€â”€ SectionHeader â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── SectionHeader ─────────────────────────────────────────────────────────────
 const SectionHeader = memo<{ letter: string }>(({ letter }) => (
   <View style={sec.wrap} accessibilityRole="header">
     <Text
@@ -646,7 +657,7 @@ const sec = StyleSheet.create({
   },
 });
 
-// â”€â”€â”€ HeroCard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── HeroCard ──────────────────────────────────────────────────────────────────
 // [v4-FEAT-02] Added entryDelay + reducedMotion for stagger entry animation
 interface HeroCardProps {
   country:       CountryDoc;
@@ -675,7 +686,7 @@ const HeroCard = memo<HeroCardProps>(({
     Animated.spring(scale, { toValue:1.00, useNativeDriver:true, speed:40, bounciness:5 }).start(),
   [scale]);
 
-  // [v4-FEAT-02] Stagger entry â€” SlideInRight with springify per PRD spec.
+  // [v4-FEAT-02] Stagger entry — SlideInRight with springify per PRD spec.
   // Omitted when reducedMotion is true (cards appear instantly).
   const entering = useMemo(
     () => reducedMotion
@@ -712,10 +723,10 @@ const HeroCard = memo<HeroCardProps>(({
         </Text>
 
         <View style={hc.countRow}>
-          {/* [CRIT-04] pulse=false â€” getDocs is snapshot, not real-time */}
+          {/* [CRIT-04] pulse=false — getDocs is snapshot, not real-time */}
           <LiveDot size={5} gold={isSelected} pulse={false} />
           <Text style={[hc.count, isSelected && { color: accent }]}>
-            {country.onlineCount > 0 ? fmtCount(country.onlineCount) : 'â€”'}
+            {country.onlineCount > 0 ? fmtCount(country.onlineCount) : '\u2014'}
           </Text>
         </View>
 
@@ -751,8 +762,8 @@ const hc = StyleSheet.create({
     borderWidth:     1.5,
     borderColor:     T.border,
     backgroundColor: T.sheetBg,
-    padding:         12,
-    gap:             3,
+    padding:         14,
+    gap:             5,
     shadowColor:     T.text,
     shadowOpacity:   0.06,
     shadowRadius:    10,
@@ -763,15 +774,15 @@ const hc = StyleSheet.create({
   cardActive: { shadowOpacity:0.14, shadowRadius:18, elevation:5 },
   flag:       { fontSize:L.flagEmoji },
   name: {
-    fontSize:   13,
+    fontSize:   14,
     fontWeight: '700',
     color:      T.text,
     fontFamily: FONT_HEADING.semiBold,
     flexShrink: 1,
   },
-  countRow:    { flexDirection:'row', alignItems:'center', gap:4 },
+  countRow:    { flexDirection:'row', alignItems:'center', gap:5 },
   count: {
-    fontSize:   10,
+    fontSize:   11,
     fontWeight: '600',
     color:      T.textSecondary,
     fontFamily: FONT_BODY.semiBold,
@@ -786,13 +797,13 @@ const hc = StyleSheet.create({
   },
   heatFill:  { height:'100%', borderRadius:L.heatR },
   checkDot: {
-    position:'absolute', top:8, right:8,
-    width:18, height:18, borderRadius:9,
+    position:'absolute', top:9, right:9,
+    width:20, height:20, borderRadius:10,
     alignItems:'center', justifyContent:'center',
   },
 });
 
-// â”€â”€â”€ CountryRow â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── CountryRow ────────────────────────────────────────────────────────────────
 interface CountryRowProps {
   country:    CountryDoc;
   isSelected: boolean;
@@ -801,7 +812,7 @@ interface CountryRowProps {
 
 const CountryRow = memo<CountryRowProps>(({ country, isSelected, onPress }) => {
   const scale     = useRef(new Animated.Value(1)).current;
-  // [v4-FEAT-04] Background flash â€” gold tint overlay, 80ms total (40ms ramp-up + 40ms ramp-down).
+  // [v4-FEAT-04] Background flash — gold tint overlay, 80ms total (40ms ramp-up + 40ms ramp-down).
   // Confirms the tap instantly before the SwitchingOverlay appears (~160ms later).
   const flashAnim = useRef(new Animated.Value(0)).current;
   const regionBg  = REGION_FLAG_BG[country.region];
@@ -810,7 +821,7 @@ const CountryRow = memo<CountryRowProps>(({ country, isSelected, onPress }) => {
 
   const handlePress = useCallback(() => onPress(country), [onPress, country]);
   const onPressIn   = useCallback(() => {
-    // Scale press â€” 0.97 "press" confirm
+    // Scale press — 0.97 "press" confirm
     Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 60, bounciness: 0 }).start();
     // [v4-FEAT-04] 80ms background flash: ramp to gold tint in 40ms, ramp back in 40ms
     Animated.sequence([
@@ -892,8 +903,8 @@ const CountryRow = memo<CountryRowProps>(({ country, isSelected, onPress }) => {
           <Feather name="chevron-right" size={16} color={T.textTertiary} />
         )}
 
-        {/* [v4-FEAT-04] Background flash overlay â€” absolutely fills the row,
-            opacity driven by flashAnim (0â†’1â†’0 over 80ms on press).
+        {/* [v4-FEAT-04] Background flash overlay — absolutely fills the row,
+            opacity driven by flashAnim (0→1→0 over 80ms on press).
             pointerEvents="none" so it never intercepts touches. */}
         <Animated.View
           style={[
@@ -913,7 +924,7 @@ const cr = StyleSheet.create({
     alignItems:        'center',
     paddingHorizontal: L.rowPadH,
     height:            L.rowH,
-    gap:               12,
+    gap:               14,
     backgroundColor:   T.sheetBg,
   },
   rowActive:   { backgroundColor: DV.activeRowBg },
@@ -926,7 +937,7 @@ const cr = StyleSheet.create({
     flexShrink:     0,
   },
   flagEmoji: { fontSize: L.flagEmoji },
-  body:      { flex:1, gap:4 },
+  body:      { flex:1, gap:6 },
   nameRow:   { flexDirection:'row', alignItems:'center', gap:6 },
   name: {
     fontSize:   15,
@@ -944,7 +955,7 @@ const cr = StyleSheet.create({
     letterSpacing: 0.5,
     flexShrink:    0,
   },
-  meta:      { flexDirection:'row', alignItems:'center', gap:4 },
+  meta:      { flexDirection:'row', alignItems:'center', gap:6 },
   dotStatic: { width:5, height:5, borderRadius:2.5 },
   count: {
     fontSize:   11,
@@ -969,13 +980,13 @@ const cr = StyleSheet.create({
     fontFamily: FONT_BODY.semiBold,
   },
   checkCircle: {
-    width:26, height:26, borderRadius:13,
+    width:28, height:28, borderRadius:14,
     alignItems:'center', justifyContent:'center',
     flexShrink:0,
   },
 });
 
-// â”€â”€â”€ RowDivider â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── RowDivider ────────────────────────────────────────────────────────────────
 const RowDivider = memo(() => (
   <View
     style={{ height:L.divH, backgroundColor:T.borderSubtle, marginHorizontal:L.rowPadH }}
@@ -984,7 +995,7 @@ const RowDivider = memo(() => (
   />
 ));
 
-// â”€â”€â”€ RegionPill â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── RegionPill ────────────────────────────────────────────────────────────────
 interface RegionPillProps {
   label:   RegionFilter;
   active:  boolean;
@@ -994,7 +1005,7 @@ interface RegionPillProps {
 
 const RegionPill = memo<RegionPillProps>(({ label, active, count, onPress }) => {
   const handlePress = useCallback(() => onPress(label), [onPress, label]);
-  const displayText = count !== undefined ? `${label} Â· ${count}` : label;
+  const displayText = count !== undefined ? `${label} \u00B7 ${count}` : label;
 
   return (
     <Pressable
@@ -1012,7 +1023,7 @@ const RegionPill = memo<RegionPillProps>(({ label, active, count, onPress }) => 
 const rp = StyleSheet.create({
   pill: {
     height:            L.pillH,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     borderRadius:      L.pillH / 2,
     borderWidth:       1,
     borderColor:       T.border,
@@ -1021,11 +1032,11 @@ const rp = StyleSheet.create({
     backgroundColor:   T.sheetBg,
   },
   pillActive: { borderColor:T.gold, backgroundColor:T.goldSubtle },
-  text:       { fontSize:12, fontWeight:'600', color:T.textSecondary, fontFamily:FONT_BODY.semiBold },
+  text:       { fontSize:13, fontWeight:'600', color:T.textSecondary, fontFamily:FONT_BODY.semiBold },
   textActive: { color: T.gold },
 });
 
-// â”€â”€â”€ AlphabetSidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── AlphabetSidebar ──────────────────────────────────────────────────────────
 interface AlphabetSidebarProps {
   letters:        string[];
   onPress:        (letter: string) => void;
@@ -1046,7 +1057,7 @@ const AlphabetSidebar = memo<AlphabetSidebarProps>(
     useEffect(() => { onLetterChangeRef.current = onLetterChange; }, [onLetterChange]);
     useEffect(() => { lettersRef.current        = letters;        }, [letters]);
 
-    // [BUG-02] PanResponder is already imported at module scope â€” removed the
+    // [BUG-02] PanResponder is already imported at module scope — removed the
     // erroneous require() call that ran on every render and defeated tree-shaking.
     const hitLetter = useCallback((locationY: number) => {
       const ls = lettersRef.current;
@@ -1071,7 +1082,7 @@ const AlphabetSidebar = memo<AlphabetSidebarProps>(
     const panHandlers = useRef(
       PanResponder.create({
         onStartShouldSetPanResponder: () => true,
-        // [HIGH-06] Don't claim moves â€” lets BottomSheetFlatList scroll normally
+        // [HIGH-06] Don't claim moves — lets BottomSheetFlatList scroll normally
         onMoveShouldSetPanResponder:  () => false,
         onPanResponderGrant:   (e: GestureResponderEvent) => { lastIdxRef.current = -1; hitLetter(e.nativeEvent.locationY); },
         onPanResponderMove:    (e: GestureResponderEvent) => { hitLetter(e.nativeEvent.locationY); },
@@ -1141,7 +1152,7 @@ const ab = StyleSheet.create({
   letter: { fontSize:9, fontWeight:'700', color:T.gold, fontFamily:FONT_BODY.bold },
 });
 
-// â”€â”€â”€ [v4-FEAT-04] LetterOverlay â€” Spring enter, ease-out exit â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── [v4-FEAT-04] LetterOverlay — Spring enter, ease-out exit ─────────────────
 // Reanimated useSharedValue approach avoids re-mount jank during rapid pan.
 // Single mounted instance: animates in when letter becomes non-null, out when null.
 const LetterOverlay = memo<{ letter: string | null; reducedMotion?: boolean }>(
@@ -1223,7 +1234,7 @@ const lo = StyleSheet.create({
   },
 });
 
-// â”€â”€â”€ [HIGH-02 / ADD-01] RecentlyVisitedSection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── [HIGH-02 / ADD-01] RecentlyVisitedSection ────────────────────────────────
 interface RecentlyVisitedProps {
   countries: CountryDoc[];
   selected:  string;
@@ -1256,8 +1267,8 @@ const rv = StyleSheet.create({
     alignItems:       'center',
     gap:              6,
     marginHorizontal: L.rowPadH,
-    marginTop:        10,
-    marginBottom:     4,
+    marginTop:        12,
+    marginBottom:     6,
   },
   label: {
     fontSize:      11,
@@ -1274,7 +1285,7 @@ const rv = StyleSheet.create({
   },
 });
 
-// â”€â”€â”€ Main component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Main component ────────────────────────────────────────────────────────────
 type SheetState = 'loading' | 'idle' | 'switching';
 
 function CountryPickerSheetBase({
@@ -1282,13 +1293,14 @@ function CountryPickerSheetBase({
   onClose,
   selected,
   onSelect,
+  onSheetIndexChange,
 }: CountryPickerSheetProps) {
 
-  // [v5-ARCH-05] sheetRef is typed as BottomSheet â€” the gorhom default export.
+  // [v5-ARCH-05] sheetRef is typed as BottomSheet — the gorhom default export.
   // Imperative API: snapToIndex(0|1) and close() are identical to the real library.
   const sheetRef = useRef<BottomSheet>(null);
   // [v4-ADR-05] Two snap points: 55% comfortable peek (default open), 92% on search focus.
-  // Sheet opens at 55% â†’ user taps search â†’ auto-expands to 92% (max result viewport).
+  // Sheet opens at 55% → user taps search → auto-expands to 92% (max result viewport).
   // keyboardBlurBehavior="restore" returns it to 55% on keyboard dismiss.
   const snapPoints = useMemo(() => ['55%', '92%'], []);
 
@@ -1307,7 +1319,7 @@ function CountryPickerSheetBase({
   const [activeAlphaLetter, setActiveAlphaLetter] = useState<string | null>(null);
 
   const searchRef     = useRef<TextInput>(null);
-  // [v4-ARCH-02] listRef typed as FlatList â€” BottomSheetFlatList is FlatList-compatible
+  // [v4-ARCH-02] listRef typed as FlatList — BottomSheetFlatList is FlatList-compatible
   const listRef       = useRef<FlatList<ListItem>>(null);
   const fetchIdRef    = useRef(0);
   const isFetchingRef = useRef(false);
@@ -1326,10 +1338,10 @@ function CountryPickerSheetBase({
     return () => { isMountedRef.current = false; };
   }, []);
 
-  // â”€â”€ [FEAT-06] One-time v2â†’v3 recents migration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── [FEAT-06] One-time v2→v3 recents migration ───────────────────────────────
   useEffect(() => { void migrateRecentsCache(); }, []);
 
-  // â”€â”€ [v4-ARCH-01] Imperative open/close via sheetRef â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── [v4-ARCH-01] Imperative open/close via sheetRef ──────────────────────────
   useEffect(() => {
     if (visible) {
       void hapticLight(); // [UX-02] Subtle haptic matches iOS Share Sheet behaviour
@@ -1339,9 +1351,9 @@ function CountryPickerSheetBase({
     }
   }, [visible]);
 
-  // â”€â”€ [v4-ARCH-07] Backdrop press handler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── [v4-ARCH-07] Backdrop press handler ──────────────────────────────────────
   // BottomSheetBackdrop from the real gorhom library receives animatedIndex and
-  // animatedPosition as shared values injected by the sheet â€” the spread {...props}
+  // animatedPosition as shared values injected by the sheet — the spread {...props}
   // forwards them automatically. pressBehavior="close" fires gorhom's own close()
   // which triggers the handleSheetClose callback below.
   const renderBackdrop = useCallback(
@@ -1362,15 +1374,20 @@ function CountryPickerSheetBase({
     onClose();
   }, [onClose]);
 
-  // â”€â”€ [FIX-SCROLL-01] shellHRef â€” measure shell height for layout metrics â”€â”€â”€â”€â”€â”€â”€
+  // [BOTTOM-NAV] Called by gorhom on every snap change including close (-1)
+  const handleSheetChange = useCallback((index: number) => {
+    onSheetIndexChange?.(index);
+  }, [onSheetIndexChange]);
+
+  // ── [FIX-SCROLL-01] shellHRef — measure shell height for layout metrics ───────
   // Shell height is recorded here; no longer drives any adaptive height logic
   // (setHeight was a custom method on the removed shim). onShellLayout is kept as
   // a stable measurement hook for any future use.
   const shellHRef = useRef(0);
 
-  // â”€â”€ [v4-ARCH-06] AnimatedPillsRow â€” height + opacity â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── [v4-ARCH-06] AnimatedPillsRow — height + opacity ─────────────────────────
   // Note: height uses useNativeDriver:false (layout prop); opacity uses true (UI thread).
-  // Animated.parallel supports mixed useNativeDriver values â€” each runs independently.
+  // Animated.parallel supports mixed useNativeDriver values — each runs independently.
   const pillsHeight  = useRef(new Animated.Value(L.pillRowH)).current;
   const pillsOpacity = useRef(new Animated.Value(1)).current;
 
@@ -1392,8 +1409,8 @@ function CountryPickerSheetBase({
     ]).start();
   }, [rawQuery, pillsHeight, pillsOpacity]);
 
-  // â”€â”€ [v4-FEAT-01] Search bar focus glow â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // Interpolates border from cream[300] â†’ gold[600] on focus.
+  // ── [v4-FEAT-01] Search bar focus glow ───────────────────────────────────────
+  // Interpolates border from cream[300] → gold[600] on focus.
   // useNativeDriver: false required for color interpolation.
   const searchBorderAnim = useRef(new Animated.Value(0)).current;
   const animatedBorderColor = searchBorderAnim.interpolate({
@@ -1402,10 +1419,10 @@ function CountryPickerSheetBase({
   });
 
   const handleSearchFocus = useCallback(() => {
-    // [v4-ADR-05] Auto-snap to 92% on search focus â€” maximum space for results.
-    // WhatsApp contact picker pattern: tap search â†’ full height immediately.
+    // [v4-ADR-05] Auto-snap to 92% on search focus — maximum space for results.
+    // WhatsApp contact picker pattern: tap search → full height immediately.
     sheetRef.current?.snapToIndex(1);
-    // Animate the search bar border glow (cream[300] â†’ gold[600]).
+    // Animate the search bar border glow (cream[300] → gold[600]).
     Animated.timing(searchBorderAnim, {
       toValue:         1,
       duration:        180,
@@ -1421,7 +1438,7 @@ function CountryPickerSheetBase({
     }).start();
   }, [searchBorderAnim]);
 
-  // â”€â”€ [FIX-HEIGHT-03] Shell layout measurement â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── [FIX-HEIGHT-03] Shell layout measurement ─────────────────────────────────
   // Records shell height for future layout calculations.
   const onShellLayout = useCallback(
     (e: { nativeEvent: { layout: { height: number } } }) => {
@@ -1431,7 +1448,7 @@ function CountryPickerSheetBase({
     [],
   );
 
-  // â”€â”€ Shimmer animation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Shimmer animation ─────────────────────────────────────────────────────────
   const shimmerAnim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     if (sheetState !== 'loading') { shimmerAnim.setValue(0); return; }
@@ -1445,36 +1462,36 @@ function CountryPickerSheetBase({
     return () => loop.stop();
   }, [sheetState, shimmerAnim]);
 
-  // â”€â”€ [ADD-04] 60 s tick for relative time label â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── [ADD-04] 60 s tick for relative time label ────────────────────────────────
   useEffect(() => {
     if (fetchedAt == null) return;
     const id = setInterval(() => setTickNow(Date.now()), 60_000);
     return () => clearInterval(id);
   }, [fetchedAt]);
 
-  // â”€â”€ Debounced search â€” 150ms (was 300ms, [PERF-02]) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // 300ms lagged behind 1â€“2 keystrokes at normal typing speed. 150ms feels
+  // ── Debounced search — 150ms (was 300ms, [PERF-02]) ─────────────────────────
+  // 300ms lagged behind 1–2 keystrokes at normal typing speed. 150ms feels
   // instant while still avoiding a filter on every single keystroke.
   useEffect(() => {
     const id = setTimeout(() => setSearchQuery(rawQuery), 150);
     return () => clearTimeout(id);
   }, [rawQuery]);
 
-  // â”€â”€ [SCROLL-05] Reset list scroll when search query settles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── [SCROLL-05] Reset list scroll when search query settles ──────────────────
   // Without this, changing search terms while mid-list leaves a blank area at
   // top because the previous scroll position doesn't match the new result set.
   useEffect(() => {
     listRef.current?.scrollToOffset({ offset: 0, animated: false });
   }, [searchQuery]);
 
-  // â”€â”€ Reduced motion â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Reduced motion ────────────────────────────────────────────────────────────
   useEffect(() => {
     void AccessibilityInfo.isReduceMotionEnabled().then(setRM);
     const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setRM);
     return () => sub.remove();
   }, []);
 
-  // â”€â”€ Load on open â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Load on open ──────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!visible) return;
 
@@ -1514,7 +1531,7 @@ function CountryPickerSheetBase({
       });
   }, [visible]);
 
-  // â”€â”€ [ADD-03] Pull-to-refresh â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── [ADD-03] Pull-to-refresh ──────────────────────────────────────────────────
   const handleRefresh = useCallback(() => {
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
@@ -1540,7 +1557,7 @@ function CountryPickerSheetBase({
       });
   }, []);
 
-  // â”€â”€ [MED-06] Retry with cap â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── [MED-06] Retry with cap ───────────────────────────────────────────────────
   const handleRetry = useCallback(() => {
     if (isFetchingRef.current) return;
     if (retryCountRef.current >= MAX_RETRIES) {
@@ -1581,7 +1598,7 @@ function CountryPickerSheetBase({
       });
   }, []);
 
-  // â”€â”€ Filtered + sorted lists â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Filtered + sorted lists ───────────────────────────────────────────────────
   const regionFiltered = useMemo<CountryDoc[]>(() => {
     if (regionFilter === 'All') return countries;
     return countries.filter((c) => c.region === regionFilter);
@@ -1649,7 +1666,7 @@ function CountryPickerSheetBase({
     [recentIds, countries],
   );
 
-  // â”€â”€ Flat data + A-Z sections â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Flat data + A-Z sections ──────────────────────────────────────────────────
   const flatData = useMemo<ListItem[]>(() => {
     if (searchQuery.trim()) return buildSearchResults(displayCountries);
     return buildAlphaSections(sortedRegionFiltered);
@@ -1664,7 +1681,7 @@ function CountryPickerSheetBase({
     [flatData, searchQuery],
   );
 
-  // â”€â”€ Alphabet sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Alphabet sidebar ──────────────────────────────────────────────────────────
   const alphabetLetters = useMemo<string[]>(() => {
     if (searchQuery.trim()) return [];
     return flatData
@@ -1686,14 +1703,14 @@ function CountryPickerSheetBase({
     listRef.current?.scrollToIndex({ index, animated: !reducedMotion, viewOffset: 0 });
   }, [sectionIndexMap, reducedMotion]);
 
-  // â”€â”€ Region filter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Region filter ─────────────────────────────────────────────────────────────
   const handleRegion = useCallback((r: RegionFilter) => {
     void hapticSelect();
     setRegionFilter(r);
     listRef.current?.scrollToOffset({ offset: 0, animated: false });
   }, []);
 
-  // â”€â”€ Selection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Selection ─────────────────────────────────────────────────────────────────
   const handleSelect = useCallback(async (country: CountryDoc) => {
     if (isSwitchingRef.current) return;
     if (country.id === selectedRef.current) { onClose(); return; }
@@ -1730,7 +1747,7 @@ function CountryPickerSheetBase({
     }
   }, [onClose, onSelect, reducedMotion]);
 
-  // â”€â”€ List helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── List helpers ──────────────────────────────────────────────────────────────
   const keyExtractor = useCallback((item: ListItem, i: number): string => {
     if (item.type === 'section') return `sec-${item.letter}`;
     if (item.type === 'divider') return item.id;
@@ -1738,7 +1755,7 @@ function CountryPickerSheetBase({
   }, []);
 
   // [PERF-04] `selected` was in the useCallback dep array, so every selection
-  // change recreated renderItem â†’ ALL CountryRow instances re-rendered (even
+  // change recreated renderItem → ALL CountryRow instances re-rendered (even
   // un-selected ones). Fix: read selected from selectedRef inside renderItem
   // (stable reference) and tell FlatList about the change via `extraData`.
   // FlatList calls renderItem again for each cell; memo on CountryRow ensures
@@ -1753,11 +1770,11 @@ function CountryPickerSheetBase({
         onPress={handleSelect}
       />
     );
-  }, [handleSelect]); // no `selected` dep â€” selectedRef + extraData handle reactivity
+  }, [handleSelect]); // no `selected` dep — selectedRef + extraData handle reactivity
 
   const getItemLayout = useCallback(
     (_: unknown, index: number) => {
-      // [PERF-01] itemLayouts is null during search â€” use fast O(1) formula.
+      // [PERF-01] itemLayouts is null during search — use fast O(1) formula.
       if (!itemLayouts) return { length: L.rowH, offset: L.rowH * index, index };
       return itemLayouts[index] ?? { length: L.rowH, offset: L.rowH * index, index };
     },
@@ -1769,12 +1786,12 @@ function CountryPickerSheetBase({
     searchRef.current?.focus();
   }, []);
 
-  // â”€â”€ Dynamic labels â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // [UX-04] Removed hardcoded 195 â€” it was wrong when collection size differs
+  // ── Dynamic labels ────────────────────────────────────────────────────────────
+  // [UX-04] Removed hardcoded 195 — it was wrong when collection size differs
   // and caused a jarring number-jump when data loaded. Empty string avoids any count.
   const placeholder  = countries.length > 0
-    ? `Search ${countries.length} countriesâ€¦`
-    : 'Search countriesâ€¦';
+    ? `Search ${countries.length} countries…`
+    : 'Search countries…';
   const showTrending = !searchQuery.trim() && regionFilter === 'All' && trendingCountries.length > 0;
   const showAlpha    = alphabetLetters.length > 0 && !searchQuery.trim();
   const showRecents  = recentCountries.length > 0 && !searchQuery.trim();
@@ -1784,7 +1801,7 @@ function CountryPickerSheetBase({
     displayCountries.length === 0 &&
     regionFilter !== 'All';
 
-  // â”€â”€ [FIX-LAYOUT-1] ListHeaderComponent: Trending + Recents â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── [FIX-LAYOUT-1] ListHeaderComponent: Trending + Recents ───────────────────
   const renderListHeader = useCallback(() => (
     <>
       {showTrending && (
@@ -1828,8 +1845,8 @@ function CountryPickerSheetBase({
     </>
   ), [showTrending, showRecents, trendingCountries, recentCountries, selected, handleSelect, countTimeLabel, reducedMotion]);
 
-  // â”€â”€ [FIX-LAYOUT-2] ListEmptyComponent: empty states inside FlatList â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // [v4-FEAT-07] Empty state fade-in â€” opacity 0â†’1 over 200ms.
+  // ── [FIX-LAYOUT-2] ListEmptyComponent: empty states inside FlatList ──────────
+  // [v4-FEAT-07] Empty state fade-in — opacity 0→1 over 200ms.
   // Empty states that "pop" onto screen feel like layout thrash; a gentle fade feels intentional.
   const renderListEmpty = useCallback(() => {
     if (isRegionSearchEmpty) {
@@ -1875,55 +1892,56 @@ function CountryPickerSheetBase({
     );
   }, [isRegionSearchEmpty, regionFilter, searchQuery, reducedMotion]);
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // RENDER â€” v5.0 Tree
+  // ─────────────────────────────────────────────────────────────────────────────
+  // RENDER — v5.0 Tree
   //
   // BottomSheet (@gorhom/bottom-sheet v5)
-  // â”œâ”€â”€ BottomSheetView          â† PINNED SHELL â€” never scrolls
-  // â”‚   â”œâ”€â”€ Handle (built-in gorhom handle)
-  // â”‚   â”œâ”€â”€ titleRowMerged       â† [v4-ARCH-05] Globe + Title + ActiveInline + Close
-  // â”‚   â”œâ”€â”€ searchWrap (Animated)â† [v4-FEAT-01] animated border glow
-  // â”‚   â”‚     â””â”€â”€ BottomSheetTextInput â† [v5-ARCH-02] keyboard coordination
-  // â”‚   â””â”€â”€ pillAnimWrap (Animated)â† [v4-ARCH-06] height+opacity collapse
-  // â”‚
-  // â””â”€â”€ (conditional on sheetState)
-  //     loading  â†’ BottomSheetView + skeleton
-  //     error    â†’ BottomSheetView + error state
-  //     idle     â†’ BottomSheetFlatList (ONE scroll owner for everything)
-  //                  Gesture arbitration: sheet pan â†” list scroll runs on UI
-  //                  thread via Reanimated â€” no JS-thread involvement per frame.
+  // ├── BottomSheetView          ← PINNED SHELL — never scrolls
+  // │   ├── Handle (built-in gorhom handle)
+  // │   ├── titleRowMerged       ← [v4-ARCH-05] Globe + Title + ActiveInline + Close
+  // │   ├── searchWrap (Animated)← [v4-FEAT-01] animated border glow
+  // │   │     └── BottomSheetTextInput ← [v5-ARCH-02] keyboard coordination
+  // │   └── pillAnimWrap (Animated)← [v4-ARCH-06] height+opacity collapse
+  // │
+  // └── (conditional on sheetState)
+  //     loading  → BottomSheetView + skeleton
+  //     error    → BottomSheetView + error state
+  //     idle     → BottomSheetFlatList (ONE scroll owner for everything)
+  //                  Gesture arbitration: sheet pan ↔ list scroll runs on UI
+  //                  thread via Reanimated — no JS-thread involvement per frame.
   //                  + AlphabetSidebar (absolute, no conflict)
   //                  + LetterOverlay (absolute, Reanimated)
   //
   // SwitchingOverlay (absolute, [v4-FEAT-03] FadeIn 150ms)
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─────────────────────────────────────────────────────────────────────────────
   return (
     <BottomSheet
       ref={sheetRef}
       index={-1}
       snapPoints={snapPoints}
-      // [v4-ARCH-03] gorhom v5 handles keyboard natively â€” no KeyboardAvoidingView needed
+      // [v4-ARCH-03] gorhom v5 handles keyboard natively — no KeyboardAvoidingView needed
       keyboardBehavior="fillParent"
       keyboardBlurBehavior="restore"
       android_keyboardInputMode="adjustResize"
-      // [v4-ARCH-07] Backdrop â€” tap outside to close
+      // [v4-ARCH-07] Backdrop — tap outside to close
       backdropComponent={renderBackdrop}
       enablePanDownToClose
       onClose={handleSheetClose}
+      onChange={handleSheetChange}
       backgroundStyle={sh.sheetBackground}
       handleStyle={sh.handleContainer}
       handleIndicatorStyle={sh.handleIndicator}
     >
-      {/* â”€â”€ PINNED SHELL â€” The "Shell vs Content" principle (PRD Â§2 Principle 5) â”€â”€ */}
+      {/* ── PINNED SHELL — The "Shell vs Content" principle (PRD §2 Principle 5) ── */}
       {/* SearchBar, title, pills live here. They CANNOT scroll away.             */}
       {/*                                                                          */}
-      {/* [v5-ARCH-01] No custom height management needed â€” gorhom's BottomSheetView  */}
+      {/* [v5-ARCH-01] No custom height management needed — gorhom's BottomSheetView  */}
       {/* handles layout correctly within the sheet's content area.               */}
       <BottomSheetView style={sh.pinnedShell} onLayout={onShellLayout}>
 
-        {/* â”€â”€ [v4-ARCH-05] MERGED TITLE ROW â€” saves 52px vs v3.3 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        {/* ── [v4-ARCH-05] MERGED TITLE ROW — saves 52px vs v3.3 ──────────────── */}
         {/* Old: [Title row 54px] + [Active strip 52px] = 106px */}
-        {/* New: [Merged row ~52px] = 52px â€” 54px saved */}
+        {/* New: [Merged row ~52px] = 52px — 54px saved */}
         <View style={sh.titleRowMerged}>
           {/* Left: Globe icon */}
           <View style={sh.globeIconWrap}>
@@ -1941,7 +1959,7 @@ function CountryPickerSheetBase({
                 accessibilityRole="text"
                 accessibilityLabel={`Active country: ${selectedCountry.name}`}
               >
-                {/* [CRIT-04] pulse=true here â€” countTimeLabel nearby provides context */}
+                {/* [CRIT-04] pulse=true here — countTimeLabel nearby provides context */}
                 <LiveDot size={5} pulse />
                 <Text style={sh.activeFlag} accessible={false}>
                   {selectedCountry.emoji}
@@ -1949,7 +1967,7 @@ function CountryPickerSheetBase({
                 <Text style={sh.activeName} numberOfLines={1}>
                   {selectedCountry.name}
                 </Text>
-                <Text style={sh.activeSep} accessible={false}>Â·</Text>
+                <Text style={sh.activeSep} accessible={false}>·</Text>
                 <Text style={sh.activeCountInline} numberOfLines={1}>
                   {selectedCountry.onlineCount > 0
                     ? `${fmtCount(selectedCountry.onlineCount)} online`
@@ -1974,10 +1992,10 @@ function CountryPickerSheetBase({
           </Pressable>
         </View>
 
-        {/* â”€â”€ [v4-FEAT-01] SEARCH BAR â€” gold glow on focus â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        {/* ── [v4-FEAT-01] SEARCH BAR — gold glow on focus ──────────────────── */}
         {/* SearchBar is PINNED here. Cannot scroll. Cannot be buried by keyboard. */}
         {/* BottomSheetTextInput [v5-ARCH-02]: keyboard coordination is handled  */}
-        {/* by gorhom â€” the sheet content area auto-resizes above the keyboard.  */}
+        {/* by gorhom — the sheet content area auto-resizes above the keyboard.  */}
         <Animated.View style={[sh.searchWrap, { borderColor: animatedBorderColor }]}>
           <Feather name="search" size={18} color={T.textTertiary} />
           <BottomSheetTextInput
@@ -2008,10 +2026,10 @@ function CountryPickerSheetBase({
           )}
         </Animated.View>
 
-        {/* â”€â”€ [v4-ARCH-06] ANIMATED PILLS ROW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-        {/* height: pillRowHâ†’0 (200ms) on search start; 0â†’pillRowH (220ms) on clear */}
-        {/* opacity: 1â†’0 (160ms) on search start; 0â†’1 (180ms) on clear */}
-        {/* Result: list gains 50px during search â€” bigger result viewport */}
+        {/* ── [v4-ARCH-06] ANIMATED PILLS ROW ──────────────────────────────────── */}
+        {/* height: pillRowH→0 (200ms) on search start; 0→pillRowH (220ms) on clear */}
+        {/* opacity: 1→0 (160ms) on search start; 0→1 (180ms) on clear */}
+        {/* Result: list gains 50px during search — bigger result viewport */}
         <Animated.View
           style={[
             sh.pillAnimWrap,
@@ -2043,7 +2061,7 @@ function CountryPickerSheetBase({
         <View style={sh.hairline} />
         </BottomSheetView>
 
-      {/* â”€â”€ CONTENT ZONE â€” Everything below the shell â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── CONTENT ZONE — Everything below the shell ─────────────────────────── */}
 
       {sheetState === 'loading' ? (
 
@@ -2116,9 +2134,9 @@ function CountryPickerSheetBase({
 
         // [v5-ARCH-01] ONE scroll owner. BottomSheetFlatList from the real gorhom
         // library participates in the same RNGH gesture responder tree as the sheet
-        // itself. Expansion (55%â†’92%) is intercepted before the list can scroll;
+        // itself. Expansion (55%→92%) is intercepted before the list can scroll;
         // once at 92% the list scrolls freely. Pull-down from list top collapses/
-        // closes the sheet â€” all on the UI thread via Reanimated shared values.
+        // closes the sheet — all on the UI thread via Reanimated shared values.
         <View
           style={sh.listWrap}
           accessibilityRole="radiogroup"
@@ -2134,7 +2152,7 @@ function CountryPickerSheetBase({
               style={sh.srOnly}
             />
           )}
-          {/* [v4-ARCH-02] BottomSheetFlatList â€” required for gorhom gesture integration */}
+          {/* [v4-ARCH-02] BottomSheetFlatList — required for gorhom gesture integration */}
           {/* All existing getItemLayout / renderItem / ListHeaderComponent logic preserved */}
           <BottomSheetFlatList
             ref={listRef}
@@ -2171,7 +2189,7 @@ function CountryPickerSheetBase({
             bounces={true}
             alwaysBounceVertical={true}
             overScrollMode="always"
-            // â”€â”€ Pull-to-refresh â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Pull-to-refresh ──────────────────────────────────────────────────
             // [ADD-03] Pull-to-refresh
             refreshControl={
               <RefreshControl
@@ -2183,7 +2201,7 @@ function CountryPickerSheetBase({
             }
           />
 
-          {/* [NEW-02] A-Z sidebar â€” positioned absolute, no gesture conflict */}
+          {/* [NEW-02] A-Z sidebar — positioned absolute, no gesture conflict */}
           {/* Touch region (right 22px) does not overlap FlatList touch area */}
           {showAlpha && (
             <AlphabetSidebar
@@ -2193,14 +2211,14 @@ function CountryPickerSheetBase({
             />
           )}
 
-          {/* [v4-FEAT-04] LetterOverlay â€” Reanimated spring enter, ease-out exit */}
+          {/* [v4-FEAT-04] LetterOverlay — Reanimated spring enter, ease-out exit */}
           <LetterOverlay letter={activeAlphaLetter} reducedMotion={reducedMotion} />
         </View>
 
       )}
 
-      {/* â”€â”€ [v4-FEAT-03] SWITCHING OVERLAY â€” FadeIn 150ms â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-      {/* v3.3: instant snap (felt like a bug) â†’ v4.0: 150ms fade (intentional) */}
+      {/* ── [v4-FEAT-03] SWITCHING OVERLAY — FadeIn 150ms ─────────────────────── */}
+      {/* v3.3: instant snap (felt like a bug) → v4.0: 150ms fade (intentional) */}
       {sheetState === 'switching' && (
         <ReAnimated.View
           entering={!reducedMotion ? FadeIn.duration(150) : undefined}
@@ -2218,7 +2236,7 @@ function CountryPickerSheetBase({
             />
             <View style={sh.switchSpinner}>
               <Text style={sh.switchFlag}>
-                {switchingTo?.emoji ?? selectedCountry?.emoji ?? 'ðŸŒ'}
+                {switchingTo?.emoji ?? selectedCountry?.emoji ?? '🌐'}
               </Text>
             </View>
           </View>
@@ -2238,7 +2256,7 @@ export const CountryPickerSheet = memo((props: CountryPickerSheetProps) => (
 ));
 export default CountryPickerSheet;
 
-// â”€â”€â”€ Styles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Styles ────────────────────────────────────────────────────────────────────
 const sh = StyleSheet.create({
 
   // [v4-ARCH-01] gorhom v5 uses backgroundStyle / handleStyle props
@@ -2257,28 +2275,28 @@ const sh = StyleSheet.create({
     backgroundColor: T.border,
   },
 
-  // â”€â”€ [v4-ARCH-05] Pinned shell â€” never scrolls â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── [v4-ARCH-05] Pinned shell — never scrolls ─────────────────────────────────
   // Replaces v3.3's sh.header + separate activeStrip + pillWrap + searchWrap.
-  // SearchBar is here â†’ cannot be buried by keyboard â†’ [v4-ARCH-03] fix.
+  // SearchBar is here → cannot be buried by keyboard → [v4-ARCH-03] fix.
   pinnedShell: {
     backgroundColor: T.sheetBg,
-    paddingBottom:   4,
+    paddingBottom:   6,
   },
 
-  // â”€â”€ [v4-ARCH-05] Merged title row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── [v4-ARCH-05] Merged title row ─────────────────────────────────────────────
   // v3.3: titleRow (54px) + activeStrip (52px) = 106px
   // v4.0: titleRowMerged (~52px) = saves 54px
   titleRowMerged: {
     flexDirection:     'row',
     alignItems:        'center',
     paddingHorizontal: L.rowPadH,
-    paddingVertical:   10,
-    gap:               10,
+    paddingVertical:   12,
+    gap:               12,
   },
   globeIconWrap: {
-    width:           40,
-    height:          40,
-    borderRadius:    12,
+    width:           44,
+    height:          44,
+    borderRadius:    13,
     backgroundColor: T.goldSubtle,
     alignItems:      'center',
     justifyContent:  'center',
@@ -2296,7 +2314,7 @@ const sh = StyleSheet.create({
     letterSpacing: -0.3,
   },
 
-  // [v4-ARCH-05] Active strip now inline â€” replaces the 52px standalone row
+  // [v4-ARCH-05] Active strip now inline — replaces the 52px standalone row
   activeInline: {
     flexDirection: 'row',
     alignItems:    'center',
@@ -2346,18 +2364,18 @@ const sh = StyleSheet.create({
   },
   closeBtnPressed: { opacity:0.60 },
 
-  // â”€â”€ [v4-FEAT-01] Search bar with Animated border color â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── [v4-FEAT-01] Search bar with Animated border color ───────────────────────
   searchWrap: {
     flexDirection:     'row',
     alignItems:        'center',
     marginHorizontal:  L.rowPadH,
-    marginVertical:    6,
+    marginVertical:    8,
     height:            L.searchH,
     backgroundColor:   T.surfaceSunken,
     borderRadius:      L.searchH / 2,
     paddingHorizontal: 14,
     borderWidth:       1.5,
-    // borderColor is Animated â€” set via animatedBorderColor interpolation
+    // borderColor is Animated — set via animatedBorderColor interpolation
     gap:               8,
   },
   searchInput: {
@@ -2368,16 +2386,16 @@ const sh = StyleSheet.create({
     paddingVertical: 0,
   },
 
-  // â”€â”€ [v4-ARCH-06] Animated pills wrapper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // height is animated (50â†’0 or 0â†’50) via Animated.Value
+  // ── [v4-ARCH-06] Animated pills wrapper ──────────────────────────────────────
+  // height is animated (50→0 or 0→50) via Animated.Value
   // overflow:'hidden' clips the pills as height collapses
   pillAnimWrap: {
-    // height is controlled by Animated.Value â€” don't set static height here
+    // height is controlled by Animated.Value — don't set static height here
   },
   pillScroll: {
     paddingHorizontal: L.rowPadH,
     paddingVertical:   9,
-    gap:               8,
+    gap:               10,
     flexDirection:     'row',
   },
 
@@ -2386,21 +2404,21 @@ const sh = StyleSheet.create({
     backgroundColor: T.borderSubtle,
   },
 
-  // â”€â”€ Content area â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Content area ──────────────────────────────────────────────────────────────
   contentArea: { flex:1 },
   listWrap:    { flex:1, position:'relative' },
   flatList:    { flex:1 },
-  listContent: { paddingBottom: Platform.OS === 'android' ? 24 : 20 },
+  listContent: { paddingBottom: Platform.OS === 'android' ? 32 : 28 },
 
-  // â”€â”€ Trending section â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  trendingSection:  { paddingBottom:8 },
+  // ── Trending section ──────────────────────────────────────────────────────────
+  trendingSection:  { paddingBottom:12 },
   trendingLabelRow: {
     flexDirection:    'row',
     alignItems:       'center',
     gap:              6,
     marginHorizontal: L.rowPadH,
-    marginTop:        8,
-    marginBottom:     10,
+    marginTop:        12,
+    marginBottom:     12,
   },
   trendingLabel: {
     fontSize:      11,
@@ -2419,10 +2437,10 @@ const sh = StyleSheet.create({
   },
   heroScroll: {
     paddingHorizontal: L.rowPadH,
-    gap:               10,
+    gap:               12,
   },
 
-  // â”€â”€ Empty / error states â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Empty / error states ──────────────────────────────────────────────────────
   stateWrap: {
     alignItems:        'center',
     paddingTop:        44,
@@ -2499,7 +2517,7 @@ const sh = StyleSheet.create({
     letterSpacing: 0.1,
   },
 
-  // â”€â”€ [v4-FEAT-03] Switching overlay â€” fades in via ReAnimated FadeIn 150ms â”€â”€â”€â”€
+  // ── [v4-FEAT-03] Switching overlay — fades in via ReAnimated FadeIn 150ms ────
   // v3.3: instant appear (felt like bug). v4.0: 150ms fade (intentional).
   switchOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -2539,6 +2557,6 @@ const sh = StyleSheet.create({
   },
   switchFlag: { fontSize:30 },
 
-  // [A11Y-02] Visually hidden â€” zero-size container used only for live region announcements
+  // [A11Y-02] Visually hidden — zero-size container used only for live region announcements
   srOnly: { width: 0, height: 0, overflow: 'hidden' },
 });
