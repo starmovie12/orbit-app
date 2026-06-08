@@ -1932,12 +1932,28 @@ function CountryPickerSheetBase({
       handleStyle={sh.handleContainer}
       handleIndicatorStyle={sh.handleIndicator}
     >
+      {/*
+       * [v5-FIX-OVERLAP] ── SINGLE WRAPPER FIX ─────────────────────────────────
+       * Root cause: gorhom v5 does NOT auto-stack multiple direct children of
+       * <BottomSheet> in a flex column — it renders them with position:absolute,
+       * so BottomSheetView (pinnedShell) and the content (FlatList) both start
+       * at y=0 and OVERLAP each other. The "TRENDING" label visible behind the
+       * title in the screenshot is evidence of this.
+       *
+       * Fix: ONE BottomSheetView with flex:1 as the sole direct child. Normal
+       * React flex-column layout then stacks pinnedShell above content correctly.
+       * BottomSheetFlatList registers with gorhom's gesture coordinator via React
+       * context — it works correctly when nested inside BottomSheetView.
+       * BottomSheetTextInput also works inside a nested regular View.
+       */}
+      <BottomSheetView style={sh.outerWrapper}>
+
       {/* ── PINNED SHELL — The "Shell vs Content" principle (PRD §2 Principle 5) ── */}
       {/* SearchBar, title, pills live here. They CANNOT scroll away.             */}
       {/*                                                                          */}
-      {/* [v5-ARCH-01] No custom height management needed — gorhom's BottomSheetView  */}
-      {/* handles layout correctly within the sheet's content area.               */}
-      <BottomSheetView style={sh.pinnedShell} onLayout={onShellLayout}>
+      {/* Changed to regular View — the outer BottomSheetView handles gorhom      */}
+      {/* integration; inner pinnedShell is just a normal flex child.             */}
+      <View style={sh.pinnedShell} onLayout={onShellLayout}>
 
         {/* ── [v4-ARCH-05] MERGED TITLE ROW — saves 52px vs v3.3 ──────────────── */}
         {/* Old: [Title row 54px] + [Active strip 52px] = 106px */}
@@ -2059,14 +2075,14 @@ function CountryPickerSheetBase({
         </Animated.View>
 
         <View style={sh.hairline} />
-        </BottomSheetView>
+        </View>
 
       {/* ── CONTENT ZONE — Everything below the shell ─────────────────────────── */}
 
       {sheetState === 'loading' ? (
 
         // [ADD-10] Skeleton trending + rows
-        <BottomSheetView style={sh.contentArea}>
+        <View style={sh.contentArea}>
           <View style={sh.trendingSection}>
             <View style={sh.trendingLabelRow}>
               <Feather name="trending-up" size={13} color={T.gold} />
@@ -2107,11 +2123,11 @@ function CountryPickerSheetBase({
               <SkeletonRow key={i} shimmer={shimmerAnim} />
             ))}
           </View>
-        </BottomSheetView>
+        </View>
 
       ) : error != null ? (
 
-        <BottomSheetView style={sh.stateWrap}>
+        <View style={sh.stateWrap}>
           <View style={sh.stateIconCircle}>
             <Feather name="wifi-off" size={28} color={T.textTertiary} />
           </View>
@@ -2128,7 +2144,7 @@ function CountryPickerSheetBase({
               <Text style={sh.retryBtnText}>Try Again</Text>
             </Pressable>
           )}
-        </BottomSheetView>
+        </View>
 
       ) : (
 
@@ -2242,6 +2258,8 @@ function CountryPickerSheetBase({
           </View>
         </ReAnimated.View>
       )}
+
+      </BottomSheetView>{/* ── [v5-FIX-OVERLAP] close outerWrapper ── */}
     </BottomSheet>
   );
 }
@@ -2273,6 +2291,13 @@ const sh = StyleSheet.create({
     height:          L.handleH,
     borderRadius:    L.handleH / 2,
     backgroundColor: T.border,
+  },
+
+  // ── [v5-FIX-OVERLAP] Single outer wrapper — sole direct child of BottomSheet ──
+  // flex:1 fills the sheet's content area; interior uses normal flex-column layout
+  // so pinnedShell and content stack vertically instead of overlapping at y=0.
+  outerWrapper: {
+    flex: 1,
   },
 
   // ── [v4-ARCH-05] Pinned shell — never scrolls ─────────────────────────────────
