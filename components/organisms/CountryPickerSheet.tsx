@@ -195,12 +195,6 @@ const L = {
   pillRowH:     52,
   alphaItemH:   18,
   alphaBarW:    22,
-  // [CODE-01] Scroll-hide & close-gesture thresholds — replaces inline magic numbers
-  scrollHideThreshold:  60,
-  scrollDeltaHide:       8,
-  scrollDeltaShow:       5,
-  closeVelocityIOS:     -1.0,
-  closeVelocityAndroid: -0.5,
 } as const;
 
 // ─── Design token aliases ──────────────────────────────────────────────────────
@@ -619,7 +613,7 @@ const skh = StyleSheet.create({
     padding:         14,
     gap:             8,
   },
-  flag:         { width:28, height:28, borderRadius:8, backgroundColor:T.surfaceSunken },
+  flag:         { width:L.flagBox, height:L.flagBox, borderRadius:L.flagRadius, backgroundColor:T.surfaceSunken },
   line1:        { height:14, borderRadius:7, width:'70%' as const, backgroundColor:T.surfaceSunken },
   line2:        { height:10, borderRadius:5, width:'45%' as const, backgroundColor:T.surfaceSunken },
   heatTrackWrap:{ flex:1, justifyContent:'flex-end' },
@@ -769,7 +763,9 @@ const hc = StyleSheet.create({
     shadowRadius:    10,
     shadowOffset:    { width:0, height:3 },
     elevation:       2,
-    overflow:        'hidden',
+    // NOTE: overflow:'hidden' intentionally removed — it was clipping the iOS
+    // shadow on selected cards (cardActive: shadowRadius:18). hc.heatTrack
+    // has its own overflow:'hidden' to clip the fill bar, so the card doesn't need it.
   },
   cardActive: { shadowOpacity:0.14, shadowRadius:18, elevation:5 },
   flag:       { fontSize:L.flagEmoji },
@@ -1149,7 +1145,7 @@ const ab = StyleSheet.create({
     justifyContent: 'center',
     minHeight:      8,
   },
-  letter: { fontSize:9, fontWeight:'700', color:T.gold, fontFamily:FONT_BODY.bold },
+  letter: { fontSize:10, fontWeight:'700', color:T.gold, fontFamily:FONT_BODY.bold },
 });
 
 // ─── [v4-FEAT-04] LetterOverlay — Spring enter, ease-out exit ─────────────────
@@ -1748,10 +1744,10 @@ function CountryPickerSheetBase({
   }, [onClose, onSelect, reducedMotion]);
 
   // ── List helpers ──────────────────────────────────────────────────────────────
-  const keyExtractor = useCallback((item: ListItem, i: number): string => {
+  const keyExtractor = useCallback((item: ListItem): string => {
     if (item.type === 'section') return `sec-${item.letter}`;
     if (item.type === 'divider') return item.id;
-    return `country-${item.country.id}-${i}`;
+    return `country-${item.country.id}`;
   }, []);
 
   // [PERF-04] `selected` was in the useCallback dep array, so every selection
@@ -1896,23 +1892,24 @@ function CountryPickerSheetBase({
   // RENDER — v5.0 Tree
   //
   // BottomSheet (@gorhom/bottom-sheet v5)
-  // ├── BottomSheetView          ← PINNED SHELL — never scrolls
-  // │   ├── Handle (built-in gorhom handle)
-  // │   ├── titleRowMerged       ← [v4-ARCH-05] Globe + Title + ActiveInline + Close
-  // │   ├── searchWrap (Animated)← [v4-FEAT-01] animated border glow
-  // │   │     └── BottomSheetTextInput ← [v5-ARCH-02] keyboard coordination
-  // │   └── pillAnimWrap (Animated)← [v4-ARCH-06] height+opacity collapse
-  // │
-  // └── (conditional on sheetState)
-  //     loading  → BottomSheetView + skeleton
-  //     error    → BottomSheetView + error state
-  //     idle     → BottomSheetFlatList (ONE scroll owner for everything)
-  //                  Gesture arbitration: sheet pan ↔ list scroll runs on UI
-  //                  thread via Reanimated — no JS-thread involvement per frame.
-  //                  + AlphabetSidebar (absolute, no conflict)
-  //                  + LetterOverlay (absolute, Reanimated)
+  // └── BottomSheetView (outerWrapper, flex:1) ← SOLE direct child [v5-FIX-OVERLAP]
+  //     ├── View (pinnedShell)         ← PINNED SHELL — never scrolls
+  //     │   ├── Handle (built-in gorhom handle)
+  //     │   ├── titleRowMerged         ← [v4-ARCH-05] Globe + Title + ActiveInline + Close
+  //     │   ├── searchWrap (Animated)  ← [v4-FEAT-01] animated border glow
+  //     │   │     └── BottomSheetTextInput ← [v5-ARCH-02] keyboard coordination
+  //     │   └── pillAnimWrap (Animated)← [v4-ARCH-06] height+opacity collapse
+  //     │
+  //     └── (conditional on sheetState)
+  //         loading  → View + skeleton
+  //         error    → View + error state
+  //         idle     → BottomSheetFlatList (ONE scroll owner for everything)
+  //                      Gesture arbitration: sheet pan ↔ list scroll runs on UI
+  //                      thread via Reanimated — no JS-thread involvement per frame.
+  //                      + AlphabetSidebar (absolute, no conflict)
+  //                      + LetterOverlay (absolute, Reanimated)
   //
-  // SwitchingOverlay (absolute, [v4-FEAT-03] FadeIn 150ms)
+  // SwitchingOverlay (absoluteFillObject, zIndex:99, [v4-FEAT-03] FadeIn 150ms)
   // ─────────────────────────────────────────────────────────────────────────────
   return (
     <BottomSheet
@@ -1983,7 +1980,7 @@ function CountryPickerSheetBase({
                 <Text style={sh.activeName} numberOfLines={1}>
                   {selectedCountry.name}
                 </Text>
-                <Text style={sh.activeSep} accessible={false}>·</Text>
+                <Text style={sh.activeSep} accessible={false}>{'\u00B7'}</Text>
                 <Text style={sh.activeCountInline} numberOfLines={1}>
                   {selectedCountry.onlineCount > 0
                     ? `${fmtCount(selectedCountry.onlineCount)} online`
@@ -2371,7 +2368,7 @@ const sh = StyleSheet.create({
     flexShrink:        0,
   },
   activeBadgeText: {
-    fontSize:      8,
+    fontSize:      9,
     fontWeight:    '800',
     color:         T.sheetBg,
     letterSpacing: 0.7,
@@ -2455,7 +2452,7 @@ const sh = StyleSheet.create({
     flex:          1,
   },
   countTimeLabel: {
-    fontSize:   10,
+    fontSize:   11,
     fontWeight: '500',
     color:      T.textTertiary,
     fontFamily: FONT_BODY.regular,
