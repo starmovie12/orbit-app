@@ -1,8 +1,49 @@
 /**
- * components/organisms/CountryPickerSheet.tsx — v5.0
+ * components/organisms/CountryPickerSheet.tsx — v5.1
  *
  * CROWN — Country Selection Bottom Sheet
  * "The gateway to the world. Clean. Fast. Global."
+ *
+ * ── v5.1 CHANGELOG (Performance & Architecture Fixes) ────────────────────────
+ *
+ *  [FIX-01] CRITICAL — Re-render loop on A-Z pan drag resolved.
+ *           `activeAlphaLetter` state moved from CountryPickerSheetBase into a
+ *           new `AlphaSidebarAndOverlay` component. Pan frames now re-render only
+ *           that tiny wrapper — not the heavy FlatList parent.
+ *
+ *  [FIX-02] CRITICAL — Search filter pre-computation.
+ *           `normalizeDiacritics(c.name)` and `dialCode.replace(/\D/g,'')` used
+ *           to run for every country on every keystroke. Both are now computed
+ *           once in `mapFSDoc` and stored as `normalizedName` / `cleanDialCode`
+ *           fields on CountryDoc.
+ *
+ *  [FIX-03] ARCHITECTURAL — Eliminated all `useNativeDriver:false` Animated usage.
+ *           `searchBorderAnim` → Reanimated `useSharedValue` + `interpolateColor`.
+ *           `pillsHeight / pillsOpacity` → Reanimated `useSharedValue` + `withTiming`.
+ *           `flashAnim` in CountryRow → Reanimated `withSequence`.
+ *           All animations now run on the UI thread with zero JS involvement.
+ *
+ *  [FIX-04] ARCHITECTURAL — BottomSheetView outerWrapper replaced with plain View.
+ *           Eliminates gesture arbitration hijacking on Android where
+ *           BottomSheetFlatList scroll could stall. BottomSheetFlatList still
+ *           registers with the sheet's gesture coordinator via React context.
+ *
+ *  [FIX-05] ARCHITECTURAL — handleSelect: AsyncStorage calls are now fire-and-forget.
+ *           `await` before disk I/O was introducing micro-lag before the sheet
+ *           could dismiss. State updates happen in the `.then()` callback instead.
+ *
+ *  [FIX-07] MINOR — usePulse fallback Animated.Value is now lazily initialized.
+ *           Previously allocated unconditionally on every usePulse call even when
+ *           a PulseProvider was present.
+ *
+ *  [FIX-08] MINOR — Haptic helpers wrapped in try/catch.
+ *           Certain custom Android ROMs restrict vibration APIs and can throw.
+ *
+ *  [FIX-09] MINOR — Space-only search query guard.
+ *           Pills collapse animation and displayCountries filter now use
+ *           `rawQuery.trim()` / `searchQuery.trim()` to ignore whitespace-only input.
+ *
+ *  [FIX-12] MINOR — Cache write failure now logged in __DEV__ mode.
  *
  * ── v5.0 CHANGELOG (Real Gorhom Integration) ─────────────────────────────────
  *
@@ -112,7 +153,6 @@ import {
   AccessibilityInfo,
   ActivityIndicator,
   Animated,
-  Easing,
   FlatList,
   Keyboard,
   type GestureResponderEvent,
@@ -136,7 +176,6 @@ import { collection, getDocs, query, where } from 'firebase/firestore';
 // Gesture arbitration (sheet pan ↔ list scroll) runs on the UI thread via
 // Reanimated v3 shared-value worklets — no JS-thread involvement per scroll frame.
 import BottomSheet, {
-  BottomSheetView,
   BottomSheetFlatList,
   BottomSheetBackdrop,
   BottomSheetTextInput,
@@ -146,8 +185,11 @@ import BottomSheet, {
 // ── react-native-reanimated v3 ────────────────────────────────────────────────
 // Used for: HeroCard stagger entry, LetterOverlay spring, SwitchingOverlay fade
 import ReAnimated, {
+  Easing as REasing,
+  interpolateColor,
   useAnimatedStyle,
   useSharedValue,
+  withSequence,
   withSpring,
   withTiming,
   FadeIn,
@@ -229,9 +271,16 @@ const DV = {
 } as const;
 
 // ─── Haptic helpers ────────────────────────────────────────────────────────────
-const hapticLight  = (): Promise<void> => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-const hapticMedium = (): Promise<void> => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-const hapticSelect = (): Promise<void> => Haptics.selectionAsync();
+// [FIX-08] try/catch: some custom Android ROMs restrict vibration APIs and throw.
+const hapticLight  = async (): Promise<void> => {
+  try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);  } catch { /* no-op */ }
+};
+const hapticMedium = async (): Promise<void> => {
+  try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch { /* no-op */ }
+};
+const hapticSelect = async (): Promise<void> => {
+  try { await Haptics.selectionAsync(); } catch { /* no-op */ }
+};
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type Region = 'Asia' | 'Americas' | 'Africa' | 'Europe' | 'Oceania' | 'Middle East';
@@ -243,13 +292,17 @@ type DividerItem  = { type: 'divider'; id: string };
 type ListItem     = SectionItem | CountryItem | DividerItem;
 
 export interface CountryDoc {
-  id:          string;
-  name:        string;
-  emoji:       string;
-  onlineCount: number;
-  heat:        number;
-  region:      Region;
-  dialCode?:   string;
+  id:             string;
+  name:           string;
+  emoji:          string;
+  onlineCount:    number;
+  heat:           number;
+  region:         Region;
+  dialCode?:      string;
+  /** [FIX-02] Pre-computed at fetch time — avoids regex/normalize on every search keystroke */
+  normalizedName: string;
+  /** [FIX-02] Pre-computed at fetch time — digits only, e.g. "91" for "+91" */
+  cleanDialCode:  string;
 }
 
 export interface CountryPickerSheetProps {
@@ -375,16 +428,22 @@ function fmtCount(n: number): string {
 
 // ─── Firestore mapper ──────────────────────────────────────────────────────────
 function mapFSDoc(docId: string, data: Partial<FSCountry>): CountryDoc {
-  const iso2 = ((data.iso2 ?? docId) as string).toUpperCase();
-  const onlineCount = Number(data.online_count ?? 0);
+  const iso2         = ((data.iso2 ?? docId) as string).toUpperCase();
+  const onlineCount  = Number(data.online_count ?? 0);
+  const name         = data.name ?? iso2;
+  const dialCode     = data.dial_code;
   return {
-    id:          iso2,
-    name:        data.name ?? iso2,
-    emoji:       data.flag ?? '🌐',
+    id:             iso2,
+    name,
+    emoji:          data.flag ?? '🌐',
     onlineCount,
-    heat:        computeHeat(onlineCount),
-    region:      mapToRegion(data.continent ?? '', iso2),
-    dialCode:    data.dial_code,
+    heat:           computeHeat(onlineCount),
+    region:         mapToRegion(data.continent ?? '', iso2),
+    dialCode,
+    // [FIX-02] Pre-computed once here — zero cost in the search filter hot-path.
+    // Previously normalizeDiacritics(c.name) ran for every country on every keystroke.
+    normalizedName: normalizeDiacritics(name),
+    cleanDialCode:  dialCode?.replace(/\D/g, '') ?? '',
   };
 }
 
@@ -436,7 +495,10 @@ async function fetchCountries(bypassCache = false): Promise<[CountryDoc[], numbe
   AsyncStorage.setItem(
     COUNTRIES_CACHE_KEY,
     JSON.stringify({ data: docs, fetchedAt, expiresAt } as CountryCacheEntry),
-  ).catch(() => {});
+  ).catch((e) => {
+    // [FIX-12] Surface cache write failures in dev — user never sees stale data silently
+    if (__DEV__) console.warn('[CountryPickerSheet] cache write failed (storage full?):', e);
+  });
 
   return [docs, fetchedAt];
 }
@@ -533,15 +595,20 @@ const PulseProvider = memo<{ children: React.ReactNode }>(({ children }) => {
 
 function usePulse(enabled: boolean): Animated.Value {
   const ctx = React.useContext(PulseContext);
-  // Fallback value when rendered outside PulseProvider (e.g. tests/Storybook)
-  const fallbackAnim = useRef(new Animated.Value(1)).current;
+  // [FIX-07] Lazy init: only allocate an Animated.Value when there is no PulseProvider
+  // (e.g. tests / Storybook). Previously this ref was created unconditionally, burning
+  // a new Animated node for every element — even ones that would use ctx.anim.
+  const fallbackRef = useRef<Animated.Value | null>(null);
 
   useEffect(() => {
     if (!enabled || !ctx) return;
     return ctx.register();
   }, [enabled, ctx]);
 
-  return ctx?.anim ?? fallbackAnim;
+  if (ctx) return ctx.anim;
+
+  if (!fallbackRef.current) fallbackRef.current = new Animated.Value(1);
+  return fallbackRef.current;
 }
 
 // ─── LiveDot ───────────────────────────────────────────────────────────────────
@@ -808,22 +875,24 @@ interface CountryRowProps {
 
 const CountryRow = memo<CountryRowProps>(({ country, isSelected, onPress }) => {
   const scale     = useRef(new Animated.Value(1)).current;
-  // [v4-FEAT-04] Background flash — gold tint overlay, 80ms total (40ms ramp-up + 40ms ramp-down).
-  // Confirms the tap instantly before the SwitchingOverlay appears (~160ms later).
-  const flashAnim = useRef(new Animated.Value(0)).current;
-  const regionBg  = REGION_FLAG_BG[country.region];
-  const heatFill  = Math.max(0, Math.min(1, country.heat / 100));
-  const accent    = REGION_ACCENT[country.region] as string;
+  // [FIX-03] Flash overlay migrated from Animated (useNativeDriver:false → JS thread)
+  // to Reanimated SharedValue (runs entirely on the UI thread).
+  const flashAnim  = useSharedValue(0);
+  const regionBg   = REGION_FLAG_BG[country.region];
+  const heatFill   = Math.max(0, Math.min(1, country.heat / 100));
+  const accent     = REGION_ACCENT[country.region] as string;
+
+  const flashStyle = useAnimatedStyle(() => ({ opacity: flashAnim.value }));
 
   const handlePress = useCallback(() => onPress(country), [onPress, country]);
   const onPressIn   = useCallback(() => {
-    // Scale press — 0.97 "press" confirm
+    // Scale press — 0.97 "press" confirm (stays on UI thread via native driver)
     Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 60, bounciness: 0 }).start();
-    // [v4-FEAT-04] 80ms background flash: ramp to gold tint in 40ms, ramp back in 40ms
-    Animated.sequence([
-      Animated.timing(flashAnim, { toValue: 1, duration: 40, useNativeDriver: false }),
-      Animated.timing(flashAnim, { toValue: 0, duration: 40, useNativeDriver: false }),
-    ]).start();
+    // [FIX-03] 80ms background flash on UI thread — ramp up 40ms, ramp down 40ms
+    flashAnim.value = withSequence(
+      withTiming(1, { duration: 40 }),
+      withTiming(0, { duration: 40 }),
+    );
   }, [scale, flashAnim]);
   const onPressOut  = useCallback(() =>
     Animated.spring(scale, { toValue: 1.00, useNativeDriver: true, speed: 55, bounciness: 4 }).start(),
@@ -899,14 +968,11 @@ const CountryRow = memo<CountryRowProps>(({ country, isSelected, onPress }) => {
           <Feather name="chevron-right" size={16} color={T.textTertiary} />
         )}
 
-        {/* [v4-FEAT-04] Background flash overlay — absolutely fills the row,
-            opacity driven by flashAnim (0→1→0 over 80ms on press).
-            pointerEvents="none" so it never intercepts touches. */}
-        <Animated.View
-          style={[
-            StyleSheet.absoluteFill,
-            { backgroundColor: DV.activeRowBg, opacity: flashAnim },
-          ]}
+        {/* [FIX-03] Flash overlay: Reanimated (UI thread) — previously used
+            Animated with useNativeDriver:false which blocked the JS thread.
+            pointerEvents="none" ensures it never intercepts touches. */}
+        <ReAnimated.View
+          style={[StyleSheet.absoluteFill, { backgroundColor: DV.activeRowBg }, flashStyle]}
           pointerEvents="none"
         />
       </Animated.View>
@@ -1230,7 +1296,37 @@ const lo = StyleSheet.create({
   },
 });
 
-// ─── [HIGH-02 / ADD-01] RecentlyVisitedSection ────────────────────────────────
+// ─── [FIX-01] AlphaSidebarAndOverlay ─────────────────────────────────────────
+// Root cause of re-render bug: activeAlphaLetter was state in CountryPickerSheetBase.
+// Every pan frame called setActiveAlphaLetter → re-rendered the entire parent tree
+// (BottomSheetFlatList with 200+ rows).
+//
+// Fix: Own the state here. Only this tiny component re-renders on each letter change.
+// Parent passes stable props (letters, onPress, reducedMotion) — none of which change
+// during a pan — so memo() guarantees zero parent-triggered re-renders during drag.
+interface AlphaSidebarAndOverlayProps {
+  letters:       string[];
+  onPress:       (letter: string) => void;
+  reducedMotion: boolean;
+}
+
+const AlphaSidebarAndOverlay = memo<AlphaSidebarAndOverlayProps>(
+  ({ letters, onPress, reducedMotion }) => {
+    const [activeLetter, setActiveLetter] = useState<string | null>(null);
+    return (
+      <>
+        <AlphabetSidebar
+          letters={letters}
+          onPress={onPress}
+          onLetterChange={setActiveLetter}
+        />
+        <LetterOverlay letter={activeLetter} reducedMotion={reducedMotion} />
+      </>
+    );
+  },
+);
+
+
 interface RecentlyVisitedProps {
   countries: CountryDoc[];
   selected:  string;
@@ -1312,7 +1408,7 @@ function CountryPickerSheetBase({
   const [switchingTo,   setSwitchingTo]  = useState<CountryDoc | null>(null);
   const [isRefreshing,  setIsRefreshing] = useState(false);
   const [tickNow,       setTickNow]      = useState(() => Date.now());
-  const [activeAlphaLetter, setActiveAlphaLetter] = useState<string | null>(null);
+  // [FIX-01] activeAlphaLetter removed from this component — now owned by AlphaSidebarAndOverlay
 
   const searchRef     = useRef<TextInput>(null);
   // [v4-ARCH-02] listRef typed as FlatList — BottomSheetFlatList is FlatList-compatible
@@ -1381,58 +1477,45 @@ function CountryPickerSheetBase({
   // a stable measurement hook for any future use.
   const shellHRef = useRef(0);
 
-  // ── [v4-ARCH-06] AnimatedPillsRow — height + opacity ─────────────────────────
-  // Note: height uses useNativeDriver:false (layout prop); opacity uses true (UI thread).
-  // Animated.parallel supports mixed useNativeDriver values — each runs independently.
-  const pillsHeight  = useRef(new Animated.Value(L.pillRowH)).current;
-  const pillsOpacity = useRef(new Animated.Value(1)).current;
+  // ── [FIX-03] AnimatedPillsRow — migrated from Animated (useNativeDriver:false) ─
+  // to Reanimated SharedValues so height + opacity run on the UI thread.
+  const pillsH  = useSharedValue(L.pillRowH);
+  const pillsOp = useSharedValue(1);
+  const animatedPillsStyle = useAnimatedStyle(() => ({
+    height:   pillsH.value,
+    opacity:  pillsOp.value,
+    overflow: 'hidden' as const,
+  }));
 
   useEffect(() => {
-    const isSearching = rawQuery.length > 0;
-    Animated.parallel([
-      Animated.timing(pillsHeight, {
-        toValue:         isSearching ? 0 : L.pillRowH,
-        duration:        isSearching ? 200 : 220,
-        easing:          Easing.out(Easing.cubic),
-        useNativeDriver: false, // height cannot use native driver
-      }),
-      Animated.timing(pillsOpacity, {
-        toValue:         isSearching ? 0 : 1,
-        duration:        isSearching ? 160 : 180,
-        easing:          Easing.out(Easing.cubic),
-        useNativeDriver: true, // opacity runs on UI thread
-      }),
-    ]).start();
-  }, [rawQuery, pillsHeight, pillsOpacity]);
+    // [FIX-09] trim() — prevents space-only input from collapsing pills unnecessarily
+    const isSearching = rawQuery.trim().length > 0;
+    if (isSearching) {
+      pillsH.value  = withTiming(0,          { duration: 200, easing: REasing.out(REasing.cubic) });
+      pillsOp.value = withTiming(0,          { duration: 160, easing: REasing.out(REasing.cubic) });
+    } else {
+      pillsH.value  = withTiming(L.pillRowH, { duration: 220, easing: REasing.out(REasing.cubic) });
+      pillsOp.value = withTiming(1,          { duration: 180, easing: REasing.out(REasing.cubic) });
+    }
+  }, [rawQuery, pillsH, pillsOp]);
 
-  // ── [v4-FEAT-01] Search bar focus glow ───────────────────────────────────────
-  // Interpolates border from cream[300] → gold[600] on focus.
-  // useNativeDriver: false required for color interpolation.
-  const searchBorderAnim = useRef(new Animated.Value(0)).current;
-  const animatedBorderColor = searchBorderAnim.interpolate({
-    inputRange:  [0, 1],
-    outputRange: [T.border, T.gold],
-  });
+  // ── [FIX-03] Search bar focus glow — migrated from Animated (useNativeDriver:false) ─
+  // Reanimated interpolateColor runs on the UI thread — no JS-thread block on keyboard show.
+  const searchFocused = useSharedValue(0);
+  const animatedBorderStyle = useAnimatedStyle(() => ({
+    borderColor: interpolateColor(searchFocused.value, [0, 1], [T.border, T.gold]),
+  }));
 
   const handleSearchFocus = useCallback(() => {
     // [v4-ADR-05] Auto-snap to 92% on search focus — maximum space for results.
-    // WhatsApp contact picker pattern: tap search → full height immediately.
     sheetRef.current?.snapToIndex(1);
-    // Animate the search bar border glow (cream[300] → gold[600]).
-    Animated.timing(searchBorderAnim, {
-      toValue:         1,
-      duration:        180,
-      useNativeDriver: false,
-    }).start();
-  }, [searchBorderAnim]);
+    // [FIX-03] Reanimated withTiming — runs on UI thread (no useNativeDriver:false)
+    searchFocused.value = withTiming(1, { duration: 180 });
+  }, [searchFocused]);
 
   const handleSearchBlur = useCallback(() => {
-    Animated.timing(searchBorderAnim, {
-      toValue:         0,
-      duration:        150,
-      useNativeDriver: false,
-    }).start();
-  }, [searchBorderAnim]);
+    searchFocused.value = withTiming(0, { duration: 150 });
+  }, [searchFocused]);
 
   // ── [FIX-HEIGHT-03] Shell layout measurement ─────────────────────────────────
   // Records shell height for future layout calculations.
@@ -1606,19 +1689,21 @@ function CountryPickerSheetBase({
     [regionFiltered],
   );
 
-  // [HIGH-08] Search within regionFiltered. [MED-03] Diacritics. [ADD-09] Dial code.
+  // [HIGH-08] Search within regionFiltered. [FIX-02] Uses pre-computed fields —
+  // normalizeDiacritics + dialCode.replace() no longer run per-country per keystroke.
   const displayCountries = useMemo<CountryDoc[]>(() => {
-    if (!searchQuery.trim()) return regionFiltered;
+    const q = searchQuery.trim();
+    // [FIX-09] Empty/whitespace query returns browse data with zero extra work
+    if (!q) return regionFiltered;
 
-    const q       = searchQuery.trim();
     const normQ   = normalizeDiacritics(q);
     const isDialQ = /^\+?\d+$/.test(q);
     const digits  = q.replace(/\D/g, '');
 
     return regionFiltered.filter((c) => {
-      if (normalizeDiacritics(c.name).includes(normQ)) return true;
-      if (c.id.toLowerCase() === normQ)               return true;
-      if (isDialQ && c.dialCode?.replace(/\D/g, '').startsWith(digits)) return true;
+      if (c.normalizedName.includes(normQ))              return true; // [FIX-02] pre-computed
+      if (c.id.toLowerCase() === normQ)                  return true;
+      if (isDialQ && c.cleanDialCode.startsWith(digits)) return true; // [FIX-02] pre-computed
       return false;
     });
   }, [regionFiltered, searchQuery]);
@@ -1717,17 +1802,18 @@ function CountryPickerSheetBase({
     Keyboard.dismiss();
     setSheetState('switching');
 
-    // [FIX-SWITCHING] try/finally guarantees isSwitchingRef always released
     try {
-      try {
-        await AsyncStorage.setItem(CW_COUNTRY_KEY, country.id);
-        const updated = [
-          country.id,
-          ...recentIdsRef.current.filter((id) => id !== country.id),
-        ].slice(0, MAX_RECENTS);
-        await AsyncStorage.setItem(CW_RECENTS_KEY, JSON.stringify(updated));
-        if (isMountedRef.current) setRecentIds(updated);
-      } catch { /* non-critical */ }
+      // [FIX-05] Fire-and-forget — disk I/O must NOT block UI close.
+      // Previously `await AsyncStorage.setItem(...)` introduced micro-lag before
+      // the sheet could dismiss on slow storage (especially first-write on Android).
+      const updated = [
+        country.id,
+        ...recentIdsRef.current.filter((id) => id !== country.id),
+      ].slice(0, MAX_RECENTS);
+      AsyncStorage.setItem(CW_COUNTRY_KEY, country.id).catch(() => {});
+      AsyncStorage.setItem(CW_RECENTS_KEY, JSON.stringify(updated))
+        .then(() => { if (isMountedRef.current) setRecentIds(updated); })
+        .catch(() => {});
 
       onSelect(country.id, country.name, country.emoji);
 
@@ -1930,26 +2016,19 @@ function CountryPickerSheetBase({
       handleIndicatorStyle={sh.handleIndicator}
     >
       {/*
-       * [v5-FIX-OVERLAP] ── SINGLE WRAPPER FIX ─────────────────────────────────
-       * Root cause: gorhom v5 does NOT auto-stack multiple direct children of
-       * <BottomSheet> in a flex column — it renders them with position:absolute,
-       * so BottomSheetView (pinnedShell) and the content (FlatList) both start
-       * at y=0 and OVERLAP each other. The "TRENDING" label visible behind the
-       * title in the screenshot is evidence of this.
+       * [FIX-04] OUTER WRAPPER — plain View instead of BottomSheetView ──────────
+       * BottomSheetView inside BottomSheet can hijack gesture arbitration on
+       * Android, causing BottomSheetFlatList scrolls to stall.
        *
-       * Fix: ONE BottomSheetView with flex:1 as the sole direct child. Normal
-       * React flex-column layout then stacks pinnedShell above content correctly.
-       * BottomSheetFlatList registers with gorhom's gesture coordinator via React
-       * context — it works correctly when nested inside BottomSheetView.
-       * BottomSheetTextInput also works inside a nested regular View.
+       * Plain View with flex:1 fixes the v5-OVERLAP issue equally well because
+       * BottomSheet v5 renders its content area in a flex column by default.
+       * BottomSheetFlatList still registers with the sheet's gesture coordinator
+       * via React context regardless of whether its ancestor is BottomSheetView.
        */}
-      <BottomSheetView style={sh.outerWrapper}>
+      <View style={sh.outerWrapper}>
 
       {/* ── PINNED SHELL — The "Shell vs Content" principle (PRD §2 Principle 5) ── */}
       {/* SearchBar, title, pills live here. They CANNOT scroll away.             */}
-      {/*                                                                          */}
-      {/* Changed to regular View — the outer BottomSheetView handles gorhom      */}
-      {/* integration; inner pinnedShell is just a normal flex child.             */}
       <View style={sh.pinnedShell} onLayout={onShellLayout}>
 
         {/* ── [v4-ARCH-05] MERGED TITLE ROW — saves 52px vs v3.3 ──────────────── */}
@@ -2005,11 +2084,9 @@ function CountryPickerSheetBase({
           </Pressable>
         </View>
 
-        {/* ── [v4-FEAT-01] SEARCH BAR — gold glow on focus ──────────────────── */}
-        {/* SearchBar is PINNED here. Cannot scroll. Cannot be buried by keyboard. */}
-        {/* BottomSheetTextInput [v5-ARCH-02]: keyboard coordination is handled  */}
-        {/* by gorhom — the sheet content area auto-resizes above the keyboard.  */}
-        <Animated.View style={[sh.searchWrap, { borderColor: animatedBorderColor }]}>
+        {/* ── [FIX-03] SEARCH BAR — Reanimated border glow (UI thread) ────────── */}
+        {/* borderColor interpolation now runs on UI thread via Reanimated          */}
+        <ReAnimated.View style={[sh.searchWrap, animatedBorderStyle]}>
           <Feather name="search" size={18} color={T.textTertiary} />
           <BottomSheetTextInput
             ref={searchRef}
@@ -2037,18 +2114,11 @@ function CountryPickerSheetBase({
               <Feather name="x-circle" size={18} color={T.textTertiary} />
             </Pressable>
           )}
-        </Animated.View>
+        </ReAnimated.View>
 
-        {/* ── [v4-ARCH-06] ANIMATED PILLS ROW ──────────────────────────────────── */}
-        {/* height: pillRowH→0 (200ms) on search start; 0→pillRowH (220ms) on clear */}
-        {/* opacity: 1→0 (160ms) on search start; 0→1 (180ms) on clear */}
-        {/* Result: list gains 50px during search — bigger result viewport */}
-        <Animated.View
-          style={[
-            sh.pillAnimWrap,
-            { height: pillsHeight, opacity: pillsOpacity, overflow: 'hidden' },
-          ]}
-        >
+        {/* ── [FIX-03] ANIMATED PILLS ROW — Reanimated height + opacity ─────────
+            Both height and opacity now run entirely on the UI thread.            */}
+        <ReAnimated.View style={[sh.pillAnimWrap, animatedPillsStyle]}>
           {sheetState !== 'loading' && error == null && (
             <ScrollView
               horizontal
@@ -2069,7 +2139,7 @@ function CountryPickerSheetBase({
               ))}
             </ScrollView>
           )}
-        </Animated.View>
+        </ReAnimated.View>
 
         <View style={sh.hairline} />
         </View>
@@ -2214,18 +2284,15 @@ function CountryPickerSheetBase({
             }
           />
 
-          {/* [NEW-02] A-Z sidebar — positioned absolute, no gesture conflict */}
-          {/* Touch region (right 22px) does not overlap FlatList touch area */}
+          {/* [FIX-01] AlphaSidebarAndOverlay owns activeAlphaLetter state internally.
+              Only this component re-renders on each pan frame — not the FlatList above. */}
           {showAlpha && (
-            <AlphabetSidebar
+            <AlphaSidebarAndOverlay
               letters={alphabetLetters}
               onPress={handleAlphabetPress}
-              onLetterChange={setActiveAlphaLetter}
+              reducedMotion={reducedMotion}
             />
           )}
-
-          {/* [v4-FEAT-04] LetterOverlay — Reanimated spring enter, ease-out exit */}
-          <LetterOverlay letter={activeAlphaLetter} reducedMotion={reducedMotion} />
         </View>
 
       )}
@@ -2256,7 +2323,7 @@ function CountryPickerSheetBase({
         </ReAnimated.View>
       )}
 
-      </BottomSheetView>{/* ── [v5-FIX-OVERLAP] close outerWrapper ── */}
+      </View>{/* ── [FIX-04] close outerWrapper (plain View) ── */}
     </BottomSheet>
   );
 }
