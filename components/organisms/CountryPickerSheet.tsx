@@ -1,8 +1,40 @@
 /**
- * components/organisms/CountryPickerSheet.tsx — v5.1
+ * components/organisms/CountryPickerSheet.tsx — v5.2
  *
  * CROWN — Country Selection Bottom Sheet
  * "The gateway to the world. Clean. Fast. Global."
+ *
+ * ── v5.2 CHANGELOG (5 Critical Bugs Resolved) ────────────────────────────────
+ *
+ *  [FIX-v52-01] CRITICAL — getItemLayout search-results math corruption fixed.
+ *               buildSearchResults inserts 1px dividers between country rows.
+ *               The old formula returned 74px for ALL items including dividers,
+ *               making FlatList's internal scroll map wrong from index 1 onward.
+ *               New: even indices = Country (74px), odd = Divider (1px).
+ *
+ *  [FIX-v52-02] CRITICAL — handleSelect UI freeze prevented.
+ *               setSheetState('idle') and setSwitchingTo(null) were inside the
+ *               try block after onSelect(). If onSelect threw, the spinner froze
+ *               permanently. Both resets moved to finally — unconditionally runs.
+ *
+ *  [FIX-v52-03] PERFORMANCE — tickNow extracted into RelativeTimeLabel component.
+ *               setInterval was calling setTickNow every 60s on the root component,
+ *               forcing a full re-render of CountryPickerSheetBase every minute.
+ *               Now only the small time-label Text re-renders.
+ *
+ *  [FIX-v52-04] RACE CONDITION — Promise.all for initial data load.
+ *               AsyncStorage.getItem (recents) and fetchCountries() now resolve
+ *               as one atomic batch via Promise.all, eliminating the "recents
+ *               pop-in after countries render" layout thrash.
+ *
+ *  [FIX-v52-05] ARCHITECTURAL — shimmer + PulseContext fully migrated to Reanimated.
+ *               shimmerAnim: useSharedValue + withRepeat (was Animated.loop).
+ *               PulseProvider: useSharedValue + withRepeat (was Animated.loop).
+ *               usePulse: returns SharedValue<number> (was Animated.Value).
+ *               LiveDot: ReAnimated.View + useAnimatedStyle (was Animated.View).
+ *               SkeletonRow / SkeletonHeroCard: ReAnimated.View + interpolate.
+ *               RN Animated library now only used for HeroCard/CountryRow scale springs
+ *               (useNativeDriver:true; no JS-thread blocking).
  *
  * ── v5.1 CHANGELOG (Performance & Architecture Fixes) ────────────────────────
  *
@@ -186,12 +218,16 @@ import BottomSheet, {
 // Used for: HeroCard stagger entry, LetterOverlay spring, SwitchingOverlay fade
 import ReAnimated, {
   Easing as REasing,
+  cancelAnimation,
+  interpolate,
   interpolateColor,
   useAnimatedStyle,
   useSharedValue,
+  withRepeat,
   withSequence,
   withSpring,
   withTiming,
+  type SharedValue,
   FadeIn,
   SlideInRight,
 } from 'react-native-reanimated';
@@ -551,39 +587,37 @@ function precomputeLayouts(
 }
 
 // ─── [BUG-03] PulseContext — instance-safe, ref-counted pulse animation ────────
-// Module-level `_pulse` survived Fast Refresh, hot reloads, and test reruns.
-// Two CountryPickerSheet instances in a Navigator stack shared the same
-// Animated.Value, causing visual glitches and ref-count corruption in Concurrent Mode.
-// Solution: move state into React Context so each sheet tree gets its own animation.
+// [FIX-05] Migrated from RN Animated to Reanimated SharedValue so the pulse
+// opacity loop runs entirely on the UI thread.
 interface _PulseCtx {
-  anim:     Animated.Value;
+  anim:     SharedValue<number>; // was Animated.Value
   register: () => () => void;
 }
 
 const PulseContext = React.createContext<_PulseCtx | null>(null);
 
 const PulseProvider = memo<{ children: React.ReactNode }>(({ children }) => {
-  const anim    = useRef(new Animated.Value(1)).current;
-  const refs    = useRef(0);
-  const loopRef = useRef<Animated.CompositeAnimation | null>(null);
+  const anim = useSharedValue(1);
+  const refs = useRef(0);
 
   const register = useCallback((): (() => void) => {
     refs.current++;
-    if (loopRef.current === null) {
-      loopRef.current = Animated.loop(
-        Animated.sequence([
-          Animated.timing(anim, { toValue: 0.2, duration: 850, useNativeDriver: true }),
-          Animated.timing(anim, { toValue: 1.0, duration: 850, useNativeDriver: true }),
-        ]),
+    if (refs.current === 1) {
+      // [FIX-05] withRepeat(-1) = infinite; false = don't auto-reverse (withSequence handles it)
+      anim.value = withRepeat(
+        withSequence(
+          withTiming(0.2, { duration: 850 }),
+          withTiming(1.0, { duration: 850 }),
+        ),
+        -1,
+        false,
       );
-      loopRef.current.start();
     }
     return () => {
       refs.current = Math.max(0, refs.current - 1);
-      if (refs.current === 0 && loopRef.current !== null) {
-        loopRef.current.stop();
-        loopRef.current = null;
-        anim.setValue(1);
+      if (refs.current === 0) {
+        cancelAnimation(anim);
+        anim.value = withTiming(1, { duration: 150 }); // smooth reset to fully visible
       }
     };
   }, [anim]);
@@ -593,37 +627,39 @@ const PulseProvider = memo<{ children: React.ReactNode }>(({ children }) => {
   return <PulseContext.Provider value={ctx}>{children}</PulseContext.Provider>;
 });
 
-function usePulse(enabled: boolean): Animated.Value {
+function usePulse(enabled: boolean): SharedValue<number> {
   const ctx = React.useContext(PulseContext);
-  // [FIX-07] Lazy init: only allocate an Animated.Value when there is no PulseProvider
-  // (e.g. tests / Storybook). Previously this ref was created unconditionally, burning
-  // a new Animated node for every element — even ones that would use ctx.anim.
-  const fallbackRef = useRef<Animated.Value | null>(null);
+  // [FIX-05] useSharedValue(1) is the fallback for tests/Storybook (no PulseProvider).
+  // Called unconditionally (hook rules) — lightweight in the normal app path since ctx always exists.
+  const fallback = useSharedValue(1);
 
   useEffect(() => {
     if (!enabled || !ctx) return;
     return ctx.register();
   }, [enabled, ctx]);
 
-  if (ctx) return ctx.anim;
-
-  if (!fallbackRef.current) fallbackRef.current = new Animated.Value(1);
-  return fallbackRef.current;
+  return ctx ? ctx.anim : fallback;
 }
 
 // ─── LiveDot ───────────────────────────────────────────────────────────────────
 const LiveDot = memo<{ size?: number; gold?: boolean; pulse?: boolean }>(
   ({ size = 7, gold = false, pulse = false }) => {
-    const anim = usePulse(pulse);
+    const anim     = usePulse(pulse);
+    // [FIX-05] useAnimatedStyle reads SharedValue — runs on UI thread
+    const animStyle = useAnimatedStyle(() => ({
+      opacity: pulse ? anim.value : 1,
+    }));
     return (
-      <Animated.View
-        style={{
-          width:           size,
-          height:          size,
-          borderRadius:    size / 2,
-          backgroundColor: gold ? T.gold : T.green,
-          opacity:         pulse ? anim : 1,
-        }}
+      <ReAnimated.View
+        style={[
+          {
+            width:           size,
+            height:          size,
+            borderRadius:    size / 2,
+            backgroundColor: gold ? T.gold : T.green,
+          },
+          animStyle,
+        ]}
         accessible={false}
       />
     );
@@ -631,16 +667,19 @@ const LiveDot = memo<{ size?: number; gold?: boolean; pulse?: boolean }>(
 );
 
 // ─── SkeletonRow ───────────────────────────────────────────────────────────────
-const SkeletonRow = memo<{ shimmer: Animated.Value }>(({ shimmer }) => {
-  const opacity = shimmer.interpolate({ inputRange: [0, 1], outputRange: [0.3, 0.8] });
+// [FIX-05] shimmer is now SharedValue<number> — opacity interpolation on UI thread
+const SkeletonRow = memo<{ shimmer: SharedValue<number> }>(({ shimmer }) => {
+  const animStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(shimmer.value, [0, 1], [0.3, 0.8]),
+  }));
   return (
     <View style={sk.row}>
-      <Animated.View style={[sk.flag, { opacity }]} />
+      <ReAnimated.View style={[sk.flag, animStyle]} />
       <View style={sk.body}>
-        <Animated.View style={[sk.line1, { opacity }]} />
-        <Animated.View style={[sk.line2, { opacity }]} />
+        <ReAnimated.View style={[sk.line1, animStyle]} />
+        <ReAnimated.View style={[sk.line2, animStyle]} />
       </View>
-      <Animated.View style={[sk.heat, { opacity }]} />
+      <ReAnimated.View style={[sk.heat, animStyle]} />
     </View>
   );
 });
@@ -655,17 +694,20 @@ const sk = StyleSheet.create({
 });
 
 // ─── [ADD-10] SkeletonHeroCard ─────────────────────────────────────────────────
-const SkeletonHeroCard = memo<{ shimmer: Animated.Value }>(({ shimmer }) => {
-  const opacity = shimmer.interpolate({ inputRange: [0, 1], outputRange: [0.25, 0.75] });
+// [FIX-05] shimmer is now SharedValue<number> — opacity interpolation on UI thread
+const SkeletonHeroCard = memo<{ shimmer: SharedValue<number> }>(({ shimmer }) => {
+  const animStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(shimmer.value, [0, 1], [0.25, 0.75]),
+  }));
   return (
-    <Animated.View style={[skh.card, { opacity }]}>
-      <Animated.View style={[skh.flag,  { opacity }]} />
-      <Animated.View style={[skh.line1, { opacity }]} />
-      <Animated.View style={[skh.line2, { opacity }]} />
+    <ReAnimated.View style={[skh.card, animStyle]}>
+      <ReAnimated.View style={[skh.flag,  animStyle]} />
+      <ReAnimated.View style={[skh.line1, animStyle]} />
+      <ReAnimated.View style={[skh.line2, animStyle]} />
       <View style={skh.heatTrackWrap}>
-        <Animated.View style={[skh.heatBar, { opacity }]} />
+        <ReAnimated.View style={[skh.heatBar, animStyle]} />
       </View>
-    </Animated.View>
+    </ReAnimated.View>
   );
 });
 
@@ -1377,6 +1419,33 @@ const rv = StyleSheet.create({
   },
 });
 
+// ─── [FIX-03] RelativeTimeLabel ──────────────────────────────────────────────
+// Owns tickNow state so only this tiny Text re-renders every 60s.
+// Previously setTickNow lived in CountryPickerSheetBase — every minute tick
+// forced a full re-render of the entire sheet tree (FlatList + 200+ rows).
+const RelativeTimeLabel = memo<{ fetchedAt: number | null }>(({ fetchedAt }) => {
+  const [tickNow, setTickNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (fetchedAt == null) return;
+    const id = setInterval(() => setTickNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, [fetchedAt]);
+
+  if (fetchedAt == null) return null;
+
+  const diffMin = Math.round((tickNow - fetchedAt) / 60_000);
+  let label: string;
+  if (diffMin < 1)   label = 'Updated just now';
+  else if (diffMin === 1) label = 'Updated 1 min ago';
+  else if (diffMin < 60)  label = `Updated ${diffMin} min ago`;
+  else label = `Counts at ${new Date(fetchedAt).toLocaleTimeString('en-IN', {
+    hour: '2-digit', minute: '2-digit', hour12: true,
+  })}`;
+
+  return <Text style={sh.countTimeLabel}>{label}</Text>;
+});
+
 // ─── Main component ────────────────────────────────────────────────────────────
 type SheetState = 'loading' | 'idle' | 'switching';
 
@@ -1407,8 +1476,8 @@ function CountryPickerSheetBase({
   const [fetchedAt,     setFetchedAt]    = useState<number | null>(null);
   const [switchingTo,   setSwitchingTo]  = useState<CountryDoc | null>(null);
   const [isRefreshing,  setIsRefreshing] = useState(false);
-  const [tickNow,       setTickNow]      = useState(() => Date.now());
-  // [FIX-01] activeAlphaLetter removed from this component — now owned by AlphaSidebarAndOverlay
+  // [FIX-01] activeAlphaLetter removed — now owned by AlphaSidebarAndOverlay
+  // [FIX-03] tickNow removed — now owned by RelativeTimeLabel
 
   const searchRef     = useRef<TextInput>(null);
   // [v4-ARCH-02] listRef typed as FlatList — BottomSheetFlatList is FlatList-compatible
@@ -1527,26 +1596,24 @@ function CountryPickerSheetBase({
     [],
   );
 
-  // ── Shimmer animation ─────────────────────────────────────────────────────────
-  const shimmerAnim = useRef(new Animated.Value(0)).current;
+  // ── [FIX-05] Shimmer animation — Reanimated withRepeat (UI thread) ───────────
+  const shimmerAnim = useSharedValue(0);
   useEffect(() => {
-    if (sheetState !== 'loading') { shimmerAnim.setValue(0); return; }
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(shimmerAnim, { toValue:1, duration:L.shimmerDur/2, useNativeDriver:true }),
-        Animated.timing(shimmerAnim, { toValue:0, duration:L.shimmerDur/2, useNativeDriver:true }),
-      ]),
+    if (sheetState !== 'loading') {
+      cancelAnimation(shimmerAnim);
+      shimmerAnim.value = 0;
+      return;
+    }
+    shimmerAnim.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: L.shimmerDur / 2 }),
+        withTiming(0, { duration: L.shimmerDur / 2 }),
+      ),
+      -1,
+      false,
     );
-    loop.start();
-    return () => loop.stop();
+    return () => cancelAnimation(shimmerAnim);
   }, [sheetState, shimmerAnim]);
-
-  // ── [ADD-04] 60 s tick for relative time label ────────────────────────────────
-  useEffect(() => {
-    if (fetchedAt == null) return;
-    const id = setInterval(() => setTickNow(Date.now()), 60_000);
-    return () => clearInterval(id);
-  }, [fetchedAt]);
 
   // ── Debounced search — 150ms (was 300ms, [PERF-02]) ─────────────────────────
   // 300ms lagged behind 1–2 keystrokes at normal typing speed. 150ms feels
@@ -1587,19 +1654,24 @@ function CountryPickerSheetBase({
     setError(null);
     setSwitchingTo(null);
 
-    AsyncStorage.getItem(CW_RECENTS_KEY)
-      .then((raw) => {
-        if (fetchIdRef.current !== currentFetchId || !raw) return;
-        try { setRecentIds(JSON.parse(raw) as string[]); } catch { /* ignore */ }
+    // [FIX-04] Promise.all: AsyncStorage recents + Firebase countries run concurrently
+    // and resolve in one React batch. Previously they raced — on fast connections
+    // countries would render first, then recents would arrive milliseconds later
+    // popping in and shifting the entire list layout.
+    const recentsPromise = AsyncStorage.getItem(CW_RECENTS_KEY)
+      .then((raw): string[] => {
+        if (!raw) return [];
+        try { return JSON.parse(raw) as string[]; } catch { return []; }
       })
-      .catch(() => {});
+      .catch((): string[] => []);
 
-    fetchCountries()
-      .then(([docs, ts]) => {
+    Promise.all([recentsPromise, fetchCountries()])
+      .then(([recents, [docs, ts]]) => {
         if (fetchIdRef.current !== currentFetchId) return;
+        // [FIX-03] setTickNow removed — RelativeTimeLabel owns its own tick state
+        setRecentIds(recents);
         setCountries(docs);
         setFetchedAt(ts);
-        setTickNow(Date.now());
         setSheetState('idle');
       })
       .catch((err: unknown) => {
@@ -1623,7 +1695,7 @@ function CountryPickerSheetBase({
         if (isMountedRef.current) {
           setCountries(docs);
           setFetchedAt(ts);
-          setTickNow(Date.now());
+          // [FIX-03] setTickNow removed — RelativeTimeLabel owns its own tick state
         }
       })
       .catch((err: unknown) => {
@@ -1657,7 +1729,7 @@ function CountryPickerSheetBase({
         if (isMountedRef.current) {
           setCountries(docs);
           setFetchedAt(ts);
-          setTickNow(Date.now());
+          // [FIX-03] setTickNow removed — RelativeTimeLabel owns its own tick state
           setSheetState('idle');
         }
       })
@@ -1721,18 +1793,6 @@ function CountryPickerSheetBase({
     }
     return counts;
   }, [countries]);
-
-  // [ADD-04] Relative time label, auto-ticks every 60s [MED-05]
-  const countTimeLabel = useMemo<string | null>(() => {
-    if (fetchedAt == null) return null;
-    const diffMin = Math.round((tickNow - fetchedAt) / 60_000);
-    if (diffMin < 1)   return 'Updated just now';
-    if (diffMin === 1) return 'Updated 1 min ago';
-    if (diffMin < 60)  return `Updated ${diffMin} min ago`;
-    return `Counts at ${new Date(fetchedAt).toLocaleTimeString('en-IN', {
-      hour: '2-digit', minute: '2-digit', hour12: true,
-    })}`;
-  }, [fetchedAt, tickNow]);
 
   const selectedCountry = useMemo(
     () => countries.find((c) => c.id === selected) ?? null,
@@ -1804,8 +1864,6 @@ function CountryPickerSheetBase({
 
     try {
       // [FIX-05] Fire-and-forget — disk I/O must NOT block UI close.
-      // Previously `await AsyncStorage.setItem(...)` introduced micro-lag before
-      // the sheet could dismiss on slow storage (especially first-write on Android).
       const updated = [
         country.id,
         ...recentIdsRef.current.filter((id) => id !== country.id),
@@ -1816,16 +1874,19 @@ function CountryPickerSheetBase({
         .catch(() => {});
 
       onSelect(country.id, country.name, country.emoji);
-
-      if (isMountedRef.current) {
-        setSheetState('idle');
-        setSwitchingTo(null);
-      }
+      // ↑ parent prop — if it throws, execution jumps to finally.
+      // UI reset is in finally so the spinner is NEVER permanently stuck.
 
       await new Promise<void>((r) => setTimeout(r, reducedMotion ? 0 : 160));
       onClose();
     } finally {
       isSwitchingRef.current = false;
+      // [FIX-02] Guaranteed UI reset — even if onSelect throws, the sheet
+      // exits 'switching' state and the spinner disappears.
+      if (isMountedRef.current) {
+        setSheetState('idle');
+        setSwitchingTo(null);
+      }
     }
   }, [onClose, onSelect, reducedMotion]);
 
@@ -1856,9 +1917,23 @@ function CountryPickerSheetBase({
 
   const getItemLayout = useCallback(
     (_: unknown, index: number) => {
-      // [PERF-01] itemLayouts is null during search — use fast O(1) formula.
-      if (!itemLayouts) return { length: L.rowH, offset: L.rowH * index, index };
-      return itemLayouts[index] ?? { length: L.rowH, offset: L.rowH * index, index };
+      if (itemLayouts) {
+        return itemLayouts[index] ?? { length: L.rowH, offset: L.rowH * index, index };
+      }
+      // [FIX-01] Search mode: buildSearchResults produces [Country, Divider, Country, Divider…]
+      // The old formula (L.rowH * index for all items) was wrong — it assumed every item
+      // was 74px, but Dividers are 1px. This corrupted FlatList's scroll map entirely.
+      //
+      // Correct pattern: even indices = Country (L.rowH), odd indices = Divider (L.divH)
+      // cumulative item size = L.rowH + L.divH = 75px per country+divider pair
+      const pairSize = L.rowH + L.divH; // 74 + 1 = 75
+      if (index % 2 === 0) {
+        // Country row
+        return { length: L.rowH, offset: (index / 2) * pairSize, index };
+      } else {
+        // Divider
+        return { length: L.divH, offset: Math.floor(index / 2) * pairSize + L.rowH, index };
+      }
     },
     [itemLayouts],
   );
@@ -1891,9 +1966,8 @@ function CountryPickerSheetBase({
           <View style={sh.trendingLabelRow}>
             <Feather name="trending-up" size={13} color={T.gold} />
             <Text style={sh.trendingLabel}>TRENDING</Text>
-            {countTimeLabel != null && (
-              <Text style={sh.countTimeLabel}>{countTimeLabel}</Text>
-            )}
+            {/* [FIX-03] RelativeTimeLabel owns its own tickNow state — only it re-renders each minute */}
+            <RelativeTimeLabel fetchedAt={fetchedAt} />
           </View>
           <ScrollView
             horizontal
@@ -1925,7 +1999,7 @@ function CountryPickerSheetBase({
         />
       )}
     </>
-  ), [showTrending, showRecents, trendingCountries, recentCountries, selected, handleSelect, countTimeLabel, reducedMotion]);
+  ), [showTrending, showRecents, trendingCountries, recentCountries, selected, handleSelect, fetchedAt, reducedMotion]);
 
   // ── [FIX-LAYOUT-2] ListEmptyComponent: empty states inside FlatList ──────────
   // [v4-FEAT-07] Empty state fade-in — opacity 0→1 over 200ms.
