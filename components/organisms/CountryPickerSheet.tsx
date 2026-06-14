@@ -1,8 +1,33 @@
 /**
- * components/organisms/CountryPickerSheet.tsx — v5.8
+ * components/organisms/CountryPickerSheet.tsx — v5.9
  *
  * CROWN — Country Selection Bottom Sheet
  * "The gateway to the world. Clean. Fast. Global."
+ *
+ * ── v5.9 CHANGELOG (HeroCard polish — watermark rank, breathing room, badge fix) ─
+ *
+ *  [v59-01] VISUAL — Rank numeral downgraded to watermark opacity (0.78 → 0.12).
+ *           The 0.78 opacity solid-gold numeral overpowered the country name —
+ *           "Aland Islands" was illegible against "2". New idle: rgba(212,160,23,0.12)
+ *           (pure watermark). Selected: rgba(212,160,23,0.16) (slightly stronger).
+ *           Result: the OTT-rank aesthetic is preserved as background texture while
+ *           the country name and region label remain the clear visual priority.
+ *
+ *  [v59-02] LAYOUT — nameGroup.right expanded: 56 → 28 px.
+ *           With the numeral now at 12% opacity, text can safely overlap it.
+ *           Reducing the right guard from 56 to 28 gives long country names
+ *           (e.g. "Aland Islands", "United Arab Emirates") ~28 extra px of width —
+ *           enough to fit on one line without truncation on most cards.
+ *
+ *  [v59-03] LAYOUT — 16 px breathing room added between Trending cards and hairline.
+ *           The HeroCard shadow (shadowRadius:10, offset:3) needs ≥13px below the
+ *           card to avoid clipping against the divider. hairline gets marginTop:16;
+ *           heroScroll contentContainerStyle gains paddingVertical:10 so shadow also
+ *           breathes inside the scroll content area above and below each card row.
+ *
+ *  [v59-04] LAYOUT — onlinePill.right tightened 11 → 8 px.
+ *           Moves the badge 3px closer to the card's right edge, aligning it with
+ *           the visual padding rhythm of the flag (left:12) on the other side.
  *
  * ── v5.8 CHANGELOG (HeroCard polish — gold rank, tighter height, refined badge) ─
  *
@@ -1135,7 +1160,7 @@ const hc = StyleSheet.create({
   onlinePill: {
     position:          'absolute',
     top:               11,
-    right:             11,
+    right:             8,    // [v59-04] tightened 11→8 — badge aligns with flag's left:12 rhythm
     flexDirection:     'row',
     alignItems:        'center',
     gap:               4,
@@ -1163,12 +1188,13 @@ const hc = StyleSheet.create({
   },
 
   // BOTTOM-LEFT: Country name (bold) + region (muted)
-  // right:56 leaves room for the rank numeral's visible portion — no text overlap.
+  // [v59-02] right:28 — watermark numeral at 12% opacity lets text overlap it safely.
+  // Previous right:56 reserved hard space for the solid-gold numeral; no longer needed.
   nameGroup: {
     position: 'absolute',
     bottom:   12,
     left:     12,
-    right:    56,
+    right:    28,
   },
   name: {
     fontSize:   13,
@@ -1187,18 +1213,19 @@ const hc = StyleSheet.create({
   // BOTTOM-RIGHT: Massive rank numeral — [v57-01] OTT Top-10 aesthetic.
   // right:-10 + bottom:-10: ~25% of the digit bleeds off the right edge;
   // the overflow:hidden on hc.inner clips it cleanly at the card boundary.
-  // [v58-01] Colour upgraded from 0.25 → 0.78 opacity — clearly gold, not ghost.
+  // [v58-01] Colour was 0.78 opacity (solid gold). [v59-01] Dialled back to 0.12
+  //           — now a ghost watermark so country name always remains primary.
   rankNum: {
     position:   'absolute',
     bottom:     -10,
     right:      -10,
     fontSize:   80,
     fontWeight: '900',
-    color:      'rgba(212,160,23,0.78)',   // rich metallic gold (idle)
+    color:      'rgba(212,160,23,0.12)',   // [v59-01] watermark ghost — text stays primary
     lineHeight: 88,
   },
   rankNumActive: {
-    color:      'rgba(212,160,23,0.96)',   // near-solid gold (selected)
+    color:      'rgba(212,160,23,0.16)',   // [v59-01] fractionally stronger on selected state
   },
 
   // NOTE: checkDot removed in v57-03 — selected state communicated via
@@ -2861,6 +2888,7 @@ const sh = StyleSheet.create({
 
   hairline: {
     height:          1,
+    marginTop:       16,   // [v59-03] shadow-safe gap — card shadow (radius:10, offset:3) needs ≥13px
     backgroundColor: T.borderSubtle,
   },
 
@@ -2897,6 +2925,7 @@ const sh = StyleSheet.create({
   },
   heroScroll: {
     paddingHorizontal: L.rowPadH,
+    paddingVertical:   10,    // [v59-03] shadow breathing — prevents card shadow clipping inside scroll
     gap:               12,
   },
 
