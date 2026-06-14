@@ -1,8 +1,39 @@
 /**
- * components/organisms/CountryPickerSheet.tsx — v5.9
+ * components/organisms/CountryPickerSheet.tsx — v5.10
  *
  * CROWN — Country Selection Bottom Sheet
  * "The gateway to the world. Clean. Fast. Global."
+ *
+ * ── v5.10 CHANGELOG (6 bugs — logic, visual, UX, Android) ─────────────────────
+ *
+ *  [v510-01] BUG — Recently Visited now hidden under region filters.
+ *            `showRecents` was only gated on `!searchQuery`. So selecting "Asia"
+ *            still showed Algeria (Africa) + Albania (Europe) in Recents. Fix:
+ *            added `&& regionFilter === 'All'` — now mirrors showTrending's guard.
+ *
+ *  [v510-02] VISUAL — Rank numeral opacity raised: 0.12 → 0.25 (idle) / 0.30 (active).
+ *            0.12 was too ghostly — numbers were nearly invisible on real hardware.
+ *            0.25/0.30 lands in the sweet spot: clearly readable as a background
+ *            texture without competing with the country name.
+ *
+ *  [v510-03] UX — "Counts at HH:MM pm" time label removed from Trending header.
+ *            Static timestamps make an app feel stale. "TRENDING" alone reads as
+ *            clean and real-time. RelativeTimeLabel prop removed from dep array.
+ *
+ *  [v510-04] LAYOUT — Hairline marginTop reduced 16 → 8 px.
+ *            16px was too airy after user testing — cards looked detached from the
+ *            section below. 8px gives shadow room (card shadowRadius:10 needs ≥3px)
+ *            without the floaty gap.
+ *
+ *  [v510-05] UX — ACTIVE badge removed from header subtitle.
+ *            "🇩🇿 Algeria · No one online ACTIVE" was noisy and redundant — the
+ *            green LiveDot already communicates active state. Removing the badge
+ *            makes the subtitle one clean line: flag + name + dot + count.
+ *
+ *  [v510-06] ANDROID — underlineColorAndroid="transparent" added to search TextInput.
+ *            Android draws a hard black focus underline on TextInput by default.
+ *            This is the system "focus ring" the user sees as a "black dabba".
+ *            Setting transparent removes it; the Reanimated gold glow handles focus.
  *
  * ── v5.9 CHANGELOG (HeroCard polish — watermark rank, breathing room, badge fix) ─
  *
@@ -1221,11 +1252,11 @@ const hc = StyleSheet.create({
     right:      -10,
     fontSize:   80,
     fontWeight: '900',
-    color:      'rgba(212,160,23,0.12)',   // [v59-01] watermark ghost — text stays primary
+    color:      'rgba(212,160,23,0.25)',   // [v510-02] 0.12 too ghostly on real hardware → 0.25 sweet spot
     lineHeight: 88,
   },
   rankNumActive: {
-    color:      'rgba(212,160,23,0.16)',   // [v59-01] fractionally stronger on selected state
+    color:      'rgba(212,160,23,0.30)',   // [v510-02] fractionally stronger when card is selected
   },
 
   // NOTE: checkDot removed in v57-03 — selected state communicated via
@@ -2286,7 +2317,9 @@ function CountryPickerSheetBase({
     : 'Search countries…';
   const showTrending = !searchQuery.trim() && regionFilter === 'All' && trendingCountries.length > 0;
   const showAlpha    = alphabetLetters.length > 0 && !searchQuery.trim();
-  const showRecents  = recentCountries.length > 0 && !searchQuery.trim();
+  // [v510-01] BUG FIX — was missing regionFilter guard; showed cross-region recents.
+  // Algeria (Africa) + Albania (Europe) appeared under Asia filter. Now mirrors showTrending.
+  const showRecents  = recentCountries.length > 0 && !searchQuery.trim() && regionFilter === 'All';
 
   const isRegionSearchEmpty =
     searchQuery.trim().length > 0 &&
@@ -2301,8 +2334,7 @@ function CountryPickerSheetBase({
           <View style={sh.trendingLabelRow}>
             <Feather name="trending-up" size={13} color={T.gold} />
             <Text style={sh.trendingLabel}>TRENDING</Text>
-            {/* [FIX-03] RelativeTimeLabel owns its own tickNow state — only it re-renders each minute */}
-            <RelativeTimeLabel fetchedAt={fetchedAt} />
+            {/* [v510-03] Time label removed — "Counts at HH:MM" felt stale. "TRENDING" alone is cleaner. */}
           </View>
           <ScrollView
             horizontal
@@ -2336,7 +2368,7 @@ function CountryPickerSheetBase({
         />
       )}
     </>
-  ), [showTrending, showRecents, trendingCountries, recentCountries, selected, handleSelect, fetchedAt, reducedMotion]);
+  ), [showTrending, showRecents, trendingCountries, recentCountries, selected, handleSelect, reducedMotion]); // [v510-03] fetchedAt removed — RelativeTimeLabel removed
 
   // ── [FIX-LAYOUT-2] ListEmptyComponent: empty states inside FlatList ──────────
   // [v4-FEAT-07] Empty state fade-in — opacity 0→1 over 200ms.
@@ -2444,7 +2476,7 @@ function CountryPickerSheetBase({
                 accessibilityRole="text"
                 accessibilityLabel={`Active country: ${selectedCountry.name}`}
               >
-                {/* [CRIT-04] pulse=true here — countTimeLabel nearby provides context */}
+                {/* [CRIT-04] pulse=true — LiveDot communicates active state. [v510-05] ACTIVE badge removed. */}
                 <LiveDot size={5} pulse />
                 <Text style={sh.activeFlag} accessible={false}>
                   {selectedCountry.emoji}
@@ -2458,9 +2490,8 @@ function CountryPickerSheetBase({
                     ? `${fmtCount(selectedCountry.onlineCount)} online`
                     : 'No one online'}
                 </Text>
-                <View style={sh.activeBadge}>
-                  <Text style={sh.activeBadgeText}>ACTIVE</Text>
-                </View>
+                {/* [v510-05] Removed: <View style={sh.activeBadge}><Text>ACTIVE</Text></View>
+                    Green LiveDot already signals active. Badge made the line cluttered. */}
               </View>
             )}
           </View>
@@ -2492,6 +2523,9 @@ function CountryPickerSheetBase({
             autoCapitalize="none"
             returnKeyType="search"
             clearButtonMode="never"
+            // [v510-06] Android draws a hard black underline on focus by default.
+            // Setting transparent removes it — the Reanimated gold glow handles focus state.
+            underlineColorAndroid="transparent"
             // [v53-03] Treat this strictly as a search box: no squiggles, no keyboard
             // autofill chips, no iOS strong-password / contact autofill offers.
             spellCheck={false}
@@ -2888,7 +2922,7 @@ const sh = StyleSheet.create({
 
   hairline: {
     height:          1,
-    marginTop:       16,   // [v59-03] shadow-safe gap — card shadow (radius:10, offset:3) needs ≥13px
+    marginTop:       8,    // [v510-04] 16px was too airy (cards felt detached); 8px keeps shadow + compact look
     backgroundColor: T.borderSubtle,
   },
 
