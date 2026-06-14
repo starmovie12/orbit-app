@@ -1,8 +1,35 @@
 /**
- * components/organisms/CountryPickerSheet.tsx — v5.6
+ * components/organisms/CountryPickerSheet.tsx — v5.7
  *
  * CROWN — Country Selection Bottom Sheet
  * "The gateway to the world. Clean. Fast. Global."
+ *
+ * ── v5.7 CHANGELOG (OTT Ranking Card — HeroCard complete redesign) ────────────
+ *
+ *  [v57-01] VISUAL — HeroCard redesigned as a premium OTT-style ranking card.
+ *           Previous: center-aligned vertical stack (flag → name → region → count).
+ *           New layout (inspired by Netflix/Disney+ Top-10 aesthetic):
+ *
+ *             Top-left:     Large flag emoji (38px, no background box).
+ *             Top-right:    Online status pill badge (green/grey dot + "N online").
+ *             Bottom-left:  Country name (bold 13px) + region label (muted 10px).
+ *             Bottom-right: Massive rank numeral (fontSize:80, metallic gold,
+ *                           ~25% bleeds off the right edge — OTT clip aesthetic).
+ *
+ *  [v57-02] ARCH — Two-layer card structure: shadow outer + overflow-hidden inner.
+ *           overflow:'hidden' on the inner View clips the bleeding rank numeral.
+ *           Shadow / elevation live on the outer ReAnimated.View so they are
+ *           never clipped (iOS shadow + Android elevation need a non-hidden parent).
+ *
+ *  [v57-03] UX — checkDot removed from HeroCard.
+ *           The previous top-right check dot conflicted with the new online badge.
+ *           Selected state is now communicated via border accent colour, name/
+ *           region text tint, and enhanced card shadow (cardActive) — cleaner.
+ *
+ *  [v57-04] FEAT — rank prop added to HeroCardProps; call site passes index + 1.
+ *           SkeletonHeroCard + skh StyleSheet updated to match the new positional
+ *           layout (flag circle top-left, badge bar top-right, name + region
+ *           bars bottom-left — no center alignment, no line3 gap bar).
  *
  * ── v5.6 CHANGELOG (HeroCard center-aligned badge redesign) ──────────────────
  *
@@ -825,24 +852,31 @@ const sk = StyleSheet.create({
 });
 
 // ─── [ADD-10] SkeletonHeroCard ─────────────────────────────────────────────────
-// [FIX-05] shimmer is now SharedValue<number> — opacity interpolation on UI thread
+// [FIX-05] shimmer is now SharedValue<number> — opacity interpolation on UI thread.
+// [v57-04] Updated to mirror the new OTT ranking card layout:
+//           flag circle top-left, badge bar top-right, name + region bars bottom-left.
 const SkeletonHeroCard = memo<{ shimmer: SharedValue<number> }>(({ shimmer }) => {
   const animStyle = useAnimatedStyle(() => ({
     opacity: interpolate(shimmer.value, [0, 1], [0.25, 0.75]),
   }));
   return (
     <ReAnimated.View style={[skh.card, animStyle]}>
-      <ReAnimated.View style={[skh.flag,  animStyle]} />
-      <ReAnimated.View style={[skh.line1, animStyle]} />
-      <ReAnimated.View style={[skh.line2, animStyle]} />
-      <ReAnimated.View style={[skh.line3, animStyle]} />
+      {/* Top-left: flag circle placeholder */}
+      <ReAnimated.View style={[skh.flag,   animStyle]} />
+      {/* Top-right: badge bar placeholder */}
+      <ReAnimated.View style={[skh.badge,  animStyle]} />
+      {/* Bottom-left: country name bar */}
+      <ReAnimated.View style={[skh.name,   animStyle]} />
+      {/* Below name: region bar */}
+      <ReAnimated.View style={[skh.region, animStyle]} />
     </ReAnimated.View>
   );
 });
 
 const skh = StyleSheet.create({
-  // [v56] Center-aligned skeleton mirrors new HeroCard center layout.
-  // heatTrackWrap / heatBar removed; line3 added for region placeholder.
+  // [v57] OTT card skeleton — mirrors the new HeroCard positional layout.
+  // Previous centered line1/line2/line3 layout replaced with absolute-positioned
+  // placeholders that match each element's actual position on the real card.
   card: {
     width:           L.heroW,
     height:          L.heroH,
@@ -850,15 +884,47 @@ const skh = StyleSheet.create({
     borderWidth:     1.5,
     borderColor:     T.border,
     backgroundColor: T.surfaceWell,
-    padding:         14,
-    gap:             7,
-    alignItems:      'center',
-    justifyContent:  'center',
   },
-  flag:  { width:36, height:36, borderRadius:18, backgroundColor:T.surfaceSunken },
-  line1: { height:13, borderRadius:7, width:'65%' as const, backgroundColor:T.surfaceSunken },
-  line2: { height:10, borderRadius:5, width:'42%' as const, backgroundColor:T.surfaceSunken },
-  line3: { height:10, borderRadius:5, width:'55%' as const, backgroundColor:T.surfaceSunken },
+  // Flag circle — top-left (matches hc.flag top:11, left:12, fontSize:38)
+  flag: {
+    position:        'absolute',
+    top:             11,
+    left:            12,
+    width:           38,
+    height:          38,
+    borderRadius:    19,
+    backgroundColor: T.surfaceSunken,
+  },
+  // Badge bar — top-right (matches hc.onlinePill top:11, right:11)
+  badge: {
+    position:        'absolute',
+    top:             14,
+    right:           11,
+    width:           60,
+    height:          14,
+    borderRadius:    7,
+    backgroundColor: T.surfaceSunken,
+  },
+  // Name bar — bottom-left (matches hc.name in nameGroup bottom:12, left:12)
+  name: {
+    position:        'absolute',
+    bottom:          30,
+    left:            12,
+    width:           74,
+    height:          13,
+    borderRadius:    7,
+    backgroundColor: T.surfaceSunken,
+  },
+  // Region bar — below name (matches hc.region marginTop:2)
+  region: {
+    position:        'absolute',
+    bottom:          12,
+    left:            12,
+    width:           44,
+    height:          10,
+    borderRadius:    5,
+    backgroundColor: T.surfaceSunken,
+  },
 });
 
 // ─── SectionHeader ─────────────────────────────────────────────────────────────
@@ -893,20 +959,24 @@ const sec = StyleSheet.create({
 });
 
 // ─── HeroCard ──────────────────────────────────────────────────────────────────
-// [v4-FEAT-02] Added entryDelay + reducedMotion for stagger entry animation
+// [v4-FEAT-02] Added entryDelay + reducedMotion for stagger entry animation.
+// [v57-04]     Added rank: the card's 1-based position in the trending list.
+//              Rendered as a massive numeral bleeding off the right edge.
 interface HeroCardProps {
-  country:       CountryDoc;
-  isSelected:    boolean;
-  onPress:       (country: CountryDoc) => void;
-  entryDelay?:   number;   // ms delay for stagger (0, 40, 80, 120, 160)
-  reducedMotion?: boolean; // skip animation when accessibility requires it
+  country:        CountryDoc;
+  isSelected:     boolean;
+  onPress:        (country: CountryDoc) => void;
+  rank:           number;        // [v57] 1-based trending position (1–5)
+  entryDelay?:    number;        // ms delay for stagger (0, 40, 80, 120, 160)
+  reducedMotion?: boolean;       // skip animation for accessibility
 }
 
 const HeroCard = memo<HeroCardProps>(({
   country,
   isSelected,
   onPress,
-  entryDelay   = 0,
+  rank,
+  entryDelay    = 0,
   reducedMotion = false,
 }) => {
   const scale  = useRef(new Animated.Value(1)).current;
@@ -921,7 +991,6 @@ const HeroCard = memo<HeroCardProps>(({
   [scale]);
 
   // [v4-FEAT-02] Stagger entry — SlideInRight with springify per PRD spec.
-  // Omitted when reducedMotion is true (cards appear instantly).
   const entering = useMemo(
     () => reducedMotion
       ? undefined
@@ -933,105 +1002,186 @@ const HeroCard = memo<HeroCardProps>(({
     [entryDelay, reducedMotion],
   );
 
+  const isOnline = country.onlineCount > 0;
+
   return (
     <Pressable
       onPress={handlePress}
       onPressIn={onPressIn}
       onPressOut={onPressOut}
       accessibilityRole="radio"
-      accessibilityLabel={`${country.name}, ${fmtCount(country.onlineCount)} online`}
+      accessibilityLabel={`${country.name}, #${rank} trending, ${fmtCount(country.onlineCount)} online`}
       accessibilityState={{ selected: isSelected }}
     >
+      {/* ── OUTER CARD: shadow + border, no overflow:hidden (shadow must not clip) ── */}
       <ReAnimated.View
         entering={entering}
         style={[
           hc.card,
-          isSelected && { borderColor: accent, ...hc.cardActive },
+          isSelected && { borderColor: accent },
+          isSelected && hc.cardActive,
           { transform: [{ scale }] },
         ]}
       >
-        {/* Flag emoji — large, center-anchored badge anchor */}
-        <Text style={hc.flag} accessible={false}>{country.emoji}</Text>
+        {/* ── INNER CLIP VIEW: overflow:hidden clips the bleeding rank numeral ───── */}
+        <View style={hc.inner}>
 
-        {/* Country name — bold, center-aligned */}
-        <Text style={[hc.name, isSelected && { color: accent }]} numberOfLines={1}>
-          {country.name}
-        </Text>
+          {/* TOP-LEFT: Country flag — large emoji, no background box */}
+          <Text style={hc.flag} accessible={false}>{country.emoji}</Text>
 
-        {/* [v56-02] Region label — info parity with CountryRow subtitle */}
-        <Text style={[hc.region, isSelected && { color: accent }]}>
-          {country.region}
-        </Text>
-
-        {/* [v56-01] Online count — "0 online" replaces broken "• —" for zero */}
-        <View style={hc.countRow}>
-          {/* [CRIT-04] pulse=false — getDocs is snapshot, not real-time */}
-          <LiveDot size={5} gold={isSelected} pulse={false} />
-          <Text style={[hc.count, isSelected && { color: accent }]}>
-            {country.onlineCount > 0 ? fmtCount(country.onlineCount) : '0'}{' online'}
-          </Text>
-        </View>
-
-        {isSelected && (
-          <View style={[hc.checkDot, { backgroundColor: accent }]}>
-            <Feather name="check" size={9} color={T.sheetBg} />
+          {/* TOP-RIGHT: Online status pill badge */}
+          <View style={hc.onlinePill}>
+            <View style={[hc.pillDot, isOnline && hc.pillDotLive]} />
+            <Text style={hc.pillText}>
+              {isOnline ? fmtCount(country.onlineCount) : '0'}{' online'}
+            </Text>
           </View>
-        )}
+
+          {/* BOTTOM-LEFT: Country name + region label */}
+          <View style={hc.nameGroup}>
+            <Text style={[hc.name, isSelected && { color: accent }]} numberOfLines={1}>
+              {country.name}
+            </Text>
+            <Text style={[hc.region, isSelected && { color: accent }]}>
+              {country.region}
+            </Text>
+          </View>
+
+          {/* BOTTOM-RIGHT: Massive rank numeral — bleeds ~25% off the right edge.  */}
+          {/* [v57-01] OTT Top-10 aesthetic; overflow:hidden on inner clips it.     */}
+          <Text
+            style={[hc.rankNum, isSelected && hc.rankNumActive]}
+            accessible={false}
+          >
+            {rank}
+          </Text>
+
+        </View>
       </ReAnimated.View>
     </Pressable>
   );
 });
 
 const hc = StyleSheet.create({
-  // [v56] Center-aligned badge layout: flag → name → region → count, all centered.
-  // heatTrackWrap / heatTrack / heatFill removed (floating yellow bar gone).
-  // overflow:'hidden' still absent — iOS shadow on cardActive must not be clipped.
+  // ── [v57] OTT Ranking Card layout ─────────────────────────────────────────────
+  // Two-layer structure: outer card holds the shadow/border; inner view clips
+  // the bleeding rank numeral via overflow:'hidden'.
+  //
+  //  ┌─────────────────────────────────────┐
+  //  │ 🇦🇫               🟢 0 online       │  ← flag top-left, badge top-right
+  //  │                                     │
+  //  │ Afghanistan                    [1]  │  ← name+region bottom-left,
+  //  │ Asia                           [▐]  │    rank numeral bottom-right (clipped)
+  //  └─────────────────────────────────────┘
+
+  // OUTER — shadow + border only; NO overflow:hidden (shadow must not be clipped).
   card: {
     width:           L.heroW,
     height:          L.heroH,
     borderRadius:    L.heroR,
     borderWidth:     1.5,
     borderColor:     T.border,
-    backgroundColor: T.sheetBg,
-    padding:         14,
-    gap:             4,
-    alignItems:      'center',
-    justifyContent:  'center',
+    backgroundColor: T.sheetBg,   // needed for iOS shadow + Android elevation
     shadowColor:     T.text,
     shadowOpacity:   0.06,
     shadowRadius:    10,
     shadowOffset:    { width:0, height:3 },
     elevation:       2,
   },
-  cardActive: { shadowOpacity:0.14, shadowRadius:18, elevation:5 },
-  flag:       { fontSize: 34 },
+  // Selected: vivid accent shadow
+  cardActive: { shadowOpacity:0.18, shadowRadius:22, elevation:6 },
+
+  // INNER — clips the rank numeral bleed; borderRadius matches inner border edge.
+  // Fills the outer card's content area (inside the 1.5px border via Yoga layout).
+  inner: {
+    position:        'absolute',
+    top:             0,
+    left:            0,
+    right:           0,
+    bottom:          0,
+    borderRadius:    L.heroR - 1,  // ≈ 19 — sits flush inside the outer border curve
+    backgroundColor: T.sheetBg,
+    overflow:        'hidden',
+  },
+
+  // TOP-LEFT: Country flag (large, no background box)
+  flag: {
+    position:   'absolute',
+    top:        11,
+    left:       12,
+    fontSize:   38,
+    lineHeight: 42,
+  },
+
+  // TOP-RIGHT: Online status pill badge  ──  [green/grey dot]  [N online]
+  onlinePill: {
+    position:          'absolute',
+    top:               11,
+    right:             11,
+    flexDirection:     'row',
+    alignItems:        'center',
+    gap:               4,
+    backgroundColor:   'rgba(0,0,0,0.05)',
+    paddingHorizontal: 7,
+    paddingVertical:   3,
+    borderRadius:      10,
+  },
+  pillDot: {
+    width:           5,
+    height:          5,
+    borderRadius:    3,
+    backgroundColor: T.border,   // grey when 0 online (matches CountryRow badge)
+  },
+  pillDotLive: {
+    backgroundColor: T.green,    // green when online count > 0
+  },
+  pillText: {
+    fontSize:   9,
+    fontWeight: '600',
+    color:      T.textSecondary,
+    fontFamily: FONT_BODY.semiBold,
+  },
+
+  // BOTTOM-LEFT: Country name (bold) + region (muted)
+  // right:56 leaves room for the rank numeral's visible portion — no text overlap.
+  nameGroup: {
+    position: 'absolute',
+    bottom:   12,
+    left:     12,
+    right:    56,
+  },
   name: {
     fontSize:   13,
     fontWeight: '700',
     color:      T.text,
     fontFamily: FONT_HEADING.semiBold,
-    textAlign:  'center',
   },
-  // [v56-02] Region label — small muted text below country name
   region: {
     fontSize:   10,
     fontWeight: '500',
     color:      T.textTertiary,
     fontFamily: FONT_BODY.medium,
-    textAlign:  'center',
+    marginTop:  2,
   },
-  countRow: { flexDirection:'row', alignItems:'center', gap:4, marginTop:2 },
-  count: {
-    fontSize:   10,
-    fontWeight: '600',
-    color:      T.textSecondary,
-    fontFamily: FONT_BODY.semiBold,
+
+  // BOTTOM-RIGHT: Massive rank numeral — [v57-01] OTT Top-10 aesthetic.
+  // right:-10 + bottom:-10: ~25% of the digit bleeds off the right edge;
+  // the overflow:hidden on hc.inner clips it cleanly at the card boundary.
+  rankNum: {
+    position:   'absolute',
+    bottom:     -10,
+    right:      -10,
+    fontSize:   80,
+    fontWeight: '900',
+    color:      'rgba(212,160,23,0.25)',   // muted metallic gold (idle)
+    lineHeight: 88,
   },
-  checkDot: {
-    position:'absolute', top:9, right:9,
-    width:20, height:20, borderRadius:10,
-    alignItems:'center', justifyContent:'center',
+  rankNumActive: {
+    color:      'rgba(212,160,23,0.52)',   // vivid metallic gold (selected)
   },
+
+  // NOTE: checkDot removed in v57-03 — selected state communicated via
+  //       border accent + name/region colour + cardActive shadow.
 });
 
 // ─── CountryRow ────────────────────────────────────────────────────────────────
@@ -2114,12 +2264,14 @@ function CountryPickerSheetBase({
             accessibilityLabel="Trending countries"
           >
             {/* [v4-FEAT-02] Stagger entry: index * 40ms delay per PRD spec */}
+            {/* [v57-04]     rank={index + 1} feeds the OTT rank numeral      */}
             {trendingCountries.map((c, index) => (
               <HeroCard
                 key={c.id}
                 country={c}
                 isSelected={c.id === selected}
                 onPress={handleSelect}
+                rank={index + 1}
                 entryDelay={index * 40}
                 reducedMotion={reducedMotion}
               />
