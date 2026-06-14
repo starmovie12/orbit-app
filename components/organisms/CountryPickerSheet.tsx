@@ -9,25 +9,31 @@
  *  [v55-01] VISUAL — Heat-track bar + number removed from CountryRow.
  *           The horizontal progress bar (heatCol) and its numeric label added
  *           visual noise without user-legible meaning. Removed entirely, freeing
- *           56px on the right side for the new badge (v55-03). `heatFill` local
+ *           space on the right side for the new badge (v55-03). `heatFill` local
  *           variable also removed from CountryRow (HeroCard keeps its own copy).
- *           `heatCol / heatTrack / heatFill / heatNum` StyleSheet entries cleaned up.
  *
  *  [v55-02] VISUAL — Subtitle replaced: online-status → region label.
  *           CountryRow meta row previously showed "No one online" / "1K online"
  *           (a green/grey dot + text). Replaced with a plain region text label
  *           ("Asia", "Europe", "Americas", …) matching the City picker's subtitle
- *           pattern ("Punjab · 0 sectors"). Dot, count text and LiveDot removed
- *           from this position. `meta / dotStatic / count / countActive` StyleSheet
- *           entries cleaned up.
+ *           pattern. Uses new `cr.regionLabel` / `cr.regionLabelActive` styles.
  *
  *  [v55-03] VISUAL — Online-count badge added right of body, left of arrow.
  *           A pill-shaped badge (dot + "{n} online") now sits between the country
  *           body and the chevron/check, exactly matching the CityPickerSheet badge
- *           position and style. Badge uses T.surfaceSunken background, T.border dot
- *           (grey when 0, T.green when > 0), and T.textSecondary text. When the row
- *           is selected the badge background tints to DV.activeRowBg and the text
- *           adopts the region accent colour, keeping selected-state legibility.
+ *           position and style. Uses `cr.onlineBadge`, `cr.onlineBadgeActive`,
+ *           `cr.badgeDot`, `cr.badgeText` styles. Badge dot is T.green when
+ *           count > 0, T.border when zero. Background tints to DV.activeRowBg
+ *           when row is selected. Text adopts region accent colour when selected.
+ *
+ *  [v55-STYLE-FIX] CRITICAL — StyleSheet cr block fully updated.
+ *           Previous v5.5 pass correctly updated CountryRow JSX but left the
+ *           StyleSheet unchanged: new styles were referenced but never defined
+ *           (runtime crash), and 8 stale entries remained as dead code.
+ *           This pass: removes `meta`, `dotStatic`, `count`, `countActive`,
+ *           `heatCol`, `heatTrack`, `heatFill`, `heatNum`; adds `regionLabel`,
+ *           `regionLabelActive`, `onlineBadge`, `onlineBadgeActive`, `badgeDot`,
+ *           `badgeText`. JSX and StyleSheet are now fully in sync.
  *
  * ── v5.4 CHANGELOG (CRITICAL — sheet now actually opens) ─────────────────────
  *
@@ -1154,29 +1160,40 @@ const cr = StyleSheet.create({
     letterSpacing: 0.5,
     flexShrink:    0,
   },
-  meta:      { flexDirection:'row', alignItems:'center', gap:6 },
-  dotStatic: { width:5, height:5, borderRadius:2.5 },
-  count: {
+  // [v55-02] Region label — plain continent/region text below the country name.
+  // Replaces the old "No one online" / "N online" dot+count subtitle.
+  regionLabel: {
+    fontSize:   11,
+    fontWeight: '500',
+    color:      T.textTertiary,
+    fontFamily: FONT_BODY.medium,
+  },
+  regionLabelActive: { color: T.goldLight },
+
+  // [v55-03] Online-count badge — pill shape, sits right of body, left of chevron.
+  // Mirrors the CityPickerSheet badge position and visual style.
+  onlineBadge: {
+    flexDirection:     'row',
+    alignItems:        'center',
+    gap:               5,
+    paddingHorizontal: 9,
+    paddingVertical:   5,
+    borderRadius:      20,
+    backgroundColor:   T.surfaceSunken,
+    flexShrink:        0,
+  },
+  onlineBadgeActive: { backgroundColor: DV.activeRowBg },
+  badgeDot: {
+    width:        5,
+    height:       5,
+    borderRadius: 2.5,
+    flexShrink:   0,
+  },
+  badgeText: {
     fontSize:   11,
     fontWeight: '500',
     color:      T.textSecondary,
     fontFamily: FONT_BODY.medium,
-  },
-  countActive: { color: T.gold },
-  heatCol: { alignItems:'flex-end', gap:3, width:56, flexShrink:0 },
-  heatTrack: {
-    width:           L.heatW,
-    height:          L.heatH,
-    borderRadius:    L.heatR,
-    backgroundColor: T.border,
-    overflow:        'hidden',
-  },
-  heatFill: { height:'100%', borderRadius:L.heatR },
-  heatNum: {
-    fontSize:   10,
-    fontWeight: '600',
-    color:      T.textTertiary,
-    fontFamily: FONT_BODY.semiBold,
   },
   checkCircle: {
     width:28, height:28, borderRadius:14,
