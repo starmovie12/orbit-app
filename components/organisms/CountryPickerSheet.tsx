@@ -1,8 +1,33 @@
 /**
- * components/organisms/CountryPickerSheet.tsx — v5.4
+ * components/organisms/CountryPickerSheet.tsx — v5.5
  *
  * CROWN — Country Selection Bottom Sheet
  * "The gateway to the world. Clean. Fast. Global."
+ *
+ * ── v5.5 CHANGELOG (CountryRow UI parity with CityPickerSheet) ───────────────
+ *
+ *  [v55-01] VISUAL — Heat-track bar + number removed from CountryRow.
+ *           The horizontal progress bar (heatCol) and its numeric label added
+ *           visual noise without user-legible meaning. Removed entirely, freeing
+ *           56px on the right side for the new badge (v55-03). `heatFill` local
+ *           variable also removed from CountryRow (HeroCard keeps its own copy).
+ *           `heatCol / heatTrack / heatFill / heatNum` StyleSheet entries cleaned up.
+ *
+ *  [v55-02] VISUAL — Subtitle replaced: online-status → region label.
+ *           CountryRow meta row previously showed "No one online" / "1K online"
+ *           (a green/grey dot + text). Replaced with a plain region text label
+ *           ("Asia", "Europe", "Americas", …) matching the City picker's subtitle
+ *           pattern ("Punjab · 0 sectors"). Dot, count text and LiveDot removed
+ *           from this position. `meta / dotStatic / count / countActive` StyleSheet
+ *           entries cleaned up.
+ *
+ *  [v55-03] VISUAL — Online-count badge added right of body, left of arrow.
+ *           A pill-shaped badge (dot + "{n} online") now sits between the country
+ *           body and the chevron/check, exactly matching the CityPickerSheet badge
+ *           position and style. Badge uses T.surfaceSunken background, T.border dot
+ *           (grey when 0, T.green when > 0), and T.textSecondary text. When the row
+ *           is selected the badge background tints to DV.activeRowBg and the text
+ *           adopts the region accent colour, keeping selected-state legibility.
  *
  * ── v5.4 CHANGELOG (CRITICAL — sheet now actually opens) ─────────────────────
  *
@@ -992,7 +1017,6 @@ const CountryRow = memo<CountryRowProps>(({ country, isSelected, onPress }) => {
   // to Reanimated SharedValue (runs entirely on the UI thread).
   const flashAnim  = useSharedValue(0);
   const regionBg   = REGION_FLAG_BG[country.region];
-  const heatFill   = Math.max(0, Math.min(1, country.heat / 100));
   const accent     = REGION_ACCENT[country.region] as string;
 
   const flashStyle = useAnimatedStyle(() => ({ opacity: flashAnim.value }));
@@ -1043,33 +1067,22 @@ const CountryRow = memo<CountryRowProps>(({ country, isSelected, onPress }) => {
             </Text>
           </View>
 
-          <View style={cr.meta}>
-            {country.onlineCount > 0
-              ? <LiveDot size={5} gold={isSelected} pulse={false} />
-              : <View style={[cr.dotStatic, { backgroundColor: T.border }]} />
-            }
-            <Text style={[cr.count, isSelected && cr.countActive]}>
-              {country.onlineCount > 0
-                ? `${fmtCount(country.onlineCount)} online`
-                : 'No one online'}
-            </Text>
-          </View>
+          {/* [v55-02] Region label replaces "No one online" / "N online" subtitle */}
+          <Text style={[cr.regionLabel, isSelected && cr.regionLabelActive]}>
+            {country.region}
+          </Text>
         </View>
 
-        <View style={cr.heatCol}>
-          <View style={cr.heatTrack}>
-            <View
-              style={[
-                cr.heatFill,
-                {
-                  width: `${(heatFill * 100).toFixed(0)}%` as `${number}%`,
-                  backgroundColor: isSelected ? accent : heatColour(country.heat),
-                },
-              ]}
-            />
-          </View>
-          <Text style={[cr.heatNum, isSelected && { color: accent }]}>
-            {country.heat}
+        {/* [v55-03] Online count badge — pill with dot + count, mirrors CityPickerSheet */}
+        <View style={[cr.onlineBadge, isSelected && cr.onlineBadgeActive]}>
+          <View
+            style={[
+              cr.badgeDot,
+              { backgroundColor: country.onlineCount > 0 ? T.green : T.border },
+            ]}
+          />
+          <Text style={[cr.badgeText, isSelected && { color: accent }]}>
+            {country.onlineCount > 0 ? `${fmtCount(country.onlineCount)} online` : '0 online'}
           </Text>
         </View>
 
