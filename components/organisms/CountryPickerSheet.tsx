@@ -1,8 +1,24 @@
 /**
- * components/organisms/CountryPickerSheet.tsx — v5.11
+ * components/organisms/CountryPickerSheet.tsx — v5.12
  *
  * CROWN — Country Selection Bottom Sheet
  * "The gateway to the world. Clean. Fast. Global."
+ *
+ * ── v5.12 CHANGELOG (golden rank numerals + divider fix) ──────────────────────
+ *
+ *  [v512-01] VISUAL — Rank numeral upgraded to bright golden colour.
+ *            Previous: rgba(212,160,23,0.25) — the dark/muted base gold at 25%
+ *            opacity looked washed-out and brownish on device. New colour uses a
+ *            brighter yellow-gold base (255,200,0) at 0.60 opacity so the numerals
+ *            read as clearly, unmistakably GOLDEN — warm, vivid, not dark.
+ *            Active state bumped to 0.70 for a subtle selected-card pulse.
+ *
+ *  [v512-02] LAYOUT — RecentlyVisited sectionDivider: 6px → 1px, subtle colour.
+ *            The 6px cream band above the "A" section header looked like a chunky
+ *            platform divider — inconsistent with the 1px hairlines used everywhere
+ *            else. Now: height:1, backgroundColor:T.borderSubtle, marginTop:0.
+ *            Both sides of the "A" header now have identical thin hairlines —
+ *            clean, consistent, premium.
  *
  * ── v5.11 CHANGELOG (ACTIVE badge restore + Top-10 trending) ──────────────────
  *
@@ -1268,11 +1284,13 @@ const hc = StyleSheet.create({
     right:      -10,
     fontSize:   80,
     fontWeight: '900',
-    color:      'rgba(212,160,23,0.25)',   // [v510-02] 0.12 too ghostly on real hardware → 0.25 sweet spot
+    // [v512-01] Bright yellow-gold base (255,200,0) replaces the muted dark gold (212,160,23).
+    // At 60% opacity this reads as clearly golden — warm and vivid, not dark or brownish.
+    color:      'rgba(255,200,0,0.60)',
     lineHeight: 88,
   },
   rankNumActive: {
-    color:      'rgba(212,160,23,0.30)',   // [v510-02] fractionally stronger when card is selected
+    color:      'rgba(255,200,0,0.70)',   // [v512-01] slightly stronger on selected card
   },
 
   // NOTE: checkDot removed in v57-03 — selected state communicated via
@@ -1803,9 +1821,12 @@ const rv = StyleSheet.create({
     textTransform: 'uppercase',
   },
   sectionDivider: {
-    height:          6,
-    backgroundColor: T.surfaceSunken,
-    marginTop:       4,
+    // [v512-02] Was: height:6, backgroundColor:T.surfaceSunken, marginTop:4 — thick cream band.
+    // Now: 1px hairline matching every other divider in the sheet. 'A' header has
+    // identical thin lines on both sides — consistent and clean.
+    height:          1,
+    backgroundColor: T.borderSubtle,
+    marginTop:       0,
   },
 });
 
