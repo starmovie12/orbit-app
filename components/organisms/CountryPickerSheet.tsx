@@ -1,8 +1,26 @@
 /**
- * components/organisms/CountryPickerSheet.tsx — v5.7
+ * components/organisms/CountryPickerSheet.tsx — v5.8
  *
  * CROWN — Country Selection Bottom Sheet
  * "The gateway to the world. Clean. Fast. Global."
+ *
+ * ── v5.8 CHANGELOG (HeroCard polish — gold rank, tighter height, refined badge) ─
+ *
+ *  [v58-01] VISUAL — Rank numeral colour upgraded to rich metallic gold.
+ *           Previous idle opacity (0.25) was barely visible against white.
+ *           New: rgba(212,160,23,0.78) idle · rgba(212,160,23,0.96) selected.
+ *           Both states now read as clearly gold without looking garish.
+ *
+ *  [v58-02] LAYOUT — HeroCard height reduced 128 → 112 px.
+ *           The 128px card had ~35px dead vertical space between flag and
+ *           name — felt loose/unfinished. 112px closes that gap to ~14px,
+ *           giving the card a tighter, more premium card feel. heroH comment
+ *           updated; SkeletonHeroCard needs no position changes.
+ *
+ *  [v58-03] VISUAL — Online pill badge gets a hairline border for definition.
+ *           rgba(0,0,0,0.05) background alone was nearly invisible on white.
+ *           Added borderWidth:0.5 + borderColor:'rgba(0,0,0,0.10)' — the badge
+ *           now has a subtle outlined appearance that reads as intentional UI.
  *
  * ── v5.7 CHANGELOG (OTT Ranking Card — HeroCard complete redesign) ────────────
  *
@@ -415,7 +433,7 @@ const L = {
   flagRadius:   14,
   flagEmoji:    30,
   heroW:       154,
-  heroH:       128,  // [v56] +12px to fit flag+name+region+count in centered layout
+  heroH:       112,  // [v58] -16px: closes dead mid-card gap, tighter premium feel
   heroR:        20,
   heatW:        48,
   heatH:         4,
@@ -1121,7 +1139,9 @@ const hc = StyleSheet.create({
     flexDirection:     'row',
     alignItems:        'center',
     gap:               4,
-    backgroundColor:   'rgba(0,0,0,0.05)',
+    backgroundColor:   'rgba(0,0,0,0.04)',
+    borderWidth:       0.5,
+    borderColor:       'rgba(0,0,0,0.10)',
     paddingHorizontal: 7,
     paddingVertical:   3,
     borderRadius:      10,
@@ -1167,17 +1187,18 @@ const hc = StyleSheet.create({
   // BOTTOM-RIGHT: Massive rank numeral — [v57-01] OTT Top-10 aesthetic.
   // right:-10 + bottom:-10: ~25% of the digit bleeds off the right edge;
   // the overflow:hidden on hc.inner clips it cleanly at the card boundary.
+  // [v58-01] Colour upgraded from 0.25 → 0.78 opacity — clearly gold, not ghost.
   rankNum: {
     position:   'absolute',
     bottom:     -10,
     right:      -10,
     fontSize:   80,
     fontWeight: '900',
-    color:      'rgba(212,160,23,0.25)',   // muted metallic gold (idle)
+    color:      'rgba(212,160,23,0.78)',   // rich metallic gold (idle)
     lineHeight: 88,
   },
   rankNumActive: {
-    color:      'rgba(212,160,23,0.52)',   // vivid metallic gold (selected)
+    color:      'rgba(212,160,23,0.96)',   // near-solid gold (selected)
   },
 
   // NOTE: checkDot removed in v57-03 — selected state communicated via
