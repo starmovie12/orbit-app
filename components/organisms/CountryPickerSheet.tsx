@@ -1,9 +1,38 @@
 /**
- * components/organisms/CountryPickerSheet.tsx — v5.5
+ * components/organisms/CountryPickerSheet.tsx — v5.6
  *
  * CROWN — Country Selection Bottom Sheet
  * "The gateway to the world. Clean. Fast. Global."
  *
+ * ── v5.6 CHANGELOG (HeroCard center-aligned badge redesign) ──────────────────
+ *
+ *  [v56-01] VISUAL — "• —" broken state fixed: "0 online" shown instead.
+ *           HeroCard was rendering a green LiveDot + em-dash ("—") when
+ *           onlineCount was 0 — looked like a render error. Now shows
+ *           "0 online" in muted text, matching CountryRow badge behavior.
+ *
+ *  [v56-02] VISUAL — Region label added to HeroCard (info parity).
+ *           CountryRow shows region as subtitle; HeroCard was missing it.
+ *           "Asia" / "Europe" / etc. now appears between name and count row.
+ *           Uses `hc.region` style: 10px muted, center-aligned. On selected
+ *           state it adopts the region accent colour with the rest of the card.
+ *
+ *  [v56-03] VISUAL — Floating heat-track bar removed from HeroCard.
+ *           The yellow `heatTrackWrap` + `heatTrack` + `heatFill` block at the
+ *           bottom of each card served no legible purpose and visually floated
+ *           in empty space. Removed along with the `filled` local variable.
+ *           `hc.heatTrackWrap`, `hc.heatTrack`, `hc.heatFill` deleted from
+ *           StyleSheet. SkeletonHeroCard `skh.heatTrackWrap` + `skh.heatBar`
+ *           also removed; `skh.line3` added for region placeholder.
+ *
+ *  [v56-04] LAYOUT — HeroCard redesigned as center-aligned badge.
+ *           Previous: left-aligned with dead right-side space.
+ *           New: `alignItems:'center'` + `justifyContent:'center'` stacks all
+ *           four elements (flag → name → region → count) symmetrically.
+ *           Flag: 34px emoji (was 30px). Name: 13px + textAlign:'center'.
+ *           Gap tightened to 4 (was 5). heroH bumped 116→128 to give content
+ *           room (100px inner vs ~96px content — 4px breathing room per edge).
+ *           SkeletonHeroCard updated to match: centered, line3 for region.
  * ── v5.5 CHANGELOG (CountryRow UI parity with CityPickerSheet) ───────────────
  *
  *  [v55-01] VISUAL — Heat-track bar + number removed from CountryRow.
@@ -359,7 +388,7 @@ const L = {
   flagRadius:   14,
   flagEmoji:    30,
   heroW:       154,
-  heroH:       116,
+  heroH:       128,  // [v56] +12px to fit flag+name+region+count in centered layout
   heroR:        20,
   heatW:        48,
   heatH:         4,
@@ -806,14 +835,14 @@ const SkeletonHeroCard = memo<{ shimmer: SharedValue<number> }>(({ shimmer }) =>
       <ReAnimated.View style={[skh.flag,  animStyle]} />
       <ReAnimated.View style={[skh.line1, animStyle]} />
       <ReAnimated.View style={[skh.line2, animStyle]} />
-      <View style={skh.heatTrackWrap}>
-        <ReAnimated.View style={[skh.heatBar, animStyle]} />
-      </View>
+      <ReAnimated.View style={[skh.line3, animStyle]} />
     </ReAnimated.View>
   );
 });
 
 const skh = StyleSheet.create({
+  // [v56] Center-aligned skeleton mirrors new HeroCard center layout.
+  // heatTrackWrap / heatBar removed; line3 added for region placeholder.
   card: {
     width:           L.heroW,
     height:          L.heroH,
@@ -822,13 +851,14 @@ const skh = StyleSheet.create({
     borderColor:     T.border,
     backgroundColor: T.surfaceWell,
     padding:         14,
-    gap:             8,
+    gap:             7,
+    alignItems:      'center',
+    justifyContent:  'center',
   },
-  flag:         { width:L.flagBox, height:L.flagBox, borderRadius:L.flagRadius, backgroundColor:T.surfaceSunken },
-  line1:        { height:14, borderRadius:7, width:'70%' as const, backgroundColor:T.surfaceSunken },
-  line2:        { height:10, borderRadius:5, width:'45%' as const, backgroundColor:T.surfaceSunken },
-  heatTrackWrap:{ flex:1, justifyContent:'flex-end' },
-  heatBar:      { height:L.heatH, borderRadius:L.heatR, backgroundColor:T.surfaceSunken },
+  flag:  { width:36, height:36, borderRadius:18, backgroundColor:T.surfaceSunken },
+  line1: { height:13, borderRadius:7, width:'65%' as const, backgroundColor:T.surfaceSunken },
+  line2: { height:10, borderRadius:5, width:'42%' as const, backgroundColor:T.surfaceSunken },
+  line3: { height:10, borderRadius:5, width:'55%' as const, backgroundColor:T.surfaceSunken },
 });
 
 // ─── SectionHeader ─────────────────────────────────────────────────────────────
@@ -881,7 +911,6 @@ const HeroCard = memo<HeroCardProps>(({
 }) => {
   const scale  = useRef(new Animated.Value(1)).current;
   const accent = REGION_ACCENT[country.region] as string;
-  const filled = Math.max(0, Math.min(1, country.heat / 100));
 
   const handlePress = useCallback(() => onPress(country), [onPress, country]);
   const onPressIn   = useCallback(() =>
@@ -921,32 +950,26 @@ const HeroCard = memo<HeroCardProps>(({
           { transform: [{ scale }] },
         ]}
       >
+        {/* Flag emoji — large, center-anchored badge anchor */}
         <Text style={hc.flag} accessible={false}>{country.emoji}</Text>
 
+        {/* Country name — bold, center-aligned */}
         <Text style={[hc.name, isSelected && { color: accent }]} numberOfLines={1}>
           {country.name}
         </Text>
 
+        {/* [v56-02] Region label — info parity with CountryRow subtitle */}
+        <Text style={[hc.region, isSelected && { color: accent }]}>
+          {country.region}
+        </Text>
+
+        {/* [v56-01] Online count — "0 online" replaces broken "• —" for zero */}
         <View style={hc.countRow}>
           {/* [CRIT-04] pulse=false — getDocs is snapshot, not real-time */}
           <LiveDot size={5} gold={isSelected} pulse={false} />
           <Text style={[hc.count, isSelected && { color: accent }]}>
-            {country.onlineCount > 0 ? fmtCount(country.onlineCount) : '\u2014'}
+            {country.onlineCount > 0 ? fmtCount(country.onlineCount) : '0'}{' online'}
           </Text>
-        </View>
-
-        <View style={hc.heatTrackWrap}>
-          <View style={hc.heatTrack}>
-            <View
-              style={[
-                hc.heatFill,
-                {
-                  width: `${(filled * 100).toFixed(0)}%` as `${number}%`,
-                  backgroundColor: isSelected ? accent : heatColour(country.heat),
-                },
-              ]}
-            />
-          </View>
         </View>
 
         {isSelected && (
@@ -960,6 +983,9 @@ const HeroCard = memo<HeroCardProps>(({
 });
 
 const hc = StyleSheet.create({
+  // [v56] Center-aligned badge layout: flag → name → region → count, all centered.
+  // heatTrackWrap / heatTrack / heatFill removed (floating yellow bar gone).
+  // overflow:'hidden' still absent — iOS shadow on cardActive must not be clipped.
   card: {
     width:           L.heroW,
     height:          L.heroH,
@@ -968,41 +994,39 @@ const hc = StyleSheet.create({
     borderColor:     T.border,
     backgroundColor: T.sheetBg,
     padding:         14,
-    gap:             5,
+    gap:             4,
+    alignItems:      'center',
+    justifyContent:  'center',
     shadowColor:     T.text,
     shadowOpacity:   0.06,
     shadowRadius:    10,
     shadowOffset:    { width:0, height:3 },
     elevation:       2,
-    // NOTE: overflow:'hidden' intentionally removed — it was clipping the iOS
-    // shadow on selected cards (cardActive: shadowRadius:18). hc.heatTrack
-    // has its own overflow:'hidden' to clip the fill bar, so the card doesn't need it.
   },
   cardActive: { shadowOpacity:0.14, shadowRadius:18, elevation:5 },
-  flag:       { fontSize:L.flagEmoji },
+  flag:       { fontSize: 34 },
   name: {
-    fontSize:   14,
+    fontSize:   13,
     fontWeight: '700',
     color:      T.text,
     fontFamily: FONT_HEADING.semiBold,
-    flexShrink: 1,
+    textAlign:  'center',
   },
-  countRow:    { flexDirection:'row', alignItems:'center', gap:5 },
+  // [v56-02] Region label — small muted text below country name
+  region: {
+    fontSize:   10,
+    fontWeight: '500',
+    color:      T.textTertiary,
+    fontFamily: FONT_BODY.medium,
+    textAlign:  'center',
+  },
+  countRow: { flexDirection:'row', alignItems:'center', gap:4, marginTop:2 },
   count: {
-    fontSize:   11,
+    fontSize:   10,
     fontWeight: '600',
     color:      T.textSecondary,
     fontFamily: FONT_BODY.semiBold,
   },
-  heatTrackWrap: { flex:1, justifyContent:'flex-end' },
-  heatTrack: {
-    width:           '100%',
-    height:          L.heatH,
-    borderRadius:    L.heatR,
-    backgroundColor: T.border,
-    overflow:        'hidden',
-  },
-  heatFill:  { height:'100%', borderRadius:L.heatR },
   checkDot: {
     position:'absolute', top:9, right:9,
     width:20, height:20, borderRadius:10,
