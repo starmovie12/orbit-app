@@ -1,8 +1,18 @@
 /**
- * components/organisms/CountryPickerSheet.tsx — v5.13
+ * components/organisms/CountryPickerSheet.tsx — v5.14
  *
  * CROWN — Country Selection Bottom Sheet
  * "The gateway to the world. Clean. Fast. Global."
+ *
+ * ── v5.14 CHANGELOG (global K/M/B online-count formatter) ─────────────────────
+ *
+ *  [v514-01] I18N — fmtCount rewritten from India-specific (L/Cr, en-IN commas)
+ *            to a global K/M/B short-form. The app is used worldwide and Lakh /
+ *            Crore notation is unfamiliar — and confusing — to users outside
+ *            South Asia. New thresholds: ≥1,000,000,000 → "B", ≥1,000,000 → "M",
+ *            ≥1,000 → "K", below that → plain en-US number. Same one-decimal-place
+ *            rule as before (whole values render without a decimal, e.g. "2B" /
+ *            "1.2M" / "45K" / "850").
  *
  * ── v5.13 CHANGELOG (orange rank numerals + web focus ring fix) ───────────────
  *
@@ -727,19 +737,22 @@ function heatColour(heat: number): string {
   return T.border;
 }
 
-// ─── Utility: Indian short-count formatter ─────────────────────────────────────
+// ─── Utility: Global short-count formatter (K/M/B) ─────────────────────────────
 function fmtCount(n: number): string {
   if (n <= 0) return '0';
-  if (n >= 10_000_000) {
-    const v = n / 10_000_000;
-    return `${v % 1 === 0 ? v.toFixed(0) : v.toFixed(1)}Cr`;
+  if (n >= 1_000_000_000) {
+    const v = n / 1_000_000_000;
+    return `${v % 1 === 0 ? v.toFixed(0) : v.toFixed(1)}B`;
   }
-  if (n >= 100_000) {
-    const v = n / 100_000;
-    return `${v % 1 === 0 ? v.toFixed(0) : v.toFixed(1)}L`;
+  if (n >= 1_000_000) {
+    const v = n / 1_000_000;
+    return `${v % 1 === 0 ? v.toFixed(0) : v.toFixed(1)}M`;
   }
-  if (n >= 1_000) return `${Math.round(n / 1_000)}K`;
-  return n.toLocaleString('en-IN');
+  if (n >= 1_000) {
+    const v = n / 1_000;
+    return `${v % 1 === 0 ? v.toFixed(0) : v.toFixed(1)}K`;
+  }
+  return n.toLocaleString('en-US');
 }
 
 // ─── Firestore mapper ──────────────────────────────────────────────────────────
