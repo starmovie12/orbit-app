@@ -1,8 +1,37 @@
 /**
- * components/organisms/CountryPickerSheet.tsx — v5.2
+ * components/organisms/CountryPickerSheet.tsx — v5.3
  *
  * CROWN — Country Selection Bottom Sheet
  * "The gateway to the world. Clean. Fast. Global."
+ *
+ * ── v5.3 CHANGELOG (Polish Pass — search relevance, a11y, visual, docs) ───────
+ *
+ *  [v53-01] UX — Relevance-ranked search results.
+ *           Results were filtered but kept "busiest first" order, so typing
+ *           "in" could float a high-traffic territory above India. displayCountries
+ *           now ranks matches: exact ISO → exact name → name-prefix → dial-prefix →
+ *           substring, with onlineCount as the in-tier tie-break. Browse mode is
+ *           untouched. Row structure / heights are identical, so getItemLayout and
+ *           every empty-state check remain valid (only the order of matches changes).
+ *
+ *  [v53-02] VISUAL — Selected country rows now carry a region-accent left edge bar.
+ *           The tinted background + bold name read as "selected" but scanned weakly
+ *           in a long list. A 3px rounded accent rail (region colour) hugs the left
+ *           gutter, matching the accent already used on selected HeroCards. Purely
+ *           decorative (pointerEvents none) — no layout shift, no hit-area change.
+ *
+ *  [v53-03] A11Y — Search input hardened + switching overlay announced.
+ *           BottomSheetTextInput: spellCheck=false / autoComplete="off" /
+ *           textContentType="none" / maxLength=40 — stops red squiggles under
+ *           country names, keyboard autofill chips, and iOS strong-password offers
+ *           on a pure search box. The switching overlay now exposes an
+ *           accessibilityLabel so VoiceOver/TalkBack announce the country change.
+ *
+ *  [v53-04] DOCS — Corrected the dependency contract to match package.json:
+ *           Reanimated is v4 (with react-native-worklets), not v3, and the worklets
+ *           babel plugin ships inside babel-preset-expo on SDK 54 (no manual entry).
+ *           NOTE: @gorhom/bottom-sheet must be present in package.json — install a
+ *           v5.1.6+ release (the first line that officially supports Reanimated v4).
  *
  * ── v5.2 CHANGELOG (5 Critical Bugs Resolved) ────────────────────────────────
  *
@@ -153,9 +182,13 @@
  *              rp).
  *
  * ── PREREQUISITES ─────────────────────────────────────────────────────────────
- *   @gorhom/bottom-sheet v5     — keyboardBehavior="fillParent" is v5-only
- *   react-native-reanimated v3  — Reanimated plugin in babel.config.js required
- *   react-native-gesture-handler v2 — GestureHandlerRootView at app root
+ *   @gorhom/bottom-sheet v5.1.6+ — first line that supports Reanimated v4.
+ *                                  MUST be added to package.json (this file imports it).
+ *   react-native-reanimated v4   — paired with react-native-worklets. The worklets
+ *                                  babel plugin is bundled in babel-preset-expo (SDK 54),
+ *                                  so no manual babel.config.js plugin entry is needed.
+ *   react-native-gesture-handler v2 — GestureHandlerRootView at app root.
+ *   keyboardBehavior="fillParent" is a gorhom v5-only prop.
  *
  * ── USAGE ─────────────────────────────────────────────────────────────────────
  *
@@ -1010,6 +1043,17 @@ const CountryRow = memo<CountryRowProps>(({ country, isSelected, onPress }) => {
           <Feather name="chevron-right" size={16} color={T.textTertiary} />
         )}
 
+        {/* [v53-02] Selected-state left accent rail — region colour, rounded pill.
+            Anchors the eye to the active row in a long list. Decorative only:
+            sits in the left gutter, pointerEvents="none", no layout impact. */}
+        {isSelected && (
+          <View
+            style={[cr.selectedRail, { backgroundColor: accent }]}
+            pointerEvents="none"
+            importantForAccessibility="no"
+          />
+        )}
+
         {/* [FIX-03] Flash overlay: Reanimated (UI thread) — previously used
             Animated with useNativeDriver:false which blocked the JS thread.
             pointerEvents="none" ensures it never intercepts touches. */}
@@ -1087,6 +1131,15 @@ const cr = StyleSheet.create({
     width:28, height:28, borderRadius:14,
     alignItems:'center', justifyContent:'center',
     flexShrink:0,
+  },
+  // [v53-02] Region-accent rail on the selected row — rounded pill in the gutter.
+  selectedRail: {
+    position:     'absolute',
+    left:         6,
+    top:          14,
+    bottom:       14,
+    width:        3,
+    borderRadius: 1.5,
   },
 });
 
@@ -1772,11 +1825,34 @@ function CountryPickerSheetBase({
     const isDialQ = /^\+?\d+$/.test(q);
     const digits  = q.replace(/\D/g, '');
 
-    return regionFiltered.filter((c) => {
+    // ── Filter — predicate UNCHANGED from v5.2 (same set of matches) ────────────
+    const matches = regionFiltered.filter((c) => {
       if (c.normalizedName.includes(normQ))              return true; // [FIX-02] pre-computed
       if (c.id.toLowerCase() === normQ)                  return true;
       if (isDialQ && c.cleanDialCode.startsWith(digits)) return true; // [FIX-02] pre-computed
       return false;
+    });
+
+    // ── [v53-01] Relevance ranking — best matches first ─────────────────────────
+    // Same matches, smarter order. Without this, results kept "busiest first"
+    // order, so "in" could surface a high-traffic territory above India.
+    // Tiers: 0 exact ISO · 1 exact name · 2 name-prefix · 3 dial-prefix · 4 substring.
+    // onlineCount (then name) breaks ties — preserves the "busiest first" feel
+    // within an equally-relevant group. Cheap: runs once per settled query on the
+    // already-filtered (usually small) result set.
+    const rank = (c: CountryDoc): number => {
+      if (c.id.toLowerCase() === normQ)                  return 0;
+      if (c.normalizedName === normQ)                    return 1;
+      if (c.normalizedName.startsWith(normQ))            return 2;
+      if (isDialQ && c.cleanDialCode.startsWith(digits)) return 3;
+      return 4;
+    };
+    return matches.sort((a, b) => {
+      const ra = rank(a);
+      const rb = rank(b);
+      if (ra !== rb)                       return ra - rb;
+      if (b.onlineCount !== a.onlineCount) return b.onlineCount - a.onlineCount;
+      return a.name.localeCompare(b.name);
     });
   }, [regionFiltered, searchQuery]);
 
@@ -2173,6 +2249,12 @@ function CountryPickerSheetBase({
             autoCapitalize="none"
             returnKeyType="search"
             clearButtonMode="never"
+            // [v53-03] Treat this strictly as a search box: no squiggles, no keyboard
+            // autofill chips, no iOS strong-password / contact autofill offers.
+            spellCheck={false}
+            autoComplete="off"
+            textContentType="none"
+            maxLength={40}
             onFocus={handleSearchFocus}
             onBlur={handleSearchBlur}
             accessibilityLabel="Search for a country"
@@ -2378,6 +2460,13 @@ function CountryPickerSheetBase({
           entering={!reducedMotion ? FadeIn.duration(150) : undefined}
           style={sh.switchOverlay}
           pointerEvents="auto"
+          accessible
+          accessibilityRole="progressbar"
+          accessibilityLabel={
+            switchingTo != null
+              ? `Switching to ${switchingTo.name}`
+              : 'Switching country'
+          }
         >
           {/* [UX-01] Spinner ring around the emoji clarifies "loading in progress".  */}
           {/* Without it, users on slow connections tapped repeatedly thinking the  */}
