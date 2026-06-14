@@ -1,8 +1,40 @@
 /**
- * components/organisms/CountryPickerSheet.tsx — v5.3
+ * components/organisms/CountryPickerSheet.tsx — v5.4
  *
  * CROWN — Country Selection Bottom Sheet
  * "The gateway to the world. Clean. Fast. Global."
+ *
+ * ── v5.4 CHANGELOG (CRITICAL — sheet now actually opens) ─────────────────────
+ *
+ *  THE BUG: tapping the country scope did nothing — the sheet never opened, while
+ *  the City and Sector sheets opened fine. Root cause: a previous pass migrated
+ *  ONLY this sheet to @gorhom/bottom-sheet, a library that is NOT in package.json
+ *  and that the app is not wired for (no provider, everything else uses the
+ *  in-house sheet). The import could not resolve, so the component never rendered.
+ *
+ *  THE FIX: reverted the sheet shell to the app's own Modal-based BottomSheet
+ *  (`@/components/BottomSheet`) — the exact component CityPickerSheet and
+ *  SectorPickerSheet use. It renders inside a React Native <Modal>, so it overlays
+ *  the whole app and opens purely from the `visible` prop. No external dependency,
+ *  no root provider, no ref. Net effect: this sheet now opens identically to its
+ *  siblings, in this one file, with nothing else to install.
+ *
+ *  What changed mechanically:
+ *    • import BottomSheet from '@/components/BottomSheet' (was @gorhom/bottom-sheet).
+ *    • <BottomSheet visible/onClose/maxHeight/style> (was ref + snapPoints + backdrop).
+ *    • BottomSheetFlatList  → plain react-native FlatList.
+ *    • BottomSheetTextInput → plain react-native TextInput.
+ *    • Removed sheetRef, snapPoints, renderBackdrop, handleSheetClose/Change, and
+ *      the snapToIndex open/close effect — the host Modal + `visible` handle all of it.
+ *    • onSheetIndexChange (bottom-nav hide/show) is preserved: it now fires 0 on
+ *      open and -1 on close from the `visible` effect.
+ *    • Single fixed sheet height (≈90% screen) replaces the 55%/92% snap pair; the
+ *      search box sits at the top so the keyboard never covers it.
+ *
+ *  ALL v5.3 work below (search relevance, selected-row accent rail, input hardening,
+ *  switching-overlay a11y) and every earlier business-logic fix is fully preserved.
+ *  NOTE: the v5.0–v5.3 notes below are HISTORICAL — they document the gorhom era,
+ *  which v5.4 supersedes.
  *
  * ── v5.3 CHANGELOG (Polish Pass — search relevance, a11y, visual, docs) ───────
  *
@@ -182,13 +214,14 @@
  *              rp).
  *
  * ── PREREQUISITES ─────────────────────────────────────────────────────────────
- *   @gorhom/bottom-sheet v5.1.6+ — first line that supports Reanimated v4.
- *                                  MUST be added to package.json (this file imports it).
+ *   @/components/BottomSheet      — the app's in-house Modal sheet (already present;
+ *                                   used by City & Sector pickers). No external
+ *                                   bottom-sheet library and no root provider needed.
  *   react-native-reanimated v4   — paired with react-native-worklets. The worklets
- *                                  babel plugin is bundled in babel-preset-expo (SDK 54),
+ *                                  babel plugin ships inside babel-preset-expo (SDK 54),
  *                                  so no manual babel.config.js plugin entry is needed.
- *   react-native-gesture-handler v2 — GestureHandlerRootView at app root.
- *   keyboardBehavior="fillParent" is a gorhom v5-only prop.
+ *   GestureHandlerRootView at app root — already present in app/_layout.tsx (used by
+ *                                  the A-Z sidebar PanResponder; standard RN setup).
  *
  * ── USAGE ─────────────────────────────────────────────────────────────────────
  *
@@ -218,6 +251,7 @@ import {
   AccessibilityInfo,
   ActivityIndicator,
   Animated,
+  Dimensions,
   FlatList,
   Keyboard,
   type GestureResponderEvent,
@@ -237,18 +271,18 @@ import * as Haptics      from 'expo-haptics';
 import AsyncStorage      from '@react-native-async-storage/async-storage';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 
-// ── @gorhom/bottom-sheet v5 ───────────────────────────────────────────────────
-// Gesture arbitration (sheet pan ↔ list scroll) runs on the UI thread via
-// Reanimated v3 shared-value worklets — no JS-thread involvement per scroll frame.
-import BottomSheet, {
-  BottomSheetFlatList,
-  BottomSheetBackdrop,
-  BottomSheetTextInput,
-  type BottomSheetBackdropProps,
-} from '@gorhom/bottom-sheet';
+// ── In-house BottomSheet ──────────────────────────────────────────────────────
+// [v54] Uses the app's own Modal-based BottomSheet — the SAME component the
+// City and Sector pickers use. It renders inside a React Native <Modal>, so it
+// reliably overlays the whole app and opens purely from the `visible` prop (no
+// ref, no snap points, no external library, no root provider). This is what makes
+// the sheet actually open; the previous @gorhom/bottom-sheet build never opened
+// because that library was never installed and the app isn't wired for it.
+import { BottomSheet } from '@/components/BottomSheet';
 
-// ── react-native-reanimated v3 ────────────────────────────────────────────────
-// Used for: HeroCard stagger entry, LetterOverlay spring, SwitchingOverlay fade
+// ── react-native-reanimated v4 (with react-native-worklets) ───────────────────
+// Used for: HeroCard stagger entry, LetterOverlay spring, SwitchingOverlay fade,
+// search-bar glow, pills collapse, skeleton shimmer — all on the UI thread.
 import ReAnimated, {
   Easing as REasing,
   cancelAnimation,
@@ -268,6 +302,10 @@ import ReAnimated, {
 import { db }                    from '@/lib/firebase';
 import { palette }               from '@/constants/colors';
 import { FONT_BODY, FONT_HEADING } from '@/constants/typography';
+
+// [v54] Sheet height — a fixed tall sheet (≈90% screen) so the long country list
+// always has room and there is zero height jump between loading and idle states.
+const SHEET_HEIGHT = Math.round(Dimensions.get('window').height * 0.9);
 
 // ─── Storage keys ──────────────────────────────────────────────────────────────
 const CW_COUNTRY_KEY  = '@cw/country_id'           as const;
@@ -1510,13 +1548,8 @@ function CountryPickerSheetBase({
   onSheetIndexChange,
 }: CountryPickerSheetProps) {
 
-  // [v5-ARCH-05] sheetRef is typed as BottomSheet — the gorhom default export.
-  // Imperative API: snapToIndex(0|1) and close() are identical to the real library.
-  const sheetRef = useRef<BottomSheet>(null);
-  // [v4-ADR-05] Two snap points: 55% comfortable peek (default open), 92% on search focus.
-  // Sheet opens at 55% → user taps search → auto-expands to 92% (max result viewport).
-  // keyboardBlurBehavior="restore" returns it to 55% on keyboard dismiss.
-  const snapPoints = useMemo(() => ['55%', '92%'], []);
+  // [v54] No sheetRef / snapPoints — the in-house BottomSheet is a Modal driven
+  // purely by the `visible` prop. It renders at a single fixed height (SHEET_HEIGHT).
 
   const [countries,     setCountries]    = useState<CountryDoc[]>([]);
   const [sheetState,    setSheetState]   = useState<SheetState>('loading');
@@ -1555,43 +1588,18 @@ function CountryPickerSheetBase({
   // ── [FEAT-06] One-time v2→v3 recents migration ───────────────────────────────
   useEffect(() => { void migrateRecentsCache(); }, []);
 
-  // ── [v4-ARCH-01] Imperative open/close via sheetRef ──────────────────────────
+  // ── [v54] Open side-effects — the Modal opens via the `visible` prop ──────────
+  // No imperative snap/close needed. We still (a) fire the subtle open haptic and
+  // (b) preserve the bottom-nav hide/show contract: onSheetIndexChange(0) on open,
+  // onSheetIndexChange(-1) on close — same signal the parent already consumes.
   useEffect(() => {
     if (visible) {
       void hapticLight(); // [UX-02] Subtle haptic matches iOS Share Sheet behaviour
-      sheetRef.current?.snapToIndex(0);
+      onSheetIndexChange?.(0);
     } else {
-      sheetRef.current?.close();
+      onSheetIndexChange?.(-1);
     }
-  }, [visible]);
-
-  // ── [v4-ARCH-07] Backdrop press handler ──────────────────────────────────────
-  // BottomSheetBackdrop from the real gorhom library receives animatedIndex and
-  // animatedPosition as shared values injected by the sheet — the spread {...props}
-  // forwards them automatically. pressBehavior="close" fires gorhom's own close()
-  // which triggers the handleSheetClose callback below.
-  const renderBackdrop = useCallback(
-    (props: BottomSheetBackdropProps) => (
-      <BottomSheetBackdrop
-        {...props}
-        pressBehavior="close"
-        appearsOnIndex={0}
-        disappearsOnIndex={-1}
-        opacity={0.55}
-      />
-    ),
-    [],
-  );
-
-  // Called by gorhom when sheet fully dismisses (swipe or backdrop tap)
-  const handleSheetClose = useCallback(() => {
-    onClose();
-  }, [onClose]);
-
-  // [BOTTOM-NAV] Called by gorhom on every snap change including close (-1)
-  const handleSheetChange = useCallback((index: number) => {
-    onSheetIndexChange?.(index);
-  }, [onSheetIndexChange]);
+  }, [visible, onSheetIndexChange]);
 
   // ── [FIX-SCROLL-01] shellHRef — measure shell height for layout metrics ───────
   // Shell height is recorded here; no longer drives any adaptive height logic
@@ -1629,9 +1637,8 @@ function CountryPickerSheetBase({
   }));
 
   const handleSearchFocus = useCallback(() => {
-    // [v4-ADR-05] Auto-snap to 92% on search focus — maximum space for results.
-    sheetRef.current?.snapToIndex(1);
-    // [FIX-03] Reanimated withTiming — runs on UI thread (no useNativeDriver:false)
+    // [v54] No snap needed — the sheet is already at its fixed full height and the
+    // search box sits at the top, so the keyboard never covers it. Just glow.
     searchFocused.value = withTiming(1, { duration: 180 });
   }, [searchFocused]);
 
@@ -2125,57 +2132,39 @@ function CountryPickerSheetBase({
   }, [isRegionSearchEmpty, regionFilter, searchQuery, reducedMotion]);
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // RENDER — v5.0 Tree
+  // RENDER — v5.4 Tree
   //
-  // BottomSheet (@gorhom/bottom-sheet v5)
-  // └── BottomSheetView (outerWrapper, flex:1) ← SOLE direct child [v5-FIX-OVERLAP]
+  // BottomSheet (@/components/BottomSheet — Modal-based, opens on `visible`)
+  //   renders its own drag handle + backdrop; we supply only the body below.
+  // └── View (outerWrapper, flex:1) ← sole child; flex column
   //     ├── View (pinnedShell)         ← PINNED SHELL — never scrolls
-  //     │   ├── Handle (built-in gorhom handle)
-  //     │   ├── titleRowMerged         ← [v4-ARCH-05] Globe + Title + ActiveInline + Close
-  //     │   ├── searchWrap (Animated)  ← [v4-FEAT-01] animated border glow
-  //     │   │     └── BottomSheetTextInput ← [v5-ARCH-02] keyboard coordination
-  //     │   └── pillAnimWrap (Animated)← [v4-ARCH-06] height+opacity collapse
+  //     │   ├── titleRowMerged         ← Globe + Title + ActiveInline + Close
+  //     │   ├── searchWrap (Animated)  ← animated border glow
+  //     │   │     └── TextInput        ← plain RN input (top of sheet → keyboard-safe)
+  //     │   └── pillAnimWrap (Animated)← height+opacity collapse
   //     │
   //     └── (conditional on sheetState)
   //         loading  → View + skeleton
   //         error    → View + error state
-  //         idle     → BottomSheetFlatList (ONE scroll owner for everything)
-  //                      Gesture arbitration: sheet pan ↔ list scroll runs on UI
-  //                      thread via Reanimated — no JS-thread involvement per frame.
+  //         idle     → FlatList (single scroll owner)
   //                      + AlphabetSidebar (absolute, no conflict)
   //                      + LetterOverlay (absolute, Reanimated)
   //
-  // SwitchingOverlay (absoluteFillObject, zIndex:99, [v4-FEAT-03] FadeIn 150ms)
+  // SwitchingOverlay (absoluteFillObject, zIndex:99, FadeIn 150ms)
   // ─────────────────────────────────────────────────────────────────────────────
   return (
     <BottomSheet
-      ref={sheetRef}
-      index={-1}
-      snapPoints={snapPoints}
-      // [v4-ARCH-03] gorhom v5 handles keyboard natively — no KeyboardAvoidingView needed
-      keyboardBehavior="fillParent"
-      keyboardBlurBehavior="restore"
-      android_keyboardInputMode="adjustResize"
-      // [v4-ARCH-07] Backdrop — tap outside to close
-      backdropComponent={renderBackdrop}
-      enablePanDownToClose
-      onClose={handleSheetClose}
-      onChange={handleSheetChange}
-      backgroundStyle={sh.sheetBackground}
-      handleStyle={sh.handleContainer}
-      handleIndicatorStyle={sh.handleIndicator}
+      visible={visible}
+      onClose={onClose}
+      // [v54] Fixed tall sheet (≈90% screen). maxHeight + explicit height keep the
+      // height stable across loading/idle so there is no jump when data arrives.
+      maxHeight={SHEET_HEIGHT}
+      style={sh.sheetShell}
     >
-      {/*
-       * [FIX-04] OUTER WRAPPER — plain View instead of BottomSheetView ──────────
-       * BottomSheetView inside BottomSheet can hijack gesture arbitration on
-       * Android, causing BottomSheetFlatList scrolls to stall.
-       *
-       * Plain View with flex:1 fixes the v5-OVERLAP issue equally well because
-       * BottomSheet v5 renders its content area in a flex column by default.
-       * BottomSheetFlatList still registers with the sheet's gesture coordinator
-       * via React context regardless of whether its ancestor is BottomSheetView.
-       */}
+      {/* [v54] OUTER WRAPPER — flex:1 fills the sheet's content area (which is
+          flex:1 in BottomSheet.tsx), so the inner FlatList sizes and scrolls. */}
       <View style={sh.outerWrapper}>
+
 
       {/* ── PINNED SHELL — The "Shell vs Content" principle (PRD §2 Principle 5) ── */}
       {/* SearchBar, title, pills live here. They CANNOT scroll away.             */}
@@ -2238,7 +2227,7 @@ function CountryPickerSheetBase({
         {/* borderColor interpolation now runs on UI thread via Reanimated          */}
         <ReAnimated.View style={[sh.searchWrap, animatedBorderStyle]}>
           <Feather name="search" size={18} color={T.textTertiary} />
-          <BottomSheetTextInput
+          <TextInput
             ref={searchRef}
             style={sh.searchInput}
             value={rawQuery}
@@ -2391,9 +2380,9 @@ function CountryPickerSheetBase({
               style={sh.srOnly}
             />
           )}
-          {/* [v4-ARCH-02] BottomSheetFlatList — required for gorhom gesture integration */}
-          {/* All existing getItemLayout / renderItem / ListHeaderComponent logic preserved */}
-          <BottomSheetFlatList
+          {/* [v54] Plain FlatList — single scroll owner inside the Modal sheet.
+              All getItemLayout / renderItem / ListHeaderComponent logic preserved. */}
+          <FlatList
             ref={listRef}
             data={flatData}
             extraData={selected}
@@ -2504,25 +2493,17 @@ export default CountryPickerSheet;
 // ─── Styles ────────────────────────────────────────────────────────────────────
 const sh = StyleSheet.create({
 
-  // [v4-ARCH-01] gorhom v5 uses backgroundStyle / handleStyle props
-  sheetBackground: {
-    borderTopLeftRadius:  28,
-    borderTopRightRadius: 28,
-    backgroundColor:      T.sheetBg,
-  },
-  handleContainer: {
-    paddingTop: 10,
-  },
-  handleIndicator: {
-    width:           L.handleW,
-    height:          L.handleH,
-    borderRadius:    L.handleH / 2,
-    backgroundColor: T.border,
+  // [v54] Passed to the in-house BottomSheet's `style` prop. Forces a fixed height
+  // and paints the sheet white (the shared sheet defaults to a dark surface). The
+  // shared sheet already rounds its top corners (24px); we keep its background.
+  sheetShell: {
+    height:          SHEET_HEIGHT,
+    backgroundColor: T.sheetBg,
   },
 
-  // ── [v5-FIX-OVERLAP] Single outer wrapper — sole direct child of BottomSheet ──
-  // flex:1 fills the sheet's content area; interior uses normal flex-column layout
-  // so pinnedShell and content stack vertically instead of overlapping at y=0.
+  // ── [v54] Single outer wrapper — sole child of BottomSheet's content area ──────
+  // flex:1 fills the content area (BottomSheet.content is flex:1); interior uses a
+  // normal flex-column layout so pinnedShell and the list stack vertically.
   outerWrapper: {
     flex: 1,
   },
