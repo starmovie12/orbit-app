@@ -1,8 +1,24 @@
 /**
- * components/organisms/CountryPickerSheet.tsx — v5.12
+ * components/organisms/CountryPickerSheet.tsx — v5.13
  *
  * CROWN — Country Selection Bottom Sheet
  * "The gateway to the world. Clean. Fast. Global."
+ *
+ * ── v5.13 CHANGELOG (orange rank numerals + web focus ring fix) ───────────────
+ *
+ *  [v513-01] VISUAL — Rank numeral colour changed gold → orange.
+ *            Uses the same warm-orange base (234,88,12) as the app's bottom
+ *            navigation / Africa accent, at 0.65 opacity idle / 0.75 selected.
+ *            Orange is more vivid and energetic on white cards than gold, and
+ *            matches the rest of the app's accent language.
+ *
+ *  [v513-02] WEB FIX — Browser focus ring ("black dabba") removed from search bar.
+ *            Running on localhost (Expo Web / react-native-web), every browser draws
+ *            a hard black outline on focused TextInput. outlineStyle:'none' in the
+ *            StyleSheet is picked up by react-native-web and strips it; the property
+ *            is a no-op on native iOS/Android so no platform guard is needed.
+ *            The Reanimated gold glow (animatedBorderStyle) now owns the entire
+ *            focus-state visual — no more system "black dabba".
  *
  * ── v5.12 CHANGELOG (golden rank numerals + divider fix) ──────────────────────
  *
@@ -1284,13 +1300,13 @@ const hc = StyleSheet.create({
     right:      -10,
     fontSize:   80,
     fontWeight: '900',
-    // [v512-01] Bright yellow-gold base (255,200,0) replaces the muted dark gold (212,160,23).
-    // At 60% opacity this reads as clearly golden — warm and vivid, not dark or brownish.
-    color:      'rgba(255,200,0,0.60)',
+    // [v513-01] Orange — same warm base (234,88,12) as app's bottom-nav / Africa accent.
+    // 0.65 opacity: vivid and clearly orange on white cards, still a background watermark.
+    color:      'rgba(234,88,12,0.65)',
     lineHeight: 88,
   },
   rankNumActive: {
-    color:      'rgba(255,200,0,0.70)',   // [v512-01] slightly stronger on selected card
+    color:      'rgba(234,88,12,0.75)',   // [v513-01] stronger on selected card
   },
 
   // NOTE: checkDot removed in v57-03 — selected state communicated via
@@ -2944,6 +2960,9 @@ const sh = StyleSheet.create({
     color:           T.text,
     fontFamily:      FONT_BODY.regular,
     paddingVertical: 0,
+    // [v513-02] Web-only: strips the browser's hard black "focus ring" on tap.
+    // react-native-web reads outlineStyle; native iOS/Android ignores it safely.
+    outlineStyle:    'none',
   },
 
   // ── [v4-ARCH-06] Animated pills wrapper ──────────────────────────────────────
