@@ -1,8 +1,24 @@
 /**
- * components/organisms/CountryPickerSheet.tsx — v5.10
+ * components/organisms/CountryPickerSheet.tsx — v5.11
  *
  * CROWN — Country Selection Bottom Sheet
  * "The gateway to the world. Clean. Fast. Global."
+ *
+ * ── v5.11 CHANGELOG (ACTIVE badge restore + Top-10 trending) ──────────────────
+ *
+ *  [v511-01] UX — ACTIVE badge restored. "No one online" → "0 online".
+ *            v5.10 removed the badge to "declutter", but it was the element that
+ *            gave the header its premium, live feel. Restored. Simultaneously the
+ *            "No one online" string was replaced with "0 online" to match HeroCard
+ *            badge language — shorter, numeric, consistent across the entire sheet.
+ *            New layout: 🇦🇽 Aland Islands · 0 online [ACTIVE]
+ *
+ *  [v511-02] FEAT — TRENDING_COUNT raised 5 → 10 (Netflix/OTT Top-10 pattern).
+ *            5 cards felt incomplete for a "Trending" list. 10 completes the OTT
+ *            aesthetic: watermark numerals 1–10 scroll naturally on horizontal swipe,
+ *            no vertical space cost, proper leaderboard feel. HeroCardProps rank
+ *            comment updated (1–5 → 1–10). Skeleton loop also expands automatically
+ *            since it uses the same TRENDING_COUNT constant.
  *
  * ── v5.10 CHANGELOG (6 bugs — logic, visual, UX, Android) ─────────────────────
  *
@@ -472,7 +488,7 @@ const SHEET_HEIGHT = Math.round(Dimensions.get('window').height * 0.9);
 const CW_COUNTRY_KEY  = '@cw/country_id'           as const;
 const CW_RECENTS_KEY  = '@cw/recent_countries_v3'  as const;
 const MAX_RECENTS     = 3                           as const;
-const TRENDING_COUNT  = 5                           as const;
+const TRENDING_COUNT  = 10                          as const;  // [v511-02] Top-10 OTT pattern (was 5)
 const MAX_RETRIES     = 3                           as const;
 
 // ─── Country cache (AsyncStorage) ─────────────────────────────────────────────
@@ -1040,7 +1056,7 @@ interface HeroCardProps {
   country:        CountryDoc;
   isSelected:     boolean;
   onPress:        (country: CountryDoc) => void;
-  rank:           number;        // [v57] 1-based trending position (1–5)
+  rank:           number;        // [v511] 1-based trending position (1–10, was 1–5)
   entryDelay?:    number;        // ms delay for stagger (0, 40, 80, 120, 160)
   reducedMotion?: boolean;       // skip animation for accessibility
 }
@@ -2469,14 +2485,13 @@ function CountryPickerSheetBase({
           <View style={sh.titleTextGroup}>
             <Text style={sh.title}>Choose Country</Text>
 
-            {/* [v4-ARCH-05] Active strip now inline below title */}
+            {/* [v4-ARCH-05] Active strip inline below title */}
             {selectedCountry != null && sheetState !== 'loading' && (
               <View
                 style={sh.activeInline}
                 accessibilityRole="text"
                 accessibilityLabel={`Active country: ${selectedCountry.name}`}
               >
-                {/* [CRIT-04] pulse=true — LiveDot communicates active state. [v510-05] ACTIVE badge removed. */}
                 <LiveDot size={5} pulse />
                 <Text style={sh.activeFlag} accessible={false}>
                   {selectedCountry.emoji}
@@ -2485,13 +2500,16 @@ function CountryPickerSheetBase({
                   {selectedCountry.name}
                 </Text>
                 <Text style={sh.activeSep} accessible={false}>{'\u00B7'}</Text>
+                {/* [v511-01] "No one online" → "0 online" — numeric, matches HeroCard badge language */}
                 <Text style={sh.activeCountInline} numberOfLines={1}>
                   {selectedCountry.onlineCount > 0
                     ? `${fmtCount(selectedCountry.onlineCount)} online`
-                    : 'No one online'}
+                    : '0 online'}
                 </Text>
-                {/* [v510-05] Removed: <View style={sh.activeBadge}><Text>ACTIVE</Text></View>
-                    Green LiveDot already signals active. Badge made the line cluttered. */}
+                {/* [v511-01] ACTIVE badge restored — gives header its premium "live" indicator */}
+                <View style={sh.activeBadge}>
+                  <Text style={sh.activeBadgeText}>ACTIVE</Text>
+                </View>
               </View>
             )}
           </View>
