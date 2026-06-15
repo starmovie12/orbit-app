@@ -93,15 +93,15 @@ const HDR = {
   TOTAL_H: 120 as const,
 
   /**
-   * [v5.3 FIX] Wordmark 32px → 20px. Compact, clean, not imposing.
+   * [v5.5] Wordmark 28px — Telegram-style: prominent, fills the row naturally.
    */
-  WORDMARK_SIZE: 20 as const,
+  WORDMARK_SIZE: 28 as const,
 
   /**
-   * [v5.4] 2px luxury tracking — premium brand feel (CHANEL/Rimowa style),
-   * tight enough to not spread, open enough to feel editorial.
+   * [v5.5] Letter spacing 0 — tight natural fit, like Telegram/WhatsApp headers.
+   * No tracking tricks — the bold font weight does all the work.
    */
-  WORDMARK_LETTER_SPACING: 2 as const,
+  WORDMARK_LETTER_SPACING: 0 as const,
 
   /** §1.3.3 Row 1 action icons: "44×44 touch target" */
   ACTION_TOUCH: 44 as const,
@@ -482,14 +482,14 @@ const styles = StyleSheet.create({
   },
 
   // ── CROWN wordmark ───────────────────────────────────────────────────────────
-  // Syne 800ExtraBold · 20px · 2px luxury tracking · brand gold
-  // Clean, no shadows — the font weight + spacing does all the work.
+  // Telegram-style: big, clean, brand color, zero effects.
+  // Syne 800ExtraBold · 28px · 0 letter-spacing · brand gold
   wordmark: {
     fontFamily:    'Syne_800ExtraBold',
-    fontSize:      HDR.WORDMARK_SIZE,           // 20px
-    letterSpacing: HDR.WORDMARK_LETTER_SPACING, // 2px — editorial tracking
+    fontSize:      HDR.WORDMARK_SIZE,           // 28px — prominent
+    letterSpacing: HDR.WORDMARK_LETTER_SPACING, // 0 — tight natural
     color:         colors.fg.brand,             // gold (#D4A017)
-    lineHeight:    26,
+    lineHeight:    34,
   },
 
   // ── Right action group ────────────────────────────────────────────────────
