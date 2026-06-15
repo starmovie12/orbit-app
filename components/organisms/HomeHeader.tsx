@@ -505,17 +505,15 @@ const styles = StyleSheet.create({
   wordmarkRow: {
     flexDirection: 'row',
     alignItems:    'center',
-    gap:           8,
+    gap:           4,
   },
 
   // ── CROWN wordmark text ───────────────────────────────────────────────────
-  // HTML spec: font-extrabold · text-[20px] · tracking-[0.15em] · text-gray-900
-  // Icon is gold; text is dark — creates icon-color / text contrast like Telegram.
   wordmark: {
-    fontFamily:    'Inter_800ExtraBold',        // extrabold = font-extrabold
-    fontSize:      HDR.WORDMARK_SIZE,           // 20px
-    letterSpacing: HDR.WORDMARK_LETTER_SPACING, // 3px (0.15em × 20)
-    color:         colors.fg.brand,             // gold (#D4A017) — brand color
+    fontFamily:    'Inter_800ExtraBold',
+    fontWeight:    '800',
+    fontSize:      HDR.WORDMARK_SIZE,           // 20px — unchanged
+    color:         colors.fg.brand,             // gold (#D4A017)
     lineHeight:    26,
   },
 
