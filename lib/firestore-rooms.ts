@@ -404,9 +404,6 @@ export interface SectorRow {
 
 /**
  * Shape of a /cities document as expected by CityPickerSheet.
- * NOT exported — CityPickerSheet.tsx defines and exports its own identical
- * CityDoc interface. TypeScript structural typing ensures they stay compatible.
- * If you want a single source of truth later, move this to @/types/cw.ts.
  */
 interface CityDoc {
   id:           string;
@@ -419,25 +416,33 @@ interface CityDoc {
 
 /**
  * Real-time subscription to the /cities collection.
- *
- * Filter:  Dynamically matches country_code (prevents 185MB mega-downloads).
- * Sort:    client-side A→Z       — avoids composite index requirement.
- *
- * @param countryCode e.g., "IN", "US", "AR"
- * @param cb          Callback to fire with results
+ * SMART/BACKWARD COMPATIBLE: Handles both the old way `getCities(cb)`
+ * and the new way `getCities(countryCode, cb)` seamlessly.
  */
-export function getCities(countryCode: string, cb: (cities: CityDoc[]) => void): Unsubscribe {
-  // Guard against undefined/empty country codes
-  if (!countryCode) {
-    cb([]);
+export function getCities(
+  countryCodeOrCb: string | ((cities: CityDoc[]) => void),
+  cb?: (cities: CityDoc[]) => void
+): Unsubscribe {
+  
+  let countryCode = 'IN'; // Safe Default
+  let callback = cb;
+
+  // Agar app ki koi purani file abhi bhi getCities(cb) call kar rahi hai
+  if (typeof countryCodeOrCb === 'function') {
+    callback = countryCodeOrCb;
+  } else if (typeof countryCodeOrCb === 'string' && countryCodeOrCb.trim() !== '') {
+    // Agar naya format call ho raha hai getCities('US', cb)
+    countryCode = countryCodeOrCb;
+  }
+
+  // Agar callback miss ho jaye galti se
+  if (!callback) {
     return () => {};
   }
 
   return firestore()
     .collection(CITIES)
     .where('country_code', '==', countryCode.toUpperCase())
-    // ✅ NO .orderBy() here — avoids the composite index requirement.
-    //    Sorting is done client-side below (same A→Z result, zero config).
     .onSnapshot(
       (qs) => {
         const list: CityDoc[] = [];
@@ -448,7 +453,6 @@ export function getCities(countryCode: string, cb: (cities: CityDoc[]) => void):
           list.push({
             id:           doc.id,
             name:         d.name as string,
-            // Added d.state_code fallback to support world-cities datasets
             state:        (d.state_name ?? d.admin_name ?? d.state ?? d.state_code ?? undefined) as string | undefined,
             online_count: (d.online_count as number) ?? 0,
             sector_count: (d.sector_count as number) ?? 0,
@@ -456,13 +460,13 @@ export function getCities(countryCode: string, cb: (cities: CityDoc[]) => void):
           });
         });
 
-        // Sort A→Z client-side — identical result to .orderBy('name','asc')
+        // Sort A→Z client-side
         list.sort((a, b) => a.name.localeCompare(b.name));
-        cb(list);
+        callback!(list);
       },
       (err) => {
         console.error('[getCities] Firestore onSnapshot error:', err);
-        cb([]);
+        callback!([]);
       },
     );
 }
