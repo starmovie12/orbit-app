@@ -93,9 +93,9 @@ const HDR = {
   TOTAL_H: 120 as const,
 
   /**
-   * [v5.5] Wordmark 28px — Telegram-style: prominent, fills the row naturally.
+   * [v5.6] Wordmark 30px — Telegram-style: prominent, capital + lowercase.
    */
-  WORDMARK_SIZE: 28 as const,
+  WORDMARK_SIZE: 30 as const,
 
   /**
    * [v5.5] Letter spacing 0 — tight natural fit, like Telegram/WhatsApp headers.
@@ -305,9 +305,9 @@ export function HomeHeader({
           style={styles.wordmark}
           allowFontScaling={false}
           accessibilityRole="header"
-          accessibilityLabel="CROWN"
+          accessibilityLabel="Crown"
         >
-          CROWN
+          Crown
         </Text>
 
         {/* RIGHT: Action icons (NO AVATAR — §1.3.3 mandate) */}
@@ -481,15 +481,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: HDR.PAD_H,              // 16px
   },
 
-  // ── CROWN wordmark ───────────────────────────────────────────────────────────
-  // Telegram-style: big, clean, brand color, zero effects.
-  // Syne 800ExtraBold · 28px · 0 letter-spacing · brand gold
+  // ── Crown wordmark ───────────────────────────────────────────────────────────
+  // Telegram-style: "Crown" — capital C, lowercase rown.
+  // Inter_700Bold · 30px · 0 letter-spacing · brand gold
+  // Inter is clean, rounded, modern — closest to Telegram's header font feel.
   wordmark: {
-    fontFamily:    'Syne_800ExtraBold',
-    fontSize:      HDR.WORDMARK_SIZE,           // 28px — prominent
+    fontFamily:    'Inter_700Bold',
+    fontSize:      HDR.WORDMARK_SIZE,           // 30px — prominent
     letterSpacing: HDR.WORDMARK_LETTER_SPACING, // 0 — tight natural
     color:         colors.fg.brand,             // gold (#D4A017)
-    lineHeight:    34,
+    lineHeight:    36,
   },
 
   // ── Right action group ────────────────────────────────────────────────────
