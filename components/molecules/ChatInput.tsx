@@ -5,15 +5,17 @@
  *
  *   • One floating rounded box — holds EVERYTHING: [+] · text · 😊 · send.
  *   • No white bar behind it (transparent strip → it floats over the chat).
- *   • Auto-grows from 1 line up to ~5 lines, then scrolls inside (multiline).
+ *   • Auto-grows 1→5 lines AND shrinks back when you delete text.
+ *       - Web ratchet fixed: the <textarea> height is reset to "auto" before
+ *         measuring scrollHeight, so it grows AND shrinks correctly.
+ *       - Native auto-grows via onContentSizeChange.
  *   • NO character limit (send any length — like WhatsApp).
  *   • No black focus box on web (browser outline killed).
- *   • Gap-fill (§9.3.5) now uses translateY on the UI thread → smooth, no
- *     scroll glitch (was animating `bottom`, which thrashes layout).
+ *   • EMOJI button → opens a working emoji picker that inserts into the text.
+ *   • PLUS button  → opens the device image picker (and forwards via onImage).
+ *   • Gap-fill (§9.3.5) uses translateY on the UI thread → smooth, no glitch.
  *
- * Public API unchanged — drop-in replacement.
- *   navVisible=true  → box sits above the nav
- *   navVisible=false → box slides down 56px to fill the vacated nav space
+ * Public API unchanged (onImage may now receive the picked uri). Drop-in.
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -22,13 +24,16 @@ import {
   Easing,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
+  Text,
   TextInput,
   View,
   ViewStyle,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
 
 import { useHaptics } from '@/hooks/useHaptics';
 import { animation, colors, palette, radii } from '@/constants/colors';
@@ -42,14 +47,10 @@ const NAV_HEIGHT = 56 as const;
 const Z_CHAT_INPUT = 935 as const;
 const NAV_ANIM_DURATION_MS = 200 as const;
 
-/** Floating box outer side margin (so it doesn't touch screen edges) */
 const SIDE_MARGIN = 12 as const;
-/** Gap above the nav bar */
 const BOTTOM_GAP = 6 as const;
 
-/** Input min height (single line — aligns with the 36px control buttons) */
 const MIN_INPUT_H = 36 as const;
-/** Input max height (~5 lines) before it scrolls internally */
 const MAX_INPUT_H = 120 as const;
 
 const SEND_SIZE = 40 as const;
@@ -59,14 +60,15 @@ const EMOJI_ICON = 22 as const;
 const PLUS_ICON = 24 as const;
 
 const SENDING_IDLE_RESET_MS = 300 as const;
+const EMOJI_PANEL_MAX_H = 216 as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// § 2 — COLORS (semantic tokens)
+// § 2 — COLORS
 // ─────────────────────────────────────────────────────────────────────────────
 
-const BOX_BG = palette.cream[100]; // soft warm fill
-const BOX_BORDER_IDLE = colors.border.inputIdle; // cream[400]
-const BOX_BORDER_FOCUS = colors.fg.brand; // gold
+const BOX_BG = palette.cream[100];
+const BOX_BORDER_IDLE = colors.border.inputIdle;
+const BOX_BORDER_FOCUS = colors.fg.brand;
 const INPUT_TEXT_COLOR = colors.fg.primary;
 const INPUT_PLACEHOLDER_COLOR = colors.fg.placeholder;
 const ICON_COLOR = colors.fg.secondary;
@@ -81,7 +83,21 @@ const WEB_NO_OUTLINE =
     : null;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// § 3 — TYPES
+// § 3 — EMOJI SET (common — inserts into text)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const EMOJIS: readonly string[] = [
+  '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣',
+  '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰',
+  '😘', '😋', '😎', '🤩', '🥳', '😏', '😢', '😭',
+  '😤', '😠', '😡', '🤬', '🤯', '😱', '😴', '🤤',
+  '👍', '👎', '👌', '🙏', '👏', '🙌', '💪', '🔥',
+  '❤️', '🧡', '💛', '💚', '💙', '💜', '💎', '✨',
+  '🎉', '🎊', '👑', '⭐', '💯', '✅', '❌', '👀',
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// § 4 — TYPES
 // ─────────────────────────────────────────────────────────────────────────────
 
 type SendState = 'idle' | 'active' | 'sending' | 'failed';
@@ -90,11 +106,11 @@ type Scope = 'world' | 'country' | 'city' | 'sector';
 export interface ChatInputProps {
   onSend: (text: string) => void;
   onVoice?: () => void;
-  onImage?: () => void;
+  /** Receives the picked image uri (if any). */
+  onImage?: (uri?: string) => void;
   onAuthGate?: () => void;
   isAuthenticated: boolean;
   navVisible?: boolean;
-  /** Accepted for API symmetry — navVisible drives the animation. */
   navHidden?: boolean;
   scope?: Scope;
   cityLabel?: string;
@@ -106,7 +122,7 @@ export interface ChatInputProps {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// § 4 — HELPERS
+// § 5 — HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
 
 function resolvePlaceholder(
@@ -129,7 +145,7 @@ function resolvePlaceholder(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// § 5 — SendButton
+// § 6 — SendButton
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface SendButtonProps {
@@ -213,7 +229,41 @@ const sendButtonStyles = StyleSheet.create({
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// § 6 — MAIN COMPONENT
+// § 7 — Emoji Picker Panel
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface EmojiPanelProps {
+  onPick: (emoji: string) => void;
+}
+
+const EmojiPanel: React.FC<EmojiPanelProps> = ({ onPick }) => (
+  <View style={styles.emojiPanel}>
+    <ScrollView
+      style={{ maxHeight: EMOJI_PANEL_MAX_H }}
+      contentContainerStyle={styles.emojiGrid}
+      keyboardShouldPersistTaps="always"
+      showsVerticalScrollIndicator={false}
+    >
+      {EMOJIS.map((e) => (
+        <Pressable
+          key={e}
+          onPress={() => onPick(e)}
+          style={({ pressed }) => [styles.emojiCell, pressed && styles.emojiCellPressed]}
+          accessible
+          accessibilityRole="button"
+          accessibilityLabel={`Insert ${e}`}
+        >
+          <Text style={styles.emojiGlyph} allowFontScaling={false}>
+            {e}
+          </Text>
+        </Pressable>
+      ))}
+    </ScrollView>
+  </View>
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// § 8 — MAIN COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
 
 const ChatInputBase: React.FC<ChatInputProps> = ({
@@ -238,14 +288,14 @@ const ChatInputBase: React.FC<ChatInputProps> = ({
   const [isFocused, setIsFocused] = useState<boolean>(false);
   const [sendState, setSendState] = useState<SendState>('idle');
   const [inputHeight, setInputHeight] = useState<number>(MIN_INPUT_H);
+  const [showEmoji, setShowEmoji] = useState<boolean>(false);
 
   const inputRef = useRef<TextInput>(null);
   const sendingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const spinValue = useRef(new Animated.Value(0)).current;
   const spinLoop = useRef<Animated.CompositeAnimation | null>(null);
 
-  // ── Gap-fill via translateY (UI thread → smooth) ───────────────────────────
-  // 0 = nav visible (box above nav), 1 = nav hidden (box slid down to fill).
+  // ── Gap-fill via translateY ─────────────────────────────────────────────────
   const isHidden = navHidden !== undefined ? navHidden : !navVisible;
   const slide = useRef(new Animated.Value(isHidden ? 1 : 0)).current;
 
@@ -264,7 +314,7 @@ const ChatInputBase: React.FC<ChatInputProps> = ({
     extrapolate: 'clamp',
   });
 
-  // ── Spinner ────────────────────────────────────────────────────────────────
+  // ── Spinner ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (sendState === 'sending') {
       spinValue.setValue(0);
@@ -291,77 +341,130 @@ const ChatInputBase: React.FC<ChatInputProps> = ({
     };
   }, []);
 
-  // ── idle ↔ active from text ────────────────────────────────────────────────
+  // ── idle ↔ active ─────────────────────────────────────────────────────────────
   const hasText = text.trim().length > 0;
   useEffect(() => {
     if (sendState === 'sending' || sendState === 'failed') return;
     setSendState(hasText ? 'active' : 'idle');
   }, [hasText, sendState]);
 
-  // ── Auth gate ──────────────────────────────────────────────────────────────
+  // ── AUTO-GROW + SHRINK ────────────────────────────────────────────────────────
+  // Web: reset textarea height to "auto" before reading scrollHeight, so the box
+  //      both grows and shrinks (fixes the stuck-tall ratchet bug).
+  const measureWeb = useCallback((): void => {
+    if (Platform.OS !== 'web') return;
+    const el = inputRef.current as unknown as HTMLTextAreaElement | null;
+    if (!el) return;
+    el.style.height = 'auto';
+    const next = Math.max(MIN_INPUT_H, Math.min(el.scrollHeight, MAX_INPUT_H));
+    el.style.height = `${next}px`;
+    setInputHeight(next);
+  }, []);
+
+  const resetHeight = useCallback((): void => {
+    setInputHeight(MIN_INPUT_H);
+    if (Platform.OS === 'web') {
+      const el = inputRef.current as unknown as HTMLTextAreaElement | null;
+      if (el) el.style.height = `${MIN_INPUT_H}px`;
+    }
+  }, []);
+
+  const handleChangeText = useCallback(
+    (t: string): void => {
+      setText(t);
+      if (Platform.OS === 'web') requestAnimationFrame(measureWeb);
+    },
+    [measureWeb],
+  );
+
+  // Native only — web is handled by measureWeb (avoids the scrollHeight ratchet).
+  const handleContentSize = useCallback(
+    (e: { nativeEvent: { contentSize: { height: number } } }): void => {
+      if (Platform.OS === 'web') return;
+      const h = Math.max(MIN_INPUT_H, Math.min(Math.ceil(e.nativeEvent.contentSize.height), MAX_INPUT_H));
+      setInputHeight(h);
+    },
+    [],
+  );
+
+  // ── Auth + focus ──────────────────────────────────────────────────────────────
   const handleInputFocus = useCallback((): void => {
     if (!isAuthenticated) {
       inputRef.current?.blur();
       onAuthGate?.();
       return;
     }
+    setShowEmoji(false);
     setIsFocused(true);
     haptics.impactLight();
   }, [isAuthenticated, onAuthGate, haptics]);
 
   const handleInputBlur = useCallback((): void => setIsFocused(false), []);
 
-  // ── Send ───────────────────────────────────────────────────────────────────
+  // ── Send ──────────────────────────────────────────────────────────────────────
   const handleSend = useCallback((): void => {
     const trimmed = text.trim();
     if (!trimmed || sendState !== 'active') return;
     haptics.impactLight();
     setText('');
-    setInputHeight(MIN_INPUT_H);
+    setShowEmoji(false);
+    resetHeight();
     setSendState('sending');
     onSend(trimmed);
     sendingTimerRef.current = setTimeout(() => {
       setSendState('idle');
     }, SENDING_IDLE_RESET_MS);
-  }, [text, sendState, haptics, onSend]);
+  }, [text, sendState, haptics, onSend, resetHeight]);
 
-  // ── Emoji → focus (opens keyboard emoji) ───────────────────────────────────
-  const handleEmojiPress = useCallback((): void => {
+  // ── Emoji ─────────────────────────────────────────────────────────────────────
+  const handleEmojiToggle = useCallback((): void => {
     if (!isAuthenticated) {
       onAuthGate?.();
       return;
     }
     haptics.impactLight();
-    inputRef.current?.focus();
+    inputRef.current?.blur(); // close keyboard so the panel is visible on mobile
+    setShowEmoji((v) => !v);
   }, [isAuthenticated, onAuthGate, haptics]);
 
-  // ── Plus → attachment (or focus if no handler wired) ───────────────────────
-  const handlePlusPress = useCallback((): void => {
+  const handleEmojiPick = useCallback(
+    (emoji: string): void => {
+      haptics.impactLight();
+      setText((prev) => prev + emoji);
+      if (Platform.OS === 'web') requestAnimationFrame(measureWeb);
+    },
+    [haptics, measureWeb],
+  );
+
+  // ── Plus → image picker ─────────────────────────────────────────────────────
+  const handlePlusPress = useCallback(async (): Promise<void> => {
     if (!isAuthenticated) {
       onAuthGate?.();
       return;
     }
     haptics.impactLight();
-    if (onImage) onImage();
-    else inputRef.current?.focus();
+    setShowEmoji(false);
+    try {
+      if (Platform.OS !== 'web') {
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.8,
+      });
+      if (!result.canceled && result.assets?.length) {
+        onImage?.(result.assets[0].uri);
+      }
+    } catch {
+      // Picker unavailable — fail silently.
+    }
   }, [isAuthenticated, onAuthGate, onImage, haptics]);
-
-  // ── Auto-grow height ───────────────────────────────────────────────────────
-  const handleContentSize = useCallback(
-    (e: { nativeEvent: { contentSize: { height: number } } }): void => {
-      const h = Math.min(
-        Math.max(MIN_INPUT_H, Math.ceil(e.nativeEvent.contentSize.height)),
-        MAX_INPUT_H,
-      );
-      setInputHeight(h);
-    },
-    [],
-  );
 
   const boxBorderColor = isFocused ? BOX_BORDER_FOCUS : BOX_BORDER_IDLE;
   const effectivePlaceholder = resolvePlaceholder(scope, cityLabel, sectorLabel, placeholder);
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <Animated.View
       style={[
@@ -376,9 +479,9 @@ const ChatInputBase: React.FC<ChatInputProps> = ({
       pointerEvents="box-none"
       testID="home-chat-input"
     >
-      <View
-        style={[styles.box, { borderColor: boxBorderColor }, disabled && styles.boxDisabled]}
-      >
+      {showEmoji ? <EmojiPanel onPick={handleEmojiPick} /> : null}
+
+      <View style={[styles.box, { borderColor: boxBorderColor }, disabled && styles.boxDisabled]}>
         {/* + attach (inside, left) */}
         <Pressable
           onPress={handlePlusPress}
@@ -391,12 +494,12 @@ const ChatInputBase: React.FC<ChatInputProps> = ({
           <Feather name="plus" size={PLUS_ICON} color={ICON_COLOR} />
         </Pressable>
 
-        {/* Text — auto-grows, no limit */}
+        {/* Text — grows & shrinks, no limit */}
         <TextInput
           ref={inputRef}
           style={[styles.input, { height: inputHeight }, WEB_NO_OUTLINE]}
           value={text}
-          onChangeText={setText}
+          onChangeText={handleChangeText}
           onContentSizeChange={handleContentSize}
           onFocus={handleInputFocus}
           onBlur={handleInputBlur}
@@ -417,14 +520,22 @@ const ChatInputBase: React.FC<ChatInputProps> = ({
 
         {/* Emoji (inside, before send) */}
         <Pressable
-          onPress={handleEmojiPress}
-          style={({ pressed }) => [styles.ctrlBtn, pressed && styles.ctrlPressed]}
+          onPress={handleEmojiToggle}
+          style={({ pressed }) => [
+            styles.ctrlBtn,
+            showEmoji && styles.ctrlActive,
+            pressed && styles.ctrlPressed,
+          ]}
           hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
           accessible
-          accessibilityLabel="Open emoji keyboard"
+          accessibilityLabel="Toggle emoji picker"
           accessibilityRole="button"
         >
-          <Feather name="smile" size={EMOJI_ICON} color={ICON_COLOR} />
+          <Feather
+            name={showEmoji ? 'x' : 'smile'}
+            size={EMOJI_ICON}
+            color={showEmoji ? colors.fg.brand : ICON_COLOR}
+          />
         </Pressable>
 
         {/* Send (inside, right) */}
@@ -435,11 +546,10 @@ const ChatInputBase: React.FC<ChatInputProps> = ({
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// § 7 — STYLES
+// § 9 — STYLES
 // ─────────────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  // Transparent strip — the box floats over the chat
   wrapper: {
     position: 'absolute',
     left: 0,
@@ -450,16 +560,14 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
 
-  // The single floating rounded box holding everything
   box: {
     flexDirection: 'row',
-    alignItems: 'flex-end', // controls pin to bottom as text grows
+    alignItems: 'flex-end',
     backgroundColor: BOX_BG,
     borderRadius: 24,
     borderWidth: 1,
     paddingHorizontal: 6,
     paddingVertical: 6,
-    // Floating lift
     shadowColor: palette.ink[950],
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.12,
@@ -473,7 +581,7 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontFamily: FONT_BODY.regular,
-    fontSize: FONT_SIZE.mdLg, // 15
+    fontSize: FONT_SIZE.mdLg,
     lineHeight: 20,
     color: INPUT_TEXT_COLOR,
     paddingHorizontal: 8,
@@ -492,8 +600,47 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  ctrlActive: {
+    backgroundColor: colors.bg.goldSoft,
+  },
   ctrlPressed: {
     backgroundColor: colors.bg.goldSoft,
+  },
+
+  // Emoji panel (floats above the box)
+  emojiPanel: {
+    backgroundColor: BOX_BG,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: BOX_BORDER_IDLE,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    marginBottom: 8,
+    shadowColor: palette.ink[950],
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 14,
+    elevation: 8,
+  },
+  emojiGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  emojiCell: {
+    width: '12.5%',
+    aabbb: undefined as never, // (placeholder removed below)
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radii.sm,
+  },
+  emojiCellPressed: {
+    backgroundColor: colors.bg.goldSoft,
+  },
+  emojiGlyph: {
+    fontSize: 24,
+    lineHeight: 30,
   },
 });
 
