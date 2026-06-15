@@ -10,21 +10,26 @@
  * ║    Row 2 — 4-Scope Switcher     (44px)   ← was 48px, −4px              ║
  * ║    Row 3 — Online Count Strip   (28px)   ← was 32px, −4px              ║
  * ╠══════════════════════════════════════════════════════════════════════════╣
- * ║  CHANGELOG v4.0:                                                         ║
- * ║    [1] Row heights compacted: 56+48+32=136px → 48+44+28=120px (−16px)  ║
- * ║    [2] CROWN wordmark upgraded:                                          ║
- * ║        • FontAwesome5 "crown" icon (13px, gold) prefix                  ║
- * ║        • Font size bumped 22px → 24px for stronger presence             ║
- * ║        • Letter-spacing tightened −0.5px → −1px for luxury feel        ║
- * ║    [3] Notification icon: Feather "bell" → Ionicons "notifications"     ║
- * ║        • Filled bell with notification bumps — premium, recognisable    ║
- * ║    [4] DM icon: Feather "message-circle" → Ionicons "paper-plane"       ║
- * ║        • Crisp send/DM metaphor — cleaner, more intentional             ║
- * ║    [5] Action icons enlarged 22px → 24px for clearer tap affordance     ║
+ * ║  CHANGELOG v5.0 — Premium Header Refresh:                               ║
+ * ║    [1] Crown icon REMOVED from wordmark — text-only wordmark now        ║
+ * ║        • Cleaner, more editorial — no icon competing with the type      ║
+ * ║    [2] CROWN wordmark elevated to luxury-brand tier:                    ║
+ * ║        • Font size 24px → 28px — stronger visual mass                  ║
+ * ║        • Letter-spacing −1px → +4px — wide luxury tracking (CHANEL     ║
+ * ║          style) reads as ultra-premium on display-weight Syne 800       ║
+ * ║        • Subtle gold text-shadow glow (radius 8px, 25% opacity)        ║
+ * ║    [3] Action icons upgraded — Ionicons → MaterialCommunityIcons:       ║
+ * ║        • Notifications: "bell-ring" (unread) / "bell-outline" (none)   ║
+ * ║          bell-ring has dynamic vibration strokes = alerts-in-progress  ║
+ * ║        • DM: "message-text" (unread) / "message-text-outline" (none)   ║
+ * ║          message-text has ruled lines inside bubble = DM content feel  ║
+ * ║        • Active icon colour flips to brand gold (fg.brand) for         ║
+ * ║          unmissable at-a-glance status communication                   ║
  * ╠══════════════════════════════════════════════════════════════════════════╣
- * ║  ROW 1 SPEC:                                                             ║
- * ║    Left: ♛ crown icon + "CROWN" wordmark — Syne 800, 24px, gold        ║
- * ║    Right: 🔔 notifications (44×44) + ✉ paper-plane DM (44×44)          ║
+ * ║  ROW 1 SPEC (v5.0):                                                      ║
+ * ║    Left: "CROWN" wordmark only — Syne 800, 28px, gold, +4px tracking   ║
+ * ║    Right: 🔔 bell-ring/bell-outline (44×44) + 💬 message-text (44×44)  ║
+ * ║    Active icon colour = brand gold; inactive = fg.primary              ║
  * ║    NO AVATAR IN ROW 1 — avatar lives in Profile tab (§1.3.3 mandate)    ║
  * ╠══════════════════════════════════════════════════════════════════════════╣
  * ║  ROW 3 SPEC (§1.3.3):                                                   ║
@@ -48,7 +53,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { colors, typography, spacing, radii, zIndex, dimensions } from '@/constants/colors';
 import { FourScopeSwitcher, type ChatScope } from '@/components/molecules/FourScopeSwitcher';
@@ -85,35 +90,25 @@ const HDR = {
   TOTAL_H: 120 as const,
 
   /**
-   * [v4.0 CHANGE] Wordmark font size bumped 22px → 24px.
-   * §1.3.3 wordmark: "Syne 800, 24px, gold, letter-spacing −1px"
+   * [v5.0 CHANGE] Wordmark size bumped 24px → 28px.
+   * Larger display weight reads as more commanding / editorial.
+   * Wide letter-spacing needs more base size for legibility.
    */
-  WORDMARK_SIZE: 24 as const,
+  WORDMARK_SIZE: 28 as const,
 
   /**
-   * [v4.0 CHANGE] Letter-spacing tightened −0.5px → −1px.
-   * Tighter tracking on display-weight Syne 800 reads as more premium.
+   * [v5.0 CHANGE] Letter-spacing flipped −1px → +4px (LUXURY TRACKING).
+   * Wide spaced-out caps on Syne 800 = the CHANEL / DIOR editorial look.
+   * −1px (tight) felt compressed; +4px (open) feels architectural.
    */
-  WORDMARK_LETTER_SPACING: -1 as const,
-
-  /**
-   * [v4.0 NEW] Crown icon size — FontAwesome5 "crown" prefix to wordmark.
-   * 13px keeps it as a subtle mark, not competing with the wordmark.
-   */
-  CROWN_ICON_SIZE: 13 as const,
-
-  /**
-   * [v4.0 NEW] Gap between crown icon and CROWN wordmark text.
-   */
-  CROWN_ICON_GAP: 5 as const,
+  WORDMARK_LETTER_SPACING: 4 as const,
 
   /** §1.3.3 Row 1 action icons: "44×44 touch target" */
   ACTION_TOUCH: 44 as const,
 
   /**
-   * [v4.0 CHANGE] Action icon size bumped 22px → 24px.
-   * Ionicons at 24px have cleaner strokes and better proportions
-   * than Feather at 22px at this touch target size.
+   * [v5.0] Action icon size kept at 24px.
+   * MaterialCommunityIcons at 24px have full stroke clarity.
    */
   ACTION_ICON: 24 as const,
 
@@ -299,34 +294,26 @@ export function HomeHeader({
       {/* ── ROW 1: Brand + Actions (48px) ──────────────────────────────────── */}
       <View style={styles.row1} pointerEvents="box-none">
 
-        {/* LEFT: Crown icon + CROWN wordmark */}
-        {/* [v4.0] FontAwesome5 crown prefix gives the wordmark an iconic mark
-             without resorting to emoji. Sized at 13px to feel like a badge,
-             not a competing element. Gold matches the wordmark color exactly. */}
-        <View style={styles.wordmarkRow} accessibilityRole="header" accessibilityLabel="CROWN">
-          <FontAwesome5
-            name="crown"
-            size={HDR.CROWN_ICON_SIZE}    // 13px
-            color={colors.fg.brand}       // gold-600 — matches wordmark
-            solid
-            accessibilityElementsHidden
-            importantForAccessibility="no"
-          />
-          <Text
-            style={styles.wordmark}
-            allowFontScaling={false}
-          >
-            {BRAND.NAME}
-          </Text>
-        </View>
+        {/* LEFT: CROWN wordmark — text-only, luxury editorial style */}
+        {/* [v5.0] Icon removed. Wide-tracked Syne 800 at 28px carries enough
+             visual weight alone — adding an icon beside it created clutter.
+             The glow shadow gives the gold type a soft luminous depth. */}
+        <Text
+          style={styles.wordmark}
+          allowFontScaling={false}
+          accessibilityRole="header"
+          accessibilityLabel="CROWN"
+        >
+          {BRAND.NAME}
+        </Text>
 
         {/* RIGHT: Action icons (NO AVATAR — §1.3.3 mandate) */}
         <View style={styles.actions}>
 
-          {/* 🔔 Notifications — [v4.0] Ionicons "notifications" */}
-          {/* Reason: Ionicons "notifications" has a filled bell with a bottom
-               bump that reads as "new alerts". More universally recognised
-               than Feather "bell" which is outline-only and can read as muted. */}
+          {/* 🔔 Notifications — [v5.0] MaterialCommunityIcons "bell-ring" */}
+          {/* Reason: "bell-ring" has dynamic vibration arc strokes that visually
+               communicate "active alert in progress" — far more expressive than
+               a static bell. Gold colour when unread = instant status read. */}
           <TouchableOpacity
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -342,10 +329,10 @@ export function HomeHeader({
             }
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Ionicons
-              name={unreadNotifications > 0 ? 'notifications' : 'notifications-outline'}
+            <MaterialCommunityIcons
+              name={unreadNotifications > 0 ? 'bell-ring' : 'bell-outline'}
               size={HDR.ACTION_ICON}        // 24px
-              color={colors.fg.primary}
+              color={unreadNotifications > 0 ? colors.fg.brand : colors.fg.primary}
             />
 
             {unreadNotifications > 0 ? (
@@ -363,11 +350,11 @@ export function HomeHeader({
             ) : null}
           </TouchableOpacity>
 
-          {/* ✈ DM inbox — [v4.0] Ionicons "paper-plane" */}
-          {/* Reason: "paper-plane" is the universal send/message icon (Telegram,
-               Instagram DM, WhatsApp share). More intentional than a generic
-               message-circle which can be confused with comments/replies.
-               Switches to filled variant when there are unread DMs. */}
+          {/* 💬 DM inbox — [v5.0] MaterialCommunityIcons "message-text" */}
+          {/* Reason: "message-text" shows a chat bubble with ruled content lines
+               inside — reads unmistakably as "messages with content waiting".
+               Filled gold variant on unread = premium status signal. "message-text-outline"
+               is the clean inactive state — minimal, architectural. */}
           <TouchableOpacity
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -383,10 +370,10 @@ export function HomeHeader({
             }
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Ionicons
-              name={unreadDms > 0 ? 'paper-plane' : 'paper-plane-outline'}
+            <MaterialCommunityIcons
+              name={unreadDms > 0 ? 'message-text' : 'message-text-outline'}
               size={HDR.ACTION_ICON}        // 24px
-              color={colors.fg.primary}
+              color={unreadDms > 0 ? colors.fg.brand : colors.fg.primary}
             />
 
             {unreadDms > 0 ? (
@@ -484,20 +471,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: HDR.PAD_H,              // 16px
   },
 
-  // ── [v4.0 NEW] Wordmark row — crown icon + CROWN text inline ──────────────
-  wordmarkRow: {
-    flexDirection: 'row',
-    alignItems:    'center',
-    gap:           HDR.CROWN_ICON_GAP,         // 5px
-  },
-
-  // ── CROWN wordmark — Syne 800, 24px (v4.0: was 22px), −1px spacing ────────
+  // ── CROWN wordmark — Syne 800, 28px, +4px luxury tracking, gold glow ────────
+  // [v5.0] Icon removed. Wide letter-spacing on ExtraBold Syne = luxury
+  // editorial tier. Text shadow creates a low-opacity gold ambient glow that
+  // gives the wordmark depth on both light and dark backgrounds.
   wordmark: {
-    fontFamily:    'Syne_800ExtraBold',
-    fontSize:      HDR.WORDMARK_SIZE,          // 24px
-    letterSpacing: HDR.WORDMARK_LETTER_SPACING, // −1px
-    color:         colors.fg.brand,             // gold-600
-    lineHeight:    28,
+    fontFamily:      'Syne_800ExtraBold',
+    fontSize:        HDR.WORDMARK_SIZE,           // 28px
+    letterSpacing:   HDR.WORDMARK_LETTER_SPACING, // +4px — wide luxury tracking
+    color:           colors.fg.brand,              // gold-600 (#D4A017)
+    lineHeight:      34,
+    textShadowColor:  'rgba(212, 160, 23, 0.30)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 8,
   },
 
   // ── Right action group ────────────────────────────────────────────────────
