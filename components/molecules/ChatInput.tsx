@@ -450,7 +450,6 @@ const ChatInputBase: React.FC<ChatInputProps> = ({
         if (!perm.granted) return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         quality: 0.8,
       });
       if (!result.canceled && result.assets?.length) {
@@ -629,11 +628,10 @@ const styles = StyleSheet.create({
   },
   emojiCell: {
     width: '12.5%',
-    aabbb: undefined as never, // (placeholder removed below)
     height: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radii.sm,
+    borderRadius: 8,
   },
   emojiCellPressed: {
     backgroundColor: colors.bg.goldSoft,
