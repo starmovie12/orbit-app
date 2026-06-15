@@ -95,18 +95,16 @@ const HDR = {
   TOTAL_H: 120 as const,
 
   /**
-   * [v5.0 CHANGE] Wordmark size bumped 24px → 28px.
-   * Larger display weight reads as more commanding / editorial.
-   * Wide letter-spacing needs more base size for legibility.
+   * [v5.1 FIX] Wordmark size 28px — unchanged.
    */
   WORDMARK_SIZE: 28 as const,
 
   /**
-   * [v5.0 CHANGE] Letter-spacing flipped −1px → +4px (LUXURY TRACKING).
-   * Wide spaced-out caps on Syne 800 = the CHANEL / DIOR editorial look.
-   * −1px (tight) felt compressed; +4px (open) feels architectural.
+   * [v5.1 FIX] Letter-spacing reset +4px → 0.
+   * +4px was making "CROWN" render as "C R O W N" — completely spread out.
+   * 0 on Syne 800 ExtraBold at 28px = clean, tight, bold wordmark.
    */
-  WORDMARK_LETTER_SPACING: 4 as const,
+  WORDMARK_LETTER_SPACING: 0 as const,
 
   /** §1.3.3 Row 1 action icons: "44×44 touch target" */
   ACTION_TOUCH: 44 as const,
@@ -479,19 +477,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: HDR.PAD_H,              // 16px
   },
 
-  // ── CROWN wordmark — Syne 800, 28px, +4px luxury tracking, gold glow ────────
-  // [v5.0] Icon removed. Wide letter-spacing on ExtraBold Syne = luxury
-  // editorial tier. Text shadow creates a low-opacity gold ambient glow that
-  // gives the wordmark depth on both light and dark backgrounds.
+  // ── CROWN wordmark — Syne 800ExtraBold, 28px, tight tracking, gold ──────────
+  // [v5.1 FIX] letterSpacing reset 4px → 0. Wide spacing made "CROWN" render
+  // as "C R O W N" — ugly spread. 0 on ExtraBold Syne = solid bold wordmark.
+  // textShadow removed — clean flat gold is sharper on the header bg.
   wordmark: {
-    fontFamily:      'Syne_800ExtraBold',
-    fontSize:        HDR.WORDMARK_SIZE,           // 28px
-    letterSpacing:   HDR.WORDMARK_LETTER_SPACING, // +4px — wide luxury tracking
-    color:           colors.fg.brand,              // gold-600 (#D4A017)
-    lineHeight:      34,
-    textShadowColor:  'rgba(212, 160, 23, 0.30)',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 8,
+    fontFamily:    'Syne_800ExtraBold',
+    fontSize:      HDR.WORDMARK_SIZE,           // 28px
+    letterSpacing: HDR.WORDMARK_LETTER_SPACING, // 0 — tight, solid
+    color:         colors.fg.brand,             // gold-600 (#D4A017)
+    lineHeight:    34,
   },
 
   // ── Right action group ────────────────────────────────────────────────────
