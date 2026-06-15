@@ -59,6 +59,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Path } from 'react-native-svg'; // Crown logo SVG
 import { Feather } from '@expo/vector-icons'; // §design-rule: Feather-only (1.5px stroke, clean outline)
 import * as Haptics from 'expo-haptics';
 import { colors, typography, spacing, radii, zIndex, dimensions } from '@/constants/colors';
@@ -93,15 +94,15 @@ const HDR = {
   TOTAL_H: 120 as const,
 
   /**
-   * [v5.6] Wordmark 30px — Telegram-style: prominent, capital + lowercase.
+   * [v5.6] Wordmark text 20px — matches HTML prototype spec (text-[20px]).
    */
-  WORDMARK_SIZE: 30 as const,
+  WORDMARK_SIZE: 20 as const,
 
   /**
-   * [v5.5] Letter spacing 0 — tight natural fit, like Telegram/WhatsApp headers.
-   * No tracking tricks — the bold font weight does all the work.
+   * [v5.6] Letter spacing 3px — matches HTML tracking-[0.15em] @ 20px font.
+   * (0.15 × 20 = 3px). Gives the logo text breathing room next to SVG icon.
    */
-  WORDMARK_LETTER_SPACING: 0 as const,
+  WORDMARK_LETTER_SPACING: 3 as const,
 
   /** §1.3.3 Row 1 action icons: "44×44 touch target" */
   ACTION_TOUCH: 44 as const,
@@ -294,21 +295,39 @@ export function HomeHeader({
       {/* ── ROW 1: Brand + Actions (48px) ──────────────────────────────────── */}
       <View style={styles.row1} pointerEvents="box-none">
 
-        {/* LEFT: CROWN wordmark — text-only, luxury editorial style */}
-        {/* [v5.0] Icon removed. Wide-tracked Syne 800 at 28px carries enough
-             visual weight alone — adding an icon beside it created clutter.
-             The glow shadow gives the gold type a soft luminous depth. */}
-        {/* [v5.1] Hardcoded literal "CROWN" — BRAND.NAME dynamic constant
-             removed to guarantee correct wordmark regardless of branding
-             migration state. Screenshot-matched: Syne 800, 28px, gold glow. */}
-        <Text
-          style={styles.wordmark}
-          allowFontScaling={false}
+        {/* LEFT: Crown logo — SVG crown icon (gold) + CROWN text (dark) */}
+        {/* Matches HTML prototype: icon #C5A059 stroke + dark extrabold text  */}
+        <View
+          style={styles.wordmarkRow}
           accessibilityRole="header"
           accessibilityLabel="Crown"
         >
-          Crown
-        </Text>
+          {/* Crown SVG icon — Lucide crown path, brand gold stroke */}
+          <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
+            <Path
+              d="M2 20h20"
+              stroke={colors.fg.brand}
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <Path
+              d="m2 4 4 7 6-8 6 8 4-7-3 14H5z"
+              stroke={colors.fg.brand}
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </Svg>
+
+          {/* CROWN wordmark text — dark, extrabold, tracked */}
+          <Text
+            style={styles.wordmark}
+            allowFontScaling={false}
+          >
+            CROWN
+          </Text>
+        </View>
 
         {/* RIGHT: Action icons (NO AVATAR — §1.3.3 mandate) */}
         <View style={styles.actions}>
@@ -481,16 +500,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: HDR.PAD_H,              // 16px
   },
 
-  // ── Crown wordmark ───────────────────────────────────────────────────────────
-  // Telegram-style: "Crown" — capital C, lowercase rown.
-  // Inter_700Bold · 30px · 0 letter-spacing · brand gold
-  // Inter is clean, rounded, modern — closest to Telegram's header font feel.
+  // ── wordmarkRow — icon + text side by side ────────────────────────────────
+  // gap-2 from HTML prototype = 8px in React Native
+  wordmarkRow: {
+    flexDirection: 'row',
+    alignItems:    'center',
+    gap:           8,
+  },
+
+  // ── CROWN wordmark text ───────────────────────────────────────────────────
+  // HTML spec: font-extrabold · text-[20px] · tracking-[0.15em] · text-gray-900
+  // Icon is gold; text is dark — creates icon-color / text contrast like Telegram.
   wordmark: {
-    fontFamily:    'Inter_700Bold',
-    fontSize:      HDR.WORDMARK_SIZE,           // 30px — prominent
-    letterSpacing: HDR.WORDMARK_LETTER_SPACING, // 0 — tight natural
-    color:         colors.fg.brand,             // gold (#D4A017)
-    lineHeight:    36,
+    fontFamily:    'Inter_800ExtraBold',        // extrabold = font-extrabold
+    fontSize:      HDR.WORDMARK_SIZE,           // 20px
+    letterSpacing: HDR.WORDMARK_LETTER_SPACING, // 3px (0.15em × 20)
+    color:         colors.fg.primary,           // dark gray (#111827 equiv)
+    lineHeight:    26,
   },
 
   // ── Right action group ────────────────────────────────────────────────────
