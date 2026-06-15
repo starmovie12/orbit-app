@@ -420,28 +420,20 @@ interface CityDoc {
 /**
  * Real-time subscription to the /cities collection.
  *
+ * Filter:  is_active == true  (Firestore-level — excludes world geo docs)
  * Order:   name ASC (alphabetical, A→Z)
- * Filter:  is_active !== false  (client-side — see note below)
  *
- * ── WHY THE FIRESTORE .where('is_active','==',true) WAS REMOVED ─────────────
- * The previous version had:
- *   .where('is_active', '==', true)
- *   .orderBy('name', 'asc')
- * This compound query returns ZERO results when documents are missing the
- * `is_active` field entirely (which is the case for all current city documents
- * in Firestore — they were seeded without that field). Firestore's strict
- * equality filter skips documents that lack the queried field.
+ * Only documents that have is_active: true are returned. World geographic
+ * documents (ad_andorra_la_vella, ar_departamento_*, etc.) have no is_active
+ * field → Firestore's strict equality filter excludes them automatically.
+ * CROWN city documents (chandigarh, delhi, mumbai, etc.) have is_active: true
+ * → they are returned and displayed in CityPickerSheet.
  *
- * The fix: fetch all city documents ordered by name, then filter client-side.
- * Client-side filter logic: exclude only documents where is_active is
- * explicitly false. Documents missing the field (is_active === undefined)
- * are treated as active — this is the safe default during the seeding phase.
- *
- * Once all /cities documents are seeded with is_active: true/false, the
- * Firestore .where() can be restored and this comment removed.
- * ────────────────────────────────────────────────────────────────────────────
- *
- * No composite index required (single-field orderBy only).
+ * Firestore composite index required:
+ *   Collection: cities
+ *   Fields:     is_active ASC, name ASC
+ * Firebase Console will prompt to create this automatically on first query —
+ * click the URL in the Firestore error logs to create it in one tap.
  *
  * @param cb  Called with CityDoc[] on every change (empty array on error).
  * @returns   Unsubscribe — call in useEffect cleanup.
@@ -449,19 +441,17 @@ interface CityDoc {
 export function getCities(cb: (cities: CityDoc[]) => void): Unsubscribe {
   return firestore()
     .collection(CITIES)
-    // ✅ FIX: removed .where('is_active', '==', true) — that filter returned
-    // 0 results because existing Firestore /cities documents don't have the
-    // is_active field → CityPickerSheet always fell back to FALLBACK_CITIES.
+    // ✅ This filter now works correctly because CROWN city documents
+    // (chandigarh, delhi, mumbai, etc.) have is_active: true.
+    // World geographic documents (ad_andorra_la_vella, etc.) have NO
+    // is_active field → Firestore excludes them automatically. ✓
+    .where('is_active', '==', true)
     .orderBy('name', 'asc')
     .onSnapshot(
       (qs) => {
         const list: CityDoc[] = [];
         qs.forEach((doc) => {
           const d = doc.data();
-
-          // Skip only explicit is_active: false — missing field = treated as active.
-          if (d.is_active === false) return;
-
           list.push({
             id:           doc.id,
             name:         (d.name          as string)  ?? '',
@@ -471,8 +461,6 @@ export function getCities(cb: (cities: CityDoc[]) => void): Unsubscribe {
             is_active:    (d.is_active     as boolean) ?? true,
           });
         });
-
-        // Final guard: only emit rows that have a non-empty name.
         cb(list.filter((c) => c.name.trim().length > 0));
       },
       (err) => {
