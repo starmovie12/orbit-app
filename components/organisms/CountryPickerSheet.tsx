@@ -1,8 +1,61 @@
 /**
- * components/organisms/CountryPickerSheet.tsx — v5.14
+ * components/organisms/CountryPickerSheet.tsx — v5.15
  *
  * CROWN — Country Selection Bottom Sheet
  * "The gateway to the world. Clean. Fast. Global."
+ *
+ * ── v5.15 CHANGELOG (Search Highlight + FlashList) ───────────────────────────
+ *
+ *  [v515-01] UX — Search highlight text in CountryRow name.
+ *            When the user types in the search bar (e.g. "Ind"), the matching
+ *            substring inside each result row name ("India", "Indonesia") is now
+ *            painted gold with fontWeight:'800', while the non-matching portions
+ *            stay in their normal style.
+ *
+ *            Implementation:
+ *              • New pure helper buildHighlightSegments(text, query): splits the
+ *                original string into {content, highlight} segments using the same
+ *                normalizeDiacritics logic already used by the search filter, so
+ *                accented characters (e.g. "Réunion") highlight correctly even
+ *                when the user types without accents ("reu").
+ *              • New memo component <HighlightedText> renders the segments as a
+ *                single <Text> with inline <Text> spans for highlighted chunks.
+ *                Fast path: if no match is found the component renders a plain
+ *                <Text> with zero overhead (same as before).
+ *              • CountryRowProps gains an optional searchQuery?: string prop.
+ *                renderItem passes searchQueryRef.current (a stable ref updated
+ *                by useEffect) — same pattern as selectedRef, so renderItem's
+ *                useCallback dep array stays untouched.
+ *              • extraData updated to [selected, searchQuery] so FlashList
+ *                re-renders rows when the query settles (150ms debounce).
+ *              • New cr.nameHighlight style: color T.gold, fontWeight '800'.
+ *                Slightly bolder than cr.nameActive (700) so the highlight reads
+ *                as a distinct "found text" signal rather than a selection state.
+ *
+ *  [v515-02] PERF — FlatList → FlashList (@shopify/flash-list).
+ *            FlatList uses a JS-thread virtualisation loop. On low-end Android
+ *            (2–3 GB RAM) rendering 250+ flag emojis + text causes frame drops
+ *            during fast scroll. FlashList uses a native recycling pool (similar
+ *            to RecyclerView / UICollectionView) — renders on the UI thread and
+ *            maintains 60/120 fps even on mid-range hardware.
+ *
+ *            Migration notes:
+ *              • import FlashList from '@shopify/flash-list' (add the package:
+ *                npx expo install @shopify/flash-list).
+ *              • estimatedItemSize={L.rowH} (74) — FlashList's required hint.
+ *              • overrideItemLayout replaces getItemLayout: exact sizes for
+ *                SectionHeader (34px), Divider (1px), CountryRow (74px).
+ *                FlashList uses this for accurate scrollToIndex positioning —
+ *                the A-Z sidebar tap-to-jump behaviour is fully preserved.
+ *              • listRef type: FlatList<ListItem> → FlashList<ListItem>.
+ *              • getItemLayout callback + itemLayouts precomputation still exist
+ *                but are now only used by the onScrollToIndexFailed fallback
+ *                offset calculation (harmless dead code that can be cleaned up
+ *                in a later pass if desired).
+ *              • All other props (extraData, keyExtractor, renderItem,
+ *                ListHeaderComponent, ListEmptyComponent, refreshControl,
+ *                keyboardShouldPersistTaps, removeClippedSubviews, bounces,
+ *                scrollToOffset, scrollToIndex) work identically on FlashList.
  *
  * ── v5.14 CHANGELOG (global K/M/B online-count formatter) ─────────────────────
  *
@@ -471,7 +524,6 @@ import {
   ActivityIndicator,
   Animated,
   Dimensions,
-  FlatList,
   Keyboard,
   type GestureResponderEvent,
   type AccessibilityActionEvent,
@@ -483,8 +535,13 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  type TextStyle,
   View,
 } from 'react-native';
+// [v515-02] FlashList replaces FlatList — native recycling pool, 60/120 fps on
+// mid-range Android. Drop-in API: same props, add estimatedItemSize + overrideItemLayout.
+// Install: npx expo install @shopify/flash-list
+import { FlashList } from '@shopify/flash-list';
 import { Feather }       from '@expo/vector-icons';
 import * as Haptics      from 'expo-haptics';
 import AsyncStorage      from '@react-native-async-storage/async-storage';
@@ -699,6 +756,57 @@ const REGION_FILTERS: RegionFilter[] = [
 function normalizeDiacritics(str: string): string {
   return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
+
+// ─── [v515-01] buildHighlightSegments ────────────────────────────────────────
+// Finds the first occurrence of the normalised `query` inside the normalised
+// version of `text`, then maps those character positions back onto the original
+// string so accented chars (e.g. "Réunion" when user types "reu") are preserved.
+// Returns null when there is no match — HighlightedText then renders a plain Text
+// with zero overhead (identical to the v5.14 behaviour).
+interface Segment { content: string; highlight: boolean }
+
+function buildHighlightSegments(text: string, query: string): Segment[] | null {
+  if (!query) return null;
+  const normText  = normalizeDiacritics(text);
+  const normQuery = normalizeDiacritics(query);
+  const idx       = normText.indexOf(normQuery);
+  if (idx < 0) return null;
+  const end    = idx + normQuery.length;
+  const segs: Segment[] = [];
+  if (idx > 0)           segs.push({ content: text.slice(0, idx),  highlight: false });
+                         segs.push({ content: text.slice(idx, end), highlight: true  });
+  if (end < text.length) segs.push({ content: text.slice(end),      highlight: false });
+  return segs;
+}
+
+// [v515-01] HighlightedText — renders inline <Text> spans for matching segments.
+// Fast path: when buildHighlightSegments returns null the component renders an
+// identical plain <Text> to v5.14 — zero extra nodes in the render tree.
+const HighlightedText = memo<{
+  text:           string;
+  query:          string;
+  baseStyle:      TextStyle | TextStyle[];
+  highlightStyle: TextStyle;
+  numberOfLines?: number;
+}>(({ text, query, baseStyle, highlightStyle, numberOfLines }) => {
+  const segments = buildHighlightSegments(text, query);
+  if (!segments) {
+    return (
+      <Text style={baseStyle} numberOfLines={numberOfLines}>
+        {text}
+      </Text>
+    );
+  }
+  return (
+    <Text style={baseStyle} numberOfLines={numberOfLines}>
+      {segments.map((seg, i) =>
+        seg.highlight
+          ? <Text key={i} style={highlightStyle}>{seg.content}</Text>
+          : seg.content,
+      )}
+    </Text>
+  );
+});
 
 // ─── Utility: Region mapping ───────────────────────────────────────────────────
 function mapToRegion(continent: string, iso2: string): Region {
@@ -1328,12 +1436,14 @@ const hc = StyleSheet.create({
 
 // ─── CountryRow ────────────────────────────────────────────────────────────────
 interface CountryRowProps {
-  country:    CountryDoc;
-  isSelected: boolean;
-  onPress:    (country: CountryDoc) => void;
+  country:     CountryDoc;
+  isSelected:  boolean;
+  onPress:     (country: CountryDoc) => void;
+  /** [v515-01] Active search query — used to highlight matching text in the name. */
+  searchQuery?: string;
 }
 
-const CountryRow = memo<CountryRowProps>(({ country, isSelected, onPress }) => {
+const CountryRow = memo<CountryRowProps>(({ country, isSelected, onPress, searchQuery = '' }) => {
   const scale     = useRef(new Animated.Value(1)).current;
   // [FIX-03] Flash overlay migrated from Animated (useNativeDriver:false → JS thread)
   // to Reanimated SharedValue (runs entirely on the UI thread).
@@ -1381,9 +1491,14 @@ const CountryRow = memo<CountryRowProps>(({ country, isSelected, onPress }) => {
 
         <View style={cr.body}>
           <View style={cr.nameRow}>
-            <Text style={[cr.name, isSelected && cr.nameActive]} numberOfLines={1}>
-              {country.name}
-            </Text>
+            {/* [v515-01] HighlightedText: paints matching substring gold+800 */}
+            <HighlightedText
+              text={country.name}
+              query={searchQuery}
+              baseStyle={[cr.name, isSelected && cr.nameActive]}
+              highlightStyle={cr.nameHighlight}
+              numberOfLines={1}
+            />
             <Text style={[cr.iso, isSelected && { color: T.goldLight }]} accessible={false}>
               {country.id}
             </Text>
@@ -1468,6 +1583,9 @@ const cr = StyleSheet.create({
     flexShrink: 1,
   },
   nameActive: { color:T.gold, fontWeight:'700' },
+  // [v515-01] nameHighlight — gold + weight 800 so "found text" reads as a distinct
+  // signal from the selected-state (700). Applied by <HighlightedText> on search match.
+  nameHighlight: { color: T.gold, fontWeight: '800' as const },
   iso: {
     fontSize:      10,
     fontWeight:    '600',
@@ -1915,8 +2033,8 @@ function CountryPickerSheetBase({
   // [FIX-03] tickNow removed — now owned by RelativeTimeLabel
 
   const searchRef     = useRef<TextInput>(null);
-  // [v4-ARCH-02] listRef typed as FlatList — BottomSheetFlatList is FlatList-compatible
-  const listRef       = useRef<FlatList<ListItem>>(null);
+  // [v515-02] listRef typed as FlashList — same scrollToOffset/scrollToIndex API as FlatList.
+  const listRef       = useRef<FlashList<ListItem>>(null);
   const fetchIdRef    = useRef(0);
   const isFetchingRef = useRef(false);
   const isMountedRef  = useRef(true);
@@ -1925,9 +2043,13 @@ function CountryPickerSheetBase({
   const [retryCount,    setRetryCount]   = useState(0); // [A11Y-03] state mirrors ref so a11y label re-renders
   const selectedRef     = useRef(selected);
   const recentIdsRef    = useRef(recentIds);
+  // [v515-01] searchQueryRef — stable ref that renderItem reads without needing
+  // searchQuery in its useCallback dep array. Keeps the dep array unchanged from v5.14.
+  const searchQueryRef  = useRef(searchQuery);
 
-  useEffect(() => { selectedRef.current  = selected;     }, [selected]);
-  useEffect(() => { recentIdsRef.current = recentIds;    }, [recentIds]);
+  useEffect(() => { selectedRef.current   = selected;     }, [selected]);
+  useEffect(() => { recentIdsRef.current  = recentIds;    }, [recentIds]);
+  useEffect(() => { searchQueryRef.current = searchQuery; }, [searchQuery]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -2343,9 +2465,10 @@ function CountryPickerSheetBase({
         country={item.country}
         isSelected={item.country.id === selectedRef.current}
         onPress={handleSelect}
+        searchQuery={searchQueryRef.current}  // [v515-01] highlights matched text
       />
     );
-  }, [handleSelect]); // no `selected` dep — selectedRef + extraData handle reactivity
+  }, [handleSelect]); // no `selected`/`searchQuery` deps — refs + extraData handle reactivity
 
   const getItemLayout = useCallback(
     (_: unknown, index: number) => {
@@ -2736,45 +2859,51 @@ function CountryPickerSheetBase({
               style={sh.srOnly}
             />
           )}
-          {/* [v54] Plain FlatList — single scroll owner inside the Modal sheet.
-              All getItemLayout / renderItem / ListHeaderComponent logic preserved. */}
-          <FlatList
+          {/* [v515-02] FlashList replaces FlatList — native recycling pool (RecyclerView /
+              UICollectionView) keeps 60/120 fps on mid-range Android with 250+ flag emojis.
+              Drop-in API: estimatedItemSize + overrideItemLayout replace getItemLayout. */}
+          <FlashList
             ref={listRef}
             data={flatData}
-            extraData={selected}
+            // [v515-01,v515-02] extraData includes searchQuery so FlashList re-renders
+            // rows when the query settles (150ms debounce) to paint highlights.
+            extraData={[selected, searchQuery]}
             renderItem={renderItem}
             keyExtractor={keyExtractor}
             // [FIX-LAYOUT-1] Trending + Recents scroll WITH the list
             ListHeaderComponent={renderListHeader}
-            // [FIX-LAYOUT-2] Empty states inside FlatList
+            // [FIX-LAYOUT-2] Empty states inside FlashList
             ListEmptyComponent={renderListEmpty}
             showsVerticalScrollIndicator={false}
             style={sh.flatList}
-            contentContainerStyle={[
-              sh.listContent,
-              showAlpha && { paddingRight: L.alphaBarW + 6 },
-            ]}
+            contentContainerStyle={{
+              ...(sh.listContent as object),
+              ...(showAlpha ? { paddingRight: L.alphaBarW + 6 } : {}),
+            }}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
+            // [v515-02] estimatedItemSize — FlashList's required size hint.
+            // Most items are CountryRows (L.rowH = 74); sections (34) and dividers (1)
+            // are exact via overrideItemLayout, so 74 is the safest estimate.
+            estimatedItemSize={L.rowH}
+            // [v515-02] overrideItemLayout — gives FlashList exact sizes for each item
+            // type so scrollToIndex (A-Z sidebar tap) lands precisely.
+            // Replaces getItemLayout; old getItemLayout callback kept only for the
+            // onScrollToIndexFailed fallback offset calculation.
+            overrideItemLayout={(layout, item) => {
+              if (item.type === 'section') { layout.size = L.sectionH; return; }
+              if (item.type === 'divider') { layout.size = L.divH;     return; }
+              layout.size = L.rowH;
+            }}
             removeClippedSubviews={Platform.OS === 'android'}
-            initialNumToRender={20}
-            maxToRenderPerBatch={20}
-            updateCellsBatchingPeriod={50}
-            windowSize={8}
-            getItemLayout={getItemLayout}
+            bounces={true}
+            alwaysBounceVertical={true}
+            overScrollMode="always"
             onScrollToIndexFailed={(info) => {
-              // [BUG-04] ScrollToIndexFailedInfo has no `averageItemLength` property.
-              // Safe fallback: use precomputed offset if available, else L.rowH * index.
               const offset = itemLayouts?.[info.index]?.offset
                 ?? L.rowH * info.index;
               listRef.current?.scrollToOffset({ offset, animated: false });
             }}
-            // Allow overscroll on both platforms for natural feel
-            bounces={true}
-            alwaysBounceVertical={true}
-            overScrollMode="always"
-            // ── Pull-to-refresh ──────────────────────────────────────────────────
-            // [ADD-03] Pull-to-refresh
             refreshControl={
               <RefreshControl
                 refreshing={isRefreshing}
