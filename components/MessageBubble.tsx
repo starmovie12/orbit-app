@@ -108,7 +108,7 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-import React, { memo, useCallback } from 'react';
+import React, { memo, useCallback, useRef, useState } from 'react';
 import {
   GestureResponderEvent,
   Pressable,
@@ -438,6 +438,16 @@ function MessageBubbleComponent({
   const isMayor = variant === 'mayor';
   const isAI    = variant === 'ai';
 
+  // ── Read more / less (long-message clamp · WhatsApp-style) ──────────────────
+  const MAX_LINES = 8;
+  const [expanded, setExpanded]   = useState(false);
+  const [overflowed, setOverflowed] = useState(false);
+  const measuredRef = useRef(false);
+  // Heuristic fallback so it also works on web (where onTextLayout can be flaky)
+  const longByHeuristic = text.length > 240 || (text.match(/\n/g)?.length ?? 0) >= MAX_LINES;
+  const canToggle = overflowed || longByHeuristic;
+  const clampNow  = canToggle && !expanded;
+
   // DO NOT CHANGE: LongPress handler logic
   const handleLongPress = useCallback(
     (e: GestureResponderEvent) => { onLongPress?.(e); },
@@ -557,9 +567,28 @@ function MessageBubbleComponent({
             isMayor && styles.msgTextMayor,
             isAI    && styles.msgTextAI,        // FIX-13
           ]}
+          numberOfLines={clampNow ? MAX_LINES : undefined}
+          onTextLayout={(e) => {
+            if (measuredRef.current) return;
+            measuredRef.current = true;
+            if (e.nativeEvent.lines.length > MAX_LINES) setOverflowed(true);
+          }}
         >
           {text}
         </Text>
+
+        {/* Read more / less — only for long messages */}
+        {canToggle ? (
+          <Text
+            style={[styles.readMore, isRight && styles.readMoreRight]}
+            onPress={() => setExpanded((v) => !v)}
+            suppressHighlighting
+            accessibilityRole="button"
+            accessibilityLabel={expanded ? 'Read less' : 'Read more'}
+          >
+            {expanded ? 'Read less' : 'Read more'}
+          </Text>
+        ) : null}
 
         {/* Timestamp + status icon */}
         {time ? (
@@ -836,6 +865,17 @@ const styles = StyleSheet.create({
   msgTextAI: {
     fontStyle: 'italic',
     color:     T.textAI,                            // FIX-12: muted warm tint (colors.fg.tertiary)
+  },
+
+  // ── Read more / less toggle ───────────────────────────────────────────────
+  readMore: {
+    fontSize:   13,
+    fontWeight: '600',
+    color:      colors.fg.brandText,                // gold[700] — visible on cream bubble
+    marginTop:  3,
+  },
+  readMoreRight: {
+    color: palette.white,                           // white on the gold (own) bubble
   },
 
   // ── Timestamp row ──────────────────────────────────────────────────────────
