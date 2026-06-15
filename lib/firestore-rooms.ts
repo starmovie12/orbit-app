@@ -403,40 +403,80 @@ export interface SectorRow {
 // ═════════════════════════════════════════════════════════════════════════════
 
 /**
+ * Shape of a /cities document as expected by CityPickerSheet.
+ * NOT exported — CityPickerSheet.tsx defines and exports its own identical
+ * CityDoc interface. TypeScript structural typing ensures they stay compatible.
+ * If you want a single source of truth later, move this to @/types/cw.ts.
+ */
+interface CityDoc {
+  id:           string;
+  name:         string;
+  state?:       string;
+  online_count: number;
+  sector_count: number;
+  is_active:    boolean;
+}
+
+/**
  * Real-time subscription to the /cities collection.
  *
- * Filters: is_active == true
- * Order:   name ASC (alphabetical)
+ * Order:   name ASC (alphabetical, A→Z)
+ * Filter:  is_active !== false  (client-side — see note below)
  *
- * CityPickerSheet calls this on sheet open and passes the callback to
- * setCities(). Returns an Unsubscribe function for useEffect cleanup.
+ * ── WHY THE FIRESTORE .where('is_active','==',true) WAS REMOVED ─────────────
+ * The previous version had:
+ *   .where('is_active', '==', true)
+ *   .orderBy('name', 'asc')
+ * This compound query returns ZERO results when documents are missing the
+ * `is_active` field entirely (which is the case for all current city documents
+ * in Firestore — they were seeded without that field). Firestore's strict
+ * equality filter skips documents that lack the queried field.
  *
- * Firestore index required:
- *   Collection: cities
- *   Fields:     is_active ASC, name ASC
- * Firebase Console will prompt to create this automatically on first query —
- * click the link in the Firestore error logs.
+ * The fix: fetch all city documents ordered by name, then filter client-side.
+ * Client-side filter logic: exclude only documents where is_active is
+ * explicitly false. Documents missing the field (is_active === undefined)
+ * are treated as active — this is the safe default during the seeding phase.
  *
- * @param cb  Called with sorted city docs[] on every change.
+ * Once all /cities documents are seeded with is_active: true/false, the
+ * Firestore .where() can be restored and this comment removed.
+ * ────────────────────────────────────────────────────────────────────────────
+ *
+ * No composite index required (single-field orderBy only).
+ *
+ * @param cb  Called with CityDoc[] on every change (empty array on error).
  * @returns   Unsubscribe — call in useEffect cleanup.
  */
-export function getCities(
-  cb: (cities: Array<{ id: string; name: string; is_active: boolean; [key: string]: unknown }>) => void,
-): Unsubscribe {
+export function getCities(cb: (cities: CityDoc[]) => void): Unsubscribe {
   return firestore()
     .collection(CITIES)
-    .where('is_active', '==', true)
+    // ✅ FIX: removed .where('is_active', '==', true) — that filter returned
+    // 0 results because existing Firestore /cities documents don't have the
+    // is_active field → CityPickerSheet always fell back to FALLBACK_CITIES.
     .orderBy('name', 'asc')
     .onSnapshot(
       (qs) => {
-        const list: Array<{ id: string; name: string; is_active: boolean; [key: string]: unknown }> = [];
+        const list: CityDoc[] = [];
         qs.forEach((doc) => {
-          list.push({ id: doc.id, ...doc.data() });
+          const d = doc.data();
+
+          // Skip only explicit is_active: false — missing field = treated as active.
+          if (d.is_active === false) return;
+
+          list.push({
+            id:           doc.id,
+            name:         (d.name          as string)  ?? '',
+            state:        (d.state         as string)  ?? undefined,
+            online_count: (d.online_count  as number)  ?? 0,
+            sector_count: (d.sector_count  as number)  ?? 0,
+            is_active:    (d.is_active     as boolean) ?? true,
+          });
         });
-        cb(list);
+
+        // Final guard: only emit rows that have a non-empty name.
+        cb(list.filter((c) => c.name.trim().length > 0));
       },
-      (_err) => {
-        console.error('[getCities] Firestore error:', _err);
+      (err) => {
+        console.error('[getCities] Firestore onSnapshot error:', err);
         cb([]);
       },
     );
