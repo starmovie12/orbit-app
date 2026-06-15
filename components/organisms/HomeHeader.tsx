@@ -26,6 +26,12 @@
  * ║        • Active icon colour flips to brand gold (fg.brand) for         ║
  * ║          unmissable at-a-glance status communication                   ║
  * ╠══════════════════════════════════════════════════════════════════════════╣
+ * ║  CHANGELOG v5.1 — Wordmark Hardcode Fix:                                ║
+ * ║    [1] {BRAND.NAME} → literal "CROWN" string                            ║
+ * ║        • Guarantees correct wordmark during/after branding migration    ║
+ * ║        • Removed @/constants/branding import (now unused)              ║
+ * ║        • Left-side gold font unchanged — Syne 800 28px +4px tracking   ║
+ * ╠══════════════════════════════════════════════════════════════════════════╣
  * ║  ROW 1 SPEC (v5.0):                                                      ║
  * ║    Left: "CROWN" wordmark only — Syne 800, 28px, gold, +4px tracking   ║
  * ║    Right: 🔔 bell-ring/bell-outline (44×44) + 💬 message-text (44×44)  ║
@@ -58,7 +64,6 @@ import * as Haptics from 'expo-haptics';
 import { colors, typography, spacing, radii, zIndex, dimensions } from '@/constants/colors';
 import { FourScopeSwitcher, type ChatScope } from '@/components/molecules/FourScopeSwitcher';
 import HeatPulseDot from '@/components/atoms/HeatPulseDot';
-import { BRAND } from '@/constants/branding';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DESIGN TOKENS — all traces to §1.3.3 paragraph-level spec
@@ -298,13 +303,16 @@ export function HomeHeader({
         {/* [v5.0] Icon removed. Wide-tracked Syne 800 at 28px carries enough
              visual weight alone — adding an icon beside it created clutter.
              The glow shadow gives the gold type a soft luminous depth. */}
+        {/* [v5.1] Hardcoded literal "CROWN" — BRAND.NAME dynamic constant
+             removed to guarantee correct wordmark regardless of branding
+             migration state. Screenshot-matched: Syne 800, 28px, gold glow. */}
         <Text
           style={styles.wordmark}
           allowFontScaling={false}
           accessibilityRole="header"
           accessibilityLabel="CROWN"
         >
-          {BRAND.NAME}
+          CROWN
         </Text>
 
         {/* RIGHT: Action icons (NO AVATAR — §1.3.3 mandate) */}
