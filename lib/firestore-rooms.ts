@@ -420,38 +420,22 @@ interface CityDoc {
 /**
  * Real-time subscription to the /cities collection.
  *
- * Filter:  country_code == "IN"  — uses the existing world-cities data
- *          already in Firestore. No new documents need to be created.
- * Order:   name ASC (alphabetical, A→Z)
+ * Filter:  country_code == "IN"  — uses existing world-cities data in Firestore.
+ * Sort:    client-side A→Z       — avoids composite index requirement.
  *
- * The /cities collection stores world geographic data with a `country_code`
- * field on every document (e.g. "AD" for Andorra, "IN" for India). Filtering
- * by "IN" returns only Indian cities from the existing dataset.
- *
- * Field mapping from world-cities schema → CityDoc:
- *   name         → name          (direct)
- *   state_name   → state         (admin region name, e.g. "Punjab")
- *   admin_name   → state         (alternate field name in some datasets)
- *   online_count → online_count  (direct — already in docs as 0)
- *   sector_count → sector_count  (not in world-cities docs → defaults to 0)
- *
- * Firestore composite index required:
- *   Collection: cities
- *   Fields:     country_code ASC, name ASC
- * Firebase Console will show a clickable link in error logs to create it
- * automatically — click it once and the index builds in ~1 min.
- *
- * @param cb  Called with CityDoc[] on every change (empty array on error).
- * @returns   Unsubscribe — call in useEffect cleanup.
+ * NOTE: .where() + .orderBy() on DIFFERENT fields requires a Firestore
+ * composite index. Since that index doesn't exist, the previous version was
+ * throwing a Firebase error → cb([]) → FALLBACK_CITIES every time.
+ * Fix: remove orderBy from the Firestore query; sort the result client-side.
+ * A single .where() on one field never needs a composite index.
  */
 export function getCities(cb: (cities: CityDoc[]) => void): Unsubscribe {
   return firestore()
     .collection(CITIES)
-    // ✅ Filters the EXISTING world-cities Firestore data to India only.
-    // country_code: "IN" is already present on every document in the
-    // collection — no new documents need to be created.
     .where('country_code', '==', 'IN')
-    .orderBy('name', 'asc')
+    // ✅ NO .orderBy() here — avoids the composite index requirement that
+    //    was causing Firebase to throw and return 0 results.
+    //    Sorting is done client-side below (same A→Z result, zero config).
     .onSnapshot(
       (qs) => {
         const list: CityDoc[] = [];
@@ -461,15 +445,17 @@ export function getCities(cb: (cities: CityDoc[]) => void): Unsubscribe {
 
           list.push({
             id:           doc.id,
-            name:         d.name          as string,
-            // world-cities datasets use different field names for state —
-            // try all common variants in order of preference.
+            name:         d.name as string,
+            // world-cities datasets use different field names for state/region
             state:        (d.state_name ?? d.admin_name ?? d.state ?? undefined) as string | undefined,
-            online_count: (d.online_count  as number) ?? 0,
-            sector_count: (d.sector_count  as number) ?? 0,  // not in world-cities → 0
-            is_active:    true,  // all India docs in the dataset are valid
+            online_count: (d.online_count as number) ?? 0,
+            sector_count: (d.sector_count as number) ?? 0,
+            is_active:    true,
           });
         });
+
+        // Sort A→Z client-side — identical result to .orderBy('name','asc')
+        list.sort((a, b) => a.name.localeCompare(b.name));
         cb(list);
       },
       (err) => {
