@@ -59,7 +59,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons'; // §design-rule: Feather-only (1.5px stroke, clean outline)
 import * as Haptics from 'expo-haptics';
 import { colors, typography, spacing, radii, zIndex, dimensions } from '@/constants/colors';
 import { FourScopeSwitcher, type ChatScope } from '@/components/molecules/FourScopeSwitcher';
@@ -71,10 +71,9 @@ import HeatPulseDot from '@/components/atoms/HeatPulseDot';
 
 const HDR = {
   /**
-   * [v5.3 FIX] Row 1 compressed 48px → 40px.
-   * Slimmer header — CROWN wordmark at 20px fits cleanly.
+   * [v5.4] Row 1: 48px — breathing room for wordmark + icon circles.
    */
-  ROW1_H: 40 as const,
+  ROW1_H: 48 as const,
 
   /**
    * [v4.0 CHANGE] Row 2 compressed 48px → 44px.
@@ -89,10 +88,9 @@ const HDR = {
   ROW3_H: 28 as const,
 
   /**
-   * [v5.3 FIX] Total header content height: 40 + 44 + 28 = 112px.
-   * Was 120px (−8px). Safe-area added at runtime.
+   * [v5.4] Total: 48 + 44 + 28 = 120px. Safe-area added at runtime.
    */
-  TOTAL_H: 112 as const,
+  TOTAL_H: 120 as const,
 
   /**
    * [v5.3 FIX] Wordmark 32px → 20px. Compact, clean, not imposing.
@@ -100,18 +98,19 @@ const HDR = {
   WORDMARK_SIZE: 20 as const,
 
   /**
-   * [v5.3] Slight 1.5px spacing — gives clean breathing room, not spread.
+   * [v5.4] 2px luxury tracking — premium brand feel (CHANEL/Rimowa style),
+   * tight enough to not spread, open enough to feel editorial.
    */
-  WORDMARK_LETTER_SPACING: 1.5 as const,
+  WORDMARK_LETTER_SPACING: 2 as const,
 
   /** §1.3.3 Row 1 action icons: "44×44 touch target" */
   ACTION_TOUCH: 44 as const,
 
   /**
-   * [v5.0] Action icon size kept at 24px.
-   * MaterialCommunityIcons at 24px have full stroke clarity.
+   * [v5.4] Icon 24px → 18px — fits neatly inside the 36px circle background.
+   * Feather at 18px is crisp; circle gives the visual mass.
    */
-  ACTION_ICON: 24 as const,
+  ACTION_ICON: 18 as const,
 
   /** §1.3.3 Row 3 Heat: "visible when ≥ 30" */
   HEAT_VISIBLE_THRESHOLD: 30 as const,
@@ -333,11 +332,13 @@ export function HomeHeader({
             }
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <MaterialCommunityIcons
-              name={unreadNotifications > 0 ? 'bell-ring' : 'bell-outline'}
-              size={HDR.ACTION_ICON}        // 24px
-              color={unreadNotifications > 0 ? colors.fg.brand : colors.fg.primary}
-            />
+            <View style={styles.iconBg}>
+              <Feather
+                name="bell"
+                size={HDR.ACTION_ICON}
+                color={unreadNotifications > 0 ? colors.fg.brand : colors.fg.primary}
+              />
+            </View>
 
             {unreadNotifications > 0 ? (
               <View
@@ -374,11 +375,13 @@ export function HomeHeader({
             }
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <MaterialCommunityIcons
-              name={unreadDms > 0 ? 'message-text' : 'message-text-outline'}
-              size={HDR.ACTION_ICON}        // 24px
-              color={unreadDms > 0 ? colors.fg.brand : colors.fg.primary}
-            />
+            <View style={styles.iconBg}>
+              <Feather
+                name="message-square"
+                size={HDR.ACTION_ICON}
+                color={unreadDms > 0 ? colors.fg.brand : colors.fg.primary}
+              />
+            </View>
 
             {unreadDms > 0 ? (
               <View
@@ -458,12 +461,15 @@ const styles = StyleSheet.create({
 
   // ── Header wrapper ─────────────────────────────────────────────────────────
   headerContainer: {
-    position:        'absolute',
-    top:             0,
-    left:            0,
-    right:           0,
-    zIndex:          100,
-    backgroundColor: colors.bg.surface,
+    position:          'absolute',
+    top:               0,
+    left:              0,
+    right:             0,
+    zIndex:            100,
+    backgroundColor:   colors.bg.surface,
+    // Subtle separator — lifts header off content without hard line
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(0, 0, 0, 0.08)',
   },
 
   // ── ROW 1 — 48px (v4.0: was 56px) ─────────────────────────────────────────
@@ -475,14 +481,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: HDR.PAD_H,              // 16px
   },
 
-  // ── CROWN wordmark — Syne 800ExtraBold, 20px, simple clean gold ─────────────
-  // [v5.3] Simple: no shadows, no tricks. Bold font + gold = enough.
+  // ── CROWN wordmark ───────────────────────────────────────────────────────────
+  // Syne 800ExtraBold · 20px · 2px luxury tracking · brand gold
+  // Clean, no shadows — the font weight + spacing does all the work.
   wordmark: {
     fontFamily:    'Syne_800ExtraBold',
     fontSize:      HDR.WORDMARK_SIZE,           // 20px
-    letterSpacing: HDR.WORDMARK_LETTER_SPACING, // 1.5px — gentle, clean
-    color:         colors.fg.brand,             // gold-600 (#D4A017)
-    lineHeight:    24,
+    letterSpacing: HDR.WORDMARK_LETTER_SPACING, // 2px — editorial tracking
+    color:         colors.fg.brand,             // gold (#D4A017)
+    lineHeight:    26,
   },
 
   // ── Right action group ────────────────────────────────────────────────────
@@ -494,18 +501,30 @@ const styles = StyleSheet.create({
 
   // ── Each action button — 44×44 touch target ───────────────────────────────
   actionButton: {
-    width:          HDR.ACTION_TOUCH,           // 44
-    height:         HDR.ACTION_TOUCH,           // 44
+    width:          HDR.ACTION_TOUCH,           // 44px touch area
+    height:         HDR.ACTION_TOUCH,           // 44px touch area
     alignItems:     'center',
     justifyContent: 'center',
     position:       'relative',
   },
 
-  // ── Action badge (count badge — single digit) ─────────────────────────────
+  // ── Icon circle background — 36×36 behind each Feather icon ───────────────
+  // Subtle dark-on-light scrim. Modern app pattern (Notion, Linear, Arc).
+  // Background gives visual mass so the smaller 18px icon reads at a glance.
+  iconBg: {
+    width:           36,
+    height:          36,
+    borderRadius:    18,
+    backgroundColor: 'rgba(0, 0, 0, 0.05)', // near-invisible on white
+    alignItems:      'center',
+    justifyContent:  'center',
+  },
+
+  // ── Action badge — sits on top-right edge of the icon circle ─────────────
   actionBadge: {
     position:          'absolute',
-    top:               6,
-    right:             4,
+    top:               3,
+    right:             3,
     minWidth:          16,
     height:            16,
     borderRadius:      8,
