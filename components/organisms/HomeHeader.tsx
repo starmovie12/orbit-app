@@ -336,7 +336,7 @@ export function HomeHeader({
               <Feather
                 name="bell"
                 size={HDR.ACTION_ICON}
-                color={unreadNotifications > 0 ? colors.fg.brand : colors.fg.primary}
+                color={colors.fg.brand}
               />
             </View>
 
@@ -379,7 +379,7 @@ export function HomeHeader({
               <Feather
                 name="message-square"
                 size={HDR.ACTION_ICON}
-                color={unreadDms > 0 ? colors.fg.brand : colors.fg.primary}
+                color={colors.fg.brand}
               />
             </View>
 
