@@ -71,10 +71,10 @@ import HeatPulseDot from '@/components/atoms/HeatPulseDot';
 
 const HDR = {
   /**
-   * [v4.0 CHANGE] Row 1 compressed 56px → 48px.
-   * Saves 8px of vertical space. Wordmark is still fully legible.
+   * [v5.3 FIX] Row 1 compressed 48px → 40px.
+   * Slimmer header — CROWN wordmark at 20px fits cleanly.
    */
-  ROW1_H: 48 as const,
+  ROW1_H: 40 as const,
 
   /**
    * [v4.0 CHANGE] Row 2 compressed 48px → 44px.
@@ -89,21 +89,20 @@ const HDR = {
   ROW3_H: 28 as const,
 
   /**
-   * [v4.0 CHANGE] Total header content height: 48 + 44 + 28 = 120px.
-   * Was 136px (−16px overall). Safe-area added at runtime.
+   * [v5.3 FIX] Total header content height: 40 + 44 + 28 = 112px.
+   * Was 120px (−8px). Safe-area added at runtime.
    */
-  TOTAL_H: 120 as const,
+  TOTAL_H: 112 as const,
 
   /**
-   * [v5.2 FIX] Wordmark size bumped 28px → 32px.
-   * Bigger canvas = letters have more visual mass on screen.
+   * [v5.3 FIX] Wordmark 32px → 20px. Compact, clean, not imposing.
    */
-  WORDMARK_SIZE: 32 as const,
+  WORDMARK_SIZE: 20 as const,
 
   /**
-   * [v5.2] Letter-spacing stays 0 — tight, no gap between letters.
+   * [v5.3] Slight 1.5px spacing — gives clean breathing room, not spread.
    */
-  WORDMARK_LETTER_SPACING: 0 as const,
+  WORDMARK_LETTER_SPACING: 1.5 as const,
 
   /** §1.3.3 Row 1 action icons: "44×44 touch target" */
   ACTION_TOUCH: 44 as const,
@@ -476,23 +475,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: HDR.PAD_H,              // 16px
   },
 
-  // ── CROWN wordmark — Syne 800ExtraBold, 32px, tight, THICK strokes ─────────
-  // [v5.2 FIX] Same-colour textShadow trick:
-  //   textShadowColor = same gold as the text itself
-  //   textShadowRadius = 2 (tight spread, not a glow)
-  //   Effect: shadow bleeds outward ~2px uniformly → each stroke looks
-  //   ~2px thicker on all sides = heavier, chunkier, bold wordmark feel.
-  //   This is the only way to fatten strokes in React Native (no text-stroke API).
+  // ── CROWN wordmark — Syne 800ExtraBold, 20px, simple clean gold ─────────────
+  // [v5.3] Simple: no shadows, no tricks. Bold font + gold = enough.
   wordmark: {
-    fontFamily:       'Syne_800ExtraBold',
-    fontSize:         HDR.WORDMARK_SIZE,           // 32px
-    letterSpacing:    HDR.WORDMARK_LETTER_SPACING, // 0 — tight
-    color:            colors.fg.brand,             // gold-600 (#D4A017)
-    lineHeight:       40,
-    // ─── STROKE THICKNESS TRICK ───────────────────────────────────────────
-    textShadowColor:  colors.fg.brand,             // SAME gold = no halo, just mass
-    textShadowOffset: { width: 0, height: 0 },     // centered bleed
-    textShadowRadius: 2,                           // 2px radius = ~2px thicker strokes
+    fontFamily:    'Syne_800ExtraBold',
+    fontSize:      HDR.WORDMARK_SIZE,           // 20px
+    letterSpacing: HDR.WORDMARK_LETTER_SPACING, // 1.5px — gentle, clean
+    color:         colors.fg.brand,             // gold-600 (#D4A017)
+    lineHeight:    24,
   },
 
   // ── Right action group ────────────────────────────────────────────────────
