@@ -2,27 +2,23 @@
  * CROWN — Bottom Navigation (organism)  ·  components/organisms/CrownBottomNav.tsx
  * ─────────────────────────────────────────────────────────────────────────────
  * §9.3 Founder mandate: simple · full-width · fixed · solid · flush rectangle.
- * NO floating island, NO glass, NO blur, radius 0 on the bar.
- *
  * 4 founder-locked tabs:  Home · Explore · Crown · Profile
  *
- * PREMIUM PASS:
- *   • ROBUSTNESS FIX — the bar now always renders the 4 canonical tabs
- *     (iterating TABS, not router state). Previously it mapped over
- *     `state.routes`; if any sibling route failed to register, the bar showed
- *     only the routes it found (e.g. just "Home"). Now all 4 always show.
- *   • Premium active state — soft-gold rounded indicator behind the active
- *     icon (Material-3 style), gold icon + label, micro-bounce. Inactive
- *     icons are warm espresso. The bar itself stays a flat solid rectangle
- *     per §9.3 — the indicator lives INSIDE it, nothing floats.
- *   • Crisp 24px Feather icons · labels via the loaded Inter family.
+ * FIXES IN THIS VERSION:
+ *   • DARK-MODE BUG — inactive icons were white via useColorScheme(), but the
+ *     bar is always white → white icons vanished on the white bar (only the
+ *     gold "Home" showed). Inactive colour is now ALWAYS espresso, so all 4
+ *     tabs are visible in light AND dark mode.
+ *   • ROBUSTNESS — renders the 4 canonical tabs unconditionally (iterating
+ *     TABS, not router state), so the bar never drops a tab.
+ *   • Premium soft-gold active indicator behind the active icon (Material-3
+ *     style), inside the flat bar — nothing floats.
  *
  * Public API (navScrollAnim, hideNav, showNav, TabId, both render modes) —
  * unchanged. Drop-in replacement.
  */
 
 import React, { useCallback, useEffect, useRef } from 'react';
-import { useColorScheme } from 'react-native';
 import {
   Animated,
   Keyboard,
@@ -61,7 +57,6 @@ const NAV = {
 
   ICON_LABEL_GAP: 3 as const,
 
-  // Material-3 style active indicator behind the icon
   INDICATOR_W: 46 as const,
   INDICATOR_H: 28 as const,
 
@@ -208,9 +203,9 @@ function TabItem({ config, focused, onPress, onLongPress, badge = 0 }: TabItemPr
     onLongPress();
   }, [onLongPress]);
 
-  const scheme = useColorScheme();
-  const inactiveColor: string =
-    scheme === 'dark' ? 'rgba(255,255,255,0.55)' : colors.fg.secondary;
+  // Bar is always white (colors.bg.surface) → inactive icons MUST stay dark in
+  // both light and dark mode, otherwise they go white-on-white and disappear.
+  const inactiveColor: string = colors.fg.secondary;
   const iconColor: string = focused ? colors.fg.brand : inactiveColor;
   const labelColor: string = focused ? colors.fg.brand : inactiveColor;
   const labelWeight: TextStyle['fontWeight'] = focused
@@ -240,7 +235,6 @@ function TabItem({ config, focused, onPress, onLongPress, badge = 0 }: TabItemPr
         ]}
       >
         <View style={styles.iconWrap}>
-          {/* Soft-gold active indicator — sits BEHIND the icon, inside the bar */}
           {focused ? <View style={styles.activeIndicator} /> : null}
 
           <Feather name={config.icon} size={NAV.ICON_SIZE} color={iconColor} />
@@ -292,6 +286,8 @@ interface SharedNavProps {
   readonly navHidden?: boolean;
   readonly activeTab?: TabId;
   readonly onTabPress?: (tab: TabId) => void;
+  /** Accepted for API symmetry with callers that pass it. */
+  readonly bottomInset?: number;
 }
 
 type TabBarCoreProps = ExpoRouterShape & SharedNavProps;
@@ -362,9 +358,6 @@ export function CrownBottomNav(props: CrownBottomNavProps) {
   ] as const;
 
   // ── EXPO-ROUTER MODE ───────────────────────────────────────────────────────
-  // We iterate the 4 canonical TABS (not router state) so the bar ALWAYS shows
-  // all four, even if a sibling route fails to register. The router state is
-  // used only to resolve focus + the descriptor badge for each tab.
   if (props.state !== undefined && props.navigation !== undefined) {
     const { state, descriptors, navigation } = props;
 
@@ -392,13 +385,11 @@ export function CrownBottomNav(props: CrownBottomNavProps) {
             const badgeCount = typeof rawBadge === 'number' ? rawBadge : 0;
 
             function onPress(): void {
-              // Tapping Home while on Home → scroll chat to bottom (§9.3.3)
               if (isFocused && tabCfg.route === 'index') {
                 const { DeviceEventEmitter } = require('react-native');
                 DeviceEventEmitter.emit('crown:scrollToBottom');
                 return;
               }
-
               if (route) {
                 const event = navigation.emit({
                   type: 'tabPress',
@@ -407,7 +398,6 @@ export function CrownBottomNav(props: CrownBottomNavProps) {
                 });
                 if (event.defaultPrevented) return;
               }
-
               props.onTabPress?.(tabCfg.id);
               navigation.navigate(tabCfg.route);
             }
@@ -514,7 +504,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  // Material-3 style soft-gold pill behind the active icon
   activeIndicator: {
     position: 'absolute',
     width: NAV.INDICATOR_W,
