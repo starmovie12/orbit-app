@@ -515,7 +515,7 @@ const styles = StyleSheet.create({
     fontFamily:    'Inter_800ExtraBold',        // extrabold = font-extrabold
     fontSize:      HDR.WORDMARK_SIZE,           // 20px
     letterSpacing: HDR.WORDMARK_LETTER_SPACING, // 3px (0.15em × 20)
-    color:         colors.fg.primary,           // dark gray (#111827 equiv)
+    color:         colors.fg.brand,             // gold (#D4A017) — brand color
     lineHeight:    26,
   },
 
