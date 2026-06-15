@@ -227,11 +227,14 @@ const INPUT_PLACEHOLDER_COLOR = colors.fg.placeholder;
 /** Emoji icon color — Blueprint §[7.A] */
 const EMOJI_COLOR = colors.fg.secondary;
 
-/** Send button idle background */
-const SEND_BG_IDLE = palette.cream[200];
+/** Plus/attach button icon color */
+const PLUS_ICON_COLOR = colors.fg.secondary;
 
-/** Send button idle icon color */
-const SEND_ICON_IDLE = colors.fg.secondary;
+/** Send button idle background — always amber (photo spec: no gray idle) */
+const SEND_BG_IDLE = colors.fg.brand;
+
+/** Send button idle icon color — white arrow (photo spec) */
+const SEND_ICON_IDLE = palette.white;
 
 /** Send button active background */
 const SEND_BG_ACTIVE = colors.fg.brand;
@@ -502,16 +505,16 @@ const SendButtonBase: React.FC<SendButtonProps> = ({ sendState, onPress, spinVal
     if (sendState === 'active') {
       return (
         <Feather
-          name="send"
+          name="arrow-up"
           size={SEND_ICON_SIZE}
           color={SEND_ICON_ACTIVE}
         />
       );
     }
-    // idle — play arrow
+    // idle — arrow-up (always amber look per photo spec)
     return (
       <Feather
-        name="play"
+        name="arrow-up"
         size={SEND_ICON_SIZE}
         color={SEND_ICON_IDLE}
       />
@@ -550,15 +553,20 @@ const SendButtonMemo = React.memo(SendButtonBase);
 
 const sendButtonStyles = StyleSheet.create({
   button: {
-    width:          SEND_SIZE,    // 40px
-    height:         SEND_SIZE,    // 40px
-    borderRadius:   radii.pill,   // Radius Protocol — 9999, clamps to 20px
-    alignItems:     'center',
-    justifyContent: 'center',
-    overflow:       'hidden',
+    width:           SEND_SIZE,    // 40px
+    height:          SEND_SIZE,    // 40px
+    borderRadius:    radii.pill,   // Radius Protocol — 9999, clamps to 20px
+    alignItems:      'center',
+    justifyContent:  'center',
+    // Premium amber glow — photo spec
+    shadowColor:     colors.fg.brand,
+    shadowOpacity:   0.45,
+    shadowRadius:    10,
+    shadowOffset:    { width: 0, height: 3 },
+    elevation:       6,
   },
   disabled: {
-    opacity: SEND_DISABLED_OPACITY, // 0.6
+    // Full opacity in idle — always vivid amber per photo spec
   },
   pressed: {
     opacity: 0.85,
@@ -821,15 +829,23 @@ const ChatInputBase: React.FC<ChatInputProps> = ({
       )}
 
       {/* ── Main input row ────────────────────────────────────────────────── */}
+      {/* Photo spec layout: [+]  [pill]  [😊]  [↑amber]                    */}
       <View style={styles.row}>
+
+        {/* ── [LEFT] Plus / attach button ──────────────────────────────── */}
+        <Pressable
+          style={styles.plusButton}
+          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+          accessible
+          accessibilityLabel="Add attachment"
+          accessibilityRole="button"
+        >
+          <Feather name="plus" size={22} color={PLUS_ICON_COLOR} />
+        </Pressable>
 
         {/*
          * ── [7.A] Input Field ──────────────────────────────────────────────
-         *
-         * ⛔ RULE 03: No avatar. Avatar lives ONLY in bottom nav Profile tab.
-         *
-         * Input container is position:relative so emoji trigger can be
-         * absolutely positioned inside at EMOJI_RIGHT px from the right edge.
+         * Emoji trigger moved OUTSIDE pill — no more absolute positioning inside.
          */}
         <View
           style={[
@@ -864,29 +880,26 @@ const ChatInputBase: React.FC<ChatInputProps> = ({
             maxLength={CHAR_LIMIT}
             accessible
             accessibilityLabel={effectiveA11yLabel}
-            accessibilityRole="none"  // parent container owns role — "textbox" implicit
+            accessibilityRole="none"
             testID="home-input-field"
           />
-
-          {/* [7.C] Emoji trigger — Blueprint §[7.A]: 20×20 · right-aligned */}
-          <Pressable
-            onPress={handleEmojiPress}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            style={styles.emojiButton}
-            accessible
-            accessibilityLabel="Open emoji keyboard"
-            accessibilityRole="button"
-          >
-            <Feather
-              name="smile"
-              size={EMOJI_SIZE}
-              color={EMOJI_COLOR}
-            />
-          </Pressable>
         </View>
 
-        {/* 8px gap — Blueprint §[7] */}
-        <View style={styles.inputSendGap} />
+        {/* [7.C] Emoji trigger — OUTSIDE pill, between pill and send button */}
+        <Pressable
+          onPress={handleEmojiPress}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          style={styles.emojiButton}
+          accessible
+          accessibilityLabel="Open emoji keyboard"
+          accessibilityRole="button"
+        >
+          <Feather
+            name="smile"
+            size={EMOJI_SIZE}
+            color={EMOJI_COLOR}
+          />
+        </Pressable>
 
         {/* ── [7.B] Send Button ──────────────────────────────────────────── */}
         <SendButtonMemo
@@ -947,6 +960,7 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems:    'center',
+    gap:           6,              // uniform spacing: plus | pill | emoji | send
   },
 
   // ─── [7.A] Input container ───────────────────────────────────────────────
@@ -981,7 +995,7 @@ const styles = StyleSheet.create({
     flex:               1,
     height:             INPUT_H,         // 40px
     paddingLeft:        INPUT_PAD_H,     // 14px
-    paddingRight:       INPUT_PAD_RIGHT, // 40px — reserves emoji space
+    paddingRight:       INPUT_PAD_H,     // 14px — emoji moved outside pill
     paddingTop:         0,
     paddingBottom:      0,
     fontFamily:         FONT_BODY.regular,
@@ -993,21 +1007,30 @@ const styles = StyleSheet.create({
     textAlignVertical:  'center',            // Android
   },
 
-  // ─── [7.C] Emoji trigger ─────────────────────────────────────────────────
+  // ─── [7.C] Emoji trigger — NOW OUTSIDE pill (flex row item) ─────────────
   /**
-   * Blueprint §[7.A]: "Emoji icon: 20×20 · 12px from right edge"
-   * Absolutely positioned inside inputContainer.
+   * Photo spec: [+]  [pill]  [😊]  [↑amber]
+   * Standalone button between pill and send button.
    */
   emojiButton: {
-    position:       'absolute',
-    right:          EMOJI_RIGHT,  // 12px
-    width:          EMOJI_SIZE,   // 20px
-    height:         EMOJI_SIZE,   // 20px
+    width:          36,
+    height:         INPUT_H,     // 40px — matches pill height
     alignItems:     'center',
     justifyContent: 'center',
   },
 
-  // ─── Input–send gap ──────────────────────────────────────────────────────
+  // ─── Plus / attach button ────────────────────────────────────────────────
+  /**
+   * Photo spec: leftmost element · bare plus icon · no container box.
+   */
+  plusButton: {
+    width:          36,
+    height:         INPUT_H,   // 40px
+    alignItems:     'center',
+    justifyContent: 'center',
+  },
+
+  // ─── Input–send gap (kept for future use, hidden via row gap) ───────────
   inputSendGap: {
     width: INPUT_SEND_GAP, // 8px
   },
