@@ -420,20 +420,26 @@ interface CityDoc {
 /**
  * Real-time subscription to the /cities collection.
  *
- * Filter:  is_active == true  (Firestore-level — excludes world geo docs)
+ * Filter:  country_code == "IN"  — uses the existing world-cities data
+ *          already in Firestore. No new documents need to be created.
  * Order:   name ASC (alphabetical, A→Z)
  *
- * Only documents that have is_active: true are returned. World geographic
- * documents (ad_andorra_la_vella, ar_departamento_*, etc.) have no is_active
- * field → Firestore's strict equality filter excludes them automatically.
- * CROWN city documents (chandigarh, delhi, mumbai, etc.) have is_active: true
- * → they are returned and displayed in CityPickerSheet.
+ * The /cities collection stores world geographic data with a `country_code`
+ * field on every document (e.g. "AD" for Andorra, "IN" for India). Filtering
+ * by "IN" returns only Indian cities from the existing dataset.
+ *
+ * Field mapping from world-cities schema → CityDoc:
+ *   name         → name          (direct)
+ *   state_name   → state         (admin region name, e.g. "Punjab")
+ *   admin_name   → state         (alternate field name in some datasets)
+ *   online_count → online_count  (direct — already in docs as 0)
+ *   sector_count → sector_count  (not in world-cities docs → defaults to 0)
  *
  * Firestore composite index required:
  *   Collection: cities
- *   Fields:     is_active ASC, name ASC
- * Firebase Console will prompt to create this automatically on first query —
- * click the URL in the Firestore error logs to create it in one tap.
+ *   Fields:     country_code ASC, name ASC
+ * Firebase Console will show a clickable link in error logs to create it
+ * automatically — click it once and the index builds in ~1 min.
  *
  * @param cb  Called with CityDoc[] on every change (empty array on error).
  * @returns   Unsubscribe — call in useEffect cleanup.
@@ -441,27 +447,30 @@ interface CityDoc {
 export function getCities(cb: (cities: CityDoc[]) => void): Unsubscribe {
   return firestore()
     .collection(CITIES)
-    // ✅ This filter now works correctly because CROWN city documents
-    // (chandigarh, delhi, mumbai, etc.) have is_active: true.
-    // World geographic documents (ad_andorra_la_vella, etc.) have NO
-    // is_active field → Firestore excludes them automatically. ✓
-    .where('is_active', '==', true)
+    // ✅ Filters the EXISTING world-cities Firestore data to India only.
+    // country_code: "IN" is already present on every document in the
+    // collection — no new documents need to be created.
+    .where('country_code', '==', 'IN')
     .orderBy('name', 'asc')
     .onSnapshot(
       (qs) => {
         const list: CityDoc[] = [];
         qs.forEach((doc) => {
           const d = doc.data();
+          if (!d.name) return;
+
           list.push({
             id:           doc.id,
-            name:         (d.name          as string)  ?? '',
-            state:        (d.state         as string)  ?? undefined,
-            online_count: (d.online_count  as number)  ?? 0,
-            sector_count: (d.sector_count  as number)  ?? 0,
-            is_active:    (d.is_active     as boolean) ?? true,
+            name:         d.name          as string,
+            // world-cities datasets use different field names for state —
+            // try all common variants in order of preference.
+            state:        (d.state_name ?? d.admin_name ?? d.state ?? undefined) as string | undefined,
+            online_count: (d.online_count  as number) ?? 0,
+            sector_count: (d.sector_count  as number) ?? 0,  // not in world-cities → 0
+            is_active:    true,  // all India docs in the dataset are valid
           });
         });
-        cb(list.filter((c) => c.name.trim().length > 0));
+        cb(list);
       },
       (err) => {
         console.error('[getCities] Firestore onSnapshot error:', err);
