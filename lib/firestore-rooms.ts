@@ -25,8 +25,8 @@
  * function was never valid on that SDK and caused silent truthy results on web
  * (a function reference is always truthy). All existence checks use the
  * snapExists() helper below which reads the property, never calls it.
- *   snap.exists   ✅  correct
- *   snap.exists() ❌  never use
+ * snap.exists   ✅  correct
+ * snap.exists() ❌  never use
  * ─────────────────────────────────────────────────────────────────────────────
  *
  * ─── onlineCount — increment(), NEVER overwrite ───────────────────────────
@@ -43,16 +43,16 @@
  *
  * ─── Composite indexes required ───────────────────────────────────────────
  * getRoomsByCitySector() queries (cityId == x AND sectorId == y):
- *   Collection: rooms
- *   Fields:     cityId ASC, sectorId ASC, lastMessageAt DESC
+ * Collection: rooms
+ * Fields:     cityId ASC, sectorId ASC, lastMessageAt DESC
  *
- * getCities() queries (is_active == true, orderBy name):
- *   Collection: cities
- *   Fields:     is_active ASC, name ASC
+ * getCities() queries (country_code == x, no orderBy required):
+ * Collection: cities
+ * Fields:     country_code ASC
  *
  * subscribeSectorsByCity() queries (is_active == true, orderBy sectorName):
- *   Collection group: sectors
- *   Fields:           is_active ASC, sectorName ASC
+ * Collection group: sectors
+ * Fields:           is_active ASC, sectorName ASC
  *
  * Add to firestore.indexes.json or create via Firebase Console.
  * ─────────────────────────────────────────────────────────────────────────────
@@ -216,8 +216,8 @@ export function subscribeRooms(
  * Results are sorted newest-active first.
  *
  * ⚠️  Requires a composite index:
- *     Collection: rooms
- *     Fields:     cityId ASC · sectorId ASC · lastMessageAt DESC
+ * Collection: rooms
+ * Fields:     cityId ASC · sectorId ASC · lastMessageAt DESC
  * Deploy via firestore.indexes.json before calling this in production.
  *
  * @param cityId    e.g. "chandigarh"
@@ -277,9 +277,9 @@ export async function incrementOnlineCount(roomId: string): Promise<void> {
  * is the correct tool for this specific guard.
  *
  * Call when:
- *   1. Chat screen unmounts (useEffect cleanup)
- *   2. App moves to background (AppState 'background' | 'inactive')
- *   3. User signs out
+ * 1. Chat screen unmounts (useEffect cleanup)
+ * 2. App moves to background (AppState 'background' | 'inactive')
+ * 3. User signs out
  *
  * @param roomId  Composite Firestore room document ID.
  */
@@ -420,21 +420,23 @@ interface CityDoc {
 /**
  * Real-time subscription to the /cities collection.
  *
- * Filter:  country_code == "IN"  — uses existing world-cities data in Firestore.
+ * Filter:  Dynamically matches country_code (prevents 185MB mega-downloads).
  * Sort:    client-side A→Z       — avoids composite index requirement.
  *
- * NOTE: .where() + .orderBy() on DIFFERENT fields requires a Firestore
- * composite index. Since that index doesn't exist, the previous version was
- * throwing a Firebase error → cb([]) → FALLBACK_CITIES every time.
- * Fix: remove orderBy from the Firestore query; sort the result client-side.
- * A single .where() on one field never needs a composite index.
+ * @param countryCode e.g., "IN", "US", "AR"
+ * @param cb          Callback to fire with results
  */
-export function getCities(cb: (cities: CityDoc[]) => void): Unsubscribe {
+export function getCities(countryCode: string, cb: (cities: CityDoc[]) => void): Unsubscribe {
+  // Guard against undefined/empty country codes
+  if (!countryCode) {
+    cb([]);
+    return () => {};
+  }
+
   return firestore()
     .collection(CITIES)
-    .where('country_code', '==', 'IN')
-    // ✅ NO .orderBy() here — avoids the composite index requirement that
-    //    was causing Firebase to throw and return 0 results.
+    .where('country_code', '==', countryCode.toUpperCase())
+    // ✅ NO .orderBy() here — avoids the composite index requirement.
     //    Sorting is done client-side below (same A→Z result, zero config).
     .onSnapshot(
       (qs) => {
@@ -446,8 +448,8 @@ export function getCities(cb: (cities: CityDoc[]) => void): Unsubscribe {
           list.push({
             id:           doc.id,
             name:         d.name as string,
-            // world-cities datasets use different field names for state/region
-            state:        (d.state_name ?? d.admin_name ?? d.state ?? undefined) as string | undefined,
+            // Added d.state_code fallback to support world-cities datasets
+            state:        (d.state_name ?? d.admin_name ?? d.state ?? d.state_code ?? undefined) as string | undefined,
             online_count: (d.online_count as number) ?? 0,
             sector_count: (d.sector_count as number) ?? 0,
             is_active:    true,
@@ -479,8 +481,8 @@ export function getCities(cb: (cities: CityDoc[]) => void): Unsubscribe {
  * Returns an Unsubscribe function for useEffect cleanup.
  *
  * Firestore index required:
- *   Collection group: sectors
- *   Fields:           is_active ASC, sectorName ASC
+ * Collection group: sectors
+ * Fields:           is_active ASC, sectorName ASC
  * Firebase Console will prompt automatically — click the link in error logs.
  *
  * @param cityId  e.g. "chandigarh" — must match /cities document ID exactly
