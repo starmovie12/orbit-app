@@ -467,21 +467,23 @@ export default function RoomChatScreen() {
           { paddingBottom: Math.max(insets.bottom, 8) + 8 },
         ]}
       >
+        {/* ＋ attach button */}
         <TouchableOpacity
           style={styles.inputSideBtn}
           hitSlop={6}
           accessibilityRole="button"
-          accessibilityLabel="Attach file"
+          accessibilityLabel="Add attachment"
         >
-          <Feather name="paperclip" size={20} color={orbit.textTertiary} />
+          <Feather name="plus" size={23} color={orbit.textSecond} />
         </TouchableOpacity>
 
+        {/* Pill: TextInput + emoji icon on right */}
         <View style={styles.inputWrap}>
           <TextInput
             style={styles.textInput}
             value={text}
             onChangeText={setText}
-            placeholder="Message…"
+            placeholder="Yahan likho..."
             placeholderTextColor={orbit.textTertiary}
             multiline
             maxLength={2000}
@@ -490,29 +492,30 @@ export default function RoomChatScreen() {
             accessibilityRole="none"
             editable={!sending}
           />
+          <TouchableOpacity
+            style={styles.emojiBtn}
+            hitSlop={4}
+            accessibilityRole="button"
+            accessibilityLabel="Emoji"
+          >
+            <Feather name="smile" size={20} color={orbit.textTertiary} />
+          </TouchableOpacity>
         </View>
 
-        {text.trim().length > 0 ? (
-          <TouchableOpacity
-            style={[styles.sendBtn, sending && { opacity: 0.5 }]}
-            onPress={handleSend}
-            disabled={sending}
-            activeOpacity={0.82}
-            accessibilityRole="button"
-            accessibilityLabel="Send message"
-          >
-            <Feather name="send" size={15} color={orbit.white} style={{ marginLeft: 2 }} />
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity
-            style={styles.inputSideBtn}
-            hitSlop={6}
-            accessibilityRole="button"
-            accessibilityLabel="Record voice message"
-          >
-            <Feather name="mic" size={20} color={orbit.textTertiary} />
-          </TouchableOpacity>
-        )}
+        {/* Send — always amber ↑, muted when empty */}
+        <TouchableOpacity
+          style={[
+            styles.sendBtn,
+            sending && { opacity: 0.45 },
+          ]}
+          onPress={handleSend}
+          disabled={sending}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Send message"
+        >
+          <Feather name="arrow-up" size={20} color={orbit.white} />
+        </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
   );
@@ -717,36 +720,55 @@ const styles = StyleSheet.create({
     backgroundColor: orbit.bg,
   },
   inputSideBtn: {
-    width: 44,
-    height: 44,
+    width: 40,
+    height: 46,
     alignItems: "center",
     justifyContent: "center",
   },
-  inputWrap: { flex: 1 },
-  textInput: {
-    minHeight: 44,
-    maxHeight: 120,
+  /* Pill wrapper — holds TextInput + emoji button side-by-side */
+  inputWrap: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    minHeight: 46,
     backgroundColor: orbit.surface2,
-    borderRadius: 22,
-    paddingHorizontal: 16,
+    borderRadius: 23,
+    borderWidth: 1.5,
+    borderColor: orbit.borderSubtle,
+    paddingLeft: 16,
+    paddingRight: 4,
+    overflow: "hidden",
+  },
+  textInput: {
+    flex: 1,
+    minHeight: 46,
+    maxHeight: 120,
     paddingVertical: Platform.OS === "ios" ? 12 : 10,
     color: orbit.textPrimary,
     fontSize: 15,
     lineHeight: 22,
-    borderWidth: 1,
-    borderColor: orbit.borderSubtle,
   },
+  /* Emoji button inside the pill on the right */
+  emojiBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 2,
+  },
+  /* Always-visible amber ↑ send circle */
   sendBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     backgroundColor: orbit.accent,
     alignItems: "center",
     justifyContent: "center",
     shadowColor: orbit.accent,
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 4,
+    shadowOpacity: 0.45,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 6,
   },
 });
