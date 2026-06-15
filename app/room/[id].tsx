@@ -461,23 +461,24 @@ export default function RoomChatScreen() {
       />
 
       {/* ── INPUT BAR ─────────────────────────────────────────────── */}
+      {/*  Layout: [+]  [pill: Yahan likho…]  [😊]  [↑amber]         */}
       <View
         style={[
           styles.inputBar,
           { paddingBottom: Math.max(insets.bottom, 8) + 8 },
         ]}
       >
-        {/* ＋ attach button */}
+        {/* ➕ Plus / attach */}
         <TouchableOpacity
-          style={styles.inputSideBtn}
-          hitSlop={6}
+          style={styles.inputPlusBtn}
+          hitSlop={8}
           accessibilityRole="button"
           accessibilityLabel="Add attachment"
         >
-          <Feather name="plus" size={23} color={orbit.textSecond} />
+          <Feather name="plus" size={22} color={orbit.textSecond} />
         </TouchableOpacity>
 
-        {/* Pill: TextInput + emoji icon on right */}
+        {/* Text-input pill — no emoji inside */}
         <View style={styles.inputWrap}>
           <TextInput
             style={styles.textInput}
@@ -492,22 +493,21 @@ export default function RoomChatScreen() {
             accessibilityRole="none"
             editable={!sending}
           />
-          <TouchableOpacity
-            style={styles.emojiBtn}
-            hitSlop={4}
-            accessibilityRole="button"
-            accessibilityLabel="Emoji"
-          >
-            <Feather name="smile" size={20} color={orbit.textTertiary} />
-          </TouchableOpacity>
         </View>
 
-        {/* Send — always amber ↑, muted when empty */}
+        {/* 😊 Emoji — standalone, OUTSIDE the pill */}
         <TouchableOpacity
-          style={[
-            styles.sendBtn,
-            sending && { opacity: 0.45 },
-          ]}
+          style={styles.emojiBtn}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Emoji"
+        >
+          <Feather name="smile" size={22} color={orbit.textTertiary} />
+        </TouchableOpacity>
+
+        {/* ↑ Send — always-visible amber circle */}
+        <TouchableOpacity
+          style={[styles.sendBtn, sending && { opacity: 0.45 }]}
           onPress={handleSend}
           disabled={sending}
           activeOpacity={0.8}
@@ -711,53 +711,46 @@ const styles = StyleSheet.create({
 
   inputBar: {
     flexDirection: "row",
-    alignItems: "flex-end",
+    alignItems: "flex-end",         // buttons hug bottom when text wraps
     paddingHorizontal: 12,
-    paddingTop: 10,
-    gap: 8,
-    borderTopWidth: 1,
+    paddingTop: 8,
+    gap: 6,
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: orbit.borderSubtle,
-    backgroundColor: orbit.bg,
+    backgroundColor: orbit.bg,     // pure white bar
   },
-  inputSideBtn: {
-    width: 40,
+  /* ➕ Plus button — bare icon, no box */
+  inputPlusBtn: {
+    width: 36,
     height: 46,
     alignItems: "center",
     justifyContent: "center",
   },
-  /* Pill wrapper — holds TextInput + emoji button side-by-side */
+  /* Pill wrapper — grows with multiline */
   inputWrap: {
     flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    minHeight: 46,
-    backgroundColor: orbit.surface2,
-    borderRadius: 23,
-    borderWidth: 1.5,
-    borderColor: orbit.borderSubtle,
-    paddingLeft: 16,
-    paddingRight: 4,
-    overflow: "hidden",
   },
+  /* The pill itself — clean light capsule */
   textInput: {
-    flex: 1,
     minHeight: 46,
     maxHeight: 120,
+    backgroundColor: orbit.surface2,   // gold[50] — warm ivory
+    borderRadius: 23,
+    paddingHorizontal: 16,
     paddingVertical: Platform.OS === "ios" ? 12 : 10,
     color: orbit.textPrimary,
     fontSize: 15,
     lineHeight: 22,
+    // No border — pill shape alone gives separation
   },
-  /* Emoji button inside the pill on the right */
+  /* 😊 Emoji — standalone between pill and send */
   emojiBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 36,
+    height: 46,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 2,
   },
-  /* Always-visible amber ↑ send circle */
+  /* ↑ Send — vivid amber circle, always visible */
   sendBtn: {
     width: 46,
     height: 46,
@@ -766,7 +759,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     shadowColor: orbit.accent,
-    shadowOpacity: 0.45,
+    shadowOpacity: 0.5,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 3 },
     elevation: 6,
