@@ -1,65 +1,52 @@
 /**
- * components/organisms/CityPickerSheet.tsx
+ * components/organisms/CityPickerSheet.tsx — v6.0 (CountryPickerSheet design parity)
  *
- * CROWD WORLD — City Selection Bottom Sheet
- * Blueprint v5.0 BAAP EDITION · Production Ready
+ * CROWN — City Selection Bottom Sheet
+ * "Same premium sheet as Country. Adapted for cities. Filtered by State/District."
  *
- * ── WHAT THIS IS ─────────────────────────────────────────────────────────────
+ * ── WHAT CHANGED (v6.0) ──────────────────────────────────────────────────────
  *
- * Half-sheet (50% screen H) bottom sheet for switching the user's active city.
- * Triggered by tapping the City Picker Pill in the Home header.
+ * This file's VISUAL DESIGN is now a 1:1 match with CountryPickerSheet.tsx
+ * (v5.14): the OTT trending hero cards, the alphabet sidebar + letter overlay,
+ * the Recently Visited section, the Reanimated search-glow, the pinned shell +
+ * merged title row, the skeletons, the switching overlay, the spacing/typography
+ * tokens — all identical to the Country sheet so the two feel like siblings.
  *
- * Key features:
- *   • Firestore /cities real-time collection (cached after first fetch)
- *   • Shimmer skeleton (6 rows · 64px · 1200ms) while loading
- *   • Instant client-side search filter ("City dhundo...")
- *   • Recent Cities horizontal strip (AsyncStorage · max 5 cities)
- *   • Active city: 2px gold-600 left border + cream bg highlight
- *   • On select: AsyncStorage + Firestore user profile update (parallel)
- *   • Spinner overlay during city switch (24×24 gold-600)
- *   • 5 states: loading · idle · search-active · empty · error
+ * The LOGIC is *adapted*, not blind-copied. A city has no continent, so the
+ * Country sheet's "Region" axis (Asia/Europe/Africa…) is meaningless here. The
+ * mapping applied:
  *
- * ── DESIGN SPEC (Blueprint § 2523 · Element [6]) ─────────────────────────────
+ *   Country sheet                →   City sheet (this file)
+ *   ──────────────────────────────────────────────────────────────────────────
+ *   Region filter (fixed list)   →   State/District filter (DERIVED from data)
+ *   REGION_ACCENT / REGION_BG    →   single gold accent (no per-state colours)
+ *   Flag emoji avatar            →   first-letter monogram avatar
+ *   Region sub-label             →   State (+ sector count) sub-label
+ *   ISO code chip                →   (removed — cities have no ISO)
+ *   Dial-code search             →   (removed — search by name + state)
+ *   countries collection (web)   →   getCities() realtime (native, UNCHANGED)
  *
- *   Sheet height    : 50% screen · drag-down / scrim-tap → dismiss
- *   Drag handle     : 40×4px · cream-400 · 12px from top · centered
- *   Title           : "City chuno" · 18px/700 · ink-950 · centered · 24px below handle
- *   Search input    : 44px H · radius 22px · cream-200 bg · "City dhundo..."
- *                     Search icon 20×20 ink-600 · 12px from left
- *                     Clear "×" button when text present
- *   Recent strip    : Horizontal scroll · 32px chip H · radius 16px · cream-200/cream-400
- *   City row        : 56px H · 16px L/R pad
- *                     Name: 15px/600/ink-950 + count: 13px/400/ink-600
- *                     Chevron: 16×16 ink-600 (right)
- *                     Active: 2px gold-600 left accent bar + cream-200 bg tint
- *   Skeleton        : 6 rows · icon-rect 24×24 + text-rect 70% · shimmer 1200ms
- *   Switch spinner  : 24×24 ActivityIndicator gold-600 · centered overlay
+ * The data layer is deliberately untouched from the previous CityPickerSheet:
+ * getCities() onSnapshot, FALLBACK_CITIES, the AsyncStorage keys, the native
+ * firestore + auth writes, and the onSelect(cityId) contract all behave exactly
+ * as before. Parent screen (app/(tabs)/index.tsx) needs zero changes.
  *
- * ── PERSISTENCE ──────────────────────────────────────────────────────────────
+ * ── STATE/DISTRICT FILTER ─────────────────────────────────────────────────────
  *
- *   AsyncStorage keys:
- *     CW_CITY_KEY         → current cityId string
- *     CW_RECENT_CITIES_KEY → JSON array of max 5 recent cityIds
+ *   • The pill row is built at runtime from the unique `state` values present in
+ *     the loaded cities, sorted A–Z, prefixed with "All". Punjab, Haryana, etc.
+ *     appear automatically — no hardcoding. If the data has no states at all, the
+ *     pill row hides itself gracefully (collapses to 0 height).
+ *   • Selecting a state filters the list to cities in that state; "All" clears it.
+ *   • Searching collapses the pills (same as Country).
  *
- *   Firestore write:
- *     users/{uid} → { city_id: cityId }  (merge: true)
- *
- * ── DEPS ─────────────────────────────────────────────────────────────────────
- *   components/BottomSheet.tsx
- *   lib/firestore-rooms.ts
- *
- * ── USAGE ────────────────────────────────────────────────────────────────────
- *
- *   const [citySheetOpen, setCitySheetOpen] = useState(false);
+ * ── USAGE (unchanged) ─────────────────────────────────────────────────────────
  *
  *   <CityPickerSheet
  *     visible={citySheetOpen}
  *     onClose={() => setCitySheetOpen(false)}
  *     selected={currentCityId}
- *     onSelect={(cityId) => {
- *       setCurrentCityId(cityId);
- *       // reload sector list for new city
- *     }}
+ *     onSelect={(cityId) => setCurrentCityId(cityId)}
  *   />
  */
 
@@ -78,120 +65,70 @@ import {
   Dimensions,
   FlatList,
   Keyboard,
+  type GestureResponderEvent,
+  type AccessibilityActionEvent,
+  PanResponder,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
-import { Feather }           from '@expo/vector-icons';
-import * as Haptics          from 'expo-haptics';
-import AsyncStorage          from '@react-native-async-storage/async-storage';
-import firestore             from '@react-native-firebase/firestore';
-import auth                  from '@react-native-firebase/auth';
+import { Feather }       from '@expo/vector-icons';
+import * as Haptics      from 'expo-haptics';
+import AsyncStorage      from '@react-native-async-storage/async-storage';
 
-import { BottomSheet }               from '@/components/BottomSheet';
-import { getCities }                  from '@/lib/firestore-rooms';
+// ── Native Firebase (UNCHANGED data layer) ────────────────────────────────────
+// The City sheet uses the React-Native-Firebase native SDK for the user-profile
+// write + auth, and getCities() (an onSnapshot subscription) for the city list.
+// This is intentionally different from CountryPickerSheet (which uses the web JS
+// SDK) — we copy the Country sheet's DESIGN, never its data layer.
+import firestore         from '@react-native-firebase/firestore';
+import auth              from '@react-native-firebase/auth';
+
+// ── In-house BottomSheet — the SAME Modal-based sheet the Country picker uses ──
+import { BottomSheet } from '@/components/BottomSheet';
+import { getCities }   from '@/lib/firestore-rooms';
+
 import { colors, palette }            from '@/constants/colors';
 import { FONT_BODY, FONT_HEADING }    from '@/constants/typography';
 
-// ─── Design tokens ────────────────────────────────────────────────────────────
-//
-// Color tokens: sourced exclusively from @/constants/colors (colors.* / palette.*)
-// Typography tokens: sourced from @/constants/typography (FONT_BODY / FONT_HEADING)
-//
-// Semantic color mapping for this component:
-//   Primary text       → colors.fg.primary     (ink-950 · warm #1C1814)
-//   Secondary text     → colors.fg.secondary   (ink-600 · espresso #6B5B47)
-//   Sheet background   → colors.bg.surface     (white #FFFFFF)
-//   Card / input bg    → palette.cream[200]    (warm cream #F7ECD0)
-//   Border / divider   → palette.cream[400]    (refined border #E5CC95)
-//   Brand gold         → colors.fg.brand       (gold-600 #C9A227)
-//   Location pin       → palette.amber[600]    (burnished amber #BD8531)
-//   Error text/border  → colors.fg.error       (crimson-600 #B5392B)
-//   Shimmer base       → palette.cream[200]    (reuses card bg token)
-//   Shimmer peak       → colors.bg.surface     (white — highlight peak)
-//
-// Private derived values — NOT in design system exports (opacity compositions
-// that require a specific local context):
+// ── react-native-reanimated v4 (with react-native-worklets) ───────────────────
+import ReAnimated, {
+  Easing as REasing,
+  cancelAnimation,
+  interpolate,
+  interpolateColor,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withSpring,
+  withTiming,
+  type SharedValue,
+  FadeIn,
+  SlideInRight,
+} from 'react-native-reanimated';
 
-/** Active row background: subtle gold wash — between cream-200 and white */
-const ACTIVE_ROW_BG    = 'rgba(201, 162, 39, 0.06)'   as const;
-/** Active gold glow chip bg: gold-600 at 12% — online chip active state */
-const ACTIVE_CHIP_BG   = 'rgba(201, 162, 39, 0.12)'   as const;
-/** Recent chip selected bg: gold wash tint for recently-visited selected city */
-const RECENT_CHIP_SEL  = 'rgba(201, 162, 39, 0.10)'   as const;
-/** Spinner overlay bg: white at 75% opacity — doesn't fully obscure content */
-const SPINNER_OVERLAY  = 'rgba(255, 255, 255, 0.75)'  as const;
+// [parity] Fixed tall sheet (≈90% screen) — matches CountryPickerSheet so the
+// trending row + alphabet sidebar have room and there is zero height jump
+// between loading and idle. (Previous City sheet was a 50% half-sheet.)
+const SHEET_HEIGHT = Math.round(Dimensions.get('window').height * 0.9);
 
-// Layout and animation constants (not colors — kept local per CROWN pattern)
-const L = {
-  rowH:            56,    // City row height · blueprint exact
-  rowPadH:         16,    // Row horizontal padding · blueprint exact
-  searchH:         44,    // Search input height · blueprint exact
-  chipH:           32,    // Recent city chip height · blueprint exact
-  handleW:         40,    // Drag handle width · blueprint exact
-  handleH:         4,     // Drag handle height · blueprint exact
-  handleTop:       12,    // Handle top offset from sheet top · blueprint exact
-  titleSize:       18,    // Title font size
-  nameSize:        15,    // City name font size · blueprint exact "15px"
-  countSize:       13,    // Online count font size · blueprint exact "13px"
-  iconSize:        20,    // Search icon size · blueprint exact "20×20"
-  chevronSize:     16,    // Row chevron size · blueprint exact "16×16"
-  skeletonRows:    6,     // Skeleton row count · blueprint Element [6]
-  skeletonRowH:    64,    // Skeleton row height · blueprint Element [6] exact
-  activeBarW:      2,     // Left active accent bar width · blueprint "2px"
+// ─── Storage keys (UNCHANGED — City sheet keys) ───────────────────────────────
+const CW_CITY_KEY           = 'cw:selected_city'   as const;
+const CW_RECENT_CITIES_KEY  = 'cw:recent_cities'   as const;
+const MAX_RECENTS           = 5                     as const;
+const TRENDING_COUNT        = 10                    as const;  // Top-10 OTT pattern
 
-  shimmerDuration: 1200,  // Shimmer cycle · blueprint "standard 1200ms"
-  pressDuration:   80,    // Press feedback timing (ms)
-  pressScale:      0.97,  // Row press-down scale
-} as const;
+// ─── Firestore collections (native) ───────────────────────────────────────────
+const USERS_COLLECTION      = 'users' as const;
 
-// ─── Screen height (for sheet maxHeight) ──────────────────────────────────────
-const SCREEN_H = Dimensions.get('window').height;
-
-// ─── Design token alias ───────────────────────────────────────────────────────
-//
-// T merges layout constants (L.*) with semantic color tokens so style rules
-// reference a single namespace.  All colors are pulled from the v2.0 token
-// system — zero hardcoded hex values below.
-//
-// Color mapping:
-//   T.ink950      = palette.ink[950]    #1A1208  primary text
-//   T.ink600      = palette.ink[600]    #6B5B47  secondary text
-//   T.cream200    = palette.cream[200]  #F7ECD0  input bg / chip bg
-//   T.cream400    = palette.cream[400]  #E5CC95  borders / handle / dividers
-//   T.gold600     = palette.gold[600]   #C9A227  active accent / CTA
-//   T.amber600    = palette.amber[600]  #D4651A  location pin icon
-//   T.crimson600  = palette.crimson[600] #C4294F  error states
-//   T.sheetBg     = colors.bg.surface   #FFFFFF  sheet background
-//
-const T = {
-  // ── Spread all layout constants from L ───────────────────────────────────
-  ...L,
-  // ── Color tokens ─────────────────────────────────────────────────────────
-  ink950:    palette.ink[950],
-  ink600:    palette.ink[600],
-  cream200:  palette.cream[200],
-  cream400:  palette.cream[400],
-  gold600:   palette.gold[600],
-  amber600:  palette.amber[600],
-  crimson600: palette.crimson[600],
-  sheetBg:   colors.bg.surface,
-} as const;
-
-// ─── AsyncStorage keys ────────────────────────────────────────────────────────
-const CW_CITY_KEY          = 'cw:selected_city'   as const;
-const CW_RECENT_CITIES_KEY = 'cw:recent_cities'   as const;
-
-/**
- * Fallback city list — shown when Firestore does not respond within CITY_LOAD_TIMEOUT_MS.
- * Covers the top Indian cities from the blueprint. Firestore data takes precedence
- * whenever it arrives; this only kicks in on slow / offline connections.
- */
-const CITY_LOAD_TIMEOUT_MS = 7000;
+// ─── Fallback list — shown if Firestore is slow/offline ───────────────────────
+const CITY_LOAD_TIMEOUT_MS  = 7000;
 
 const FALLBACK_CITIES: CityDoc[] = [
   { id: 'chandigarh',  name: 'Chandigarh',  state: 'Punjab',        online_count: 0, sector_count: 0, is_active: true },
@@ -207,26 +144,91 @@ const FALLBACK_CITIES: CityDoc[] = [
   { id: 'lucknow',     name: 'Lucknow',     state: 'Uttar Pradesh', online_count: 0, sector_count: 0, is_active: true },
   { id: 'amritsar',    name: 'Amritsar',    state: 'Punjab',        online_count: 0, sector_count: 0, is_active: true },
 ];
-const MAX_RECENT_CITIES    = 5                     as const;
 
-// ─── Firestore collection path ────────────────────────────────────────────────
-const CITIES_COLLECTION = 'cities' as const;
-const USERS_COLLECTION  = 'users'  as const;
+// ─── Layout constants (parity with CountryPickerSheet) ────────────────────────
+const L = {
+  rowH:         74,
+  sectionH:     34,
+  divH:          1,
+  rowPadH:      16,
+  avatarBox:    48,
+  avatarRadius: 14,
+  heroW:       154,
+  heroH:       112,
+  heroR:        20,
+  heatW:        48,
+  searchH:      52,
+  closeBtn:     44,
+  shimmerRows:   7,
+  shimmerDur:  1200,
+  pillH:        34,
+  pillRowH:     52,
+  alphaBarW:    22,
+} as const;
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Design token aliases (parity — palette-sourced, gold #D4A017) ────────────
+// NOTE: these replace the previous City sheet's hardcoded rgba(201,162,39,…)
+// (the banned #C9A227). gold here is palette.gold[600] = #D4A017.
+const T = {
+  sheetBg:       colors.bg.surface,   // #FFFFFF
+  text:          palette.ink[950],
+  textSecondary: palette.ink[600],
+  textTertiary:  palette.ink[400],
+  textMuted:     palette.ink[200],
+  surfaceSunken: palette.cream[100],
+  surfaceWell:   palette.cream[200],
+  border:        palette.cream[300],
+  borderSubtle:  palette.cream[200],
+  gold:          palette.gold[600],   // #D4A017 — correct brand gold
+  goldLight:     palette.gold[300],
+  goldDim:       palette.gold[200],
+  goldSubtle:    palette.gold[100],
+  green:         palette.emerald[500],
+  emerald:       palette.emerald[600],
+  amber:         palette.amber[600],
+} as const;
+
+// ─── Derived overlay values (parity) ──────────────────────────────────────────
+const DV = {
+  activeRowBg:    'rgba(212,160,23,0.09)' as const,
+  activeRowBorder:'rgba(212,160,23,0.24)' as const,
+  sectionBg:      'rgba(255,255,255,0.97)'as const,
+  switchOverlay:  'rgba(255,255,255,0.93)'as const,
+} as const;
+
+// ─── Haptic helpers (try/catch for restrictive Android ROMs) ──────────────────
+const hapticLight  = async (): Promise<void> => {
+  try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);  } catch { /* no-op */ }
+};
+const hapticMedium = async (): Promise<void> => {
+  try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch { /* no-op */ }
+};
+const hapticSelect = async (): Promise<void> => {
+  try { await Haptics.selectionAsync(); } catch { /* no-op */ }
+};
+
+// ─── Types ─────────────────────────────────────────────────────────────────────
+/** Filter axis. 'All' is the sentinel; every other value is a real state name. */
+type StateFilter = string;
+
+type SectionItem = { type: 'section'; letter: string };
+type CityItem    = { type: 'city';    city: CityDoc };
+type DividerItem = { type: 'divider'; id: string };
+type ListItem    = SectionItem | CityItem | DividerItem;
 
 /**
  * Shape of a document in the Firestore /cities collection.
- * online_count: total active users across all sectors in this city (denormalized).
+ * online_count: total active users across all sectors in this city.
  * sector_count: number of sectors available to join.
+ * state:        used as the filter axis (replaces Country's "region").
  */
 export interface CityDoc {
-  id:           string;  // Document ID — used as cityId throughout the app
-  name:         string;  // Display name e.g. "Chandigarh", "Delhi"
-  state?:       string;  // State name e.g. "Punjab", "Delhi NCR"
-  online_count: number;  // Denormalized aggregate from _meta documents
-  sector_count: number;  // Count of active sectors in this city
-  is_active:    boolean; // false = city exists but is hidden from picker
+  id:           string;
+  name:         string;
+  state?:       string;
+  online_count: number;
+  sector_count: number;
+  is_active:    boolean;
 }
 
 export interface CityPickerSheetProps {
@@ -240,246 +242,993 @@ export interface CityPickerSheetProps {
   onSelect: (cityId: string) => void;
 }
 
-// ─── Shimmer hook ─────────────────────────────────────────────────────────────
-//
-// Returns an Animated.Value that oscillates between 0 and 1 every 1200ms.
-// Used by SkeletonRow to interpolate backgroundColor between cream-200 and white.
-//
-// Fix: accepts `isActive` boolean — loop ONLY runs while skeleton is visible.
-// When sheetState transitions from 'loading' to 'idle/error', loop stops and
-// anim resets to 0, releasing the JS-thread animation budget entirely.
-//
-// Single shared animation for all SkeletonRows — synchronized + efficient.
-// Note: useNativeDriver:false is required — backgroundColor cannot use native driver.
+// ─── Utility: diacritic normalization ─────────────────────────────────────────
+function normalizeDiacritics(str: string): string {
+  return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
 
-function useShimmer(isActive: boolean): Animated.Value {
-  const anim = useRef(new Animated.Value(0)).current;
+// ─── Utility: city monogram (first letter, uppercase) ─────────────────────────
+function cityInitial(name: string): string {
+  const ch = name?.trim()?.[0] ?? '\u2022';
+  return ch.toUpperCase();
+}
+
+// ─── Utility: sector label ────────────────────────────────────────────────────
+function sectorLabel(n: number): string {
+  return n === 1 ? '1 sector' : `${n} sectors`;
+}
+
+// ─── Utility: Global short-count formatter (K/M/B) — parity ───────────────────
+function fmtCount(n: number): string {
+  if (n <= 0) return '0';
+  if (n >= 1_000_000_000) {
+    const v = n / 1_000_000_000;
+    return `${v % 1 === 0 ? v.toFixed(0) : v.toFixed(1)}B`;
+  }
+  if (n >= 1_000_000) {
+    const v = n / 1_000_000;
+    return `${v % 1 === 0 ? v.toFixed(0) : v.toFixed(1)}M`;
+  }
+  if (n >= 1_000) {
+    const v = n / 1_000;
+    return `${v % 1 === 0 ? v.toFixed(0) : v.toFixed(1)}K`;
+  }
+  return n.toLocaleString('en-US');
+}
+
+// ─── Build A-Z grouped flat-list data (takes a PRE-SORTED array) ──────────────
+function buildAlphaSections(sorted: CityDoc[]): ListItem[] {
+  const items: ListItem[] = [];
+  let prevLetter     = '';
+  let prevWasSection = true;
+
+  for (const city of sorted) {
+    const letter = city.name[0]?.toUpperCase() ?? '#';
+    if (letter !== prevLetter) {
+      items.push({ type: 'section', letter });
+      prevLetter     = letter;
+      prevWasSection = true;
+    } else if (!prevWasSection) {
+      items.push({ type: 'divider', id: `div-${city.id}` });
+    }
+    items.push({ type: 'city', city });
+    prevWasSection = false;
+  }
+  return items;
+}
+
+function buildSearchResults(cities: CityDoc[]): ListItem[] {
+  return cities.flatMap((c, i) =>
+    i === 0
+      ? [{ type: 'city', city: c } as CityItem]
+      : [{ type: 'divider', id: `sdiv-${c.id}` } as DividerItem, { type: 'city', city: c } as CityItem],
+  );
+}
+
+function precomputeLayouts(
+  data: ListItem[],
+): Array<{ length: number; offset: number; index: number }> {
+  const out: Array<{ length: number; offset: number; index: number }> = [];
+  let offset = 0;
+  for (let i = 0; i < data.length; i++) {
+    const item   = data[i]!;
+    const length =
+      item.type === 'section' ? L.sectionH :
+      item.type === 'divider' ? L.divH     :
+      L.rowH;
+    out.push({ length, offset, index: i });
+    offset += length;
+  }
+  return out;
+}
+
+// ─── PulseContext — instance-safe, ref-counted pulse animation (parity) ───────
+interface _PulseCtx {
+  anim:     SharedValue<number>;
+  register: () => () => void;
+}
+
+const PulseContext = React.createContext<_PulseCtx | null>(null);
+
+const PulseProvider = memo<{ children: React.ReactNode }>(({ children }) => {
+  const anim = useSharedValue(1);
+  const refs = useRef(0);
+
+  const register = useCallback((): (() => void) => {
+    refs.current++;
+    if (refs.current === 1) {
+      anim.value = withRepeat(
+        withSequence(
+          withTiming(0.2, { duration: 850 }),
+          withTiming(1.0, { duration: 850 }),
+        ),
+        -1,
+        false,
+      );
+    }
+    return () => {
+      refs.current = Math.max(0, refs.current - 1);
+      if (refs.current === 0) {
+        cancelAnimation(anim);
+        anim.value = withTiming(1, { duration: 150 });
+      }
+    };
+  }, [anim]);
+
+  const ctx = useMemo(() => ({ anim, register }), [anim, register]);
+
+  return <PulseContext.Provider value={ctx}>{children}</PulseContext.Provider>;
+});
+PulseProvider.displayName = 'CityPickerSheet.PulseProvider';
+
+function usePulse(enabled: boolean): SharedValue<number> {
+  const ctx = React.useContext(PulseContext);
+  const fallback = useSharedValue(1);
 
   useEffect(() => {
-    if (!isActive) {
-      // Data loaded (or errored) — stop loop immediately and reset
-      anim.stopAnimation();
-      anim.setValue(0);
-      return;
-    }
+    if (!enabled || !ctx) return;
+    return ctx.register();
+  }, [enabled, ctx]);
 
-    // Skeleton visible — run the 1200ms cream ↔ white pulse loop
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(anim, {
-          toValue:         1,
-          duration:        L.shimmerDuration / 2,   // 600ms cream → white
-          useNativeDriver: false,                    // backgroundColor — JS driver required
-        }),
-        Animated.timing(anim, {
-          toValue:         0,
-          duration:        L.shimmerDuration / 2,   // 600ms white → cream
-          useNativeDriver: false,
-        }),
-      ]),
+  return ctx ? ctx.anim : fallback;
+}
+
+// ─── LiveDot (parity) ──────────────────────────────────────────────────────────
+const LiveDot = memo<{ size?: number; gold?: boolean; pulse?: boolean }>(
+  ({ size = 7, gold = false, pulse = false }) => {
+    const anim     = usePulse(pulse);
+    const animStyle = useAnimatedStyle(() => ({
+      opacity: pulse ? anim.value : 1,
+    }));
+    return (
+      <ReAnimated.View
+        style={[
+          {
+            width:           size,
+            height:          size,
+            borderRadius:    size / 2,
+            backgroundColor: gold ? T.gold : T.green,
+          },
+          animStyle,
+        ]}
+        accessible={false}
+      />
     );
-    loop.start();
-    return () => loop.stop();
-  }, [isActive, anim]);
+  },
+);
+LiveDot.displayName = 'CityPickerSheet.LiveDot';
 
-  return anim;
-}
-
-// ─── Sub-component: SkeletonRow ───────────────────────────────────────────────
-//
-// Blueprint Element [6]:
-//   Shape: 64px H · 12px L/R padding inside sheet
-//   Per-row: icon-rect 24×24 + 12px gap + text-rect 70% width 16px H
-//   Shimmer: standard 1200ms · cream-200 → white → cream-200
-
-interface SkeletonRowProps {
-  shimmer: Animated.Value;
-  index:   number;
-}
-
-const SkeletonRow = memo<SkeletonRowProps>(({ shimmer }) => {
-  // Blueprint Element [6]: shimmer = cream-200 → white → cream-200 · 1200ms
-  // Using palette.cream[200] (base) and colors.bg.surface (peak) per design system
-  const bgColor = shimmer.interpolate({
-    inputRange:  [0, 1],
-    outputRange: [palette.cream[200], colors.bg.surface],
-  });
-
+// ─── SkeletonRow (parity) ──────────────────────────────────────────────────────
+const SkeletonRow = memo<{ shimmer: SharedValue<number> }>(({ shimmer }) => {
+  const animStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(shimmer.value, [0, 1], [0.3, 0.8]),
+  }));
   return (
-    <View style={styles.skeletonRow} accessibilityElementsHidden>
-      {/* Icon rect placeholder — 24×24 */}
-      <Animated.View style={[styles.skeletonIcon, { backgroundColor: bgColor }]} />
-
-      {/* Text block placeholder */}
-      <View style={styles.skeletonTextBlock}>
-        {/* Primary line — 70% width */}
-        <Animated.View style={[styles.skeletonLine, styles.skeletonLinePrimary, { backgroundColor: bgColor }]} />
-        {/* Secondary line — 45% width */}
-        <Animated.View style={[styles.skeletonLine, styles.skeletonLineSecondary, { backgroundColor: bgColor }]} />
+    <View style={sk.row}>
+      <ReAnimated.View style={[sk.avatar, animStyle]} />
+      <View style={sk.body}>
+        <ReAnimated.View style={[sk.line1, animStyle]} />
+        <ReAnimated.View style={[sk.line2, animStyle]} />
       </View>
-
-      {/* Chevron placeholder — 16×16 */}
-      <Animated.View style={[styles.skeletonChevron, { backgroundColor: bgColor }]} />
+      <ReAnimated.View style={[sk.badge, animStyle]} />
     </View>
   );
 });
-
 SkeletonRow.displayName = 'CityPickerSheet.SkeletonRow';
 
-// ─── Sub-component: RecentCityChip ────────────────────────────────────────────
-//
-// Blueprint: "32px H · radius 16px · cream-200 bg · 1px cream-400 border · tap → select"
+const sk = StyleSheet.create({
+  row:    { flexDirection:'row', alignItems:'center', paddingHorizontal:L.rowPadH, height:L.rowH, gap:14 },
+  avatar: { width:L.avatarBox, height:L.avatarBox, borderRadius:L.avatarRadius, backgroundColor:T.surfaceWell },
+  body:   { flex:1, gap:8 },
+  line1:  { height:14, borderRadius:7, backgroundColor:T.surfaceWell, width:'60%' as const },
+  line2:  { height:11, borderRadius:6, backgroundColor:T.surfaceWell, width:'38%' as const },
+  badge:  { width:L.heatW, height:8, borderRadius:4, backgroundColor:T.surfaceWell },
+});
 
-interface RecentCityChipProps {
-  city:       CityDoc;
-  isSelected: boolean;
-  onPress:    () => void;
+// ─── SkeletonHeroCard (parity — mirrors the OTT ranking card layout) ──────────
+const SkeletonHeroCard = memo<{ shimmer: SharedValue<number> }>(({ shimmer }) => {
+  const animStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(shimmer.value, [0, 1], [0.25, 0.75]),
+  }));
+  return (
+    <ReAnimated.View style={[skh.card, animStyle]}>
+      <ReAnimated.View style={[skh.avatar, animStyle]} />
+      <ReAnimated.View style={[skh.badge,  animStyle]} />
+      <ReAnimated.View style={[skh.name,   animStyle]} />
+      <ReAnimated.View style={[skh.region, animStyle]} />
+    </ReAnimated.View>
+  );
+});
+SkeletonHeroCard.displayName = 'CityPickerSheet.SkeletonHeroCard';
+
+const skh = StyleSheet.create({
+  card: {
+    width:           L.heroW,
+    height:          L.heroH,
+    borderRadius:    L.heroR,
+    borderWidth:     1.5,
+    borderColor:     T.border,
+    backgroundColor: T.surfaceWell,
+  },
+  avatar: {
+    position:        'absolute',
+    top:             11,
+    left:            12,
+    width:           38,
+    height:          38,
+    borderRadius:    19,
+    backgroundColor: T.surfaceSunken,
+  },
+  badge: {
+    position:        'absolute',
+    top:             14,
+    right:           11,
+    width:           60,
+    height:          14,
+    borderRadius:    7,
+    backgroundColor: T.surfaceSunken,
+  },
+  name: {
+    position:        'absolute',
+    bottom:          30,
+    left:            12,
+    width:           74,
+    height:          13,
+    borderRadius:    7,
+    backgroundColor: T.surfaceSunken,
+  },
+  region: {
+    position:        'absolute',
+    bottom:          12,
+    left:            12,
+    width:           44,
+    height:          10,
+    borderRadius:    5,
+    backgroundColor: T.surfaceSunken,
+  },
+});
+
+// ─── SectionHeader (parity) ────────────────────────────────────────────────────
+const SectionHeader = memo<{ letter: string }>(({ letter }) => (
+  <View style={sec.wrap} accessibilityRole="header">
+    <Text
+      style={sec.letter}
+      accessibilityLabel={`Cities starting with ${letter}`}
+    >
+      {letter}
+    </Text>
+  </View>
+));
+SectionHeader.displayName = 'CityPickerSheet.SectionHeader';
+
+const sec = StyleSheet.create({
+  wrap: {
+    height:            L.sectionH,
+    paddingHorizontal: L.rowPadH,
+    justifyContent:    'center',
+    backgroundColor:   DV.sectionBg,
+    borderBottomWidth: 1,
+    borderBottomColor: T.borderSubtle,
+  },
+  letter: {
+    fontSize:      11,
+    fontWeight:    '700',
+    color:         T.textSecondary,
+    fontFamily:    FONT_BODY.bold,
+    letterSpacing: 0.9,
+    textTransform: 'uppercase',
+  },
+});
+
+// ─── HeroCard (OTT ranking card — parity, with monogram avatar) ───────────────
+interface HeroCardProps {
+  city:           CityDoc;
+  isSelected:     boolean;
+  onPress:        (city: CityDoc) => void;
+  rank:           number;        // 1-based trending position (1–10)
+  entryDelay?:    number;        // ms delay for stagger
+  reducedMotion?: boolean;
 }
 
-const RecentCityChip = memo<RecentCityChipProps>(({ city, isSelected, onPress }) => {
-  const pressAnim = useRef(new Animated.Value(1)).current;
+const HeroCard = memo<HeroCardProps>(({
+  city,
+  isSelected,
+  onPress,
+  rank,
+  entryDelay    = 0,
+  reducedMotion = false,
+}) => {
+  const scale = useRef(new Animated.Value(1)).current;
 
-  const handlePressIn = useCallback(() => {
-    Animated.timing(pressAnim, { toValue: L.pressScale, duration: L.pressDuration, useNativeDriver: true }).start();
-  }, [pressAnim]);
+  const handlePress = useCallback(() => onPress(city), [onPress, city]);
+  const onPressIn   = useCallback(() =>
+    Animated.spring(scale, { toValue:0.94, useNativeDriver:true, speed:50, bounciness:0 }).start(),
+  [scale]);
+  const onPressOut  = useCallback(() =>
+    Animated.spring(scale, { toValue:1.00, useNativeDriver:true, speed:40, bounciness:5 }).start(),
+  [scale]);
 
-  const handlePressOut = useCallback(() => {
-    Animated.spring(pressAnim, { toValue: 1, useNativeDriver: true, tension: 280, friction: 14 }).start();
-  }, [pressAnim]);
+  const entering = useMemo(
+    () => reducedMotion
+      ? undefined
+      : SlideInRight.delay(entryDelay).duration(300).springify().damping(18),
+    [entryDelay, reducedMotion],
+  );
+
+  const isOnline = city.online_count > 0;
+  const sub      = city.state || sectorLabel(city.sector_count);
 
   return (
     <Pressable
-      onPress={onPress}
-      onPressIn={handlePressIn}
-      onPressOut={handlePressOut}
-      accessibilityRole="button"
-      accessibilityLabel={`${city.name} — recent city`}
+      onPress={handlePress}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
+      accessibilityRole="radio"
+      accessibilityLabel={`${city.name}, #${rank} trending, ${fmtCount(city.online_count)} online`}
       accessibilityState={{ selected: isSelected }}
-      hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
     >
-      <Animated.View style={[
-        styles.recentChip,
-        isSelected && styles.recentChipSelected,
-        { transform: [{ scale: pressAnim }] },
-      ]}>
-        <Text
-          style={[styles.recentChipText, isSelected && styles.recentChipTextSelected]}
-          numberOfLines={1}
-        >
-          {city.name}
-        </Text>
-      </Animated.View>
+      <ReAnimated.View
+        entering={entering}
+        style={[
+          hc.card,
+          isSelected && { borderColor: T.gold },
+          isSelected && hc.cardActive,
+          { transform: [{ scale }] },
+        ]}
+      >
+        <View style={hc.inner}>
+
+          {/* TOP-LEFT: monogram avatar (replaces Country's flag emoji) */}
+          <View style={[hc.avatar, isSelected && hc.avatarActive]}>
+            <Text style={[hc.avatarMono, isSelected && { color: T.gold }]} accessible={false}>
+              {cityInitial(city.name)}
+            </Text>
+          </View>
+
+          {/* TOP-RIGHT: online status pill badge */}
+          <View style={hc.onlinePill}>
+            <View style={[hc.pillDot, isOnline && hc.pillDotLive]} />
+            <Text style={hc.pillText}>
+              {isOnline ? fmtCount(city.online_count) : '0'}{' online'}
+            </Text>
+          </View>
+
+          {/* BOTTOM-LEFT: city name + state (replaces region) */}
+          <View style={hc.nameGroup}>
+            <Text style={[hc.name, isSelected && { color: T.gold }]} numberOfLines={1}>
+              {city.name}
+            </Text>
+            <Text style={[hc.region, isSelected && { color: T.gold }]} numberOfLines={1}>
+              {sub}
+            </Text>
+          </View>
+
+          {/* BOTTOM-RIGHT: massive rank numeral — bleeds off the right edge */}
+          <Text
+            style={[hc.rankNum, isSelected && hc.rankNumActive]}
+            accessible={false}
+          >
+            {rank}
+          </Text>
+
+        </View>
+      </ReAnimated.View>
     </Pressable>
   );
 });
+HeroCard.displayName = 'CityPickerSheet.HeroCard';
 
-RecentCityChip.displayName = 'CityPickerSheet.RecentCityChip';
+const hc = StyleSheet.create({
+  card: {
+    width:           L.heroW,
+    height:          L.heroH,
+    borderRadius:    L.heroR,
+    borderWidth:     1.5,
+    borderColor:     T.border,
+    backgroundColor: T.sheetBg,
+    shadowColor:     T.text,
+    shadowOpacity:   0.06,
+    shadowRadius:    10,
+    shadowOffset:    { width:0, height:3 },
+    elevation:       2,
+  },
+  cardActive: { shadowOpacity:0.18, shadowRadius:22, elevation:6 },
 
-// ─── Sub-component: CityRow ───────────────────────────────────────────────────
-//
-// Blueprint: 56px H · 16px L/R · name (15/600/ink-950) · count chip · chevron 16px
-// Active: 2px gold-600 left bar + cream-200 bg tint
+  inner: {
+    position:        'absolute',
+    top:             0,
+    left:            0,
+    right:           0,
+    bottom:          0,
+    borderRadius:    L.heroR - 1,
+    backgroundColor: T.sheetBg,
+    overflow:        'hidden',
+  },
 
+  // TOP-LEFT: monogram avatar circle (matches skeleton skh.avatar)
+  avatar: {
+    position:        'absolute',
+    top:             11,
+    left:            12,
+    width:           38,
+    height:          38,
+    borderRadius:    19,
+    backgroundColor: T.goldSubtle,
+    alignItems:      'center',
+    justifyContent:  'center',
+  },
+  avatarActive: { backgroundColor: T.goldDim },
+  avatarMono: {
+    fontSize:   17,
+    fontWeight: '800',
+    color:      T.text,
+    fontFamily: FONT_HEADING.bold,
+    includeFontPadding: false,
+  },
+
+  onlinePill: {
+    position:          'absolute',
+    top:               11,
+    right:             8,
+    flexDirection:     'row',
+    alignItems:        'center',
+    gap:               4,
+    backgroundColor:   'rgba(0,0,0,0.04)',
+    borderWidth:       0.5,
+    borderColor:       'rgba(0,0,0,0.10)',
+    paddingHorizontal: 7,
+    paddingVertical:   3,
+    borderRadius:      10,
+  },
+  pillDot:     { width:5, height:5, borderRadius:3, backgroundColor:T.border },
+  pillDotLive: { backgroundColor:T.green },
+  pillText: {
+    fontSize:   9,
+    fontWeight: '600',
+    color:      T.textSecondary,
+    fontFamily: FONT_BODY.semiBold,
+  },
+
+  nameGroup: {
+    position: 'absolute',
+    bottom:   12,
+    left:     12,
+    right:    28,
+  },
+  name: {
+    fontSize:   13,
+    fontWeight: '700',
+    color:      T.text,
+    fontFamily: FONT_HEADING.semiBold,
+  },
+  region: {
+    fontSize:   10,
+    fontWeight: '500',
+    color:      T.textTertiary,
+    fontFamily: FONT_BODY.medium,
+    marginTop:  2,
+  },
+
+  // Orange rank watermark — same warm base (234,88,12) as Country / bottom-nav
+  rankNum: {
+    position:   'absolute',
+    bottom:     -10,
+    right:      -10,
+    fontSize:   80,
+    fontWeight: '900',
+    color:      'rgba(234,88,12,0.65)',
+    lineHeight: 88,
+  },
+  rankNumActive: { color: 'rgba(234,88,12,0.75)' },
+});
+
+// ─── CityRow (parity with CountryRow — monogram avatar, state sub-label) ──────
 interface CityRowProps {
   city:       CityDoc;
   isSelected: boolean;
-  onPress:    () => void;
+  onPress:    (city: CityDoc) => void;
 }
 
 const CityRow = memo<CityRowProps>(({ city, isSelected, onPress }) => {
-  const pressAnim = useRef(new Animated.Value(1)).current;
+  const scale     = useRef(new Animated.Value(1)).current;
+  const flashAnim = useSharedValue(0);
+  const flashStyle = useAnimatedStyle(() => ({ opacity: flashAnim.value }));
 
-  const handlePressIn = useCallback(() => {
-    Animated.timing(pressAnim, { toValue: L.pressScale, duration: L.pressDuration, useNativeDriver: true }).start();
-  }, [pressAnim]);
+  const handlePress = useCallback(() => onPress(city), [onPress, city]);
+  const onPressIn   = useCallback(() => {
+    Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 60, bounciness: 0 }).start();
+    flashAnim.value = withSequence(
+      withTiming(1, { duration: 40 }),
+      withTiming(0, { duration: 40 }),
+    );
+  }, [scale, flashAnim]);
+  const onPressOut  = useCallback(() =>
+    Animated.spring(scale, { toValue: 1.00, useNativeDriver: true, speed: 55, bounciness: 4 }).start(),
+  [scale]);
 
-  const handlePressOut = useCallback(() => {
-    Animated.spring(pressAnim, { toValue: 1, useNativeDriver: true, tension: 280, friction: 14 }).start();
-  }, [pressAnim]);
-
-  /** Format online count: 1234 → "1.2K", 12345 → "12K", else raw number */
-  const formattedCount = useMemo((): string => {
-    const n = city.online_count;
-    if (n >= 10_000)  return `${Math.round(n / 1000)}K`;
-    if (n >= 1_000)   return `${(n / 1000).toFixed(1)}K`;
-    return String(n);
-  }, [city.online_count]);
-
-  const sectorLabel = city.sector_count === 1
-    ? '1 sector'
-    : `${city.sector_count} sectors`;
+  const sub = city.state
+    ? `${city.state} \u00B7 ${sectorLabel(city.sector_count)}`
+    : sectorLabel(city.sector_count);
 
   return (
     <Pressable
-      onPress={onPress}
-      onPressIn={handlePressIn}
-      onPressOut={handlePressOut}
-      accessibilityRole="button"
-      accessibilityLabel={`${city.name}, ${sectorLabel}, ${formattedCount} online`}
+      onPress={handlePress}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
+      accessibilityRole="radio"
+      accessibilityLabel={`${city.name}, ${sub}, ${
+        city.online_count > 0 ? fmtCount(city.online_count) + ' online' : 'no one online'
+      }`}
       accessibilityState={{ selected: isSelected }}
-      accessibilityHint={isSelected ? 'Currently selected city' : 'Double tap to switch to this city'}
     >
-      <Animated.View style={[
-        styles.cityRow,
-        isSelected && styles.cityRowActive,
-        { transform: [{ scale: pressAnim }] },
-      ]}>
+      <Animated.View
+        style={[
+          cr.row,
+          isSelected && cr.rowActive,
+          { transform: [{ scale }] },
+        ]}
+      >
+        {/* Monogram avatar (replaces Country's flag emoji box) */}
+        <View style={[cr.avatarBox, isSelected && cr.avatarBoxActive]}>
+          <Text style={[cr.avatarMono, isSelected && { color: T.gold }]} accessible={false}>
+            {cityInitial(city.name)}
+          </Text>
+        </View>
 
-        {/* Left accent bar — visible only on active row */}
-        {isSelected && <View style={styles.activeAccentBar} />}
-
-        {/* Left: location pin + city name + sector count */}
-        <View style={styles.cityRowLeft}>
-          {/* Location pin icon — amber-600 per City Pill spec */}
-          <Feather
-            name="map-pin"
-            size={16}
-            color={isSelected ? colors.fg.brand : palette.amber[600]}
-            style={styles.cityRowPin}
-          />
-          <View style={styles.cityRowTextBlock}>
-            <Text
-              style={[styles.cityName, isSelected && styles.cityNameActive]}
-              numberOfLines={1}
-            >
+        <View style={cr.body}>
+          <View style={cr.nameRow}>
+            <Text style={[cr.name, isSelected && cr.nameActive]} numberOfLines={1}>
               {city.name}
             </Text>
-            {city.state ? (
-              <Text style={styles.cityState} numberOfLines={1}>
-                {city.state} · {sectorLabel}
-              </Text>
-            ) : (
-              <Text style={styles.cityState} numberOfLines={1}>
-                {sectorLabel}
-              </Text>
-            )}
           </View>
+
+          {/* State sub-label (replaces Country's region label) */}
+          <Text style={[cr.subLabel, isSelected && cr.subLabelActive]} numberOfLines={1}>
+            {sub}
+          </Text>
         </View>
 
-        {/* Right: online count chip + chevron */}
-        <View style={styles.cityRowRight}>
-          <View style={[styles.onlineChip, isSelected && styles.onlineChipActive]}>
-            <View style={[styles.onlineDot, isSelected && styles.onlineDotActive]} />
-            <Text style={[styles.onlineText, isSelected && styles.onlineTextActive]}>
-              {formattedCount} online
-            </Text>
-          </View>
-          <Feather
-            name="chevron-right"
-            size={L.chevronSize}
-            color={isSelected ? colors.fg.brand : colors.fg.secondary}
+        {/* Online count badge */}
+        <View style={[cr.onlineBadge, isSelected && cr.onlineBadgeActive]}>
+          <View
+            style={[
+              cr.badgeDot,
+              { backgroundColor: city.online_count > 0 ? T.green : T.border },
+            ]}
           />
+          <Text style={[cr.badgeText, isSelected && { color: T.gold }]}>
+            {city.online_count > 0 ? `${fmtCount(city.online_count)} online` : '0 online'}
+          </Text>
         </View>
 
+        {isSelected ? (
+          <View style={[cr.checkCircle, { backgroundColor: T.gold }]}>
+            <Feather name="check" size={12} color={T.sheetBg} />
+          </View>
+        ) : (
+          <Feather name="chevron-right" size={16} color={T.textTertiary} />
+        )}
+
+        {/* Selected-state left accent rail — gold, rounded pill */}
+        {isSelected && (
+          <View
+            style={[cr.selectedRail, { backgroundColor: T.gold }]}
+            pointerEvents="none"
+            importantForAccessibility="no"
+          />
+        )}
+
+        {/* Press flash overlay (UI thread) */}
+        <ReAnimated.View
+          style={[StyleSheet.absoluteFill, { backgroundColor: DV.activeRowBg }, flashStyle]}
+          pointerEvents="none"
+        />
       </Animated.View>
     </Pressable>
   );
 });
-
 CityRow.displayName = 'CityPickerSheet.CityRow';
 
-// ─── Main component ───────────────────────────────────────────────────────────
+const cr = StyleSheet.create({
+  row: {
+    flexDirection:     'row',
+    alignItems:        'center',
+    paddingHorizontal: L.rowPadH,
+    height:            L.rowH,
+    gap:               14,
+    backgroundColor:   T.sheetBg,
+  },
+  rowActive: { backgroundColor: DV.activeRowBg },
 
+  avatarBox: {
+    width:          L.avatarBox,
+    height:         L.avatarBox,
+    borderRadius:   L.avatarRadius,
+    alignItems:     'center',
+    justifyContent: 'center',
+    backgroundColor: T.goldSubtle,
+    flexShrink:     0,
+  },
+  avatarBoxActive: { backgroundColor: T.goldDim },
+  avatarMono: {
+    fontSize:   20,
+    fontWeight: '800',
+    color:      T.text,
+    fontFamily: FONT_HEADING.bold,
+    includeFontPadding: false,
+  },
+
+  body:    { flex:1, gap:6 },
+  nameRow: { flexDirection:'row', alignItems:'center', gap:6 },
+  name: {
+    fontSize:   15,
+    fontWeight: '600',
+    color:      T.text,
+    fontFamily: FONT_HEADING.medium,
+    flexShrink: 1,
+  },
+  nameActive: { color:T.gold, fontWeight:'700' },
+
+  subLabel: {
+    fontSize:   11,
+    fontWeight: '500',
+    color:      T.textTertiary,
+    fontFamily: FONT_BODY.medium,
+  },
+  subLabelActive: { color: T.goldLight },
+
+  onlineBadge: {
+    flexDirection:     'row',
+    alignItems:        'center',
+    gap:               5,
+    paddingHorizontal: 9,
+    paddingVertical:   5,
+    borderRadius:      20,
+    backgroundColor:   T.surfaceSunken,
+    flexShrink:        0,
+  },
+  onlineBadgeActive: { backgroundColor: DV.activeRowBg },
+  badgeDot:  { width:5, height:5, borderRadius:2.5, flexShrink:0 },
+  badgeText: {
+    fontSize:   11,
+    fontWeight: '500',
+    color:      T.textSecondary,
+    fontFamily: FONT_BODY.medium,
+  },
+  checkCircle: {
+    width:28, height:28, borderRadius:14,
+    alignItems:'center', justifyContent:'center',
+    flexShrink:0,
+  },
+  selectedRail: {
+    position:     'absolute',
+    left:         6,
+    top:          14,
+    bottom:       14,
+    width:        3,
+    borderRadius: 1.5,
+  },
+});
+
+// ─── RowDivider (parity) ───────────────────────────────────────────────────────
+const RowDivider = memo(() => (
+  <View
+    style={{ height:L.divH, backgroundColor:T.borderSubtle, marginHorizontal:L.rowPadH }}
+    accessible={false}
+    importantForAccessibility="no-hide-descendants"
+  />
+));
+RowDivider.displayName = 'CityPickerSheet.RowDivider';
+
+// ─── StatePill (replaces Country's RegionPill — same visual) ──────────────────
+interface StatePillProps {
+  label:   StateFilter;
+  active:  boolean;
+  count?:  number;
+  onPress: (filter: StateFilter) => void;
+}
+
+const StatePill = memo<StatePillProps>(({ label, active, count, onPress }) => {
+  const handlePress = useCallback(() => onPress(label), [onPress, label]);
+  const displayText = count !== undefined ? `${label} \u00B7 ${count}` : label;
+
+  return (
+    <Pressable
+      onPress={handlePress}
+      accessibilityRole="tab"
+      accessibilityLabel={count !== undefined ? `${label}, ${count} cities` : `Filter by ${label}`}
+      accessibilityState={{ selected: active }}
+      style={({ pressed }) => [sp.pill, active && sp.pillActive, pressed && { opacity:0.72 }]}
+    >
+      <Text style={[sp.text, active && sp.textActive]}>{displayText}</Text>
+    </Pressable>
+  );
+});
+StatePill.displayName = 'CityPickerSheet.StatePill';
+
+const sp = StyleSheet.create({
+  pill: {
+    height:            L.pillH,
+    paddingHorizontal: 16,
+    borderRadius:      L.pillH / 2,
+    borderWidth:       1,
+    borderColor:       T.border,
+    alignItems:        'center',
+    justifyContent:    'center',
+    backgroundColor:   T.sheetBg,
+  },
+  pillActive: { borderColor:T.gold, backgroundColor:T.goldSubtle },
+  text:       { fontSize:13, fontWeight:'600', color:T.textSecondary, fontFamily:FONT_BODY.semiBold },
+  textActive: { color: T.gold },
+});
+
+// ─── AlphabetSidebar (parity) ──────────────────────────────────────────────────
+interface AlphabetSidebarProps {
+  letters:        string[];
+  onPress:        (letter: string) => void;
+  onLetterChange: (letter: string | null) => void;
+}
+
+const AlphabetSidebar = memo<AlphabetSidebarProps>(
+  ({ letters, onPress, onLetterChange }) => {
+    const heightRef    = useRef(0);
+    const lastIdxRef   = useRef(-1);
+    const lastHapticMs = useRef(0);
+
+    const onPressRef        = useRef(onPress);
+    const onLetterChangeRef = useRef(onLetterChange);
+    const lettersRef        = useRef(letters);
+
+    useEffect(() => { onPressRef.current        = onPress;        }, [onPress]);
+    useEffect(() => { onLetterChangeRef.current = onLetterChange; }, [onLetterChange]);
+    useEffect(() => { lettersRef.current        = letters;        }, [letters]);
+
+    const hitLetter = useCallback((locationY: number) => {
+      const ls = lettersRef.current;
+      if (heightRef.current <= 0 || ls.length === 0) return;
+      const idx     = Math.floor((locationY / heightRef.current) * ls.length);
+      const clamped = Math.max(0, Math.min(ls.length - 1, idx));
+      if (clamped !== lastIdxRef.current) {
+        lastIdxRef.current = clamped;
+        const letter = ls[clamped];
+        if (letter) {
+          const now = Date.now();
+          if (now - lastHapticMs.current >= 50) {
+            lastHapticMs.current = now;
+            void hapticSelect();
+          }
+          onLetterChangeRef.current(letter);
+          onPressRef.current(letter);
+        }
+      }
+    }, []);
+
+    const panHandlers = useRef(
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder:  () => false,
+        onPanResponderGrant:   (e: GestureResponderEvent) => { lastIdxRef.current = -1; hitLetter(e.nativeEvent.locationY); },
+        onPanResponderMove:    (e: GestureResponderEvent) => { hitLetter(e.nativeEvent.locationY); },
+        onPanResponderRelease: () => {
+          lastIdxRef.current = -1;
+          onLetterChangeRef.current(null);
+        },
+      }).panHandlers,
+    ).current;
+
+    return (
+      <View
+        style={ab.wrap}
+        onLayout={(e) => { heightRef.current = e.nativeEvent.layout.height; }}
+        {...panHandlers}
+        accessibilityRole="adjustable"
+        accessibilityLabel={`Alphabet scroller, ${letters.length} letters`}
+        accessibilityHint="Drag to jump to a letter"
+        accessibilityActions={[
+          { name: 'increment', label: 'Next letter' },
+          { name: 'decrement', label: 'Previous letter' },
+        ]}
+        onAccessibilityAction={(event: AccessibilityActionEvent) => {
+          const ls = lettersRef.current;
+          if (ls.length === 0) return;
+          const cur  = lastIdxRef.current < 0 ? 0 : lastIdxRef.current;
+          const next = event.nativeEvent.actionName === 'increment'
+            ? Math.min(ls.length - 1, cur + 1)
+            : Math.max(0, cur - 1);
+          lastIdxRef.current = next;
+          const letter = ls[next];
+          if (letter) {
+            void hapticSelect();
+            onLetterChangeRef.current(letter);
+            onPressRef.current(letter);
+          }
+        }}
+      >
+        {letters.map((letter) => (
+          <View key={letter} style={ab.btn} accessible={false}>
+            <Text style={ab.letter}>{letter}</Text>
+          </View>
+        ))}
+      </View>
+    );
+  },
+);
+AlphabetSidebar.displayName = 'CityPickerSheet.AlphabetSidebar';
+
+const ab = StyleSheet.create({
+  wrap: {
+    position:      'absolute',
+    right:         2,
+    top:           0,
+    bottom:        0,
+    width:         L.alphaBarW,
+    flexDirection: 'column',
+    alignItems:    'center',
+    zIndex:        10,
+  },
+  btn: {
+    width:          L.alphaBarW,
+    flex:           1,
+    alignItems:     'center',
+    justifyContent: 'center',
+    minHeight:      8,
+  },
+  letter: { fontSize:10, fontWeight:'700', color:T.gold, fontFamily:FONT_BODY.bold },
+});
+
+// ─── LetterOverlay (parity) ────────────────────────────────────────────────────
+const LetterOverlay = memo<{ letter: string | null; reducedMotion?: boolean }>(
+  ({ letter, reducedMotion = false }) => {
+    const scale   = useSharedValue(0.7);
+    const opacity = useSharedValue(0);
+
+    useEffect(() => {
+      if (letter) {
+        if (reducedMotion) {
+          scale.value   = 1;
+          opacity.value = 1;
+        } else {
+          scale.value   = withSpring(1, { damping: 15, stiffness: 350 });
+          opacity.value = withTiming(1, { duration: 150 });
+        }
+      } else {
+        if (reducedMotion) {
+          scale.value   = 0.7;
+          opacity.value = 0;
+        } else {
+          scale.value   = withTiming(0.7, { duration: 100 });
+          opacity.value = withTiming(0,   { duration: 100 });
+        }
+      }
+    }, [letter, reducedMotion, scale, opacity]);
+
+    const animStyle = useAnimatedStyle(() => ({
+      transform: [{ scale: scale.value }],
+      opacity:    opacity.value,
+    }));
+
+    return (
+      <View style={lo.container} pointerEvents="none">
+        <ReAnimated.View style={[lo.bubble, animStyle]}>
+          <Text style={lo.letter}>{letter ?? ''}</Text>
+        </ReAnimated.View>
+      </View>
+    );
+  },
+);
+LetterOverlay.displayName = 'CityPickerSheet.LetterOverlay';
+
+const lo = StyleSheet.create({
+  container: {
+    position:       'absolute',
+    left:           0,
+    right:          0,
+    top:            0,
+    bottom:         0,
+    alignItems:     'center',
+    justifyContent: 'center',
+    zIndex:         50,
+  },
+  bubble: {
+    width:          80,
+    height:         80,
+    borderRadius:   20,
+    backgroundColor: T.gold,
+    alignItems:     'center',
+    justifyContent: 'center',
+    shadowColor:    T.gold,
+    shadowOpacity:  0.40,
+    shadowRadius:   20,
+    shadowOffset:   { width:0, height:4 },
+    elevation:      14,
+  },
+  letter: {
+    fontSize:   40,
+    fontWeight: '800',
+    color:      T.sheetBg,
+    fontFamily: FONT_HEADING.bold,
+    lineHeight: 44,
+    includeFontPadding: false,
+  },
+});
+
+// ─── AlphaSidebarAndOverlay (parity — owns the active letter locally) ─────────
+interface AlphaSidebarAndOverlayProps {
+  letters:       string[];
+  onPress:       (letter: string) => void;
+  reducedMotion: boolean;
+}
+
+const AlphaSidebarAndOverlay = memo<AlphaSidebarAndOverlayProps>(
+  ({ letters, onPress, reducedMotion }) => {
+    const [activeLetter, setActiveLetter] = useState<string | null>(null);
+    return (
+      <>
+        <AlphabetSidebar
+          letters={letters}
+          onPress={onPress}
+          onLetterChange={setActiveLetter}
+        />
+        <LetterOverlay letter={activeLetter} reducedMotion={reducedMotion} />
+      </>
+    );
+  },
+);
+AlphaSidebarAndOverlay.displayName = 'CityPickerSheet.AlphaSidebarAndOverlay';
+
+// ─── RecentlyVisitedSection (parity — renders CityRows) ───────────────────────
+interface RecentlyVisitedProps {
+  cities:   CityDoc[];
+  selected: string;
+  onSelect: (city: CityDoc) => void;
+}
+
+const RecentlyVisitedSection = memo<RecentlyVisitedProps>(
+  ({ cities, selected, onSelect }) => (
+    <View>
+      <View style={rv.headerRow}>
+        <Feather name="clock" size={12} color={T.gold} />
+        <Text style={rv.label}>RECENTLY VISITED</Text>
+      </View>
+      {cities.map((c) => (
+        <CityRow
+          key={c.id}
+          city={c}
+          isSelected={c.id === selected}
+          onPress={onSelect}
+        />
+      ))}
+      <View style={rv.sectionDivider} />
+    </View>
+  ),
+);
+RecentlyVisitedSection.displayName = 'CityPickerSheet.RecentlyVisitedSection';
+
+const rv = StyleSheet.create({
+  headerRow: {
+    flexDirection:    'row',
+    alignItems:       'center',
+    gap:              6,
+    marginHorizontal: L.rowPadH,
+    marginTop:        12,
+    marginBottom:     6,
+  },
+  label: {
+    fontSize:      11,
+    fontWeight:    '700',
+    color:         T.textSecondary,
+    letterSpacing: 0.8,
+    fontFamily:    FONT_BODY.bold,
+    textTransform: 'uppercase',
+  },
+  sectionDivider: {
+    height:          1,
+    backgroundColor: T.borderSubtle,
+    marginTop:       0,
+  },
+});
+
+// ─── Main component ────────────────────────────────────────────────────────────
 type SheetState = 'loading' | 'idle' | 'switching' | 'error';
 
 function CityPickerSheetBase({
@@ -489,732 +1238,1050 @@ function CityPickerSheetBase({
   onSelect,
 }: CityPickerSheetProps) {
 
-  // ── Data state ─────────────────────────────────────────────────────────────
   const [cities,       setCities]       = useState<CityDoc[]>([]);
-  const [recentIds,    setRecentIds]    = useState<string[]>([]);
   const [sheetState,   setSheetState]   = useState<SheetState>('loading');
+  const [rawQuery,     setRawQuery]     = useState('');
   const [searchQuery,  setSearchQuery]  = useState('');
-  const [reducedMotion,setReducedMotion]= useState(false);
+  const [stateFilter,  setStateFilter]  = useState<StateFilter>('All');
+  const [error,        setError]        = useState<string | null>(null);
+  const [reducedMotion,setRM]           = useState(false);
+  const [recentIds,    setRecentIds]    = useState<string[]>([]);
+  const [switchingTo,  setSwitchingTo]  = useState<CityDoc | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const searchRef   = useRef<TextInput>(null);
+  const searchRef      = useRef<TextInput>(null);
+  const listRef        = useRef<FlatList<ListItem>>(null);
+  const isMountedRef   = useRef(true);
+  const isSwitchingRef = useRef(false);
+  const selectedRef    = useRef(selected);
+  const recentIdsRef   = useRef(recentIds);
+  const unsubRef       = useRef<(() => void) | undefined>(undefined);
 
-  // Fix: shimmer only runs while skeleton is visible (sheetState === 'loading').
-  // Stops automatically when Firestore data arrives or an error occurs.
-  const shimmer     = useShimmer(sheetState === 'loading');
+  useEffect(() => { selectedRef.current  = selected;  }, [selected]);
+  useEffect(() => { recentIdsRef.current = recentIds; }, [recentIds]);
 
-  // ── Accessibility: reduced motion ─────────────────────────────────────────
   useEffect(() => {
-    AccessibilityInfo.isReduceMotionEnabled().then(setReducedMotion);
-    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReducedMotion);
+    isMountedRef.current = true;
+    return () => { isMountedRef.current = false; };
+  }, []);
+
+  // ── Animated pills row (height + opacity collapse) — parity ─────────────────
+  const pillsH  = useSharedValue(L.pillRowH);
+  const pillsOp = useSharedValue(1);
+  const animatedPillsStyle = useAnimatedStyle(() => ({
+    height:   pillsH.value,
+    opacity:  pillsOp.value,
+    overflow: 'hidden' as const,
+  }));
+
+  // ── Search-bar focus glow — parity ──────────────────────────────────────────
+  const searchFocused = useSharedValue(0);
+  const animatedBorderStyle = useAnimatedStyle(() => ({
+    borderColor: interpolateColor(searchFocused.value, [0, 1], [T.border, T.gold]),
+  }));
+
+  const handleSearchFocus = useCallback(() => {
+    searchFocused.value = withTiming(1, { duration: 180 });
+  }, [searchFocused]);
+  const handleSearchBlur = useCallback(() => {
+    searchFocused.value = withTiming(0, { duration: 150 });
+  }, [searchFocused]);
+
+  // ── Shimmer animation (UI thread) — parity ──────────────────────────────────
+  const shimmerAnim = useSharedValue(0);
+  useEffect(() => {
+    if (sheetState !== 'loading') {
+      cancelAnimation(shimmerAnim);
+      shimmerAnim.value = 0;
+      return;
+    }
+    shimmerAnim.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: L.shimmerDur / 2 }),
+        withTiming(0, { duration: L.shimmerDur / 2 }),
+      ),
+      -1,
+      false,
+    );
+    return () => cancelAnimation(shimmerAnim);
+  }, [sheetState, shimmerAnim]);
+
+  // ── Debounced search — 150ms ────────────────────────────────────────────────
+  useEffect(() => {
+    const id = setTimeout(() => setSearchQuery(rawQuery), 150);
+    return () => clearTimeout(id);
+  }, [rawQuery]);
+
+  // ── Reset list scroll when search query settles ─────────────────────────────
+  useEffect(() => {
+    listRef.current?.scrollToOffset({ offset: 0, animated: false });
+  }, [searchQuery]);
+
+  // ── Reduced motion ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    void AccessibilityInfo.isReduceMotionEnabled().then(setRM);
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setRM);
     return () => sub.remove();
   }, []);
 
-  // ── Fetch cities from Firestore on sheet open ──────────────────────────────
-  //
-  // Blueprint: "cities collection (cached after first fetch)"
-  // getCities() from lib/firestore-rooms.ts handles:
-  //   - onSnapshot subscription on /cities (is_active == true, orderBy name asc)
-  //   - Returns CityDoc[] sorted alphabetically
-  //
-  // We also load recent city IDs from AsyncStorage in parallel.
-
+  // ── Load on open — getCities() realtime + timeout fallback (UNCHANGED layer) ─
   useEffect(() => {
     if (!visible) return;
 
+    isSwitchingRef.current = false;
     setSheetState('loading');
+    setRawQuery('');
     setSearchQuery('');
+    setStateFilter('All');
+    setError(null);
+    setSwitchingTo(null);
 
-    let unsub: (() => void) | undefined;
+    let settled = false;
 
-    const init = async () => {
-      try {
-        // Load recent cities from AsyncStorage (fast — local read)
-        const rawRecent = await AsyncStorage.getItem(CW_RECENT_CITIES_KEY);
-        if (rawRecent) {
-          setRecentIds(JSON.parse(rawRecent) as string[]);
+    // Recents (local, fast) — load in parallel with the subscription.
+    AsyncStorage.getItem(CW_RECENT_CITIES_KEY)
+      .then((raw) => {
+        if (raw && isMountedRef.current) {
+          try { setRecentIds(JSON.parse(raw) as string[]); } catch { /* ignore */ }
         }
+      })
+      .catch(() => { /* non-critical */ });
 
-        // Safety timeout: if Firestore doesn't respond within CITY_LOAD_TIMEOUT_MS,
-        // fall back to the built-in city list so the picker never stays blank forever.
-        const timeoutId = setTimeout(() => {
-          setSheetState(prev => {
-            if (prev === 'loading') {
-              setCities(existingCities => {
-                if (existingCities.length === 0) return FALLBACK_CITIES;
-                return existingCities;
-              });
-              return 'idle';
-            }
-            return prev;
-          });
-        }, CITY_LOAD_TIMEOUT_MS);
-
-        // Subscribe to Firestore cities collection
-        unsub = getCities((docs: CityDoc[]) => {
-          clearTimeout(timeoutId);
-          setCities(docs.length > 0 ? docs : FALLBACK_CITIES);
-          setSheetState('idle');
-        });
-
-      } catch (err) {
-        console.error('[CityPickerSheet] init error:', err);
-        setCities(FALLBACK_CITIES);
+    // Safety timeout: never stay blank — fall back to the built-in list.
+    const timeoutId = setTimeout(() => {
+      if (!settled && isMountedRef.current) {
+        setCities((prev) => (prev.length > 0 ? prev : FALLBACK_CITIES));
         setSheetState('idle');
       }
-    };
+    }, CITY_LOAD_TIMEOUT_MS);
 
-    init();
+    const unsub = getCities((docs: CityDoc[]) => {
+      settled = true;
+      clearTimeout(timeoutId);
+      if (!isMountedRef.current) return;
+      setCities(docs.length > 0 ? docs : FALLBACK_CITIES);
+      setSheetState('idle');
+    });
+    unsubRef.current = unsub;
 
     return () => {
-      unsub?.();
+      clearTimeout(timeoutId);
+      unsubRef.current?.();
+      unsubRef.current = undefined;
     };
   }, [visible]);
 
-  // ── Filtered cities list (client-side instant search) ─────────────────────
-  const filteredCities = useMemo<CityDoc[]>(() => {
-    if (!searchQuery.trim()) return cities;
-    const q = searchQuery.trim().toLowerCase();
-    return cities.filter(
-      (c) =>
-        c.name.toLowerCase().includes(q) ||
-        (c.state?.toLowerCase().includes(q) ?? false),
-    );
-  }, [cities, searchQuery]);
+  // ── Pull-to-refresh — re-subscribe (getCities is realtime) ──────────────────
+  const handleRefresh = useCallback(() => {
+    setIsRefreshing(true);
+    unsubRef.current?.();
+    const unsub = getCities((docs: CityDoc[]) => {
+      if (!isMountedRef.current) return;
+      setCities(docs.length > 0 ? docs : FALLBACK_CITIES);
+      setIsRefreshing(false);
+    });
+    unsubRef.current = unsub;
+  }, []);
 
-  // ── Recent cities resolved to full CityDoc objects ─────────────────────────
-  const recentCities = useMemo<CityDoc[]>(() => {
-    return recentIds
-      .map((id) => cities.find((c) => c.id === id))
-      .filter((c): c is CityDoc => Boolean(c))
-      .slice(0, MAX_RECENT_CITIES);
-  }, [recentIds, cities]);
+  // ── Retry (dormant — getCities falls back gracefully; kept for parity) ──────
+  const handleRetry = useCallback(() => {
+    setSheetState('loading');
+    setError(null);
+    unsubRef.current?.();
+    const unsub = getCities((docs: CityDoc[]) => {
+      if (!isMountedRef.current) return;
+      setCities(docs.length > 0 ? docs : FALLBACK_CITIES);
+      setSheetState('idle');
+    });
+    unsubRef.current = unsub;
+  }, []);
 
-  // ── Show recent strip only when: no search active + ≥2 recent ─────────────
-  const showRecent = !searchQuery.trim() && recentCities.length >= 2;
+  // ── Filtered + sorted lists ─────────────────────────────────────────────────
+  const stateFiltered = useMemo<CityDoc[]>(() => {
+    if (stateFilter === 'All') return cities;
+    return cities.filter((c) => c.state === stateFilter);
+  }, [cities, stateFilter]);
 
-  // ── City selection flow ────────────────────────────────────────────────────
-  //
-  // 1. Show inline spinner (switching state)
-  // 2. In parallel: write to AsyncStorage + Firestore user profile
-  // 3. Update recent cities list
-  // 4. Call onSelect(cityId) → parent reloads sector/chat
-  // 5. Success haptic + close sheet
-  // 6. Error: log + close anyway (non-blocking — UI continues)
+  const sortedStateFiltered = useMemo(
+    () => [...stateFiltered].sort((a, b) => a.name.localeCompare(b.name)),
+    [stateFiltered],
+  );
 
-  const handleSelectCity = useCallback(async (city: CityDoc) => {
-    if (city.id === selected) {
-      onClose();
-      return;
+  // Pre-computed normalized "name + state" per city — keeps search off the hot path.
+  const normIndex = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const c of cities) {
+      m.set(c.id, normalizeDiacritics(`${c.name} ${c.state ?? ''}`));
     }
+    return m;
+  }, [cities]);
 
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  const displayCities = useMemo<CityDoc[]>(() => {
+    const q = searchQuery.trim();
+    if (!q) return stateFiltered;
+
+    const normQ = normalizeDiacritics(q);
+    const matches = stateFiltered.filter((c) => (normIndex.get(c.id) ?? '').includes(normQ));
+
+    // Relevance ranking: 0 exact name · 1 name-prefix · 2 substring/state.
+    const rank = (c: CityDoc): number => {
+      const n = normalizeDiacritics(c.name);
+      if (n === normQ)           return 0;
+      if (n.startsWith(normQ))   return 1;
+      return 2;
+    };
+    return matches.sort((a, b) => {
+      const ra = rank(a);
+      const rb = rank(b);
+      if (ra !== rb)                         return ra - rb;
+      if (b.online_count !== a.online_count) return b.online_count - a.online_count;
+      return a.name.localeCompare(b.name);
+    });
+  }, [stateFiltered, searchQuery, normIndex]);
+
+  // Trending = busiest cities (getCities returns name-sorted, so re-sort here).
+  const trendingCities = useMemo(
+    () => [...cities].sort((a, b) => b.online_count - a.online_count).slice(0, TRENDING_COUNT),
+    [cities],
+  );
+
+  // States derived from data — Punjab/Haryana/etc. appear automatically.
+  const stateList = useMemo<StateFilter[]>(() => {
+    const set = new Set<string>();
+    for (const c of cities) if (c.state) set.add(c.state);
+    return ['All', ...Array.from(set).sort((a, b) => a.localeCompare(b))];
+  }, [cities]);
+
+  const stateCounts = useMemo<Record<string, number>>(() => {
+    const counts: Record<string, number> = { All: cities.length };
+    for (const c of cities) if (c.state) counts[c.state] = (counts[c.state] ?? 0) + 1;
+    return counts;
+  }, [cities]);
+
+  const hasStates = stateList.length > 1;
+
+  // Pills collapse on search OR when there are no states to filter by.
+  useEffect(() => {
+    const collapse = rawQuery.trim().length > 0 || !hasStates;
+    if (collapse) {
+      pillsH.value  = withTiming(0,          { duration: 200, easing: REasing.out(REasing.cubic) });
+      pillsOp.value = withTiming(0,          { duration: 160, easing: REasing.out(REasing.cubic) });
+    } else {
+      pillsH.value  = withTiming(L.pillRowH, { duration: 220, easing: REasing.out(REasing.cubic) });
+      pillsOp.value = withTiming(1,          { duration: 180, easing: REasing.out(REasing.cubic) });
+    }
+  }, [rawQuery, hasStates, pillsH, pillsOp]);
+
+  const selectedCity = useMemo(
+    () => cities.find((c) => c.id === selected) ?? null,
+    [cities, selected],
+  );
+
+  const recentCities = useMemo<CityDoc[]>(
+    () => recentIds.flatMap((id) => {
+      const c = cities.find((c) => c.id === id);
+      return c ? [c] : [];
+    }),
+    [recentIds, cities],
+  );
+
+  // ── Flat data + A-Z sections ────────────────────────────────────────────────
+  const flatData = useMemo<ListItem[]>(() => {
+    if (searchQuery.trim()) return buildSearchResults(displayCities);
+    return buildAlphaSections(sortedStateFiltered);
+  }, [displayCities, searchQuery, sortedStateFiltered]);
+
+  const itemLayouts = useMemo(
+    () => (searchQuery.trim() ? null : precomputeLayouts(flatData)),
+    [flatData, searchQuery],
+  );
+
+  const alphabetLetters = useMemo<string[]>(() => {
+    if (searchQuery.trim()) return [];
+    return flatData
+      .filter((item): item is SectionItem => item.type === 'section')
+      .map((item) => item.letter);
+  }, [flatData, searchQuery]);
+
+  const sectionIndexMap = useMemo<Map<string, number>>(() => {
+    const map = new Map<string, number>();
+    flatData.forEach((item, i) => {
+      if (item.type === 'section') map.set(item.letter, i);
+    });
+    return map;
+  }, [flatData]);
+
+  const handleAlphabetPress = useCallback((letter: string) => {
+    const index = sectionIndexMap.get(letter);
+    if (index === undefined) return;
+    listRef.current?.scrollToIndex({ index, animated: !reducedMotion, viewOffset: 0 });
+  }, [sectionIndexMap, reducedMotion]);
+
+  // ── State filter ────────────────────────────────────────────────────────────
+  const handleStateFilter = useCallback((s: StateFilter) => {
+    void hapticSelect();
+    setStateFilter(s);
+    listRef.current?.scrollToOffset({ offset: 0, animated: false });
+  }, []);
+
+  // ── Selection (UNCHANGED data behavior — city_id write + recents) ───────────
+  const handleSelectCity = useCallback(async (city: CityDoc) => {
+    if (isSwitchingRef.current) return;
+    if (city.id === selectedRef.current) { onClose(); return; }
+
+    isSwitchingRef.current = true;
+    setSwitchingTo(city);
+    void hapticMedium();
     Keyboard.dismiss();
     setSheetState('switching');
 
     try {
       const uid = auth().currentUser?.uid;
 
-      // Parallel writes — faster than sequential
-      await Promise.all([
-        // 1. AsyncStorage: persist selected city
-        AsyncStorage.setItem(CW_CITY_KEY, city.id),
+      const updated = [
+        city.id,
+        ...recentIdsRef.current.filter((id) => id !== city.id),
+      ].slice(0, MAX_RECENTS);
 
-        // 2. AsyncStorage: update recent cities list
-        (async () => {
-          const updated = [
-            city.id,
-            ...recentIds.filter((id) => id !== city.id),
-          ].slice(0, MAX_RECENT_CITIES);
-          await AsyncStorage.setItem(CW_RECENT_CITIES_KEY, JSON.stringify(updated));
-          setRecentIds(updated);
-        })(),
+      // Fire-and-forget — disk/network I/O must NOT block the UI close.
+      AsyncStorage.setItem(CW_CITY_KEY, city.id).catch(() => {});
+      AsyncStorage.setItem(CW_RECENT_CITIES_KEY, JSON.stringify(updated))
+        .then(() => { if (isMountedRef.current) setRecentIds(updated); })
+        .catch(() => {});
+      if (uid) {
+        firestore()
+          .collection(USERS_COLLECTION)
+          .doc(uid)
+          .set({ city_id: city.id }, { merge: true })
+          .catch(() => {});
+      }
 
-        // 3. Firestore: update user profile (fire-and-forget is fine; merge:true)
-        uid
-          ? firestore()
-              .collection(USERS_COLLECTION)
-              .doc(uid)
-              .set({ city_id: city.id }, { merge: true })
-          : Promise.resolve(),
-      ]);
-
-      // 4. Notify parent (triggers sector reload, chat reload, pill update)
       onSelect(city.id);
 
-      // 5. Success haptic + close
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await new Promise<void>((r) => setTimeout(r, reducedMotion ? 0 : 160));
       onClose();
-
-    } catch (err) {
-      console.error('[CityPickerSheet] handleSelectCity error:', err);
-      // Non-fatal: still update UI and close — Firestore will sync on next open
-      onSelect(city.id);
-      onClose();
+    } finally {
+      isSwitchingRef.current = false;
+      if (isMountedRef.current) {
+        setSheetState('idle');
+        setSwitchingTo(null);
+      }
     }
-  }, [selected, recentIds, onSelect, onClose]);
+  }, [onClose, onSelect, reducedMotion]);
 
-  // ── Retry on error ─────────────────────────────────────────────────────────
-  const handleRetry = useCallback(() => {
-    setSheetState('loading');
-    // Re-trigger the useEffect by toggling — done by briefly hiding (parent controls visible)
-    // Alternatively, re-fetch directly:
-    getCities((docs: CityDoc[]) => {
-      setCities(docs.length > 0 ? docs : FALLBACK_CITIES);
-      setSheetState('idle');
-    });
+  // ── List helpers ────────────────────────────────────────────────────────────
+  const keyExtractor = useCallback((item: ListItem): string => {
+    if (item.type === 'section') return `sec-${item.letter}`;
+    if (item.type === 'divider') return item.id;
+    return `city-${item.city.id}`;
   }, []);
 
-  // ── Clear search ───────────────────────────────────────────────────────────
-  const handleClearSearch = useCallback(() => {
-    setSearchQuery('');
+  const renderItem = useCallback(({ item }: { item: ListItem }) => {
+    if (item.type === 'section') return <SectionHeader letter={item.letter} />;
+    if (item.type === 'divider') return <RowDivider />;
+    return (
+      <CityRow
+        city={item.city}
+        isSelected={item.city.id === selectedRef.current}
+        onPress={handleSelectCity}
+      />
+    );
+  }, [handleSelectCity]);
+
+  const getItemLayout = useCallback(
+    (_: unknown, index: number) => {
+      if (itemLayouts) {
+        return itemLayouts[index] ?? { length: L.rowH, offset: L.rowH * index, index };
+      }
+      // Search mode: [City, Divider, City, …] — even = City (rowH), odd = Divider (divH).
+      const pairSize = L.rowH + L.divH;
+      if (index % 2 === 0) {
+        return { length: L.rowH, offset: (index / 2) * pairSize, index };
+      }
+      return { length: L.divH, offset: Math.floor(index / 2) * pairSize + L.rowH, index };
+    },
+    [itemLayouts],
+  );
+
+  const clearSearch = useCallback(() => {
+    setRawQuery('');
     searchRef.current?.focus();
   }, []);
 
-  // ── Render helpers ─────────────────────────────────────────────────────────
+  // ── Dynamic labels / guards ─────────────────────────────────────────────────
+  const placeholder  = cities.length > 0
+    ? `Search ${cities.length} cities…`
+    : 'Search cities…';
+  const showTrending = !searchQuery.trim() && stateFilter === 'All' && trendingCities.length > 0;
+  const showAlpha    = alphabetLetters.length > 0 && !searchQuery.trim();
+  const showRecents  = recentCities.length > 0 && !searchQuery.trim() && stateFilter === 'All';
 
-  const renderCityRow = useCallback(({ item }: { item: CityDoc }) => (
-    <CityRow
-      city={item}
-      isSelected={item.id === selected}
-      onPress={() => handleSelectCity(item)}
-    />
-  ), [selected, handleSelectCity]);
+  const isStateSearchEmpty =
+    searchQuery.trim().length > 0 &&
+    displayCities.length === 0 &&
+    stateFilter !== 'All';
 
-  const keyExtractor = useCallback((item: CityDoc) => item.id, []);
+  // ── ListHeaderComponent: Trending + Recents ─────────────────────────────────
+  const renderListHeader = useCallback(() => (
+    <>
+      {showTrending && (
+        <View style={sh.trendingSection}>
+          <View style={sh.trendingLabelRow}>
+            <Feather name="trending-up" size={13} color={T.gold} />
+            <Text style={sh.trendingLabel}>TRENDING</Text>
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={sh.heroScroll}
+            keyboardShouldPersistTaps="handled"
+            accessibilityLabel="Trending cities"
+          >
+            {trendingCities.map((c, index) => (
+              <HeroCard
+                key={c.id}
+                city={c}
+                isSelected={c.id === selected}
+                onPress={handleSelectCity}
+                rank={index + 1}
+                entryDelay={index * 40}
+                reducedMotion={reducedMotion}
+              />
+            ))}
+          </ScrollView>
+          <View style={sh.hairline} />
+        </View>
+      )}
+      {showRecents && (
+        <RecentlyVisitedSection
+          cities={recentCities}
+          selected={selected}
+          onSelect={handleSelectCity}
+        />
+      )}
+    </>
+  ), [showTrending, showRecents, trendingCities, recentCities, selected, handleSelectCity, reducedMotion]);
 
-  const ItemSeparator = useCallback(() => <View style={styles.rowDivider} />, []);
+  // ── ListEmptyComponent ──────────────────────────────────────────────────────
+  const renderListEmpty = useCallback(() => {
+    if (isStateSearchEmpty) {
+      return (
+        <ReAnimated.View
+          entering={!reducedMotion ? FadeIn.duration(200) : undefined}
+          style={sh.stateWrap}
+        >
+          <View style={sh.stateIconCircle}>
+            <Feather name="search" size={28} color={T.textTertiary} />
+          </View>
+          <Text style={sh.stateTitle}>No Results in {stateFilter}</Text>
+          <Text style={sh.stateHint}>
+            No cities match "{searchQuery}" in {stateFilter}.
+          </Text>
+          <Pressable
+            onPress={() => { void hapticLight(); setStateFilter('All'); }}
+            style={({ pressed }) => [sh.ctaBtn, pressed && { opacity: 0.75 }]}
+            accessibilityRole="button"
+            accessibilityLabel={`Search all cities for ${searchQuery}`}
+          >
+            <Feather name="map" size={14} color={T.gold} />
+            <Text style={sh.ctaBtnText}>Search All Cities</Text>
+          </Pressable>
+        </ReAnimated.View>
+      );
+    }
+    return (
+      <ReAnimated.View
+        entering={!reducedMotion ? FadeIn.duration(200) : undefined}
+        style={sh.stateWrap}
+      >
+        <View style={sh.stateIconCircle}>
+          <Feather name="map-pin" size={28} color={T.textTertiary} />
+        </View>
+        <Text style={sh.stateTitle}>No Cities Found</Text>
+        <Text style={sh.stateHint}>
+          {searchQuery.trim()
+            ? `"${searchQuery}" didn't match any city`
+            : 'No cities in this state yet'}
+        </Text>
+      </ReAnimated.View>
+    );
+  }, [isStateSearchEmpty, stateFilter, searchQuery, reducedMotion]);
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────────
+  // RENDER — parity with CountryPickerSheet
+  // ─────────────────────────────────────────────────────────────────────────────
   return (
     <BottomSheet
       visible={visible}
       onClose={onClose}
-      maxHeight={SCREEN_H * 0.5}
+      maxHeight={SHEET_HEIGHT}
+      style={sh.sheetShell}
     >
-      {/* ── Title ────────────────────────────────────────────────────────── */}
-      <Text
-        style={styles.title}
-        accessibilityRole="header"
-      >
-        City chuno
-      </Text>
+      <View style={sh.outerWrapper}>
 
-      {/* ── Search Input ─────────────────────────────────────────────────── */}
-      <View style={styles.searchContainer}>
-        <View style={styles.searchInputWrap}>
-          <Feather
-            name="search"
-            size={L.iconSize}
-            color={colors.fg.secondary}
-            style={styles.searchIcon}
-          />
+      {/* ── PINNED SHELL — never scrolls ──────────────────────────────────────── */}
+      <View style={sh.pinnedShell}>
+
+        {/* ── MERGED TITLE ROW ────────────────────────────────────────────────── */}
+        <View style={sh.titleRowMerged}>
+          {/* Left: map-pin icon (Country uses a globe) */}
+          <View style={sh.headerIconWrap}>
+            <Feather name="map-pin" size={22} color={T.gold} />
+          </View>
+
+          {/* Center: title + active-city strip inline */}
+          <View style={sh.titleTextGroup}>
+            <Text style={sh.title}>Choose City</Text>
+
+            {selectedCity != null && sheetState !== 'loading' && (
+              <View
+                style={sh.activeInline}
+                accessibilityRole="text"
+                accessibilityLabel={`Active city: ${selectedCity.name}`}
+              >
+                <LiveDot size={5} pulse />
+                <Feather name="map-pin" size={11} color={T.gold} style={sh.activePin} />
+                <Text style={sh.activeName} numberOfLines={1}>
+                  {selectedCity.name}
+                </Text>
+                <Text style={sh.activeSep} accessible={false}>{'\u00B7'}</Text>
+                <Text style={sh.activeCountInline} numberOfLines={1}>
+                  {selectedCity.online_count > 0
+                    ? `${fmtCount(selectedCity.online_count)} online`
+                    : '0 online'}
+                </Text>
+                <View style={sh.activeBadge}>
+                  <Text style={sh.activeBadgeText}>ACTIVE</Text>
+                </View>
+              </View>
+            )}
+          </View>
+
+          {/* Right: close button */}
+          <Pressable
+            onPress={onClose}
+            style={({ pressed }) => [sh.closeBtn, pressed && sh.closeBtnPressed]}
+            accessibilityRole="button"
+            accessibilityLabel="Close city picker"
+            hitSlop={{ top:4, bottom:4, left:4, right:4 }}
+          >
+            <Feather name="x" size={20} color={T.textSecondary} />
+          </Pressable>
+        </View>
+
+        {/* ── SEARCH BAR — Reanimated border glow (UI thread) ─────────────────── */}
+        <ReAnimated.View style={[sh.searchWrap, animatedBorderStyle]}>
+          <Feather name="search" size={18} color={T.textTertiary} />
           <TextInput
             ref={searchRef}
-            style={styles.searchInput}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholder="City dhundo..."
-            placeholderTextColor={colors.fg.secondary}
-            returnKeyType="search"
+            style={sh.searchInput}
+            value={rawQuery}
+            onChangeText={setRawQuery}
+            placeholder={placeholder}
+            placeholderTextColor={T.textTertiary}
             autoCorrect={false}
-            autoCapitalize="words"
-            clearButtonMode="never"  // We provide our own clear button below
-            accessibilityLabel="City search"
-            accessibilityHint="Type to filter the city list"
-            testID="city-picker-search"
+            autoCapitalize="none"
+            returnKeyType="search"
+            clearButtonMode="never"
+            underlineColorAndroid="transparent"
+            spellCheck={false}
+            autoComplete="off"
+            textContentType="none"
+            maxLength={40}
+            onFocus={handleSearchFocus}
+            onBlur={handleSearchBlur}
+            accessibilityLabel="Search for a city"
+            accessibilityHint="Type a city or state name"
           />
-          {/* Clear button — visible only when query is not empty */}
-          {searchQuery.length > 0 && (
+          {rawQuery.length > 0 && (
             <Pressable
-              onPress={handleClearSearch}
-              style={styles.clearButton}
+              onPress={clearSearch}
+              hitSlop={{ top:8, bottom:8, left:8, right:8 }}
               accessibilityRole="button"
               accessibilityLabel="Clear search"
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <View style={styles.clearCircle}>
-                <Feather name="x" size={10} color={colors.bg.surface} />
-              </View>
+              <Feather name="x-circle" size={18} color={T.textTertiary} />
             </Pressable>
           )}
-        </View>
-      </View>
+        </ReAnimated.View>
 
-      {/* ── Recent Cities strip ───────────────────────────────────────────── */}
-      {showRecent && (
-        <View style={styles.recentSection}>
-          <Text style={styles.recentLabel}>Haal ki cities</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.recentScrollContent}
-            keyboardShouldPersistTaps="handled"
+        {/* ── STATE/DISTRICT PILLS ROW — Reanimated height + opacity ──────────── */}
+        <ReAnimated.View style={[sh.pillAnimWrap, animatedPillsStyle]}>
+          {hasStates && sheetState !== 'loading' && error == null && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={sh.pillScroll}
+              keyboardShouldPersistTaps="always"
+              accessibilityRole="tablist"
+              accessibilityLabel="Filter cities by state"
+            >
+              {stateList.map((s) => (
+                <StatePill
+                  key={s}
+                  label={s}
+                  active={stateFilter === s}
+                  count={cities.length > 0 ? (stateCounts[s] ?? 0) : undefined}
+                  onPress={handleStateFilter}
+                />
+              ))}
+            </ScrollView>
+          )}
+        </ReAnimated.View>
+
+        <View style={sh.hairline} />
+        </View>
+
+      {/* ── CONTENT ZONE ──────────────────────────────────────────────────────── */}
+
+      {sheetState === 'loading' ? (
+
+        <View style={sh.contentArea}>
+          <View style={sh.trendingSection}>
+            <View style={sh.trendingLabelRow}>
+              <Feather name="trending-up" size={13} color={T.gold} />
+              <Text style={sh.trendingLabel}>TRENDING</Text>
+            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={sh.heroScroll}
+              scrollEnabled={false}
+            >
+              {Array.from({ length: TRENDING_COUNT }, (_, i) => (
+                <SkeletonHeroCard key={i} shimmer={shimmerAnim} />
+              ))}
+            </ScrollView>
+            <View style={sh.hairline} />
+          </View>
+          {recentIds.length > 0 && (
+            <View>
+              <View style={rv.headerRow}>
+                <Feather name="clock" size={12} color={T.gold} />
+                <Text style={rv.label}>RECENTLY VISITED</Text>
+              </View>
+              {recentIds.map((id) => (
+                <SkeletonRow key={id} shimmer={shimmerAnim} />
+              ))}
+              <View style={rv.sectionDivider} />
+            </View>
+          )}
+          <View
+            accessibilityRole="progressbar"
+            accessibilityLabel="Loading cities"
+            accessible
           >
-            {recentCities.map((city) => (
-              <RecentCityChip
-                key={city.id}
-                city={city}
-                isSelected={city.id === selected}
-                onPress={() => handleSelectCity(city)}
-              />
+            {Array.from({ length: L.shimmerRows }, (_, i) => (
+              <SkeletonRow key={i} shimmer={shimmerAnim} />
             ))}
-          </ScrollView>
+          </View>
         </View>
-      )}
 
-      {/* ── Divider between recent strip and list ────────────────────────── */}
-      {showRecent && <View style={styles.sectionDivider} />}
+      ) : error != null ? (
 
-      {/* ── Body: Loading / List / Empty / Error ─────────────────────────── */}
-      <View style={styles.listArea}>
-
-        {/* LOADING: 6 skeleton rows */}
-        {sheetState === 'loading' && (
-          <View testID="city-picker-skeleton">
-            {Array.from({ length: T.skeletonRows }).map((_, i) => (
-              <SkeletonRow key={i} shimmer={shimmer} index={i} />
-            ))}
+        <View style={sh.stateWrap}>
+          <View style={sh.stateIconCircle}>
+            <Feather name="wifi-off" size={28} color={T.textTertiary} />
           </View>
-        )}
+          <Text style={sh.stateTitle}>Failed to Load</Text>
+          <Text style={sh.stateHint}>{error}</Text>
+          <Pressable
+            onPress={handleRetry}
+            style={({ pressed }) => [sh.retryBtn, pressed && sh.retryBtnPressed]}
+            accessibilityRole="button"
+            accessibilityLabel="Retry loading cities"
+          >
+            <Feather name="refresh-cw" size={14} color={T.sheetBg} />
+            <Text style={sh.retryBtnText}>Try Again</Text>
+          </Pressable>
+        </View>
 
-        {/* IDLE / SEARCH-ACTIVE: real city rows */}
-        {(sheetState === 'idle' || sheetState === 'switching') && filteredCities.length > 0 && (
-          <FlatList
-            data={filteredCities}
-            renderItem={renderCityRow}
-            keyExtractor={keyExtractor}
-            ItemSeparatorComponent={ItemSeparator}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-            initialNumToRender={8}
-            maxToRenderPerBatch={10}
-            windowSize={5}
-            removeClippedSubviews={Platform.OS === 'android'}
-            contentContainerStyle={styles.listContent}
-            testID="city-picker-list"
-            accessibilityRole="list"
-          />
-        )}
+      ) : (
 
-        {/* EMPTY: no search results */}
-        {(sheetState === 'idle' || sheetState === 'switching') && filteredCities.length === 0 && (
-          <View style={styles.emptyState} testID="city-picker-empty">
-            <Feather name="map" size={36} color={T.cream400} />
-            <Text style={styles.emptyTitle}>Koi city nahi mili</Text>
-            <Text style={styles.emptySubtitle}>
-              "{searchQuery}" se match karne wali{'\n'}koi city nahi hai
-            </Text>
-            <Pressable onPress={handleClearSearch} style={styles.emptyButton}>
-              <Text style={styles.emptyButtonText}>Search clear karo</Text>
-            </Pressable>
-          </View>
-        )}
-
-        {/* ERROR: Firestore fetch failed */}
-        {sheetState === 'error' && (
-          <View style={styles.errorState} testID="city-picker-error">
-            <Feather name="wifi-off" size={32} color={T.crimson600} />
-            <Text style={styles.errorTitle}>Kuch gadbad ho gayi</Text>
-            <Text style={styles.errorSubtitle}>
-              Cities load nahi hui.{'\n'}Internet check karo aur retry karo.
-            </Text>
-            <Pressable onPress={handleRetry} style={styles.retryButton}>
-              <Feather name="refresh-cw" size={14} color={T.sheetBg} style={{ marginRight: 6 }} />
-              <Text style={styles.retryButtonText}>Retry karo</Text>
-            </Pressable>
-          </View>
-        )}
-
-      </View>
-
-      {/* ── Switching spinner overlay ─────────────────────────────────────── */}
-      {/* Blueprint: "24×24 #D4A017 spinner over bottom sheet content" */}
-      {sheetState === 'switching' && (
         <View
-          style={StyleSheet.absoluteFill}
-          pointerEvents="none"
-          accessibilityElementsHidden
-          importantForAccessibility="no-hide-descendants"
+          style={sh.listWrap}
+          accessibilityRole="radiogroup"
+          accessibilityLabel="City list"
         >
-          <View style={styles.spinnerOverlay}>
-            <ActivityIndicator
-              size={reducedMotion ? 'small' : 24}
-              color={T.gold600}
-              testID="city-picker-spinner"
+          {searchQuery.trim().length > 0 && (
+            <View
+              accessible
+              accessibilityLiveRegion="polite"
+              accessibilityLabel={`${displayCities.length} ${displayCities.length === 1 ? 'city' : 'cities'} found`}
+              style={sh.srOnly}
             />
-          </View>
+          )}
+          <FlatList
+            ref={listRef}
+            data={flatData}
+            extraData={selected}
+            renderItem={renderItem}
+            keyExtractor={keyExtractor}
+            ListHeaderComponent={renderListHeader}
+            ListEmptyComponent={renderListEmpty}
+            showsVerticalScrollIndicator={false}
+            style={sh.flatList}
+            contentContainerStyle={[
+              sh.listContent,
+              showAlpha && { paddingRight: L.alphaBarW + 6 },
+            ]}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            removeClippedSubviews={Platform.OS === 'android'}
+            initialNumToRender={20}
+            maxToRenderPerBatch={20}
+            updateCellsBatchingPeriod={50}
+            windowSize={8}
+            getItemLayout={getItemLayout}
+            onScrollToIndexFailed={(info) => {
+              const offset = itemLayouts?.[info.index]?.offset
+                ?? L.rowH * info.index;
+              listRef.current?.scrollToOffset({ offset, animated: false });
+            }}
+            bounces={true}
+            alwaysBounceVertical={true}
+            overScrollMode="always"
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefreshing}
+                onRefresh={handleRefresh}
+                tintColor={T.gold}
+                colors={[T.gold]}
+              />
+            }
+          />
+
+          {showAlpha && (
+            <AlphaSidebarAndOverlay
+              letters={alphabetLetters}
+              onPress={handleAlphabetPress}
+              reducedMotion={reducedMotion}
+            />
+          )}
         </View>
+
       )}
 
+      {/* ── SWITCHING OVERLAY — FadeIn 150ms (monogram instead of flag) ───────── */}
+      {sheetState === 'switching' && (
+        <ReAnimated.View
+          entering={!reducedMotion ? FadeIn.duration(150) : undefined}
+          style={sh.switchOverlay}
+          pointerEvents="auto"
+          accessible
+          accessibilityRole="progressbar"
+          accessibilityLabel={
+            switchingTo != null
+              ? `Switching to ${switchingTo.name}`
+              : 'Switching city'
+          }
+        >
+          <View style={sh.switchSpinnerWrap}>
+            <ActivityIndicator
+              size={60}
+              color={T.gold}
+              style={sh.switchActivityRing}
+            />
+            <View style={sh.switchSpinner}>
+              <Text style={sh.switchMono}>
+                {cityInitial(switchingTo?.name ?? selectedCity?.name ?? '\u2022')}
+              </Text>
+            </View>
+          </View>
+        </ReAnimated.View>
+      )}
+
+      </View>{/* close outerWrapper */}
     </BottomSheet>
   );
 }
 
-export default memo(CityPickerSheetBase);
+// Wrap in PulseProvider so each mounted sheet gets its own isolated pulse value.
+export const CityPickerSheet = memo((props: CityPickerSheetProps) => (
+  <PulseProvider>
+    <CityPickerSheetBase {...props} />
+  </PulseProvider>
+));
+CityPickerSheet.displayName = 'CityPickerSheet';
 
-CityPickerSheetBase.displayName = 'CityPickerSheet';
+export default CityPickerSheet;
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
-//
-// Token mapping:
-//   T.ink950       = #1C1814  primary text
-//   T.ink600       = #6B5B47  secondary text
-//   T.cream200     = #F7ECD0  input bg · chip bg
-//   T.cream400     = #E5CC95  borders · handle
-//   T.gold600      = #C9A227  active accent · CTA
-//   T.amber600     = #BD8531  location pin icon
-//   T.crimson600   = #B5392B  error states
+// ─── Styles ────────────────────────────────────────────────────────────────────
+const sh = StyleSheet.create({
 
-const styles = StyleSheet.create({
-
-  // ── Title ─────────────────────────────────────────────────────────────────
-  // "City chuno · 18px/700/ink-950 · centered · 24px below handle"
-  // BottomSheet provides the drag handle; marginTop accounts for its height
-  title: {
-    fontFamily:    FONT_BODY.bold,        // DM Sans 700 · blueprint sheetTitle
-    fontSize:      T.titleSize,           // 18
-    fontWeight:    '700',
-    color:         T.ink950,
-    textAlign:     'center',
-    marginTop:     16,
-    marginBottom:  16,
-    paddingHorizontal: 24,
-  },
-
-  // ── Search ────────────────────────────────────────────────────────────────
-  searchContainer: {
-    paddingHorizontal: 16,
-    marginBottom:      12,
-  },
-  searchInputWrap: {
-    height:           T.searchH,          // 44px · blueprint exact
-    flexDirection:    'row',
-    alignItems:       'center',
-    backgroundColor:  T.cream200,         // cream-200 bg · blueprint exact
-    borderRadius:     22,                 // radius 22px · blueprint exact
-    borderWidth:      1,
-    borderColor:      T.cream400,
-    paddingRight:     12,
-  },
-  searchIcon: {
-    marginLeft:  12,                      // 12px from left · blueprint exact
-    marginRight: 8,
-  },
-  searchInput: {
-    flex:        1,
-    height:      T.searchH,
-    fontFamily:  FONT_BODY.regular,     // DM Sans 400 · input field
-    fontSize:    14,
-    fontWeight:  '400',
-    color:       T.ink950,
-    // Remove default iOS border/shadow
-    ...Platform.select({ android: { paddingVertical: 0 } }),
-  },
-  clearButton: {
-    marginLeft: 4,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  clearCircle: {
-    width:            18,
-    height:           18,
-    borderRadius:     9,
-    backgroundColor:  T.ink600,
-    alignItems:       'center',
-    justifyContent:   'center',
-  },
-
-  // ── Recent cities strip ───────────────────────────────────────────────────
-  recentSection: {
-    marginBottom: 8,
-  },
-  recentLabel: {
-    fontFamily:        FONT_BODY.semiBold,   // DM Sans 600 · section header
-    fontSize:          11,
-    fontWeight:        '600',
-    color:             T.ink600,
-    textTransform:     'uppercase',
-    letterSpacing:     0.6,
-    marginHorizontal:  16,
-    marginBottom:      8,
-  },
-  recentScrollContent: {
-    paddingHorizontal: 16,
-    gap:               8,
-  },
-
-  // ── Recent city chip ──────────────────────────────────────────────────────
-  // Blueprint: 32px H · radius 16px · cream-200 bg · 1px cream-400 border
-  recentChip: {
-    height:           T.chipH,            // 32px · blueprint exact
-    borderRadius:     16,                 // full pill · blueprint exact
-    backgroundColor:  T.cream200,
-    borderWidth:      1,
-    borderColor:      T.cream400,
-    paddingHorizontal: 12,
-    justifyContent:   'center',
-    alignItems:       'center',
-  },
-  recentChipSelected: {
-    backgroundColor: RECENT_CHIP_SEL,        // token: rgba(201,162,39,0.10)
-    borderWidth:     1.5,
-    borderColor:     T.gold600,
-  },
-  recentChipText: {
-    fontFamily: FONT_BODY.medium,            // DM Sans 500
-    fontSize:   13,
-    fontWeight: '500',
-    color:      T.ink950,
-  },
-  recentChipTextSelected: {
-    fontFamily: FONT_BODY.semiBold,          // DM Sans 600 · active state
-    color:      T.gold600,
-    fontWeight: '600',
-  },
-
-  // ── Dividers ──────────────────────────────────────────────────────────────
-  sectionDivider: {
-    height:           1,
-    backgroundColor:  T.cream400,
-    marginHorizontal: 0,
-    marginBottom:     0,
-    opacity:          0.6,
-  },
-  rowDivider: {
-    height:           1,
-    backgroundColor:  T.cream400,
-    marginLeft:       T.rowPadH + 16 + 8 + 8,  // indent past pin icon
-    opacity:          0.45,
-  },
-
-  // ── List area ─────────────────────────────────────────────────────────────
-  listArea: {
-    flex: 1,
-  },
-  listContent: {
-    paddingBottom: 16,
-  },
-
-  // ── City row ──────────────────────────────────────────────────────────────
-  // Blueprint: 56px H · 16px L/R · name 15/600/ink-950 · count chip · chevron 16px
-  cityRow: {
-    height:          T.rowH,              // 56px · blueprint exact
-    flexDirection:   'row',
-    alignItems:      'center',
-    paddingHorizontal: T.rowPadH,         // 16px · blueprint exact
+  sheetShell: {
+    height:          SHEET_HEIGHT,
     backgroundColor: T.sheetBg,
-    overflow:        'hidden',
-  },
-  cityRowActive: {
-    backgroundColor: ACTIVE_ROW_BG,          // token: rgba(201,162,39,0.06)
-  },
-  activeAccentBar: {
-    position:       'absolute',
-    left:           0,
-    top:            0,
-    bottom:         0,
-    width:          T.activeBarW,         // 2px · blueprint exact
-    backgroundColor: T.gold600,           // gold-600 · blueprint exact
-    borderRadius:   1,
-  },
-  cityRowLeft: {
-    flex:         1,
-    flexDirection: 'row',
-    alignItems:   'center',
-    paddingLeft:  T.activeBarW + 2,       // offset for active bar
-  },
-  cityRowPin: {
-    marginRight: 10,
-  },
-  cityRowTextBlock: {
-    flex: 1,
-  },
-  cityName: {
-    fontFamily:  FONT_BODY.semiBold,          // DM Sans 600 · blueprint sheetRowPrimary
-    fontSize:    T.nameSize,              // 15 · blueprint exact
-    fontWeight:  '600',
-    color:       T.ink950,
-    lineHeight:  20,
-  },
-  cityNameActive: {
-    color:  T.gold600,
-  },
-  cityState: {
-    fontFamily: FONT_BODY.medium,            // DM Sans 500 · blueprint sheetRowSecondary
-    fontSize:   T.countSize,             // 13 · blueprint exact
-    fontWeight: '400',
-    color:      T.ink600,
-    lineHeight: 18,
-    marginTop:  1,
-  },
-  cityRowRight: {
-    flexDirection: 'row',
-    alignItems:   'center',
-    gap:          8,
   },
 
-  // ── Online count chip ─────────────────────────────────────────────────────
-  // Blueprint Sector Picker: "online count 13px 400 #6B5B2E · '234 online'"
-  // Same chip style applied here for city-level online count
-  onlineChip: {
-    flexDirection:   'row',
+  outerWrapper: {
+    flex: 1,
+  },
+
+  pinnedShell: {
+    backgroundColor: T.sheetBg,
+    paddingBottom:   6,
+  },
+
+  titleRowMerged: {
+    flexDirection:     'row',
+    alignItems:        'center',
+    paddingHorizontal: L.rowPadH,
+    paddingVertical:   12,
+    gap:               12,
+  },
+  headerIconWrap: {
+    width:           44,
+    height:          44,
+    borderRadius:    13,
+    backgroundColor: T.goldSubtle,
     alignItems:      'center',
-    backgroundColor: T.cream200,
-    borderRadius:    10,
-    paddingHorizontal: 7,
-    paddingVertical:   3,
-    gap:             4,
+    justifyContent:  'center',
+    flexShrink:      0,
   },
-  onlineChipActive: {
-    backgroundColor: ACTIVE_CHIP_BG,         // token: rgba(201,162,39,0.12)
+  titleTextGroup: {
+    flex: 1,
+    gap:  3,
   },
-  onlineDot: {
-    width:           5,
-    height:          5,
-    borderRadius:    2.5,
-    backgroundColor: T.ink600,
-    opacity:         0.6,
+  title: {
+    fontSize:      17,
+    fontWeight:    '700',
+    color:         T.text,
+    fontFamily:    FONT_HEADING.semiBold,
+    letterSpacing: -0.3,
   },
-  onlineDotActive: {
-    backgroundColor: T.gold600,
-    opacity:         1,
+
+  activeInline: {
+    flexDirection: 'row',
+    alignItems:    'center',
+    gap:           5,
+    flexWrap:      'nowrap',
   },
-  onlineText: {
-    fontFamily: FONT_BODY.medium,            // DM Sans 500
+  activePin: { marginRight: -1 },
+  activeName: {
+    fontSize:   13,
+    fontWeight: '700',
+    color:      T.gold,
+    fontFamily: FONT_HEADING.semiBold,
+    flexShrink: 1,
+    maxWidth:   120,
+  },
+  activeSep:   { color:T.textMuted, fontSize:13 },
+  activeCountInline: {
     fontSize:   11,
     fontWeight: '500',
-    color:      T.ink600,
+    color:      T.textSecondary,
+    fontFamily: FONT_BODY.medium,
+    flexShrink: 1,
   },
-  onlineTextActive: {
-    color:      T.gold600,
+  activeBadge: {
+    backgroundColor:   T.gold,
+    borderRadius:      5,
+    paddingHorizontal: 5,
+    paddingVertical:   2,
+    flexShrink:        0,
+  },
+  activeBadgeText: {
+    fontSize:      9,
+    fontWeight:    '800',
+    color:         T.sheetBg,
+    letterSpacing: 0.7,
+    fontFamily:    FONT_BODY.bold,
   },
 
-  // ── Skeleton rows ─────────────────────────────────────────────────────────
-  // Blueprint Element [6]: 64px H · 12px L/R · icon 24×24 · text 70% · 16px H
-  skeletonRow: {
-    height:          T.skeletonRowH,      // 64px · blueprint exact
-    flexDirection:   'row',
+  closeBtn: {
+    width:           L.closeBtn,
+    height:          L.closeBtn,
+    borderRadius:    L.closeBtn / 2,
+    backgroundColor: T.surfaceWell,
     alignItems:      'center',
-    paddingHorizontal: 12,               // 12px · blueprint exact
-    gap:             12,
+    justifyContent:  'center',
+    flexShrink:      0,
   },
-  skeletonIcon: {
-    width:        24,                     // 24×24 · blueprint exact
-    height:       24,
-    borderRadius: 4,
+  closeBtnPressed: { opacity:0.60 },
+
+  searchWrap: {
+    flexDirection:     'row',
+    alignItems:        'center',
+    marginHorizontal:  L.rowPadH,
+    marginVertical:    8,
+    height:            L.searchH,
+    backgroundColor:   T.surfaceSunken,
+    borderRadius:      L.searchH / 2,
+    paddingHorizontal: 14,
+    borderWidth:       1.5,
+    gap:               8,
   },
-  skeletonTextBlock: {
-    flex:  1,
-    gap:   8,
-  },
-  skeletonLine: {
-    height:       12,                     // rect 12px H · (16px per blueprint, using 12 for line 2)
-    borderRadius: 6,
-  },
-  skeletonLinePrimary: {
-    width:  '70%',                        // 70% width · blueprint exact
-    height: 16,                           // 16px H · blueprint exact
-  },
-  skeletonLineSecondary: {
-    width:  '45%',                        // secondary subtitle line
-    height: 12,
-  },
-  skeletonChevron: {
-    width:        14,
-    height:       14,
-    borderRadius: 3,
-    opacity:      0.5,
+  searchInput: {
+    flex:            1,
+    fontSize:        14,
+    color:           T.text,
+    fontFamily:      FONT_BODY.regular,
+    paddingVertical: 0,
+    outlineStyle:    'none',
   },
 
-  // ── Empty state ───────────────────────────────────────────────────────────
-  emptyState: {
-    flex:           1,
-    alignItems:     'center',
-    justifyContent: 'center',
-    paddingHorizontal: 32,
-    paddingTop:     24,
-    gap:            10,
+  pillAnimWrap: {
+    // height controlled by Reanimated shared value
   },
-  emptyTitle: {
-    fontFamily: FONT_BODY.semiBold,          // DM Sans 600
-    fontSize:   17,
-    fontWeight: '600',
-    color:      T.ink950,
-    textAlign:  'center',
-    marginTop:  6,
-  },
-  emptySubtitle: {
-    fontFamily: FONT_BODY.regular,           // DM Sans 400
-    fontSize:   14,
-    fontWeight: '400',
-    color:      T.ink600,
-    textAlign:  'center',
-    lineHeight: 20,
-  },
-  emptyButton: {
-    marginTop:        8,
-    paddingHorizontal: 18,
-    paddingVertical:   8,
-    borderRadius:     20,
-    backgroundColor:  T.cream200,
-    borderWidth:      1,
-    borderColor:      T.cream400,
-  },
-  emptyButtonText: {
-    fontFamily: FONT_BODY.medium,            // DM Sans 500
-    fontSize:   14,
-    fontWeight: '500',
-    color:      T.gold600,
+  pillScroll: {
+    paddingHorizontal: L.rowPadH,
+    paddingVertical:   9,
+    gap:               10,
+    flexDirection:     'row',
   },
 
-  // ── Error state ───────────────────────────────────────────────────────────
-  errorState: {
-    flex:           1,
-    alignItems:     'center',
-    justifyContent: 'center',
-    paddingHorizontal: 32,
-    paddingTop:     24,
-    gap:            10,
+  hairline: {
+    height:          1,
+    marginTop:       8,
+    backgroundColor: T.borderSubtle,
   },
-  errorTitle: {
-    fontFamily: FONT_BODY.semiBold,          // DM Sans 600
-    fontSize:   17,
-    fontWeight: '600',
-    color:      T.crimson600,
-    textAlign:  'center',
-    marginTop:  6,
-  },
-  errorSubtitle: {
-    fontFamily: FONT_BODY.regular,           // DM Sans 400
-    fontSize:   14,
-    fontWeight: '400',
-    color:      T.ink600,
-    textAlign:  'center',
-    lineHeight: 20,
-  },
-  retryButton: {
-    marginTop:        8,
+
+  contentArea: { flex:1 },
+  listWrap:    { flex:1, position:'relative' },
+  flatList:    { flex:1 },
+  listContent: { paddingBottom: Platform.OS === 'android' ? 32 : 28 },
+
+  trendingSection:  { paddingBottom:12 },
+  trendingLabelRow: {
     flexDirection:    'row',
     alignItems:       'center',
-    paddingHorizontal: 18,
-    paddingVertical:   9,
-    borderRadius:     20,
-    backgroundColor:  T.gold600,
+    gap:              6,
+    marginHorizontal: L.rowPadH,
+    marginTop:        12,
+    marginBottom:     12,
   },
-  retryButtonText: {
-    fontFamily: FONT_BODY.semiBold,          // DM Sans 600
-    fontSize:   14,
-    fontWeight: '600',
-    color:      T.sheetBg,
+  trendingLabel: {
+    fontSize:      11,
+    fontWeight:    '700',
+    color:         T.textSecondary,
+    letterSpacing: 0.8,
+    fontFamily:    FONT_BODY.bold,
+    textTransform: 'uppercase',
+    flex:          1,
+  },
+  heroScroll: {
+    paddingHorizontal: L.rowPadH,
+    paddingVertical:   10,
+    gap:               12,
   },
 
-  // ── Switching spinner overlay ─────────────────────────────────────────────
-  // Blueprint: "24×24 #D4A017 spinner over bottom sheet content"
-  spinnerOverlay: {
+  stateWrap: {
+    alignItems:        'center',
+    paddingTop:        44,
+    paddingBottom:     36,
+    paddingHorizontal: 32,
+    gap:               12,
+    flex:              1,
+  },
+  stateIconCircle: {
+    width:           72,
+    height:          72,
+    borderRadius:    36,
+    backgroundColor: T.surfaceWell,
+    alignItems:      'center',
+    justifyContent:  'center',
+    marginBottom:    4,
+  },
+  stateTitle: {
+    fontSize:   17,
+    fontWeight: '700',
+    color:      T.text,
+    fontFamily: FONT_HEADING.semiBold,
+    textAlign:  'center',
+  },
+  stateHint: {
+    fontSize:   13,
+    color:      T.textSecondary,
+    fontFamily: FONT_BODY.regular,
+    textAlign:  'center',
+    lineHeight: 20,
+  },
+  retryBtn: {
+    flexDirection:     'row',
+    alignItems:        'center',
+    gap:               8,
+    marginTop:         4,
+    paddingVertical:   13,
+    paddingHorizontal: 28,
+    backgroundColor:   T.gold,
+    borderRadius:      16,
+    shadowColor:       T.gold,
+    shadowOpacity:     0.35,
+    shadowRadius:      14,
+    shadowOffset:      { width:0, height:5 },
+    elevation:         5,
+  },
+  retryBtnPressed: { opacity:0.80 },
+  retryBtnText: {
+    fontSize:      14,
+    fontWeight:    '700',
+    color:         T.sheetBg,
+    fontFamily:    FONT_HEADING.semiBold,
+    letterSpacing: 0.2,
+  },
+
+  ctaBtn: {
+    flexDirection:     'row',
+    alignItems:        'center',
+    gap:               8,
+    marginTop:         4,
+    paddingVertical:   11,
+    paddingHorizontal: 22,
+    borderRadius:      14,
+    borderWidth:       1.5,
+    borderColor:       T.gold,
+    backgroundColor:   T.goldSubtle,
+  },
+  ctaBtnText: {
+    fontSize:      13,
+    fontWeight:    '700',
+    color:         T.gold,
+    fontFamily:    FONT_HEADING.semiBold,
+    letterSpacing: 0.1,
+  },
+
+  switchOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: SPINNER_OVERLAY,        // token: rgba(255,255,255,0.75)
+    backgroundColor:      DV.switchOverlay,
+    alignItems:           'center',
+    justifyContent:       'center',
+    borderTopLeftRadius:  28,
+    borderTopRightRadius: 28,
+    zIndex:               99,
+  },
+  switchSpinner: {
+    position:        'absolute',
+    width:           60,
+    height:          60,
+    borderRadius:    30,
+    backgroundColor: T.sheetBg,
+    alignItems:      'center',
+    justifyContent:  'center',
+    shadowColor:     T.text,
+    shadowOpacity:   0.12,
+    shadowRadius:    20,
+    shadowOffset:    { width:0, height:8 },
+    elevation:       10,
+  },
+  switchSpinnerWrap: {
+    width:           80,
+    height:          80,
     alignItems:      'center',
     justifyContent:  'center',
   },
+  switchActivityRing: {
+    position: 'absolute',
+    width:    80,
+    height:   80,
+  },
+  switchMono: {
+    fontSize:   26,
+    fontWeight: '800',
+    color:      T.gold,
+    fontFamily: FONT_HEADING.bold,
+    includeFontPadding: false,
+  },
 
+  srOnly: { width: 0, height: 0, overflow: 'hidden' },
 });
