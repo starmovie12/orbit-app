@@ -82,6 +82,9 @@ import { useRouter }             from 'expo-router';
 import { Feather }               from '@expo/vector-icons';
 import NetInfo, { type NetInfoState } from '@react-native-community/netinfo';
 
+// ── Async storage (Task Card #19 — view-mode persistence) ─────────────────
+import AsyncStorage              from '@react-native-async-storage/async-storage';
+
 // ── Auth ──────────────────────────────────────────────────────────────────
 import { useAuth }               from '@/contexts/AuthContext';
 
@@ -104,6 +107,9 @@ import CrownBottomNav, {
 
 // ── Molecules ─────────────────────────────────────────────────────────────
 import ChatInput                  from '@/components/molecules/ChatInput';
+import SegmentedControl, {
+  type SegmentOption,
+}                                  from '@/components/molecules/SegmentedControl';
 
 // ── Atoms / Molecules ─────────────────────────────────────────────────────
 import MessageBubble              from '@/components/MessageBubble';
@@ -160,6 +166,14 @@ const BORDER_SUBTLE = '#E8D5A0' as const;   // --border-subtle
 // PRD §9.3 — Bottom nav height (content area, excluding safe-area)
 const BOTTOM_NAV_HEIGHT = 56 as const;
 
+// ── Task Card #19 — Live / Top 30 Toggle ─────────────────────────────────
+/** Messages older than this are excluded from the Top 30 pool */
+const TWO_HOURS_MS       = 2 * 60 * 60 * 1_000 as const;
+/** Hard cap on Top 30 list size */
+const TOP30_LIMIT        = 30                    as const;
+/** AsyncStorage key prefix for per-scope view mode pref */
+const VIEW_PREF_KEY_PFX  = 'crown:view_mode:'   as const;
+
 // PRD §9.3.4 — Scroll delta threshold for hide/show (prevents jitter)
 const SCROLL_DELTA_THRESHOLD = 4 as const;
 
@@ -193,6 +207,13 @@ function buildRoomId(
 
 /** The 4 geographic scopes — PRD §9.1 / §10.1 */
 type ScopeKey = 'world' | 'country' | 'city' | 'sector';
+
+/**
+ * Task Card #19 — Live vs Top 30 view mode.
+ * 'live' = chronological real-time stream (existing behaviour).
+ * 'top30' = 30 most-reacted messages from the last 2 hours, client-side derived.
+ */
+type ViewMode = 'live' | 'top30';
 
 /** Bottom nav tabs — PRD §9.3.2 */
 type BottomTab = 'home' | 'explore' | 'crown' | 'profile';
@@ -397,8 +418,110 @@ const MessageRow = React.memo(function MessageRow({
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// § 6 — CHAT SKELETON (8 alternating shimmer bubbles)
+// § 4b — LIVE / TOP 30 TOGGLE BAR  (Task Card #19)
+//
+// • Shown only for City / Country / World scope — Sector is always Live.
+// • Uses the existing SegmentedControl molecule (dark pill, gold indicator).
+// • Bar height: 8px V-padding × 2 + 32px control = 48px total.
+// • Sits between the sticky HomeHeader and the KAV/FlatList so it scrolls
+//   ONLY when the header hides (it's part of the sticky zone above the chat).
 // ─────────────────────────────────────────────────────────────────────────────
+
+const LIVE_TOP30_OPTIONS: SegmentOption[] = [
+  { label: '⚡ Live', value: 'live'   },
+  { label: '🏆 Top 30', value: 'top30' },
+];
+
+interface LiveTop30BarProps {
+  viewMode: ViewMode;
+  onChange: (mode: ViewMode) => void;
+}
+
+function LiveTop30Bar({ viewMode, onChange }: LiveTop30BarProps) {
+  return (
+    <View
+      style={S.liveTop30Bar}
+      accessibilityRole="tablist"
+      accessibilityLabel="View mode — Live chat ya Top 30"
+      testID="live-top30-bar"
+    >
+      <SegmentedControl
+        options={LIVE_TOP30_OPTIONS}
+        selected={viewMode}
+        onChange={(v) => onChange(v as ViewMode)}
+        style={S.liveTop30Control}
+      />
+    </View>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// § 5b — TOP 30 MESSAGE ROW  (Task Card #19)
+//
+// Wraps the existing MessageRow with:
+//   • Rank badge (#1, #2 … #30) in Space Mono (numerics token)
+//   • Percentile chip: "🏆 Top 0.06% · 142 reactions"
+//     Percentile ≈ (rank / total_msgs_in_memory) × 100 (Phase 1 approximation)
+//
+// Phase 2: replace totalSeen with a Cloud Function daily count per scope.
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface Top30MessageRowProps {
+  msg:        CWMessage;
+  currentUid: string | null;
+  onLongPress:(msg: CWMessage) => void;
+  rank:       number;   // 1-based (1 = most reactions)
+  totalSeen:  number;   // total messages in local memory (for percentile approx)
+}
+
+const Top30MessageRow = React.memo(function Top30MessageRow({
+  msg,
+  currentUid,
+  onLongPress,
+  rank,
+  totalSeen,
+}: Top30MessageRowProps) {
+
+  // Sum all emoji reaction counts for this message
+  const totalReactions = useMemo(
+    () => Object.values(msg.reactions ?? {}).reduce((s: number, n: number) => s + n, 0),
+    [msg.reactions],
+  );
+
+  // Percentile: lower rank number = better → "Top X%"
+  // Minimum shown: 0.1% (avoids "Top 0.0%")
+  const percentile = totalSeen > 0
+    ? Math.max(0.1, (rank / totalSeen) * 100).toFixed(1)
+    : null;
+
+  return (
+    <View style={S.top30Row} testID={`top30-row-${rank}`}>
+
+      {/* ── Rank line ─────────────────────────────────────────────────── */}
+      <View style={S.top30RankLine}>
+        <Text style={S.top30RankNum} accessibilityLabel={`Rank ${rank}`}>
+          #{rank}
+        </Text>
+        {percentile !== null && (
+          <View style={S.top30PercentilePill}>
+            <Text style={S.top30PercentileText}>
+              🏆 Top {percentile}% · {totalReactions} reactions
+            </Text>
+          </View>
+        )}
+      </View>
+
+      {/* ── Message bubble ──────────────────────────────────────────────── */}
+      <MessageRow
+        msg={msg}
+        currentUid={currentUid}
+        onLongPress={onLongPress}
+      />
+    </View>
+  );
+});
+
+
 
 function ChatSkeleton() {
   return (
