@@ -95,14 +95,13 @@ const HDR = {
   TOTAL_H: 120 as const,
 
   /**
-   * [v5.1 FIX] Wordmark size 28px — unchanged.
+   * [v5.2 FIX] Wordmark size bumped 28px → 32px.
+   * Bigger canvas = letters have more visual mass on screen.
    */
-  WORDMARK_SIZE: 28 as const,
+  WORDMARK_SIZE: 32 as const,
 
   /**
-   * [v5.1 FIX] Letter-spacing reset +4px → 0.
-   * +4px was making "CROWN" render as "C R O W N" — completely spread out.
-   * 0 on Syne 800 ExtraBold at 28px = clean, tight, bold wordmark.
+   * [v5.2] Letter-spacing stays 0 — tight, no gap between letters.
    */
   WORDMARK_LETTER_SPACING: 0 as const,
 
@@ -477,16 +476,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: HDR.PAD_H,              // 16px
   },
 
-  // ── CROWN wordmark — Syne 800ExtraBold, 28px, tight tracking, gold ──────────
-  // [v5.1 FIX] letterSpacing reset 4px → 0. Wide spacing made "CROWN" render
-  // as "C R O W N" — ugly spread. 0 on ExtraBold Syne = solid bold wordmark.
-  // textShadow removed — clean flat gold is sharper on the header bg.
+  // ── CROWN wordmark — Syne 800ExtraBold, 32px, tight, THICK strokes ─────────
+  // [v5.2 FIX] Same-colour textShadow trick:
+  //   textShadowColor = same gold as the text itself
+  //   textShadowRadius = 2 (tight spread, not a glow)
+  //   Effect: shadow bleeds outward ~2px uniformly → each stroke looks
+  //   ~2px thicker on all sides = heavier, chunkier, bold wordmark feel.
+  //   This is the only way to fatten strokes in React Native (no text-stroke API).
   wordmark: {
-    fontFamily:    'Syne_800ExtraBold',
-    fontSize:      HDR.WORDMARK_SIZE,           // 28px
-    letterSpacing: HDR.WORDMARK_LETTER_SPACING, // 0 — tight, solid
-    color:         colors.fg.brand,             // gold-600 (#D4A017)
-    lineHeight:    34,
+    fontFamily:       'Syne_800ExtraBold',
+    fontSize:         HDR.WORDMARK_SIZE,           // 32px
+    letterSpacing:    HDR.WORDMARK_LETTER_SPACING, // 0 — tight
+    color:            colors.fg.brand,             // gold-600 (#D4A017)
+    lineHeight:       40,
+    // ─── STROKE THICKNESS TRICK ───────────────────────────────────────────
+    textShadowColor:  colors.fg.brand,             // SAME gold = no halo, just mass
+    textShadowOffset: { width: 0, height: 0 },     // centered bleed
+    textShadowRadius: 2,                           // 2px radius = ~2px thicker strokes
   },
 
   // ── Right action group ────────────────────────────────────────────────────
