@@ -13,41 +13,43 @@
  * tokens — all identical to the Country sheet so the two feel like siblings.
  *
  * The LOGIC is *adapted*, not blind-copied. A city has no continent, so the
- * Country sheet's "Region" axis (Asia/Europe/Africa…) is meaningless here. The
- * mapping applied:
+ * Country sheet's "Region" axis (Asia/Europe/Africa…) is meaningless here.
+ * The mapping applied:
  *
- *   Country sheet                →   City sheet (this file)
- *   ──────────────────────────────────────────────────────────────────────────
- *   Region filter (fixed list)   →   State/District filter (DERIVED from data)
- *   REGION_ACCENT / REGION_BG    →   single gold accent (no per-state colours)
- *   Flag emoji avatar            →   first-letter monogram avatar
- *   Region sub-label             →   State (+ sector count) sub-label
- *   ISO code chip                →   (removed — cities have no ISO)
- *   Dial-code search             →   (removed — search by name + state)
- *   countries collection (web)   →   getCities() realtime (native, UNCHANGED)
+ * Country sheet                →   City sheet (this file)
+ * ──────────────────────────────────────────────────────────────────────────
+ * Region filter (fixed list)   →   State/District filter (DERIVED from data)
+ * REGION_ACCENT / REGION_BG    →   single gold accent (no per-state colours)
+ * Flag emoji avatar            →   first-letter monogram avatar
+ * Region sub-label             →   State (+ sector count) sub-label
+ * ISO code chip                →   (removed — cities have no ISO)
+ * Dial-code search             →   (removed — search by name + state)
+ * countries collection (web)   →   getCities() realtime (native, UNCHANGED)
  *
  * The data layer is deliberately untouched from the previous CityPickerSheet:
  * getCities() onSnapshot, FALLBACK_CITIES, the AsyncStorage keys, the native
  * firestore + auth writes, and the onSelect(cityId) contract all behave exactly
- * as before. Parent screen (app/(tabs)/index.tsx) needs zero changes.
+ * as before.
+ * Parent screen (app/(tabs)/index.tsx) needs zero changes.
  *
  * ── STATE/DISTRICT FILTER ─────────────────────────────────────────────────────
  *
- *   • The pill row is built at runtime from the unique `state` values present in
- *     the loaded cities, sorted A–Z, prefixed with "All". Punjab, Haryana, etc.
- *     appear automatically — no hardcoding. If the data has no states at all, the
- *     pill row hides itself gracefully (collapses to 0 height).
- *   • Selecting a state filters the list to cities in that state; "All" clears it.
- *   • Searching collapses the pills (same as Country).
+ * • The pill row is built at runtime from the unique `state` values present in
+ * the loaded cities, sorted A–Z, prefixed with "All".
+ * Punjab, Haryana, etc. appear automatically — no hardcoding.
+ * • If the data has no states at all, the pill row hides itself gracefully (collapses to 0 height).
+ * • Selecting a state filters the list to cities in that state; "All" clears it.
+ * • Searching collapses the pills (same as Country).
  *
  * ── USAGE (unchanged) ─────────────────────────────────────────────────────────
  *
- *   <CityPickerSheet
- *     visible={citySheetOpen}
- *     onClose={() => setCitySheetOpen(false)}
- *     selected={currentCityId}
- *     onSelect={(cityId) => setCurrentCityId(cityId)}
- *   />
+ * <CityPickerSheet
+ * visible={citySheetOpen}
+ * onClose={() => setCitySheetOpen(false)}
+ * selected={currentCityId}
+ * countryCode={currentCountryCode} // <── FIXED: Country filter
+ * onSelect={(cityId) => setCurrentCityId(cityId)}
+ * />
  */
 
 import React, {
@@ -80,7 +82,6 @@ import {
 import { Feather }       from '@expo/vector-icons';
 import * as Haptics      from 'expo-haptics';
 import AsyncStorage      from '@react-native-async-storage/async-storage';
-
 // ── Native Firebase (UNCHANGED data layer) ────────────────────────────────────
 // The City sheet uses the React-Native-Firebase native SDK for the user-profile
 // write + auth, and getCities() (an onSnapshot subscription) for the city list.
@@ -88,14 +89,12 @@ import AsyncStorage      from '@react-native-async-storage/async-storage';
 // SDK) — we copy the Country sheet's DESIGN, never its data layer.
 import firestore         from '@react-native-firebase/firestore';
 import auth              from '@react-native-firebase/auth';
-
 // ── In-house BottomSheet — the SAME Modal-based sheet the Country picker uses ──
 import { BottomSheet } from '@/components/BottomSheet';
 import { getCities }   from '@/lib/firestore-rooms';
 
 import { colors, palette }            from '@/constants/colors';
 import { FONT_BODY, FONT_HEADING }    from '@/constants/typography';
-
 // ── react-native-reanimated v4 (with react-native-worklets) ───────────────────
 import ReAnimated, {
   Easing as REasing,
@@ -112,24 +111,22 @@ import ReAnimated, {
   FadeIn,
   SlideInRight,
 } from 'react-native-reanimated';
-
 // [parity] Fixed tall sheet (≈90% screen) — matches CountryPickerSheet so the
 // trending row + alphabet sidebar have room and there is zero height jump
-// between loading and idle. (Previous City sheet was a 50% half-sheet.)
+// between loading and idle.
+// (Previous City sheet was a 50% half-sheet.)
 const SHEET_HEIGHT = Math.round(Dimensions.get('window').height * 0.9);
-
 // ─── Storage keys (UNCHANGED — City sheet keys) ───────────────────────────────
 const CW_CITY_KEY           = 'cw:selected_city'   as const;
 const CW_RECENT_CITIES_KEY  = 'cw:recent_cities'   as const;
 const MAX_RECENTS           = 5                     as const;
-const TRENDING_COUNT        = 10                    as const;  // Top-10 OTT pattern
+const TRENDING_COUNT        = 10                    as const;
+// Top-10 OTT pattern
 
 // ─── Firestore collections (native) ───────────────────────────────────────────
 const USERS_COLLECTION      = 'users' as const;
-
 // ─── Fallback list — shown if Firestore is slow/offline ───────────────────────
 const CITY_LOAD_TIMEOUT_MS  = 7000;
-
 const FALLBACK_CITIES: CityDoc[] = [
   { id: 'chandigarh',  name: 'Chandigarh',  state: 'Punjab',        online_count: 0, sector_count: 0, is_active: true },
   { id: 'delhi',       name: 'Delhi',       state: 'Delhi NCR',     online_count: 0, sector_count: 0, is_active: true },
@@ -144,7 +141,6 @@ const FALLBACK_CITIES: CityDoc[] = [
   { id: 'lucknow',     name: 'Lucknow',     state: 'Uttar Pradesh', online_count: 0, sector_count: 0, is_active: true },
   { id: 'amritsar',    name: 'Amritsar',    state: 'Punjab',        online_count: 0, sector_count: 0, is_active: true },
 ];
-
 // ─── Layout constants (parity with CountryPickerSheet) ────────────────────────
 const L = {
   rowH:         74,
@@ -165,10 +161,10 @@ const L = {
   pillRowH:     52,
   alphaBarW:    22,
 } as const;
-
 // ─── Design token aliases (parity — palette-sourced, gold #D4A017) ────────────
 // NOTE: these replace the previous City sheet's hardcoded rgba(201,162,39,…)
-// (the banned #C9A227). gold here is palette.gold[600] = #D4A017.
+// (the banned #C9A227).
+// gold here is palette.gold[600] = #D4A017.
 const T = {
   sheetBg:       colors.bg.surface,   // #FFFFFF
   text:          palette.ink[950],
@@ -187,7 +183,6 @@ const T = {
   emerald:       palette.emerald[600],
   amber:         palette.amber[600],
 } as const;
-
 // ─── Derived overlay values (parity) ──────────────────────────────────────────
 const DV = {
   activeRowBg:    'rgba(212,160,23,0.09)' as const,
@@ -195,16 +190,18 @@ const DV = {
   sectionBg:      'rgba(255,255,255,0.97)'as const,
   switchOverlay:  'rgba(255,255,255,0.93)'as const,
 } as const;
-
 // ─── Haptic helpers (try/catch for restrictive Android ROMs) ──────────────────
 const hapticLight  = async (): Promise<void> => {
-  try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);  } catch { /* no-op */ }
+  try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  } catch { /* no-op */ }
 };
 const hapticMedium = async (): Promise<void> => {
-  try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch { /* no-op */ }
+  try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  } catch { /* no-op */ }
 };
 const hapticSelect = async (): Promise<void> => {
-  try { await Haptics.selectionAsync(); } catch { /* no-op */ }
+  try { await Haptics.selectionAsync();
+  } catch { /* no-op */ }
 };
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -215,7 +212,6 @@ type SectionItem = { type: 'section'; letter: string };
 type CityItem    = { type: 'city';    city: CityDoc };
 type DividerItem = { type: 'divider'; id: string };
 type ListItem    = SectionItem | CityItem | DividerItem;
-
 /**
  * Shape of a document in the Firestore /cities collection.
  * online_count: total active users across all sectors in this city.
@@ -238,6 +234,8 @@ export interface CityPickerSheetProps {
   onClose:  () => void;
   /** Currently selected cityId — used to highlight the active row */
   selected: string;
+  /** Selected Country Code to filter cities */
+  countryCode: string;
   /** Called with the new cityId after user confirms selection */
   onSelect: (cityId: string) => void;
 }
@@ -281,7 +279,6 @@ function buildAlphaSections(sorted: CityDoc[]): ListItem[] {
   const items: ListItem[] = [];
   let prevLetter     = '';
   let prevWasSection = true;
-
   for (const city of sorted) {
     const letter = city.name[0]?.toUpperCase() ?? '#';
     if (letter !== prevLetter) {
@@ -329,7 +326,6 @@ interface _PulseCtx {
 }
 
 const PulseContext = React.createContext<_PulseCtx | null>(null);
-
 const PulseProvider = memo<{ children: React.ReactNode }>(({ children }) => {
   const anim = useSharedValue(1);
   const refs = useRef(0);
@@ -364,12 +360,10 @@ PulseProvider.displayName = 'CityPickerSheet.PulseProvider';
 function usePulse(enabled: boolean): SharedValue<number> {
   const ctx = React.useContext(PulseContext);
   const fallback = useSharedValue(1);
-
   useEffect(() => {
     if (!enabled || !ctx) return;
     return ctx.register();
   }, [enabled, ctx]);
-
   return ctx ? ctx.anim : fallback;
 }
 
@@ -397,7 +391,6 @@ const LiveDot = memo<{ size?: number; gold?: boolean; pulse?: boolean }>(
   },
 );
 LiveDot.displayName = 'CityPickerSheet.LiveDot';
-
 // ─── SkeletonRow (parity) ──────────────────────────────────────────────────────
 const SkeletonRow = memo<{ shimmer: SharedValue<number> }>(({ shimmer }) => {
   const animStyle = useAnimatedStyle(() => ({
@@ -424,7 +417,6 @@ const sk = StyleSheet.create({
   line2:  { height:11, borderRadius:6, backgroundColor:T.surfaceWell, width:'38%' as const },
   badge:  { width:L.heatW, height:8, borderRadius:4, backgroundColor:T.surfaceWell },
 });
-
 // ─── SkeletonHeroCard (parity — mirrors the OTT ranking card layout) ──────────
 const SkeletonHeroCard = memo<{ shimmer: SharedValue<number> }>(({ shimmer }) => {
   const animStyle = useAnimatedStyle(() => ({
@@ -487,7 +479,6 @@ const skh = StyleSheet.create({
     backgroundColor: T.surfaceSunken,
   },
 });
-
 // ─── SectionHeader (parity) ────────────────────────────────────────────────────
 const SectionHeader = memo<{ letter: string }>(({ letter }) => (
   <View style={sec.wrap} accessibilityRole="header">
@@ -519,13 +510,13 @@ const sec = StyleSheet.create({
     textTransform: 'uppercase',
   },
 });
-
 // ─── HeroCard (OTT ranking card — parity, with monogram avatar) ───────────────
 interface HeroCardProps {
   city:           CityDoc;
   isSelected:     boolean;
   onPress:        (city: CityDoc) => void;
-  rank:           number;        // 1-based trending position (1–10)
+  rank:           number;
+  // 1-based trending position (1–10)
   entryDelay?:    number;        // ms delay for stagger
   reducedMotion?: boolean;
 }
@@ -667,7 +658,7 @@ const hc = StyleSheet.create({
   },
 
   onlinePill: {
-    position:          'absolute',
+    position:        'absolute',
     top:               11,
     right:             8,
     flexDirection:     'row',
@@ -691,7 +682,7 @@ const hc = StyleSheet.create({
 
   nameGroup: {
     position: 'absolute',
-    bottom:   12,
+    bottom:    12,
     left:     12,
     right:    28,
   },
@@ -721,7 +712,6 @@ const hc = StyleSheet.create({
   },
   rankNumActive: { color: 'rgba(234,88,12,0.75)' },
 });
-
 // ─── CityRow (parity with CountryRow — monogram avatar, state sub-label) ──────
 interface CityRowProps {
   city:       CityDoc;
@@ -841,7 +831,7 @@ const cr = StyleSheet.create({
   rowActive: { backgroundColor: DV.activeRowBg },
 
   avatarBox: {
-    width:          L.avatarBox,
+    width:           L.avatarBox,
     height:         L.avatarBox,
     borderRadius:   L.avatarRadius,
     alignItems:     'center',
@@ -858,7 +848,7 @@ const cr = StyleSheet.create({
     includeFontPadding: false,
   },
 
-  body:    { flex:1, gap:6 },
+  body:     { flex:1, gap:6 },
   nameRow: { flexDirection:'row', alignItems:'center', gap:6 },
   name: {
     fontSize:   15,
@@ -909,7 +899,6 @@ const cr = StyleSheet.create({
     borderRadius: 1.5,
   },
 });
-
 // ─── RowDivider (parity) ───────────────────────────────────────────────────────
 const RowDivider = memo(() => (
   <View
@@ -945,7 +934,6 @@ const StatePill = memo<StatePillProps>(({ label, active, count, onPress }) => {
   );
 });
 StatePill.displayName = 'CityPickerSheet.StatePill';
-
 const sp = StyleSheet.create({
   pill: {
     height:            L.pillH,
@@ -958,10 +946,9 @@ const sp = StyleSheet.create({
     backgroundColor:   T.sheetBg,
   },
   pillActive: { borderColor:T.gold, backgroundColor:T.goldSubtle },
-  text:       { fontSize:13, fontWeight:'600', color:T.textSecondary, fontFamily:FONT_BODY.semiBold },
+  text:        { fontSize:13, fontWeight:'600', color:T.textSecondary, fontFamily:FONT_BODY.semiBold },
   textActive: { color: T.gold },
 });
-
 // ─── AlphabetSidebar (parity) ──────────────────────────────────────────────────
 interface AlphabetSidebarProps {
   letters:        string[];
@@ -1002,7 +989,6 @@ const AlphabetSidebar = memo<AlphabetSidebarProps>(
         }
       }
     }, []);
-
     const panHandlers = useRef(
       PanResponder.create({
         onStartShouldSetPanResponder: () => true,
@@ -1015,7 +1001,6 @@ const AlphabetSidebar = memo<AlphabetSidebarProps>(
         },
       }).panHandlers,
     ).current;
-
     return (
       <View
         style={ab.wrap}
@@ -1075,7 +1060,6 @@ const ab = StyleSheet.create({
   },
   letter: { fontSize:10, fontWeight:'700', color:T.gold, fontFamily:FONT_BODY.bold },
 });
-
 // ─── LetterOverlay (parity) ────────────────────────────────────────────────────
 const LetterOverlay = memo<{ letter: string | null; reducedMotion?: boolean }>(
   ({ letter, reducedMotion = false }) => {
@@ -1127,7 +1111,7 @@ const lo = StyleSheet.create({
     bottom:         0,
     alignItems:     'center',
     justifyContent: 'center',
-    zIndex:         50,
+    zIndex:          50,
   },
   bubble: {
     width:          80,
@@ -1151,7 +1135,6 @@ const lo = StyleSheet.create({
     includeFontPadding: false,
   },
 });
-
 // ─── AlphaSidebarAndOverlay (parity — owns the active letter locally) ─────────
 interface AlphaSidebarAndOverlayProps {
   letters:       string[];
@@ -1227,14 +1210,13 @@ const rv = StyleSheet.create({
     marginTop:       0,
   },
 });
-
 // ─── Main component ────────────────────────────────────────────────────────────
 type SheetState = 'loading' | 'idle' | 'switching' | 'error';
-
 function CityPickerSheetBase({
   visible,
   onClose,
   selected,
+  countryCode, // <── RECEIVED: from Props
   onSelect,
 }: CityPickerSheetProps) {
 
@@ -1256,16 +1238,13 @@ function CityPickerSheetBase({
   const selectedRef    = useRef(selected);
   const recentIdsRef   = useRef(recentIds);
   const unsubRef       = useRef<(() => void) | undefined>(undefined);
-
   useEffect(() => { selectedRef.current  = selected;  }, [selected]);
   useEffect(() => { recentIdsRef.current = recentIds; }, [recentIds]);
-
   useEffect(() => {
     isMountedRef.current = true;
     return () => { isMountedRef.current = false; };
   }, []);
-
-  // ── Animated pills row (height + opacity collapse) — parity ─────────────────
+// ── Animated pills row (height + opacity collapse) — parity ─────────────────
   const pillsH  = useSharedValue(L.pillRowH);
   const pillsOp = useSharedValue(1);
   const animatedPillsStyle = useAnimatedStyle(() => ({
@@ -1273,21 +1252,18 @@ function CityPickerSheetBase({
     opacity:  pillsOp.value,
     overflow: 'hidden' as const,
   }));
-
-  // ── Search-bar focus glow — parity ──────────────────────────────────────────
+// ── Search-bar focus glow — parity ──────────────────────────────────────────
   const searchFocused = useSharedValue(0);
   const animatedBorderStyle = useAnimatedStyle(() => ({
     borderColor: interpolateColor(searchFocused.value, [0, 1], [T.border, T.gold]),
   }));
-
   const handleSearchFocus = useCallback(() => {
     searchFocused.value = withTiming(1, { duration: 180 });
   }, [searchFocused]);
   const handleSearchBlur = useCallback(() => {
     searchFocused.value = withTiming(0, { duration: 150 });
   }, [searchFocused]);
-
-  // ── Shimmer animation (UI thread) — parity ──────────────────────────────────
+// ── Shimmer animation (UI thread) — parity ──────────────────────────────────
   const shimmerAnim = useSharedValue(0);
   useEffect(() => {
     if (sheetState !== 'loading') {
@@ -1311,20 +1287,17 @@ function CityPickerSheetBase({
     const id = setTimeout(() => setSearchQuery(rawQuery), 150);
     return () => clearTimeout(id);
   }, [rawQuery]);
-
-  // ── Reset list scroll when search query settles ─────────────────────────────
+// ── Reset list scroll when search query settles ─────────────────────────────
   useEffect(() => {
     listRef.current?.scrollToOffset({ offset: 0, animated: false });
   }, [searchQuery]);
-
-  // ── Reduced motion ──────────────────────────────────────────────────────────
+// ── Reduced motion ──────────────────────────────────────────────────────────
   useEffect(() => {
     void AccessibilityInfo.isReduceMotionEnabled().then(setRM);
     const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setRM);
     return () => sub.remove();
   }, []);
-
-  // ── Load on open — getCities() realtime + timeout fallback (UNCHANGED layer) ─
+// ── Load on open — getCities() realtime + timeout fallback (UNCHANGED layer) ─
   useEffect(() => {
     if (!visible) return;
 
@@ -1350,64 +1323,69 @@ function CityPickerSheetBase({
     // Safety timeout: never stay blank — fall back to the built-in list.
     const timeoutId = setTimeout(() => {
       if (!settled && isMountedRef.current) {
-        setCities((prev) => (prev.length > 0 ? prev : FALLBACK_CITIES));
+        // Fallback sirf tabhi dikhao agar country India ho. 
+        // Varna Argentina vagera me Chandigarh load ho jayega.
+        const fallbackToUse = countryCode === 'IN' ? FALLBACK_CITIES : [];
+        setCities((prev) => (prev.length > 0 ? prev : fallbackToUse));
         setSheetState('idle');
       }
     }, CITY_LOAD_TIMEOUT_MS);
 
-    const unsub = getCities((docs: CityDoc[]) => {
+    // ── FIXED: Passing countryCode to getCities
+    const unsub = getCities(countryCode, (docs: CityDoc[]) => {
       settled = true;
       clearTimeout(timeoutId);
       if (!isMountedRef.current) return;
-      setCities(docs.length > 0 ? docs : FALLBACK_CITIES);
+      
+      const fallbackToUse = countryCode === 'IN' ? FALLBACK_CITIES : [];
+      setCities(docs.length > 0 ? docs : fallbackToUse);
       setSheetState('idle');
     });
     unsubRef.current = unsub;
-
     return () => {
       clearTimeout(timeoutId);
       unsubRef.current?.();
       unsubRef.current = undefined;
     };
-  }, [visible]);
+  }, [visible, countryCode]); // <── Re-run if countryCode changes
 
-  // ── Pull-to-refresh — re-subscribe (getCities is realtime) ──────────────────
+// ── Pull-to-refresh — re-subscribe (getCities is realtime) ──────────────────
   const handleRefresh = useCallback(() => {
     setIsRefreshing(true);
     unsubRef.current?.();
-    const unsub = getCities((docs: CityDoc[]) => {
+    const unsub = getCities(countryCode, (docs: CityDoc[]) => {
       if (!isMountedRef.current) return;
-      setCities(docs.length > 0 ? docs : FALLBACK_CITIES);
+      const fallbackToUse = countryCode === 'IN' ? FALLBACK_CITIES : [];
+      setCities(docs.length > 0 ? docs : fallbackToUse);
       setIsRefreshing(false);
     });
     unsubRef.current = unsub;
-  }, []);
+  }, [countryCode]);
 
-  // ── Retry (dormant — getCities falls back gracefully; kept for parity) ──────
+// ── Retry (dormant — getCities falls back gracefully; kept for parity) ──────
   const handleRetry = useCallback(() => {
     setSheetState('loading');
     setError(null);
     unsubRef.current?.();
-    const unsub = getCities((docs: CityDoc[]) => {
+    const unsub = getCities(countryCode, (docs: CityDoc[]) => {
       if (!isMountedRef.current) return;
-      setCities(docs.length > 0 ? docs : FALLBACK_CITIES);
+      const fallbackToUse = countryCode === 'IN' ? FALLBACK_CITIES : [];
+      setCities(docs.length > 0 ? docs : fallbackToUse);
       setSheetState('idle');
     });
     unsubRef.current = unsub;
-  }, []);
+  }, [countryCode]);
 
-  // ── Filtered + sorted lists ─────────────────────────────────────────────────
+// ── Filtered + sorted lists ─────────────────────────────────────────────────
   const stateFiltered = useMemo<CityDoc[]>(() => {
     if (stateFilter === 'All') return cities;
     return cities.filter((c) => c.state === stateFilter);
   }, [cities, stateFilter]);
-
   const sortedStateFiltered = useMemo(
     () => [...stateFiltered].sort((a, b) => a.name.localeCompare(b.name)),
     [stateFiltered],
   );
-
-  // Pre-computed normalized "name + state" per city — keeps search off the hot path.
+// Pre-computed normalized "name + state" per city — keeps search off the hot path.
   const normIndex = useMemo(() => {
     const m = new Map<string, string>();
     for (const c of cities) {
@@ -1415,7 +1393,6 @@ function CityPickerSheetBase({
     }
     return m;
   }, [cities]);
-
   const displayCities = useMemo<CityDoc[]>(() => {
     const q = searchQuery.trim();
     if (!q) return stateFiltered;
@@ -1444,20 +1421,17 @@ function CityPickerSheetBase({
     () => [...cities].sort((a, b) => b.online_count - a.online_count).slice(0, TRENDING_COUNT),
     [cities],
   );
-
-  // States derived from data — Punjab/Haryana/etc. appear automatically.
+// States derived from data — Punjab/Haryana/etc. appear automatically.
   const stateList = useMemo<StateFilter[]>(() => {
     const set = new Set<string>();
     for (const c of cities) if (c.state) set.add(c.state);
     return ['All', ...Array.from(set).sort((a, b) => a.localeCompare(b))];
   }, [cities]);
-
   const stateCounts = useMemo<Record<string, number>>(() => {
     const counts: Record<string, number> = { All: cities.length };
     for (const c of cities) if (c.state) counts[c.state] = (counts[c.state] ?? 0) + 1;
     return counts;
   }, [cities]);
-
   const hasStates = stateList.length > 1;
 
   // Pills collapse on search OR when there are no states to filter by.
@@ -1471,12 +1445,10 @@ function CityPickerSheetBase({
       pillsOp.value = withTiming(1,          { duration: 180, easing: REasing.out(REasing.cubic) });
     }
   }, [rawQuery, hasStates, pillsH, pillsOp]);
-
   const selectedCity = useMemo(
     () => cities.find((c) => c.id === selected) ?? null,
     [cities, selected],
   );
-
   const recentCities = useMemo<CityDoc[]>(
     () => recentIds.flatMap((id) => {
       const c = cities.find((c) => c.id === id);
@@ -1484,25 +1456,21 @@ function CityPickerSheetBase({
     }),
     [recentIds, cities],
   );
-
-  // ── Flat data + A-Z sections ────────────────────────────────────────────────
+// ── Flat data + A-Z sections ────────────────────────────────────────────────
   const flatData = useMemo<ListItem[]>(() => {
     if (searchQuery.trim()) return buildSearchResults(displayCities);
     return buildAlphaSections(sortedStateFiltered);
   }, [displayCities, searchQuery, sortedStateFiltered]);
-
   const itemLayouts = useMemo(
     () => (searchQuery.trim() ? null : precomputeLayouts(flatData)),
     [flatData, searchQuery],
   );
-
   const alphabetLetters = useMemo<string[]>(() => {
     if (searchQuery.trim()) return [];
     return flatData
       .filter((item): item is SectionItem => item.type === 'section')
       .map((item) => item.letter);
   }, [flatData, searchQuery]);
-
   const sectionIndexMap = useMemo<Map<string, number>>(() => {
     const map = new Map<string, number>();
     flatData.forEach((item, i) => {
@@ -1510,21 +1478,18 @@ function CityPickerSheetBase({
     });
     return map;
   }, [flatData]);
-
   const handleAlphabetPress = useCallback((letter: string) => {
     const index = sectionIndexMap.get(letter);
     if (index === undefined) return;
     listRef.current?.scrollToIndex({ index, animated: !reducedMotion, viewOffset: 0 });
   }, [sectionIndexMap, reducedMotion]);
-
-  // ── State filter ────────────────────────────────────────────────────────────
+// ── State filter ────────────────────────────────────────────────────────────
   const handleStateFilter = useCallback((s: StateFilter) => {
     void hapticSelect();
     setStateFilter(s);
     listRef.current?.scrollToOffset({ offset: 0, animated: false });
   }, []);
-
-  // ── Selection (UNCHANGED data behavior — city_id write + recents) ───────────
+// ── Selection (UNCHANGED data behavior — city_id write + recents) ───────────
   const handleSelectCity = useCallback(async (city: CityDoc) => {
     if (isSwitchingRef.current) return;
     if (city.id === selectedRef.current) { onClose(); return; }
@@ -1568,14 +1533,12 @@ function CityPickerSheetBase({
       }
     }
   }, [onClose, onSelect, reducedMotion]);
-
-  // ── List helpers ────────────────────────────────────────────────────────────
+// ── List helpers ────────────────────────────────────────────────────────────
   const keyExtractor = useCallback((item: ListItem): string => {
     if (item.type === 'section') return `sec-${item.letter}`;
     if (item.type === 'divider') return item.id;
     return `city-${item.city.id}`;
   }, []);
-
   const renderItem = useCallback(({ item }: { item: ListItem }) => {
     if (item.type === 'section') return <SectionHeader letter={item.letter} />;
     if (item.type === 'divider') return <RowDivider />;
@@ -1587,7 +1550,6 @@ function CityPickerSheetBase({
       />
     );
   }, [handleSelectCity]);
-
   const getItemLayout = useCallback(
     (_: unknown, index: number) => {
       if (itemLayouts) {
@@ -1602,26 +1564,22 @@ function CityPickerSheetBase({
     },
     [itemLayouts],
   );
-
   const clearSearch = useCallback(() => {
     setRawQuery('');
     searchRef.current?.focus();
   }, []);
-
-  // ── Dynamic labels / guards ─────────────────────────────────────────────────
+// ── Dynamic labels / guards ─────────────────────────────────────────────────
   const placeholder  = cities.length > 0
     ? `Search ${cities.length} cities…`
     : 'Search cities…';
   const showTrending = !searchQuery.trim() && stateFilter === 'All' && trendingCities.length > 0;
   const showAlpha    = alphabetLetters.length > 0 && !searchQuery.trim();
   const showRecents  = recentCities.length > 0 && !searchQuery.trim() && stateFilter === 'All';
-
   const isStateSearchEmpty =
     searchQuery.trim().length > 0 &&
     displayCities.length === 0 &&
     stateFilter !== 'All';
-
-  // ── ListHeaderComponent: Trending + Recents ─────────────────────────────────
+// ── ListHeaderComponent: Trending + Recents ─────────────────────────────────
   const renderListHeader = useCallback(() => (
     <>
       {showTrending && (
@@ -1661,8 +1619,7 @@ function CityPickerSheetBase({
       )}
     </>
   ), [showTrending, showRecents, trendingCities, recentCities, selected, handleSelectCity, reducedMotion]);
-
-  // ── ListEmptyComponent ──────────────────────────────────────────────────────
+// ── ListEmptyComponent ──────────────────────────────────────────────────────
   const renderListEmpty = useCallback(() => {
     if (isStateSearchEmpty) {
       return (
