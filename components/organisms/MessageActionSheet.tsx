@@ -285,7 +285,7 @@ export const MessageActionSheet = memo(function MessageActionSheet({
     emoji: string,
     animIdx?: number,
   ) => {
-    haptics.impact('medium');
+    haptics.impactMedium();
 
     // Animate the tapped emoji (scale 1.0 → 1.2 → 1.0, 200ms)
     if (animIdx !== undefined) {
@@ -315,7 +315,7 @@ export const MessageActionSheet = memo(function MessageActionSheet({
 
   // ── Action handlers ─────────────────────────────────────────────────────────
   const handleCopy = useCallback(async () => {
-    haptics.impact('light');
+    haptics.impactLight();
     setLoadingAction('copy');
     await Clipboard.setStringAsync(messageText); // 👈 async · expo-clipboard API
     AccessibilityInfo.announceForAccessibility('Copy ho gaya');
@@ -323,7 +323,7 @@ export const MessageActionSheet = memo(function MessageActionSheet({
   }, [messageText, haptics, finishAction]);
 
   const handleShare = useCallback(async () => {
-    haptics.impact('light');
+    haptics.impactLight();
     const shareText =
       `Yeh dekh ${message.sector_id} ke chat mein kya scene hai 👇\n\n` +
       `'${messageText.slice(0, 100)}${messageText.length > 100 ? '…' : ''}'\n` +
@@ -338,7 +338,7 @@ export const MessageActionSheet = memo(function MessageActionSheet({
   }, [message, messageText, senderName, haptics, handleClose]);
 
   const handleSave = useCallback(async () => {
-    haptics.impact('medium');
+    haptics.impactMedium();
     setLoadingAction('save');
     try {
       await saveMessage(message.id, currentUid);
@@ -349,7 +349,7 @@ export const MessageActionSheet = memo(function MessageActionSheet({
   }, [message.id, currentUid, haptics, finishAction]);
 
   const handleDeleteConfirmed = useCallback(async () => {
-    haptics.notification('warning');
+    haptics.notificationError();
     setLoadingAction('delete');
     setShowDeleteConfirm(false);
     try {
@@ -361,7 +361,7 @@ export const MessageActionSheet = memo(function MessageActionSheet({
   }, [message, currentUid, haptics, finishAction]);
 
   const handlePin = useCallback(async () => {
-    haptics.impact('medium');
+    haptics.impactMedium();
     setLoadingAction('pin');
     try {
       await pinMessage(message.id, message.sector_id);
@@ -372,7 +372,7 @@ export const MessageActionSheet = memo(function MessageActionSheet({
   }, [message, haptics, finishAction]);
 
   const handleUnpin = useCallback(async () => {
-    haptics.impact('medium');
+    haptics.impactMedium();
     setLoadingAction('unpin');
     try {
       await unpinMessage(message.id, message.sector_id);
@@ -384,7 +384,7 @@ export const MessageActionSheet = memo(function MessageActionSheet({
 
   const handleReportConfirmed = useCallback(async () => {
     if (!reportReason) return;
-    haptics.notification('warning');
+    haptics.notificationError();
     setReportLoading(true);
     try {
       await reportMessage(message.id, reportReason, currentUid, message.sector_id);
@@ -400,13 +400,13 @@ export const MessageActionSheet = memo(function MessageActionSheet({
   // ── Action dispatcher ───────────────────────────────────────────────────────
   const handleAction = useCallback((id: ActionId) => {
     switch (id) {
-      case 'react':  haptics.impact('light'); setView('emoji');           break;
+      case 'react':  haptics.impactLight(); setView('emoji');           break;
       case 'reply':  /* v1.1 disabled — shown but inert */                break;
       case 'copy':   handleCopy();                                        break;
       case 'share':  handleShare();                                       break;
       case 'save':   handleSave();                                        break;
-      case 'report': haptics.impact('medium'); setShowReportConfirm(true); break;
-      case 'delete': haptics.impact('medium'); setShowDeleteConfirm(true); break;
+      case 'report': haptics.impactMedium(); setShowReportConfirm(true); break;
+      case 'delete': haptics.impactMedium(); setShowDeleteConfirm(true); break;
       case 'pin':    handlePin();                                         break;
       case 'unpin':  handleUnpin();                                       break;
     }
@@ -616,7 +616,7 @@ export const MessageActionSheet = memo(function MessageActionSheet({
             <View style={S.cancelSeparator} />
             <TouchableOpacity
               style={S.cancelRow}
-              onPress={() => { haptics.impact('light'); handleClose(); }}
+              onPress={() => { haptics.impactLight(); handleClose(); }}
               activeOpacity={0.7}
               accessibilityRole="button"
               accessibilityLabel="Cancel · close action sheet"
@@ -657,7 +657,7 @@ export const MessageActionSheet = memo(function MessageActionSheet({
             <View style={S.cancelSeparator} />
             <TouchableOpacity
               style={S.cancelRow}
-              onPress={() => { haptics.impact('light'); handleClose(); }}
+              onPress={() => { haptics.impactLight(); handleClose(); }}
               activeOpacity={0.7}
               accessibilityRole="button"
               accessibilityLabel="Cancel"
