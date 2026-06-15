@@ -1,32 +1,28 @@
 /**
  * CROWN — Chat Composer (molecule)  ·  components/molecules/ChatInput.tsx
  * ─────────────────────────────────────────────────────────────────────────────
- * Sticky bottom composer. PRD v3.2 §9.3.5 — Gap-Fill Trick.
- *   navVisible=true  → bottom = 56 + insets.bottom
- *   navVisible=false → bottom = insets.bottom   (fills the vacated nav space)
- *   Both animate in 200ms lockstep with the nav.
+ * WhatsApp / Telegram-style FLOATING composer.
  *
- * PREMIUM PASS (WhatsApp-clean / Telegram-tight):
- *   • Emoji moved BACK INSIDE the pill (right-aligned) — was floating
- *     outside, which looked unbalanced.
- *   • Pill: soft cream fill, hairline idle border → 1.5px gold on focus
- *     (was a heavy 2px). Calmer, more premium.
- *   • Send button: refined gold circle, tasteful lift shadow (was a harsh
- *     0.45-opacity glow).
- *   • "+" attach now sits in its own soft tap circle.
- *   • All fonts via FONT_BODY (the loaded Inter family).
+ *   • One floating rounded box — holds EVERYTHING: [+] · text · 😊 · send.
+ *   • No white bar behind it (transparent strip → it floats over the chat).
+ *   • Auto-grows from 1 line up to ~5 lines, then scrolls inside (multiline).
+ *   • NO character limit (send any length — like WhatsApp).
+ *   • No black focus box on web (browser outline killed).
+ *   • Gap-fill (§9.3.5) now uses translateY on the UI thread → smooth, no
+ *     scroll glitch (was animating `bottom`, which thrashes layout).
  *
- * Public API, state machine, gap-fill animation, auth gate, char counter,
- * scope-aware placeholder — all unchanged. Drop-in replacement.
+ * Public API unchanged — drop-in replacement.
+ *   navVisible=true  → box sits above the nav
+ *   navVisible=false → box slides down 56px to fill the vacated nav space
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
+  Platform,
   Pressable,
   StyleSheet,
-  Text,
   TextInput,
   View,
   ViewStyle,
@@ -35,57 +31,54 @@ import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useHaptics } from '@/hooks/useHaptics';
-import { animation, colors, dimensions, palette, radii, spacing } from '@/constants/colors';
+import { animation, colors, palette, radii } from '@/constants/colors';
 import { FONT_BODY, FONT_SIZE } from '@/constants/typography';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // § 1 — DIMENSIONS
 // ─────────────────────────────────────────────────────────────────────────────
 
-const STRIP_H = dimensions.inputLg; // 64
-const PAD_V = spacing.md; // 12
-const PAD_H = spacing.base; // 16
-const INPUT_H = 44 as const; // taller pill — premium breathing room
-const SEND_SIZE = dimensions.btnSendSize; // 40
-const SEND_ICON_SIZE = dimensions.btnSendInner; // 20
-
-const INPUT_PAD_LEFT = 16 as const;
-const EMOJI_SIZE = 20 as const;
-const EMOJI_RIGHT = 12 as const;
-/** reserve room inside the pill for the emoji icon */
-const INPUT_PAD_RIGHT = EMOJI_RIGHT + EMOJI_SIZE + 8; // 40
-
-const BORDER_IDLE_W = 1 as const;
-const BORDER_FOCUS_W = 1.5 as const;
-
-const INPUT_DISABLED_OPACITY = 0.5 as const;
-const CHAR_LIMIT = 1_000 as const;
-const COUNTER_THRESHOLD = 850 as const;
-const FAILED_RESET_MS = 3_000 as const;
-const SENDING_IDLE_RESET_MS = 300 as const;
-
-const BOTTOM_NAV_HEIGHT = 56 as const;
+const NAV_HEIGHT = 56 as const;
 const Z_CHAT_INPUT = 935 as const;
 const NAV_ANIM_DURATION_MS = 200 as const;
 
+/** Floating box outer side margin (so it doesn't touch screen edges) */
+const SIDE_MARGIN = 12 as const;
+/** Gap above the nav bar */
+const BOTTOM_GAP = 6 as const;
+
+/** Input min height (single line — aligns with the 36px control buttons) */
+const MIN_INPUT_H = 36 as const;
+/** Input max height (~5 lines) before it scrolls internally */
+const MAX_INPUT_H = 120 as const;
+
+const SEND_SIZE = 40 as const;
+const SEND_ICON_SIZE = 20 as const;
+const CTRL_SIZE = 36 as const;
+const EMOJI_ICON = 22 as const;
+const PLUS_ICON = 24 as const;
+
+const SENDING_IDLE_RESET_MS = 300 as const;
+
 // ─────────────────────────────────────────────────────────────────────────────
-// § 2 — COLORS (semantic tokens only)
+// § 2 — COLORS (semantic tokens)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const STRIP_BG = colors.bg.surface;
-const STRIP_BORDER = colors.border.default;
-const INPUT_BG = palette.cream[100]; // soft warm fill
-const INPUT_BORDER_IDLE = colors.border.inputIdle;
-const INPUT_BORDER_FOCUS = colors.border.inputFocus;
+const BOX_BG = palette.cream[100]; // soft warm fill
+const BOX_BORDER_IDLE = colors.border.inputIdle; // cream[400]
+const BOX_BORDER_FOCUS = colors.fg.brand; // gold
 const INPUT_TEXT_COLOR = colors.fg.primary;
 const INPUT_PLACEHOLDER_COLOR = colors.fg.placeholder;
-const EMOJI_COLOR = colors.fg.secondary;
-const PLUS_ICON_COLOR = colors.fg.secondary;
+const ICON_COLOR = colors.fg.secondary;
 const SEND_BG = colors.fg.brand;
-const SEND_ICON_COLOR = palette.white;
 const SEND_BG_FAILED = colors.fg.error;
-const COUNTER_COLOR_DEFAULT = colors.fg.secondary;
-const COUNTER_COLOR_WARN = colors.fg.warning;
+const SEND_ICON_COLOR = palette.white;
+
+/** Kills the black focus outline on react-native-web */
+const WEB_NO_OUTLINE =
+  Platform.OS === 'web'
+    ? ({ outlineWidth: 0, outlineColor: 'transparent', outlineStyle: 'none' } as unknown as ViewStyle)
+    : null;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // § 3 — TYPES
@@ -101,6 +94,8 @@ export interface ChatInputProps {
   onAuthGate?: () => void;
   isAuthenticated: boolean;
   navVisible?: boolean;
+  /** Accepted for API symmetry — navVisible drives the animation. */
+  navHidden?: boolean;
   scope?: Scope;
   cityLabel?: string;
   sectorLabel?: string;
@@ -120,7 +115,7 @@ function resolvePlaceholder(
   sectorLabel: string,
   override?: string,
 ): string {
-  if (override !== undefined) return override;
+  if (override !== undefined && override !== '') return override;
   switch (scope) {
     case 'world':
       return 'World ki chat mein message likho...';
@@ -130,19 +125,6 @@ function resolvePlaceholder(
       return `${cityLabel} ki chat mein message likho...`;
     case 'sector':
       return `${sectorLabel} mein message likho...`;
-  }
-}
-
-function resolveA11yLabel(scope: Scope, cityLabel: string, sectorLabel: string): string {
-  switch (scope) {
-    case 'world':
-      return 'Type a message in World chat';
-    case 'country':
-      return 'Type a message in India chat';
-    case 'city':
-      return `Type a message in ${cityLabel} chat`;
-    case 'sector':
-      return `Type a message in ${sectorLabel}`;
   }
 }
 
@@ -163,7 +145,7 @@ const SendButtonBase: React.FC<SendButtonProps> = ({ sendState, onPress, spinVal
 
   useEffect(() => {
     if (isActiveNow && !wasActive.current) {
-      btnScale.setValue(0.9);
+      btnScale.setValue(0.85);
       Animated.spring(btnScale, {
         toValue: 1,
         stiffness: animation.easing.springGentle.stiffness,
@@ -175,7 +157,6 @@ const SendButtonBase: React.FC<SendButtonProps> = ({ sendState, onPress, spinVal
   }, [isActiveNow, btnScale]);
 
   const spin = spinValue.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
-
   const isDisabled = sendState === 'idle' || sendState === 'sending' || sendState === 'failed';
   const bgColor = sendState === 'failed' ? SEND_BG_FAILED : SEND_BG;
 
@@ -193,11 +174,6 @@ const SendButtonBase: React.FC<SendButtonProps> = ({ sendState, onPress, spinVal
     return <Feather name="arrow-up" size={SEND_ICON_SIZE} color={SEND_ICON_COLOR} />;
   };
 
-  const accessibilityLabel =
-    sendState === 'active' || sendState === 'sending'
-      ? 'Send message'
-      : 'Send button. Type a message first.';
-
   return (
     <Animated.View style={{ transform: [{ scale: btnScale }] }}>
       <Pressable
@@ -205,7 +181,7 @@ const SendButtonBase: React.FC<SendButtonProps> = ({ sendState, onPress, spinVal
         disabled={isDisabled}
         hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
         accessible
-        accessibilityLabel={accessibilityLabel}
+        accessibilityLabel="Send message"
         accessibilityRole="button"
         accessibilityState={{ disabled: isDisabled }}
         testID="home-send-button"
@@ -231,20 +207,9 @@ const sendButtonStyles = StyleSheet.create({
     borderRadius: radii.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    // Tasteful lift — not a harsh glow
-    shadowColor: colors.fg.brand,
-    shadowOpacity: 0.28,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 4,
   },
-  idle: {
-    // Slightly calmer when there's nothing to send
-    opacity: 0.92,
-  },
-  pressed: {
-    opacity: 0.85,
-  },
+  idle: { opacity: 0.9 },
+  pressed: { opacity: 0.82 },
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -254,10 +219,11 @@ const sendButtonStyles = StyleSheet.create({
 const ChatInputBase: React.FC<ChatInputProps> = ({
   onSend,
   onVoice: _onVoice,
-  onImage: _onImage,
+  onImage,
   onAuthGate,
   isAuthenticated,
   navVisible = true,
+  navHidden,
   scope = 'sector',
   cityLabel = '',
   sectorLabel = 'Sector 17',
@@ -271,32 +237,32 @@ const ChatInputBase: React.FC<ChatInputProps> = ({
   const [text, setText] = useState<string>('');
   const [isFocused, setIsFocused] = useState<boolean>(false);
   const [sendState, setSendState] = useState<SendState>('idle');
+  const [inputHeight, setInputHeight] = useState<number>(MIN_INPUT_H);
 
   const inputRef = useRef<TextInput>(null);
-  const failedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sendingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   const spinValue = useRef(new Animated.Value(0)).current;
   const spinLoop = useRef<Animated.CompositeAnimation | null>(null);
 
-  // ── Gap-fill animation (§9.3.5) ────────────────────────────────────────────
-  const bottomAnim = useRef(new Animated.Value(BOTTOM_NAV_HEIGHT)).current;
-  const isFirstRender = useRef(true);
+  // ── Gap-fill via translateY (UI thread → smooth) ───────────────────────────
+  // 0 = nav visible (box above nav), 1 = nav hidden (box slid down to fill).
+  const isHidden = navHidden !== undefined ? navHidden : !navVisible;
+  const slide = useRef(new Animated.Value(isHidden ? 1 : 0)).current;
 
   useEffect(() => {
-    const targetBottom = navVisible ? BOTTOM_NAV_HEIGHT + insets.bottom : insets.bottom;
-    if (isFirstRender.current) {
-      bottomAnim.setValue(targetBottom);
-      isFirstRender.current = false;
-      return;
-    }
-    Animated.timing(bottomAnim, {
-      toValue: targetBottom,
+    Animated.timing(slide, {
+      toValue: isHidden ? 1 : 0,
       duration: NAV_ANIM_DURATION_MS,
-      easing: Easing.ease,
-      useNativeDriver: false,
+      easing: Easing.out(Easing.ease),
+      useNativeDriver: true,
     }).start();
-  }, [navVisible, insets.bottom, bottomAnim]);
+  }, [isHidden, slide]);
+
+  const translateY = slide.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, NAV_HEIGHT],
+    extrapolate: 'clamp',
+  });
 
   // ── Spinner ────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -321,22 +287,16 @@ const ChatInputBase: React.FC<ChatInputProps> = ({
   useEffect(() => {
     return () => {
       spinLoop.current?.stop();
-      if (failedTimerRef.current) clearTimeout(failedTimerRef.current);
       if (sendingTimerRef.current) clearTimeout(sendingTimerRef.current);
     };
   }, []);
 
-  // ── Derive idle/active from text ───────────────────────────────────────────
+  // ── idle ↔ active from text ────────────────────────────────────────────────
   const hasText = text.trim().length > 0;
   useEffect(() => {
     if (sendState === 'sending' || sendState === 'failed') return;
     setSendState(hasText ? 'active' : 'idle');
   }, [hasText, sendState]);
-
-  // ── Char counter ───────────────────────────────────────────────────────────
-  const charsLeft = CHAR_LIMIT - text.length;
-  const showCounter = text.length >= COUNTER_THRESHOLD;
-  const counterWarn = charsLeft <= 50;
 
   // ── Auth gate ──────────────────────────────────────────────────────────────
   const handleInputFocus = useCallback((): void => {
@@ -357,111 +317,117 @@ const ChatInputBase: React.FC<ChatInputProps> = ({
     if (!trimmed || sendState !== 'active') return;
     haptics.impactLight();
     setText('');
+    setInputHeight(MIN_INPUT_H);
     setSendState('sending');
     onSend(trimmed);
     sendingTimerRef.current = setTimeout(() => {
-      setSendState(text.trim().length > 0 ? 'active' : 'idle');
+      setSendState('idle');
     }, SENDING_IDLE_RESET_MS);
   }, [text, sendState, haptics, onSend]);
 
+  // ── Emoji → focus (opens keyboard emoji) ───────────────────────────────────
   const handleEmojiPress = useCallback((): void => {
     if (!isAuthenticated) {
       onAuthGate?.();
       return;
     }
+    haptics.impactLight();
     inputRef.current?.focus();
-  }, [isAuthenticated, onAuthGate]);
+  }, [isAuthenticated, onAuthGate, haptics]);
 
+  // ── Plus → attachment (or focus if no handler wired) ───────────────────────
   const handlePlusPress = useCallback((): void => {
     if (!isAuthenticated) {
       onAuthGate?.();
       return;
     }
-    _onImage?.();
-  }, [isAuthenticated, onAuthGate, _onImage]);
+    haptics.impactLight();
+    if (onImage) onImage();
+    else inputRef.current?.focus();
+  }, [isAuthenticated, onAuthGate, onImage, haptics]);
 
-  // ── Derived ────────────────────────────────────────────────────────────────
-  const inputBorderColor = isFocused ? INPUT_BORDER_FOCUS : INPUT_BORDER_IDLE;
-  const inputBorderWidth = isFocused ? BORDER_FOCUS_W : BORDER_IDLE_W;
+  // ── Auto-grow height ───────────────────────────────────────────────────────
+  const handleContentSize = useCallback(
+    (e: { nativeEvent: { contentSize: { height: number } } }): void => {
+      const h = Math.min(
+        Math.max(MIN_INPUT_H, Math.ceil(e.nativeEvent.contentSize.height)),
+        MAX_INPUT_H,
+      );
+      setInputHeight(h);
+    },
+    [],
+  );
+
+  const boxBorderColor = isFocused ? BOX_BORDER_FOCUS : BOX_BORDER_IDLE;
   const effectivePlaceholder = resolvePlaceholder(scope, cityLabel, sectorLabel, placeholder);
-  const effectiveA11yLabel = resolveA11yLabel(scope, cityLabel, sectorLabel);
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <Animated.View
-      style={[styles.wrapper, { bottom: bottomAnim, paddingBottom: PAD_V }, style]}
+      style={[
+        styles.wrapper,
+        {
+          bottom: NAV_HEIGHT + insets.bottom,
+          paddingBottom: BOTTOM_GAP,
+          transform: [{ translateY }],
+        },
+        style,
+      ]}
+      pointerEvents="box-none"
       testID="home-chat-input"
     >
-      {showCounter && (
-        <View style={styles.counterRow} pointerEvents="none">
-          <Text
-            style={[styles.counterText, counterWarn && styles.counterTextWarn]}
-            accessible={false}
-          >
-            {charsLeft}
-          </Text>
-        </View>
-      )}
-
-      <View style={styles.row}>
-        {/* + attach (soft tap circle) */}
+      <View
+        style={[styles.box, { borderColor: boxBorderColor }, disabled && styles.boxDisabled]}
+      >
+        {/* + attach (inside, left) */}
         <Pressable
           onPress={handlePlusPress}
-          style={({ pressed }) => [styles.plusButton, pressed && styles.plusPressed]}
+          style={({ pressed }) => [styles.ctrlBtn, pressed && styles.ctrlPressed]}
           hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
           accessible
           accessibilityLabel="Add attachment"
           accessibilityRole="button"
         >
-          <Feather name="plus" size={22} color={PLUS_ICON_COLOR} />
+          <Feather name="plus" size={PLUS_ICON} color={ICON_COLOR} />
         </Pressable>
 
-        {/* Input pill — emoji lives INSIDE, right-aligned */}
-        <View
-          style={[
-            styles.inputContainer,
-            { borderColor: inputBorderColor, borderWidth: inputBorderWidth },
-            disabled && styles.inputContainerDisabled,
-          ]}
+        {/* Text — auto-grows, no limit */}
+        <TextInput
+          ref={inputRef}
+          style={[styles.input, { height: inputHeight }, WEB_NO_OUTLINE]}
+          value={text}
+          onChangeText={setText}
+          onContentSizeChange={handleContentSize}
+          onFocus={handleInputFocus}
+          onBlur={handleInputBlur}
+          placeholder={effectivePlaceholder}
+          placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
+          multiline
+          scrollEnabled
+          blurOnSubmit={false}
+          returnKeyType="default"
+          keyboardType="default"
+          autoCapitalize="sentences"
+          autoCorrect
+          editable={isAuthenticated && !disabled}
+          accessible
+          accessibilityLabel={effectivePlaceholder}
+          testID="home-input-field"
+        />
+
+        {/* Emoji (inside, before send) */}
+        <Pressable
+          onPress={handleEmojiPress}
+          style={({ pressed }) => [styles.ctrlBtn, pressed && styles.ctrlPressed]}
+          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+          accessible
+          accessibilityLabel="Open emoji keyboard"
+          accessibilityRole="button"
         >
-          <TextInput
-            ref={inputRef}
-            style={styles.inputField}
-            value={text}
-            onChangeText={(val) => {
-              if (val.length <= CHAR_LIMIT) setText(val);
-            }}
-            onFocus={handleInputFocus}
-            onBlur={handleInputBlur}
-            placeholder={effectivePlaceholder}
-            placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
-            multiline={false}
-            blurOnSubmit={false}
-            returnKeyType="default"
-            keyboardType="default"
-            autoCapitalize="sentences"
-            autoCorrect
-            editable={isAuthenticated && !disabled}
-            maxLength={CHAR_LIMIT}
-            accessible
-            accessibilityLabel={effectiveA11yLabel}
-            accessibilityRole="none"
-            testID="home-input-field"
-          />
+          <Feather name="smile" size={EMOJI_ICON} color={ICON_COLOR} />
+        </Pressable>
 
-          <Pressable
-            onPress={handleEmojiPress}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            style={styles.emojiButton}
-            accessible
-            accessibilityLabel="Open emoji keyboard"
-            accessibilityRole="button"
-          >
-            <Feather name="smile" size={EMOJI_SIZE} color={EMOJI_COLOR} />
-          </Pressable>
-        </View>
-
-        {/* Send */}
+        {/* Send (inside, right) */}
         <SendButtonMemo sendState={sendState} onPress={handleSend} spinValue={spinValue} />
       </View>
     </Animated.View>
@@ -473,86 +439,61 @@ const ChatInputBase: React.FC<ChatInputProps> = ({
 // ─────────────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
+  // Transparent strip — the box floats over the chat
   wrapper: {
     position: 'absolute',
     left: 0,
     right: 0,
-    minHeight: STRIP_H,
-    backgroundColor: STRIP_BG,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: STRIP_BORDER,
-    paddingHorizontal: PAD_H,
-    paddingTop: PAD_V,
+    paddingHorizontal: SIDE_MARGIN,
+    backgroundColor: 'transparent',
     zIndex: Z_CHAT_INPUT,
     elevation: 8,
   },
 
-  row: {
+  // The single floating rounded box holding everything
+  box: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    alignItems: 'flex-end', // controls pin to bottom as text grows
+    backgroundColor: BOX_BG,
+    borderRadius: 24,
+    borderWidth: 1,
+    paddingHorizontal: 6,
+    paddingVertical: 6,
+    // Floating lift
+    shadowColor: palette.ink[950],
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 14,
+    elevation: 8,
+  },
+  boxDisabled: {
+    opacity: 0.55,
   },
 
-  // ── Input pill ─────────────────────────────────────────────────────────────
-  inputContainer: {
+  input: {
     flex: 1,
-    height: INPUT_H,
-    borderRadius: radii.pill,
-    backgroundColor: INPUT_BG,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingLeft: INPUT_PAD_LEFT,
-    paddingRight: EMOJI_RIGHT,
-    overflow: 'hidden',
-  },
-  inputContainerDisabled: {
-    opacity: INPUT_DISABLED_OPACITY,
-  },
-  inputField: {
-    flex: 1,
-    height: INPUT_H,
-    paddingVertical: 0,
     fontFamily: FONT_BODY.regular,
     fontSize: FONT_SIZE.mdLg, // 15
     lineHeight: 20,
     color: INPUT_TEXT_COLOR,
+    paddingHorizontal: 8,
+    paddingTop: 8,
+    paddingBottom: 8,
+    margin: 0,
+    textAlignVertical: 'top',
     includeFontPadding: false,
-    textAlignVertical: 'center',
-  },
-  emojiButton: {
-    width: EMOJI_SIZE + 8,
-    height: INPUT_H,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 4,
+    maxHeight: MAX_INPUT_H,
   },
 
-  // ── + attach ───────────────────────────────────────────────────────────────
-  plusButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  ctrlBtn: {
+    width: CTRL_SIZE,
+    height: CTRL_SIZE,
+    borderRadius: CTRL_SIZE / 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  plusPressed: {
+  ctrlPressed: {
     backgroundColor: colors.bg.goldSoft,
-  },
-
-  // ── Char counter ───────────────────────────────────────────────────────────
-  counterRow: {
-    alignItems: 'flex-end',
-    paddingBottom: spacing.xs,
-  },
-  counterText: {
-    fontFamily: FONT_BODY.regular,
-    fontSize: FONT_SIZE.cap, // 12
-    lineHeight: 16,
-    color: COUNTER_COLOR_DEFAULT,
-    includeFontPadding: false,
-  },
-  counterTextWarn: {
-    color: COUNTER_COLOR_WARN,
   },
 });
 
