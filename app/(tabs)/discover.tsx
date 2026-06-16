@@ -1,33 +1,43 @@
 /**
- * ORBIT — Discover Tab (discover.tsx)
+ * CROWN — EXPLORE Tab (discover.tsx)
+ * ════════════════════════════════════════════════════════════════════════════
+ * PRD §9.1: EXPLORE = "Discover other cities, leaderboards, schedules, search".
+ * Contains: 4-tier leaderboards · Battle Schedule · City Picker · Search.
  *
- * Upgraded from mock → live Firestore.
+ * This is a FULL rewrite of the legacy ORBIT discover screen. The previous
+ * version was a posts/views/"Watch now" feed with Spotlight Auctions, Mood
+ * Rooms and Weekly Challenges — all features the PRD explicitly CUT (v4→v5
+ * removal list + founder's "no feed, no posts" mandate). None of that belongs
+ * in CROWN. EXPLORE is a discovery surface for titles, battles and geography.
  *
- * Changes:
- *   • Subscribes to /posts collection (orderBy views desc, limit 30)
- *   • Spotlight winner = post with highest `spotlightBid` credit in current
- *     hour slot — rendered as a special hero card at the top of the feed.
- *   • Falls back to DISCOVER_POSTS when Firestore returns zero docs
- *     (development / seeding phase).
- *   • Filter pills + search still work on the live list.
- *   • Mood Rooms + Weekly Challenges sections preserved.
+ * ── What every interactive element does ──────────────────────────────────────
+ *   • Search bar          → live-searches users (Firestore) + filters cities;
+ *                           tapping a user row opens their profile.
+ *   • Scope switcher       → World / Country / City / Sector leaderboards.
+ *                           Each scope shows the live Top contenders for that
+ *                           tier's title (IMPERATOR / SOVEREIGN / VICEROY / BARON).
+ *   • Podium (top 3)       → tap a podium avatar → that user's profile.
+ *   • Leaderboard rows     → tap → that user's profile (/user/[id]).
+ *   • "Change" (City/Sector)→ opens the City Picker bottom sheet to switch which
+ *                           city/sector leaderboard you're viewing.
+ *   • Battle Schedule rows  → tap → jumps Home to that scope's live chat so the
+ *                           user can go contend before the freeze.
+ *   • City Picker rows      → tap → sets the active city + jumps Home to that
+ *                           city's chat (visit another city — PRD §9.2 picker).
  *
- * Firestore schema expected for /posts/{postId}:
- *   title: string
- *   authorUid: string
- *   authorUsername: string     ← denormalized (blueprint §07)
- *   category: string           ← one of FILTERS
- *   views: number
- *   duration: string           ← "15s" | "30s"
- *   icon: string               ← Feather icon name
- *   accent: string             ← hex tint (not used as bg fill)
- *   tier: string               ← "PRO" | "MASTER" | "CHAMPION" | "LEGEND"
- *   room: string               ← room name (display only)
- *   spotlightBid: number       ← 0 if not in auction; winner = max bid
- *   createdAt: Timestamp
+ * ── Data layer ───────────────────────────────────────────────────────────────
+ * Live Firestore via the same proven pattern as ranks.tsx:
+ *   World/Country → /users orderBy('karma','desc')
+ *   City/Sector   → /users where('region','==',cityId) orderBy('karma','desc')
+ * Graceful fallback to mock (RANKS_DATA / fallback cities) when the collection
+ * is empty or offline — so the screen is never blank during seeding. A small
+ * "DEMO" pill marks mock data, exactly like ranks.tsx.
+ *
+ * Title strings come ONLY from @/constants/titles (hardcoding them is a
+ * PR-block). All colour comes from the `orbit` token set (gold = #D4A017).
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -37,6 +47,9 @@ import {
   Platform,
   ActivityIndicator,
   Animated,
+  Modal,
+  TextInput,
+  Pressable,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -47,876 +60,1260 @@ import {
   Divider,
   CreditPill,
   WalletDrawer,
-  IconBox,
   Avatar,
 } from '@/components/shared';
 import { orbit } from '@/constants/colors';
+import { TITLES, TITLE_LABELS, TITLE_COLORS, CYCLE } from '@/constants/titles';
 import { useAuth } from '@/contexts/AuthContext';
 import { firestore } from '@/lib/firebase';
-import {
-  DISCOVER_POSTS,
-  MOOD_ROOMS,
-  WEEKLY_CHALLENGES,
-  MY_PROFILE,
-} from '@/constants/data';
+import { searchUsers } from '@/lib/firestore-users';
+import type { UserDoc } from '@/lib/firestore-users';
+import { RANKS_DATA, MY_PROFILE } from '@/constants/data';
 
-/* ─── Types ─────────────────────────────────────────────────────────── */
+/* ════════════════════════════════════════════════════════════════════════════
+   TYPES
+   ════════════════════════════════════════════════════════════════════════════ */
 
-export type PostDoc = {
-  id: string;
-  title: string;
-  authorUid: string;
-  authorUsername: string;
-  category: string;
-  views: number;           // raw number for sorting
-  viewsLabel: string;      // "1.2K" display string
-  duration: string;
-  icon: string;
-  accent: string;
-  tier: string;
-  room: string;
-  spotlightBid: number;
-  createdAt: unknown;
+type ScopeKey = 'WORLD' | 'COUNTRY' | 'CITY' | 'SECTOR';
+
+/** Unified leaderboard contender — from Firestore or mock. */
+type Contender = {
+  id: string; // uid
+  name: string; // username
+  karma: number;
+  badge: string;
+  region: string | null;
 };
 
-/* ─── Constants ─────────────────────────────────────────────────────── */
+/** A visitable place in the City Picker. */
+type Place = {
+  id: string; // cityId — e.g. "mumbai"
+  name: string; // "Mumbai"
+  country: string; // "India"
+  online: number; // live count (estimate / mock)
+};
 
-const FILTERS = ['All', 'Gaming', 'Music', 'Business', 'Art'];
-const POSTS_COLLECTION = 'posts';
-const POSTS_LIMIT = 30;
+/** A search hit for a user. */
+type UserHit = {
+  uid: string;
+  username: string;
+  displayName: string | null;
+  karma: number;
+};
+
+/* ════════════════════════════════════════════════════════════════════════════
+   CONSTANTS
+   ════════════════════════════════════════════════════════════════════════════ */
+
+const USERS_COLL = 'users';
+const LEADERBOARD_LIMIT = 50;
+const SEARCH_LIMIT = 12;
 
 /**
- * Maps each mock Mood Room id → a valid mood slug recognised by /mood/[mood].tsx
- * Valid slugs: chill | hype | study | random
+ * The four leaderboard scopes, in PRD order (World first — the apex tier).
+ * Each maps to a title from constants/titles.ts. `icon` is a Feather glyph.
  */
-const MOOD_SLUG_MAP: Record<string, string> = {
-  m1: 'chill',   // Late Night Feels
-  m2: 'hype',    // Morning Motivation
-  m3: 'random',  // Meme Drop Zone
-  m4: 'study',   // Grind Mode ON
-  m5: 'chill',   // Vent & Heal
-};
+const SCOPES: {
+  key: ScopeKey;
+  tab: string; // short tab label
+  icon: React.ComponentProps<typeof Feather>['name'];
+  title: string; // full ceremonial title (from TITLES)
+  accent: string; // tier accent
+  geographic: boolean; // City/Sector are pickable; World/Country use home defaults
+}[] = [
+  { key: 'WORLD', tab: 'World', icon: 'globe', title: TITLES.WORLD, accent: orbit.accent, geographic: false },
+  { key: 'COUNTRY', tab: 'Country', icon: 'flag', title: TITLES.COUNTRY, accent: orbit.accent, geographic: false },
+  { key: 'CITY', tab: 'City', icon: 'map-pin', title: TITLES.CITY, accent: TITLE_COLORS.CITY, geographic: true },
+  { key: 'SECTOR', tab: 'Sector', icon: 'home', title: TITLES.SECTOR, accent: TITLE_COLORS.SECTOR, geographic: true },
+];
 
-/* ─── Firestore helpers ─────────────────────────────────────────────── */
+/**
+ * Fallback city list for the City Picker — used until a live cities collection
+ * is wired. Sorted by online count (desc) like the PRD picker. English-only
+ * copy (global product). These are real OSM-scale metros, not placeholders.
+ */
+const FALLBACK_PLACES: Place[] = [
+  { id: 'mumbai', name: 'Mumbai', country: 'India', online: 247891 },
+  { id: 'delhi', name: 'Delhi', country: 'India', online: 198450 },
+  { id: 'bengaluru', name: 'Bengaluru', country: 'India', online: 156200 },
+  { id: 'chandigarh', name: 'Chandigarh', country: 'India', online: 48230 },
+  { id: 'hyderabad', name: 'Hyderabad', country: 'India', online: 92100 },
+  { id: 'chennai', name: 'Chennai', country: 'India', online: 88400 },
+  { id: 'kolkata', name: 'Kolkata', country: 'India', online: 79300 },
+  { id: 'pune', name: 'Pune', country: 'India', online: 71200 },
+  { id: 'jaipur', name: 'Jaipur', country: 'India', online: 41800 },
+  { id: 'lucknow', name: 'Lucknow', country: 'India', online: 34600 },
+  { id: 'new-york', name: 'New York', country: 'USA', online: 142000 },
+  { id: 'london', name: 'London', country: 'UK', online: 118700 },
+  { id: 'dubai', name: 'Dubai', country: 'UAE', online: 64200 },
+  { id: 'singapore', name: 'Singapore', country: 'Singapore', online: 58900 },
+  { id: 'toronto', name: 'Toronto', country: 'Canada', online: 47100 },
+  { id: 'sydney', name: 'Sydney', country: 'Australia', online: 39400 },
+];
 
-/** Convert DISCOVER_POSTS mock → PostDoc shape so feed renderer is unified. */
-function mockToPostDoc(m: typeof DISCOVER_POSTS[0], idx: number): PostDoc {
-  const viewsNum = parseFloat(m.views.replace('K', '')) * (m.views.includes('K') ? 1000 : 1);
-  return {
-    id: m.id,
-    title: m.title,
-    authorUid: `mock_${m.author}`,
-    authorUsername: m.author,
-    category: m.category,
-    views: Math.round(viewsNum),
-    viewsLabel: m.views,
-    duration: m.duration,
-    icon: m.icon,
-    accent: m.accent,
-    tier: m.tier,
-    room: m.room,
-    spotlightBid: idx === 0 ? 42 : 0,   // first mock post = mock spotlight winner
-    createdAt: null,
-  };
-}
+/** Default home geography when the user's profile has none set yet. */
+const DEFAULT_CITY: Place = FALLBACK_PLACES[3]; // Chandigarh (founder's city)
 
-function fmtViews(n: number): string {
+/* ════════════════════════════════════════════════════════════════════════════
+   HELPERS
+   ════════════════════════════════════════════════════════════════════════════ */
+
+function fmtCount(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000)     return `${(n / 1_000).toFixed(1)}K`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return String(n);
 }
 
-/* ─── Sub-components ────────────────────────────────────────────────── */
+/** Title-case a cityId slug → display name fallback ("new-york" → "New York"). */
+function prettyCity(id: string): string {
+  return id
+    .split(/[-_\s]+/)
+    .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
+    .join(' ');
+}
 
-/** Top-of-feed Spotlight Winner card — distinct "hero" treatment. */
-function SpotlightCard({
-  post,
-  watched,
-  onWatch,
+function mockToContender(m: (typeof RANKS_DATA)[number]): Contender {
+  return {
+    id: m.id,
+    name: m.name,
+    karma: m.karma,
+    badge: m.badge ?? 'ACTIVE',
+    region: null,
+  };
+}
+
+/* ── Battle Schedule timing (5-hour cycle, staggered per scope) ───────────────
+ * PRD §8: cycles are 5h; freeze times are PUBLISHED AHEAD (never AI-decided).
+ * World freezes daily at 23:30 IST (CYCLE.WORLD_FREEZE_HOUR/MINUTE_IST).
+ * The other three are staggered off a fixed 5h grid anchored to midnight IST,
+ * so contenders always know exactly when their scope locks. This is a
+ * deterministic schedule (offsets are constant), matching "freeze times
+ * published 7 cycles ahead, staggered". */
+
+const IST_OFFSET_MIN = 5 * 60 + 30; // IST = UTC+5:30
+
+/** Current time in IST as ms-since-midnight + a Date for that IST wall clock. */
+function nowIST(): { msOfDay: number; date: Date } {
+  const utc = Date.now();
+  const istMs = utc + IST_OFFSET_MIN * 60_000;
+  const d = new Date(istMs);
+  const msOfDay =
+    d.getUTCHours() * 3_600_000 +
+    d.getUTCMinutes() * 60_000 +
+    d.getUTCSeconds() * 1_000 +
+    d.getUTCMilliseconds();
+  return { msOfDay, date: d };
+}
+
+const FIVE_H = 5 * 3_600_000;
+
+/** Stagger offsets (ms into the 5h grid) so the four scopes never freeze at once. */
+const SCOPE_FREEZE_OFFSET: Record<ScopeKey, number> = {
+  // World is special-cased to 23:30 IST daily; offset unused for it.
+  WORLD: 0,
+  COUNTRY: 0, // freezes on the 5h grid: 00:00, 05:00, 10:00, 15:00, 20:00 IST
+  CITY: 90 * 60_000, // +1h30m → 01:30, 06:30, 11:30, 16:30, 21:30 IST
+  SECTOR: 180 * 60_000, // +3h00m → 03:00, 08:00, 13:00, 18:00, 23:00 IST
+};
+
+/** Ms remaining until this scope's next freeze (IST grid). */
+function msUntilFreeze(scope: ScopeKey): number {
+  const { msOfDay } = nowIST();
+
+  if (scope === 'WORLD') {
+    const target =
+      CYCLE.WORLD_FREEZE_HOUR_IST * 3_600_000 + CYCLE.WORLD_FREEZE_MINUTE_IST * 60_000;
+    let delta = target - msOfDay;
+    if (delta <= 0) delta += 24 * 3_600_000; // tomorrow's 23:30
+    return delta;
+  }
+
+  const offset = SCOPE_FREEZE_OFFSET[scope];
+  // Next grid point strictly in the future.
+  const sinceAnchor = (msOfDay - offset + 24 * 3_600_000) % FIVE_H;
+  let delta = FIVE_H - sinceAnchor;
+  if (delta <= 0) delta += FIVE_H;
+  return delta;
+}
+
+function fmtClock(ms: number): string {
+  if (ms < 0) ms = 0;
+  const totalSec = Math.floor(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (h > 0) return `${h}h ${String(m).padStart(2, '0')}m`;
+  return `${m}m ${String(s).padStart(2, '0')}s`;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   SUB-COMPONENT — Scope Switcher (segmented, matches ranks.tsx tab bar)
+   ════════════════════════════════════════════════════════════════════════════ */
+
+function ScopeSwitcher({
+  active,
+  onChange,
 }: {
-  post: PostDoc;
-  watched: boolean;
-  onWatch: () => void;
+  active: ScopeKey;
+  onChange: (s: ScopeKey) => void;
 }) {
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.15, duration: 900, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1,    duration: 900, useNativeDriver: true }),
-      ])
-    ).start();
-  }, []);
-
   return (
-    <View style={styles.spotlightWrapper}>
-      {/* Header row */}
-      <View style={styles.spotlightHeaderRow}>
-        <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-          <View style={styles.spotlightDot} />
-        </Animated.View>
-        <Text style={styles.spotlightLabel}>SPOTLIGHT · TOP BID</Text>
-        <View style={styles.spotlightBidPill}>
-          <Feather name="zap" size={11} color={orbit.warning} />
-          <Text style={styles.spotlightBidText}>{post.spotlightBid} credits</Text>
-        </View>
+    <View style={styles.tabBarOuter}>
+      <View style={styles.tabBar}>
+        {SCOPES.map((s) => {
+          const isActive = s.key === active;
+          return (
+            <TouchableOpacity
+              key={s.key}
+              style={[styles.tab, isActive && styles.tabActive]}
+              onPress={() => onChange(s.key)}
+              activeOpacity={0.85}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: isActive }}
+              accessibilityLabel={`${s.tab} leaderboard`}
+            >
+              <Feather
+                name={s.icon}
+                size={14}
+                color={isActive ? orbit.textPrimary : orbit.textTertiary}
+              />
+              <Text style={[styles.tabText, isActive && styles.tabTextActive]}>{s.tab}</Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
-
-      {/* Card body */}
-      <TouchableOpacity style={styles.spotlightCard} activeOpacity={0.88}>
-        <View style={[styles.spotlightAccentBar, { backgroundColor: post.accent }]} />
-        <View style={styles.spotlightInner}>
-          <View style={styles.spotlightIconRow}>
-            <IconBox icon={post.icon} size={52} />
-            <View style={{ flex: 1, marginLeft: 14 }}>
-              <Text style={styles.spotlightTitle} numberOfLines={2}>
-                {post.title}
-              </Text>
-              <View style={styles.spotlightMetaRow}>
-                <Avatar name={post.authorUsername} size={18} />
-                <Text style={styles.spotlightAuthor}>@{post.authorUsername}</Text>
-                {post.tier ? (
-                  <View style={styles.tierBadge}>
-                    <Text style={styles.tierBadgeText}>{post.tier}</Text>
-                  </View>
-                ) : null}
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.spotlightStatsRow}>
-            <View style={styles.spotlightStat}>
-              <Feather name="eye" size={12} color={orbit.textTertiary} />
-              <Text style={styles.spotlightStatText}>{post.viewsLabel} views</Text>
-            </View>
-            <View style={styles.spotlightStat}>
-              <Feather name="hash" size={12} color={orbit.textTertiary} />
-              <Text style={styles.spotlightStatText}>{post.room}</Text>
-            </View>
-          </View>
-
-          <TouchableOpacity
-            style={[styles.spotlightWatchBtn, watched && styles.spotlightWatchBtnDone]}
-            onPress={onWatch}
-            activeOpacity={0.85}
-          >
-            <Feather
-              name={watched ? 'check' : 'play'}
-              size={14}
-              color={orbit.white}
-            />
-            <Text style={styles.spotlightWatchText}>
-              {watched ? 'Watched' : `Watch now · ${post.duration}`}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </TouchableOpacity>
     </View>
   );
 }
 
-function MoodRoomsSection({ onMoodPress }: { onMoodPress: (moodId: string) => void }) {
+/* ════════════════════════════════════════════════════════════════════════════
+   SUB-COMPONENT — Title banner (names the title + scope you're viewing)
+   ════════════════════════════════════════════════════════════════════════════ */
+
+function TitleBanner({
+  scope,
+  placeName,
+  onChangePlace,
+}: {
+  scope: (typeof SCOPES)[number];
+  placeName: string;
+  onChangePlace?: () => void;
+}) {
+  // "Mayor (VICEROY) of Mumbai" / "BARON of Chandigarh" / "SOVEREIGN" / "IMPERATOR"
+  let line: string;
+  if (scope.key === 'CITY') line = TITLE_LABELS.WITH_SCOPE.CITY(placeName);
+  else if (scope.key === 'SECTOR') line = TITLE_LABELS.WITH_SCOPE.SECTOR(placeName);
+  else if (scope.key === 'COUNTRY') line = `${scope.title} · ${placeName}`;
+  else line = `${scope.title} · Worldwide`;
+
   return (
-    <View style={styles.moodSection}>
-      <View style={styles.sectionTitleRow}>
-        <Text style={styles.sectionTitle}>Mood Rooms</Text>
+    <View style={styles.bannerRow}>
+      <View style={[styles.bannerDot, { backgroundColor: scope.accent }]} />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.bannerLabel}>RACE FOR</Text>
+        <Text style={styles.bannerTitle} numberOfLines={1}>
+          {line}
+        </Text>
+      </View>
+      {onChangePlace && (
         <TouchableOpacity
+          style={styles.changeBtn}
+          onPress={onChangePlace}
+          activeOpacity={0.8}
           hitSlop={6}
-          accessibilityRole="link"
-          accessibilityLabel="See all mood rooms"
-          onPress={() => onMoodPress('random')}
+          accessibilityRole="button"
+          accessibilityLabel="Change location"
         >
-          <Text style={styles.seeAll}>See all</Text>
+          <Feather name="repeat" size={13} color={orbit.accent} />
+          <Text style={styles.changeBtnText}>Change</Text>
         </TouchableOpacity>
-      </View>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 20, gap: 12, paddingVertical: 4 }}
-      >
-        {MOOD_ROOMS.map(m => (
-          <TouchableOpacity
-            key={m.id}
-            style={styles.moodCard}
-            activeOpacity={0.85}
-            onPress={() => onMoodPress(m.id)}
-            accessibilityRole="button"
-            accessibilityLabel={`Enter ${m.name} mood room`}
-          >
-            <View style={[styles.moodStripe, { backgroundColor: m.accent }]} />
-            <View style={styles.moodInner}>
-              <View style={styles.moodIconBox}>
-                <Feather name={m.icon as any} size={20} color={orbit.textPrimary} />
-              </View>
-              <Text style={styles.moodName} numberOfLines={2}>{m.name}</Text>
-              <Text style={styles.moodMembers}>{m.members} online</Text>
-              <View style={styles.moodTagPill}>
-                <Text style={styles.moodTagText}>{m.tag}</Text>
-              </View>
-            </View>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+      )}
     </View>
   );
 }
 
-function WeeklyChallengesSection({ onChallengePress }: { onChallengePress: (id: string) => void }) {
+/* ════════════════════════════════════════════════════════════════════════════
+   SUB-COMPONENT — Podium (top 3 contenders)
+   ════════════════════════════════════════════════════════════════════════════ */
+
+function Podium({
+  top3,
+  accent,
+  onTap,
+}: {
+  top3: Contender[];
+  accent: string;
+  onTap: (uid: string) => void;
+}) {
+  if (top3.length < 3) return null;
+  // Display order: 2nd · 1st · 3rd (classic podium)
+  const order = [
+    { c: top3[1], place: 2, size: 56, lift: 18 },
+    { c: top3[0], place: 1, size: 72, lift: 0 },
+    { c: top3[2], place: 3, size: 56, lift: 28 },
+  ];
+  // 1st = brand gold token; 2nd/3rd = silver/bronze (no dedicated tokens — neutral metals).
+  const medal = [orbit.accent, '#A8A8B3', '#B08D57'];
+
   return (
-    <View style={styles.challengeSection}>
-      <View style={styles.sectionTitleRow}>
-        <Text style={styles.sectionTitle}>Weekly Challenges</Text>
-        <Text style={styles.resetText}>Resets Sun</Text>
-      </View>
-      {WEEKLY_CHALLENGES.map((c, i) => (
-        <React.Fragment key={c.id}>
-          <TouchableOpacity
-            style={styles.challengeItem}
-            activeOpacity={0.7}
-            onPress={() => onChallengePress(c.id)}
-            accessibilityRole="button"
-            accessibilityLabel={`Enter challenge: ${c.title}`}
-          >
-            <IconBox icon={c.icon} size={40} />
-            <View style={styles.challengeBody}>
-              <Text style={styles.challengeTitle} numberOfLines={1}>{c.title}</Text>
-              <Text style={styles.challengeMeta}>
-                {c.entries} entries · ends in {c.ends}
-              </Text>
+    <View style={styles.podiumRow}>
+      {order.map(({ c, place, size, lift }) => (
+        <Pressable
+          key={c.id}
+          style={[styles.podiumCol, { marginTop: lift }]}
+          onPress={() => onTap(c.id)}
+          accessibilityRole="button"
+          accessibilityLabel={`Rank ${place}: ${c.name}`}
+        >
+          <View>
+            <Avatar name={c.name} size={size} ringed={place === 1} />
+            <View style={[styles.podiumMedal, { backgroundColor: medal[place - 1] }]}>
+              <Text style={styles.podiumMedalText}>{place}</Text>
             </View>
-            <View style={styles.challengeRight}>
-              <Text style={styles.challengePrize}>+{c.prize}</Text>
-              <Feather name="chevron-right" size={18} color={orbit.textTertiary} />
-            </View>
-          </TouchableOpacity>
-          {i < WEEKLY_CHALLENGES.length - 1 && <Divider />}
-        </React.Fragment>
+          </View>
+          <Text style={styles.podiumName} numberOfLines={1}>
+            @{c.name}
+          </Text>
+          <View style={styles.podiumKarmaRow}>
+            <Feather name="heart" size={10} color={accent} />
+            <Text style={[styles.podiumKarma, { color: accent }]}>{fmtCount(c.karma)}</Text>
+          </View>
+        </Pressable>
       ))}
     </View>
   );
 }
 
-/** Standard post row — used for every post below the Spotlight hero. */
-function PostRow({
+/* ════════════════════════════════════════════════════════════════════════════
+   SUB-COMPONENT — Leaderboard row (rank 4+)
+   ════════════════════════════════════════════════════════════════════════════ */
+
+function LeaderRow({
   item,
-  watched,
-  onWatch,
+  rank,
+  accent,
+  isMe,
+  onPress,
 }: {
-  item: PostDoc;
-  watched: boolean;
-  onWatch: () => void;
+  item: Contender;
+  rank: number;
+  accent: string;
+  isMe: boolean;
+  onPress: () => void;
 }) {
   return (
-    <View style={styles.discoverItem}>
-      <IconBox icon={item.icon} size={48} />
-      <View style={styles.discoverBody}>
-        <Text style={styles.discoverTitle} numberOfLines={2}>{item.title}</Text>
-        <View style={styles.discoverMetaRow}>
-          <Text style={styles.discoverAuthor}>@{item.authorUsername}</Text>
-          <Text style={styles.discoverDot}>·</Text>
-          <Text style={styles.discoverMeta}>{item.viewsLabel} views</Text>
+    <TouchableOpacity
+      style={[styles.row, isMe && styles.rowMe]}
+      onPress={onPress}
+      activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={`Rank ${rank}: ${item.name}, ${item.karma} reactions`}
+    >
+      <Text style={[styles.rowRank, isMe && { color: accent }]}>{rank}</Text>
+      <Avatar name={item.name} size={40} />
+      <View style={styles.rowBody}>
+        <Text style={styles.rowName} numberOfLines={1}>
+          @{item.name}
+          {isMe ? <Text style={[styles.youTag, { color: accent }]}>  · You</Text> : null}
+        </Text>
+        {item.badge && item.badge !== 'ACTIVE' ? (
+          <Text style={styles.rowBadge}>{item.badge}</Text>
+        ) : (
+          <Text style={styles.rowSub}>Contender</Text>
+        )}
+      </View>
+      <View style={styles.rowKarma}>
+        <Feather name="heart" size={12} color={accent} />
+        <Text style={[styles.rowKarmaText, { color: accent }]}>{fmtCount(item.karma)}</Text>
+      </View>
+      <Feather name="chevron-right" size={16} color={orbit.textTertiary} />
+    </TouchableOpacity>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   SUB-COMPONENT — Battle Schedule (live countdowns to each scope's freeze)
+   ════════════════════════════════════════════════════════════════════════════ */
+
+function BattleSchedule({
+  tick,
+  homeCity,
+  onGoScope,
+}: {
+  tick: number; // re-render trigger (updates every second)
+  homeCity: string;
+  onGoScope: (s: ScopeKey) => void;
+}) {
+  // tick referenced so the component re-renders each second.
+  void tick;
+  return (
+    <View style={styles.section}>
+      <View style={styles.sectionHead}>
+        <Text style={styles.sectionTitle}>Battle Schedule</Text>
+        <View style={styles.liveChip}>
+          <View style={styles.liveDot} />
+          <Text style={styles.liveChipText}>IST</Text>
         </View>
-        <View style={styles.discoverActions}>
-          <TouchableOpacity
-            style={[styles.btnWatch, watched && styles.btnWatchDone]}
-            onPress={onWatch}
-            activeOpacity={0.85}
-          >
-            <Feather name={watched ? 'check' : 'play'} size={13} color={orbit.white} />
-            <Text style={styles.btnWatchText}>
-              {watched ? 'Watched' : `Watch · ${item.duration}`}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.btnMsg} activeOpacity={0.8}>
-            <Feather name="message-circle" size={13} color={orbit.textSecond} />
-            <Text style={styles.btnMsgText}>Message</Text>
-          </TouchableOpacity>
-        </View>
+      </View>
+      <Text style={styles.sectionHint}>
+        Next title freeze per scope. Be in the chat before the clock hits zero.
+      </Text>
+
+      <View style={styles.scheduleCard}>
+        {SCOPES.map((s, i) => {
+          const ms = msUntilFreeze(s.key);
+          const soon = ms <= 10 * 60_000; // < 10 min = "closing"
+          const place =
+            s.key === 'CITY' ? homeCity : s.key === 'SECTOR' ? homeCity : '';
+          const label =
+            s.key === 'WORLD'
+              ? 'Worldwide'
+              : s.key === 'COUNTRY'
+              ? 'Your country'
+              : place;
+          return (
+            <React.Fragment key={s.key}>
+              <TouchableOpacity
+                style={styles.scheduleRow}
+                onPress={() => onGoScope(s.key)}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={`${s.title} freezes in ${fmtClock(ms)}. Open chat.`}
+              >
+                <View style={[styles.scheduleIcon, { backgroundColor: orbit.surface2 }]}>
+                  <Feather name={s.icon} size={16} color={s.accent} />
+                </View>
+                <View style={styles.scheduleBody}>
+                  <Text style={styles.scheduleTitle} numberOfLines={1}>
+                    {s.title}
+                  </Text>
+                  <Text style={styles.scheduleScope} numberOfLines={1}>
+                    {label}
+                  </Text>
+                </View>
+                <View style={styles.scheduleRight}>
+                  <Text style={[styles.scheduleClock, soon && { color: orbit.danger }]}>
+                    {fmtClock(ms)}
+                  </Text>
+                  <Text style={styles.scheduleClockLbl}>{soon ? 'closing' : 'to freeze'}</Text>
+                </View>
+              </TouchableOpacity>
+              {i < SCOPES.length - 1 && <Divider inset={64} />}
+            </React.Fragment>
+          );
+        })}
       </View>
     </View>
   );
 }
 
-/* ─── Main Screen ───────────────────────────────────────────────────── */
+/* ════════════════════════════════════════════════════════════════════════════
+   SUB-COMPONENT — City Picker bottom sheet (visit / switch geography)
+   ════════════════════════════════════════════════════════════════════════════ */
 
-export default function DiscoverScreen() {
-  const insets        = useSafeAreaInsets();
-  const router        = useRouter();
-  const { user }      = useAuth();
+function CityPickerSheet({
+  visible,
+  places,
+  activeId,
+  onClose,
+  onPick,
+}: {
+  visible: boolean;
+  places: Place[];
+  activeId: string;
+  onClose: () => void;
+  onPick: (p: Place) => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const slide = useRef(new Animated.Value(600)).current;
+  const [q, setQ] = useState('');
 
-  const [search, setSearch]         = useState('');
-  const [activeFilter, setFilter]   = useState('All');
-  const [walletVisible, setWallet]  = useState(false);
-  const [watchedIds, setWatched]    = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    Animated.timing(slide, {
+      toValue: visible ? 0 : 600,
+      duration: visible ? 260 : 200,
+      useNativeDriver: true,
+    }).start();
+    if (!visible) setQ('');
+  }, [visible, slide]);
 
-  /* Firestore state */
-  const [posts, setPosts]           = useState<PostDoc[]>([]);
-  const [loading, setLoading]       = useState(true);
-  const [usingMock, setUsingMock]   = useState(false);
+  const filtered = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    const list = needle
+      ? places.filter(
+          (p) =>
+            p.name.toLowerCase().includes(needle) ||
+            p.country.toLowerCase().includes(needle),
+        )
+      : places;
+    return [...list].sort((a, b) => b.online - a.online);
+  }, [places, q]);
 
+  return (
+    <Modal visible={visible} transparent animationType="none" statusBarTranslucent onRequestClose={onClose}>
+      <Pressable style={styles.sheetBackdrop} onPress={onClose} accessibilityLabel="Close city picker">
+        <Animated.View
+          style={[styles.sheet, { paddingBottom: insets.bottom + 12, transform: [{ translateY: slide }] }]}
+        >
+          {/* Stop touches inside the sheet from closing it */}
+          <Pressable onPress={() => {}}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>Visit another city</Text>
+            <Text style={styles.sheetSub}>
+              Jump into any city's live chat — post anywhere on Earth.
+            </Text>
+
+            <View style={styles.sheetSearch}>
+              <Feather name="search" size={16} color={orbit.textTertiary} />
+              <TextInput
+                value={q}
+                onChangeText={setQ}
+                placeholder="Search cities or countries…"
+                placeholderTextColor={orbit.textTertiary}
+                style={styles.sheetSearchInput}
+                autoCorrect={false}
+                returnKeyType="search"
+                accessibilityLabel="Search cities"
+              />
+              {q.length > 0 && (
+                <TouchableOpacity onPress={() => setQ('')} hitSlop={8} accessibilityLabel="Clear">
+                  <Feather name="x" size={15} color={orbit.textTertiary} />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <ScrollView style={styles.sheetList} keyboardShouldPersistTaps="handled">
+              {filtered.length === 0 ? (
+                <View style={styles.sheetEmpty}>
+                  <Feather name="map" size={28} color={orbit.textTertiary} />
+                  <Text style={styles.sheetEmptyText}>No cities match “{q}”.</Text>
+                </View>
+              ) : (
+                filtered.map((p) => {
+                  const isActive = p.id === activeId;
+                  return (
+                    <TouchableOpacity
+                      key={p.id}
+                      style={[styles.placeRow, isActive && styles.placeRowActive]}
+                      onPress={() => onPick(p)}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${p.name}, ${p.country}, ${fmtCount(p.online)} online${
+                        isActive ? ' — current' : ''
+                      }`}
+                    >
+                      <View style={styles.placeMono}>
+                        <Text style={styles.placeMonoText}>{p.name.charAt(0).toUpperCase()}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.placeName} numberOfLines={1}>
+                          {p.name}
+                        </Text>
+                        <Text style={styles.placeMeta} numberOfLines={1}>
+                          {p.country} · {fmtCount(p.online)} online
+                        </Text>
+                      </View>
+                      {isActive ? (
+                        <Feather name="check-circle" size={18} color={orbit.accent} />
+                      ) : (
+                        <Feather name="arrow-up-right" size={16} color={orbit.textTertiary} />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })
+              )}
+            </ScrollView>
+          </Pressable>
+        </Animated.View>
+      </Pressable>
+    </Modal>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   MAIN SCREEN
+   ════════════════════════════════════════════════════════════════════════════ */
+
+export default function ExploreScreen() {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { user, firebaseUser } = useAuth();
+
+  const myUid = firebaseUser?.uid ?? null;
   const credits = user?.credits ?? MY_PROFILE.watchCredits;
 
-  /* ── Navigation handlers ── */
+  /* ── Home geography (from profile, with sensible fallback) ── */
+  const homeCityId = user?.region ?? DEFAULT_CITY.id;
+  const homeCityName = useMemo(() => {
+    const match = FALLBACK_PLACES.find((p) => p.id === homeCityId);
+    return match ? match.name : prettyCity(homeCityId);
+  }, [homeCityId]);
 
-  const handleMoodPress = (moodId: string) => {
-    const slug = MOOD_SLUG_MAP[moodId] ?? 'random';
-    router.push(`/mood/${slug}` as never);
-  };
+  /* ── Active scope + the city being viewed for City/Sector boards ── */
+  const [scope, setScope] = useState<ScopeKey>('WORLD');
+  const [viewCity, setViewCity] = useState<Place>(() => {
+    const match = FALLBACK_PLACES.find((p) => p.id === homeCityId);
+    return match ?? { id: homeCityId, name: prettyCity(homeCityId), country: '', online: 0 };
+  });
 
-  const handleChallengePress = (challengeId: string) => {
-    router.push(`/challenges/${challengeId}` as never);
-  };
+  /* ── Leaderboard data ── */
+  const [contenders, setContenders] = useState<Contender[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [usingMock, setUsingMock] = useState(false);
 
-  /* ── Subscribe to /posts ── */
+  /* ── Search ── */
+  const [search, setSearch] = useState('');
+  const [hits, setHits] = useState<UserHit[]>([]);
+  const [searching, setSearching] = useState(false);
+  const searchSeq = useRef(0);
+
+  /* ── UI ── */
+  const [walletVisible, setWallet] = useState(false);
+  const [pickerVisible, setPicker] = useState(false);
+
+  /* ── Battle Schedule ticker (re-render once per second) ── */
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => (t + 1) % 86_400), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const activeScope = SCOPES.find((s) => s.key === scope)!;
+  const isGeo = activeScope.geographic;
+  const boardPlaceName = isGeo ? viewCity.name : scope === 'COUNTRY' ? (viewCity.country || 'Your country') : 'Worldwide';
+
+  /* ── Subscribe to leaderboard data for the active scope ──────────────────────
+   * World/Country → global /users karma board.
+   * City/Sector   → /users where region == viewCity.id.
+   * Re-subscribes whenever scope or viewed city changes. */
   useEffect(() => {
     let unsub: (() => void) | undefined;
+    setLoading(true);
 
-    try {
-      unsub = firestore()
-        .collection(POSTS_COLLECTION)
-        .orderBy('views', 'desc')
-        .limit(POSTS_LIMIT)
-        .onSnapshot(
-          (qs) => {
-            if (qs.empty) {
-              // Collection not seeded yet — use mock data
-              setPosts(DISCOVER_POSTS.map(mockToPostDoc));
-              setUsingMock(true);
-            } else {
-              const list: PostDoc[] = [];
-              qs.forEach((doc) => {
-                const d = doc.data() as Omit<PostDoc, 'id' | 'viewsLabel'>;
-                list.push({
-                  id: doc.id,
-                  ...d,
-                  viewsLabel: fmtViews(d.views ?? 0),
-                });
-              });
-              setPosts(list);
-              setUsingMock(false);
-            }
-            setLoading(false);
-          },
-          (_err) => {
-            // Firestore error (permissions / offline) — fall back to mock
-            setPosts(DISCOVER_POSTS.map(mockToPostDoc));
-            setUsingMock(true);
-            setLoading(false);
-          }
-        );
-    } catch {
-      // firestore() not available (e.g. web without init) — use mock
-      setPosts(DISCOVER_POSTS.map(mockToPostDoc));
+    const applyMock = () => {
+      setContenders(RANKS_DATA.map(mockToContender));
       setUsingMock(true);
       setLoading(false);
+    };
+
+    try {
+      let query = firestore().collection(USERS_COLL) as any;
+
+      if (scope === 'CITY' || scope === 'SECTOR') {
+        // Geography-scoped board. region == cityId.
+        query = query.where('region', '==', viewCity.id).orderBy('karma', 'desc').limit(LEADERBOARD_LIMIT);
+      } else {
+        // Global board (World / Country share the karma ranking in Phase 1;
+        // a country filter is added once `countryId` is denormalised on users).
+        query = query.orderBy('karma', 'desc').limit(LEADERBOARD_LIMIT);
+      }
+
+      unsub = query.onSnapshot(
+        (qs: any) => {
+          if (qs.empty) {
+            applyMock();
+            return;
+          }
+          const list: Contender[] = [];
+          qs.forEach((doc: any) => {
+            const d = doc.data() as UserDoc;
+            if (!d.onboardingComplete || !d.username) return;
+            list.push({
+              id: doc.id,
+              name: d.username,
+              karma: d.karma ?? 0,
+              badge: d.badge ?? 'ACTIVE',
+              region: d.region ?? null,
+            });
+          });
+          if (list.length === 0) {
+            applyMock();
+          } else {
+            setContenders(list);
+            setUsingMock(false);
+            setLoading(false);
+          }
+        },
+        () => applyMock(),
+      );
+    } catch {
+      applyMock();
     }
 
     return () => unsub?.();
-  }, []);
+  }, [scope, viewCity.id]);
 
-  /* ── Derived: spotlight winner + filtered feed ── */
+  /* ── Live user search (debounced) ── */
+  useEffect(() => {
+    const needle = search.trim();
+    if (needle.length < 2) {
+      setHits([]);
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    const seq = ++searchSeq.current;
+    const t = setTimeout(async () => {
+      try {
+        const res = await searchUsers(needle, SEARCH_LIMIT);
+        if (seq !== searchSeq.current) return; // stale
+        const mapped: UserHit[] = (res ?? [])
+          .filter((u: UserDoc) => !!u.username)
+          .map((u: UserDoc) => ({
+            uid: u.uid,
+            username: u.username as string,
+            displayName: u.displayName,
+            karma: u.karma ?? 0,
+          }));
+        setHits(mapped);
+      } catch {
+        if (seq === searchSeq.current) setHits([]);
+      } finally {
+        if (seq === searchSeq.current) setSearching(false);
+      }
+    }, 280);
+    return () => clearTimeout(t);
+  }, [search]);
 
-  /** Spotlight winner = highest spotlightBid in current posts list. */
-  const spotlightWinner: PostDoc | null =
-    posts.length > 0
-      ? posts.reduce((best, p) => (p.spotlightBid > best.spotlightBid ? p : best), posts[0])
-      : null;
+  /* ── Navigation handlers ── */
+  const openUser = useCallback(
+    (uid: string) => {
+      if (uid.startsWith('mock_') || /^\d+$/.test(uid)) return; // mock rows aren't real profiles
+      router.push(`/user/${uid}` as never);
+    },
+    [router],
+  );
 
-  const feedPosts = posts
-    .filter(p => p.id !== spotlightWinner?.id)   // winner shown separately at top
-    .filter(p => {
-      const matchFilter = activeFilter === 'All' || p.category === activeFilter;
-      const matchSearch =
-        p.title.toLowerCase().includes(search.toLowerCase()) ||
-        p.authorUsername.toLowerCase().includes(search.toLowerCase());
-      return matchFilter && matchSearch;
-    });
+  const goScopeChat = useCallback(
+    (s: ScopeKey) => {
+      // Jump Home to the live chat. Pass the scope (+ city for geo scopes) so the
+      // Home screen can open the right room. Home reads these params if present.
+      const params: Record<string, string> = { scope: s.toLowerCase() };
+      if (s === 'CITY' || s === 'SECTOR') params.cityId = viewCity.id;
+      router.push({ pathname: '/(tabs)', params } as never);
+    },
+    [router, viewCity.id],
+  );
 
-  const handleWatch = (id: string) =>
-    setWatched(prev => ({ ...prev, [id]: true }));
+  const pickPlace = useCallback(
+    (p: Place) => {
+      setViewCity(p);
+      setPicker(false);
+      // If we're on a geographic board, the board re-subscribes to the new city.
+      // If not, switch the board to City so the pick is immediately meaningful.
+      setScope((cur) => (cur === 'CITY' || cur === 'SECTOR' ? cur : 'CITY'));
+    },
+    [],
+  );
 
-  const bottomPad = Platform.OS === 'web' ? 90 : insets.bottom + 70;
+  const bottomPad = Platform.OS === 'web' ? 96 : insets.bottom + 76;
+
+  const showingSearch = search.trim().length >= 2;
 
   return (
     <View style={[styles.screen, { backgroundColor: orbit.bg }]}>
       <ScreenHeader
-        title="Discover"
-        right={<CreditPill count={credits} onPress={() => setWallet(true)} />}
+        title="Explore"
+        right={
+          usingMock && !loading ? (
+            <View style={styles.demoPill}>
+              <Text style={styles.demoPillText}>DEMO</Text>
+            </View>
+          ) : (
+            <CreditPill count={credits} onPress={() => setWallet(true)} />
+          )
+        }
       />
+
       <SearchBar
-        placeholder="Search posts, rooms, creators..."
+        placeholder="Search people, cities…"
         value={search}
         onChangeText={setSearch}
       />
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: bottomPad }}
-      >
-        {/* ── Mood Rooms ── */}
-        <MoodRoomsSection onMoodPress={handleMoodPress} />
-
-        {/* ── Weekly Challenges ── */}
-        <WeeklyChallengesSection onChallengePress={handleChallengePress} />
-
-        {/* ── Spotlight Feed header ── */}
-        <View style={styles.feedHeader}>
-          <Text style={styles.sectionTitle}>Spotlight Feed</Text>
-          {usingMock && (
-            <Text style={styles.demoLabel}>DEMO</Text>
-          )}
-        </View>
-
-        {/* ── Category filter pills ── */}
+      {/* ── SEARCH RESULTS MODE ────────────────────────────────────────────── */}
+      {showingSearch ? (
         <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 20, gap: 8, paddingBottom: 8 }}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: bottomPad }}
+          keyboardShouldPersistTaps="handled"
         >
-          {FILTERS.map(f => {
-            const active = activeFilter === f;
-            return (
-              <TouchableOpacity
-                key={f}
-                style={[styles.filterPill, active && styles.filterPillActive]}
-                onPress={() => setFilter(f)}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.filterPillText, active && styles.filterPillTextActive]}>
-                  {f}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
+          {/* People */}
+          <Text style={styles.searchGroupLabel}>PEOPLE</Text>
+          {searching && hits.length === 0 ? (
+            <View style={styles.loadingWrap}>
+              <ActivityIndicator color={orbit.textTertiary} />
+            </View>
+          ) : hits.length === 0 ? (
+            <Text style={styles.searchEmpty}>No people found for “{search.trim()}”.</Text>
+          ) : (
+            hits.map((h, i) => (
+              <React.Fragment key={h.uid}>
+                <TouchableOpacity
+                  style={styles.hitRow}
+                  onPress={() => openUser(h.uid)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Open ${h.username}'s profile`}
+                >
+                  <Avatar name={h.displayName ?? h.username} size={40} />
+                  <View style={styles.hitBody}>
+                    <Text style={styles.hitName} numberOfLines={1}>
+                      {h.displayName ?? `@${h.username}`}
+                    </Text>
+                    <Text style={styles.hitSub} numberOfLines={1}>
+                      @{h.username} · {fmtCount(h.karma)} karma
+                    </Text>
+                  </View>
+                  <Feather name="chevron-right" size={16} color={orbit.textTertiary} />
+                </TouchableOpacity>
+                {i < hits.length - 1 && <Divider inset={68} />}
+              </React.Fragment>
+            ))
+          )}
+
+          {/* Cities */}
+          <Text style={[styles.searchGroupLabel, { marginTop: 18 }]}>CITIES</Text>
+          {(() => {
+            const needle = search.trim().toLowerCase();
+            const cityHits = FALLBACK_PLACES.filter(
+              (p) =>
+                p.name.toLowerCase().includes(needle) ||
+                p.country.toLowerCase().includes(needle),
+            ).sort((a, b) => b.online - a.online);
+            if (cityHits.length === 0) {
+              return <Text style={styles.searchEmpty}>No cities found.</Text>;
+            }
+            return cityHits.map((p, i) => (
+              <React.Fragment key={p.id}>
+                <TouchableOpacity
+                  style={styles.hitRow}
+                  onPress={() => {
+                    setViewCity(p);
+                    setScope('CITY');
+                    setSearch('');
+                  }}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={`View ${p.name} leaderboard`}
+                >
+                  <View style={styles.placeMono}>
+                    <Text style={styles.placeMonoText}>{p.name.charAt(0).toUpperCase()}</Text>
+                  </View>
+                  <View style={styles.hitBody}>
+                    <Text style={styles.hitName} numberOfLines={1}>
+                      {p.name}
+                    </Text>
+                    <Text style={styles.hitSub} numberOfLines={1}>
+                      {p.country} · {fmtCount(p.online)} online
+                    </Text>
+                  </View>
+                  <Feather name="chevron-right" size={16} color={orbit.textTertiary} />
+                </TouchableOpacity>
+                {i < cityHits.length - 1 && <Divider inset={68} />}
+              </React.Fragment>
+            ));
+          })()}
         </ScrollView>
+      ) : (
+        /* ── DEFAULT MODE: leaderboards + schedule ────────────────────────── */
+        <>
+          <ScopeSwitcher active={scope} onChange={setScope} />
 
-        {/* ── Loading skeleton ── */}
-        {loading && (
-          <View style={styles.loadingWrap}>
-            <ActivityIndicator color={orbit.textTertiary} />
-            <Text style={styles.loadingText}>Loading posts…</Text>
-          </View>
-        )}
+          {loading ? (
+            <View style={styles.loadingWrap}>
+              <ActivityIndicator color={orbit.textTertiary} />
+              <Text style={styles.loadingText}>Loading {activeScope.tab} leaderboard…</Text>
+            </View>
+          ) : (
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: bottomPad }}
+            >
+              <TitleBanner
+                scope={activeScope}
+                placeName={boardPlaceName}
+                onChangePlace={isGeo ? () => setPicker(true) : undefined}
+              />
 
-        {/* ── Spotlight winner hero card (only visible in "All" or matching category) ── */}
-        {!loading && spotlightWinner && (spotlightWinner.spotlightBid > 0) &&
-          (activeFilter === 'All' || activeFilter === spotlightWinner.category) &&
-          (search === '' ||
-            spotlightWinner.title.toLowerCase().includes(search.toLowerCase()) ||
-            spotlightWinner.authorUsername.toLowerCase().includes(search.toLowerCase())) && (
-          <SpotlightCard
-            post={spotlightWinner}
-            watched={watchedIds[spotlightWinner.id] ?? false}
-            onWatch={() => handleWatch(spotlightWinner.id)}
-          />
-        )}
+              {/* Podium top 3 */}
+              <Podium top3={contenders.slice(0, 3)} accent={activeScope.accent} onTap={openUser} />
 
-        {/* ── Feed rows ── */}
-        {!loading && feedPosts.map((item, index) => (
-          <React.Fragment key={item.id}>
-            <PostRow
-              item={item}
-              watched={watchedIds[item.id] ?? false}
-              onWatch={() => handleWatch(item.id)}
-            />
-            {index < feedPosts.length - 1 && <Divider />}
-          </React.Fragment>
-        ))}
+              <Divider />
 
-        {/* ── Empty state ── */}
-        {!loading && feedPosts.length === 0 && !spotlightWinner && (
-          <View style={styles.emptyWrap}>
-            <Feather name="inbox" size={32} color={orbit.textTertiary} />
-            <Text style={styles.emptyText}>No posts found</Text>
-            <Text style={styles.emptySubtext}>Try a different filter or search term</Text>
-          </View>
-        )}
-      </ScrollView>
+              {/* Rows 4+ */}
+              {contenders.length <= 3 ? (
+                <View style={styles.thinWrap}>
+                  <Feather name="users" size={40} color={orbit.textTertiary} />
+                  <Text style={styles.thinTitle}>The race is just starting</Text>
+                  <Text style={styles.thinSub}>
+                    Be the first to climb this leaderboard — react and post in the chat.
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.thinCta}
+                    onPress={() => goScopeChat(scope)}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.thinCtaText}>Open {activeScope.tab} chat</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                contenders.slice(3).map((c, i) => (
+                  <React.Fragment key={c.id}>
+                    <LeaderRow
+                      item={c}
+                      rank={i + 4}
+                      accent={activeScope.accent}
+                      isMe={c.id === myUid}
+                      onPress={() => openUser(c.id)}
+                    />
+                    {i < contenders.slice(3).length - 1 && <Divider inset={64} />}
+                  </React.Fragment>
+                ))
+              )}
 
-      <WalletDrawer
-        visible={walletVisible}
-        onClose={() => setWallet(false)}
-        credits={credits}
+              {/* Battle Schedule */}
+              <BattleSchedule tick={tick} homeCity={homeCityName} onGoScope={goScopeChat} />
+
+              {/* Visit another city CTA */}
+              <TouchableOpacity
+                style={styles.visitCard}
+                onPress={() => setPicker(true)}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Open city picker"
+              >
+                <View style={styles.visitIcon}>
+                  <Feather name="compass" size={20} color={orbit.accent} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.visitTitle}>Visit another city</Text>
+                  <Text style={styles.visitSub}>
+                    Currently viewing {viewCity.name}. Tap to explore any city on Earth.
+                  </Text>
+                </View>
+                <Feather name="chevron-right" size={18} color={orbit.textTertiary} />
+              </TouchableOpacity>
+            </ScrollView>
+          )}
+        </>
+      )}
+
+      {/* ── Overlays ── */}
+      <CityPickerSheet
+        visible={pickerVisible}
+        places={FALLBACK_PLACES}
+        activeId={viewCity.id}
+        onClose={() => setPicker(false)}
+        onPick={pickPlace}
       />
+
+      <WalletDrawer visible={walletVisible} onClose={() => setWallet(false)} credits={credits} />
     </View>
   );
 }
 
-/* ─── Styles ────────────────────────────────────────────────────────── */
+/* ════════════════════════════════════════════════════════════════════════════
+   STYLES — all colour from `orbit` tokens (gold = #D4A017). 8pt grid.
+   ════════════════════════════════════════════════════════════════════════════ */
+
 const styles = StyleSheet.create({
   screen: { flex: 1 },
 
-  sectionTitle: {
-    color: orbit.textPrimary,
-    fontSize: 17,
-    fontWeight: '600',
-    letterSpacing: -0.2,
-  },
-  sectionTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    marginBottom: 12,
-  },
-  seeAll: {
-    color: orbit.accent,
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  resetText: {
-    color: orbit.textTertiary,
-    fontSize: 12,
-    fontWeight: '500',
-  },
-
-  /* ── Spotlight hero ── */
-  spotlightWrapper: {
-    paddingHorizontal: 20,
-    paddingBottom: 4,
-    paddingTop: 12,
-  },
-  spotlightHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 10,
-  },
-  spotlightDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: orbit.warning,
-  },
-  spotlightLabel: {
-    color: orbit.warning,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    flex: 1,
-  },
-  spotlightBidPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(232,163,61,0.12)',
+  /* DEMO pill (parity with ranks.tsx) */
+  demoPill: {
+    backgroundColor: orbit.surface2,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
   },
-  spotlightBidText: {
-    color: orbit.warning,
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  spotlightCard: {
-    borderRadius: 16,
-    backgroundColor: orbit.surface1,
-    borderWidth: 1,
-    borderColor: orbit.borderStrong,
-    overflow: 'hidden',
-    flexDirection: 'row',
-  },
-  spotlightAccentBar: {
-    width: 4,
-    height: '100%',
-    opacity: 0.8,
-  },
-  spotlightInner: {
-    flex: 1,
-    padding: 16,
-    gap: 12,
-  },
-  spotlightIconRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  spotlightTitle: {
-    color: orbit.textPrimary,
-    fontSize: 15,
-    fontWeight: '700',
-    lineHeight: 21,
-    marginBottom: 6,
-  },
-  spotlightMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  spotlightAuthor: {
-    color: orbit.textSecond,
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  tierBadge: {
-    backgroundColor: orbit.accentSoft,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 5,
-  },
-  tierBadgeText: {
-    color: orbit.accent,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
-  spotlightStatsRow: {
-    flexDirection: 'row',
-    gap: 16,
-  },
-  spotlightStat: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  spotlightStatText: {
-    color: orbit.textTertiary,
-    fontSize: 12,
-  },
-  spotlightWatchBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: orbit.accent,
-    paddingVertical: 10,
-    borderRadius: 10,
-    gap: 6,
-  },
-  spotlightWatchBtnDone: {
-    backgroundColor: orbit.success,
-  },
-  spotlightWatchText: {
-    color: orbit.white,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-
-  /* ── Mood Rooms ── */
-  moodSection: {
-    paddingTop: 20,
-    paddingBottom: 16,
-  },
-  moodCard: {
-    width: 152,
-    height: 180,
-    borderRadius: 16,
-    backgroundColor: orbit.surface1,
-    borderWidth: 1,
-    borderColor: orbit.borderSubtle,
-    overflow: 'hidden',
-    flexDirection: 'row',
-  },
-  moodStripe: {
-    width: 3,
-    height: '100%',
-    opacity: 0.7,
-  },
-  moodInner: {
-    flex: 1,
-    padding: 14,
-  },
-  moodIconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 9,
-    backgroundColor: orbit.surface2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-  },
-  moodName: {
-    color: orbit.textPrimary,
-    fontSize: 14,
-    fontWeight: '600',
-    lineHeight: 18,
-  },
-  moodMembers: {
-    color: orbit.textTertiary,
-    fontSize: 12,
-    marginTop: 4,
-  },
-  moodTagPill: {
-    alignSelf: 'flex-start',
-    backgroundColor: orbit.surface2,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    marginTop: 'auto',
-  },
-  moodTagText: {
-    color: orbit.textSecond,
-    fontSize: 10,
-    fontWeight: '600',
-    letterSpacing: 0.3,
-  },
-
-  /* ── Weekly Challenges ── */
-  challengeSection: {
-    paddingTop: 16,
-    paddingBottom: 8,
-  },
-  challengeItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    gap: 12,
-  },
-  challengeBody: { flex: 1 },
-  challengeTitle: {
-    color: orbit.textPrimary,
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  challengeMeta: {
-    color: orbit.textTertiary,
-    fontSize: 12,
-  },
-  challengeRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  challengePrize: {
-    color: orbit.accent,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-
-  /* ── Feed ── */
-  feedHeader: {
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  demoLabel: {
+  demoPillText: {
     color: orbit.textTertiary,
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 0.6,
-    backgroundColor: orbit.surface2,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
   },
-  filterPill: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 18,
+
+  /* Scope switcher */
+  tabBarOuter: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 12 },
+  tabBar: {
+    flexDirection: 'row',
     backgroundColor: orbit.surface1,
+    borderRadius: 10,
+    padding: 4,
     borderWidth: 1,
     borderColor: orbit.borderSubtle,
   },
-  filterPillActive: {
-    backgroundColor: 'rgba(91, 127, 255, 0.10)',
-    borderColor: orbit.accent,
-  },
-  filterPillText: {
-    color: orbit.textSecond,
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  filterPillTextActive: {
-    color: orbit.accent,
-    fontWeight: '600',
-  },
-
-  /* ── Post rows ── */
-  discoverItem: {
+  tab: {
+    flex: 1,
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    borderRadius: 7,
+  },
+  tabActive: { backgroundColor: orbit.surface3 },
+  tabText: { color: orbit.textTertiary, fontSize: 13, fontWeight: '500' },
+  tabTextActive: { color: orbit.textPrimary, fontWeight: '700' },
+
+  /* Title banner */
+  bannerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingTop: 4,
+    paddingBottom: 16,
     gap: 12,
   },
-  discoverBody: { flex: 1 },
-  discoverTitle: {
-    color: orbit.textPrimary,
-    fontSize: 14,
-    fontWeight: '600',
-    lineHeight: 20,
-    marginBottom: 4,
+  bannerDot: { width: 10, height: 10, borderRadius: 5 },
+  bannerLabel: {
+    color: orbit.textTertiary,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1,
+    marginBottom: 2,
   },
-  discoverMetaRow: {
+  bannerTitle: { color: orbit.textPrimary, fontSize: 18, fontWeight: '700', letterSpacing: -0.2 },
+  changeBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
-    gap: 4,
-  },
-  discoverAuthor: {
-    color: orbit.textSecond,
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  discoverDot: {
-    color: orbit.textTertiary,
-    fontSize: 12,
-  },
-  discoverMeta: {
-    color: orbit.textTertiary,
-    fontSize: 12,
-  },
-  discoverActions: { flexDirection: 'row', gap: 8 },
-  btnWatch: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: orbit.accent,
+    gap: 5,
     paddingHorizontal: 12,
     paddingVertical: 7,
-    borderRadius: 8,
-    gap: 5,
+    borderRadius: 99,
+    backgroundColor: orbit.accentSoft,
+    borderWidth: 1,
+    borderColor: orbit.goldBorder,
   },
-  btnWatchDone: {
-    backgroundColor: orbit.success,
-  },
-  btnWatchText: {
-    color: orbit.white,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  btnMsg: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: orbit.surface2,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 8,
-    gap: 5,
-  },
-  btnMsgText: {
-    color: orbit.textSecond,
-    fontSize: 12,
-    fontWeight: '500',
-  },
+  changeBtnText: { color: orbit.accent, fontSize: 12, fontWeight: '600' },
 
-  /* ── States ── */
-  loadingWrap: {
-    paddingVertical: 40,
+  /* Podium */
+  podiumRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+    gap: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  podiumCol: { alignItems: 'center', width: 92 },
+  podiumMedal: {
+    position: 'absolute',
+    bottom: -4,
+    right: -2,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     alignItems: 'center',
-    gap: 10,
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: orbit.bg,
   },
-  loadingText: {
+  podiumMedalText: { color: orbit.white, fontSize: 11, fontWeight: '800' },
+  podiumName: {
+    color: orbit.textPrimary,
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 10,
+    maxWidth: 92,
+  },
+  podiumKarmaRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 3 },
+  podiumKarma: { fontSize: 12, fontWeight: '700' },
+
+  /* Leaderboard rows */
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    gap: 12,
+  },
+  rowMe: { backgroundColor: orbit.accentSoft },
+  rowRank: {
+    width: 24,
+    textAlign: 'center',
     color: orbit.textTertiary,
-    fontSize: 13,
+    fontSize: 14,
+    fontWeight: '700',
   },
-  emptyWrap: {
-    paddingVertical: 48,
+  rowBody: { flex: 1 },
+  rowName: { color: orbit.textPrimary, fontSize: 14, fontWeight: '600' },
+  youTag: { fontSize: 12, fontWeight: '700' },
+  rowBadge: {
+    color: orbit.textSecond,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+    marginTop: 2,
+  },
+  rowSub: { color: orbit.textTertiary, fontSize: 12, marginTop: 2 },
+  rowKarma: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  rowKarmaText: { fontSize: 13, fontWeight: '700' },
+
+  /* Thin/empty board state */
+  thinWrap: { alignItems: 'center', paddingHorizontal: 32, paddingVertical: 40, gap: 8 },
+  thinTitle: { color: orbit.textPrimary, fontSize: 16, fontWeight: '700', marginTop: 6 },
+  thinSub: { color: orbit.textTertiary, fontSize: 13, textAlign: 'center', lineHeight: 19 },
+  thinCta: {
+    marginTop: 12,
+    backgroundColor: orbit.accent,
+    paddingHorizontal: 20,
+    paddingVertical: 11,
+    borderRadius: 12,
+  },
+  thinCtaText: { color: orbit.white, fontSize: 14, fontWeight: '600' },
+
+  /* Sections */
+  section: { paddingTop: 24, paddingBottom: 4 },
+  sectionHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+  },
+  sectionTitle: { color: orbit.textPrimary, fontSize: 17, fontWeight: '700', letterSpacing: -0.2 },
+  sectionHint: {
+    color: orbit.textTertiary,
+    fontSize: 12,
+    paddingHorizontal: 20,
+    marginTop: 4,
+    marginBottom: 12,
+    lineHeight: 17,
+  },
+  liveChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: orbit.surface2,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 99,
+  },
+  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: orbit.success },
+  liveChipText: { color: orbit.textSecond, fontSize: 10, fontWeight: '700', letterSpacing: 0.4 },
+
+  /* Battle schedule card */
+  scheduleCard: {
+    marginHorizontal: 20,
+    backgroundColor: orbit.surface1,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: orbit.borderSubtle,
+    overflow: 'hidden',
+  },
+  scheduleRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 12 },
+  scheduleIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  scheduleBody: { flex: 1 },
+  scheduleTitle: { color: orbit.textPrimary, fontSize: 14, fontWeight: '600' },
+  scheduleScope: { color: orbit.textTertiary, fontSize: 12, marginTop: 2 },
+  scheduleRight: { alignItems: 'flex-end' },
+  scheduleClock: { color: orbit.textPrimary, fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  scheduleClockLbl: { color: orbit.textTertiary, fontSize: 10, marginTop: 2, letterSpacing: 0.3 },
+
+  /* Visit-another-city card */
+  visitCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    marginHorizontal: 20,
+    marginTop: 20,
+    padding: 16,
+    backgroundColor: orbit.surface1,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: orbit.borderSubtle,
+  },
+  visitIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: orbit.accentSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  visitTitle: { color: orbit.textPrimary, fontSize: 15, fontWeight: '700' },
+  visitSub: { color: orbit.textTertiary, fontSize: 12, marginTop: 3, lineHeight: 17 },
+
+  /* Search results */
+  searchGroupLabel: {
+    color: orbit.textTertiary,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  searchEmpty: { color: orbit.textTertiary, fontSize: 13, paddingHorizontal: 20, paddingVertical: 8 },
+  hitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    gap: 14,
+  },
+  hitBody: { flex: 1 },
+  hitName: { color: orbit.textPrimary, fontSize: 14, fontWeight: '600' },
+  hitSub: { color: orbit.textTertiary, fontSize: 12, marginTop: 2 },
+
+  /* States */
+  loadingWrap: { paddingVertical: 40, alignItems: 'center', gap: 10 },
+  loadingText: { color: orbit.textTertiary, fontSize: 13 },
+
+  /* City Picker sheet */
+  sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  sheet: {
+    backgroundColor: orbit.bg,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    maxHeight: '82%',
+  },
+  sheetHandle: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: orbit.borderStrong,
+    marginBottom: 16,
+  },
+  sheetTitle: { color: orbit.textPrimary, fontSize: 19, fontWeight: '700', letterSpacing: -0.2 },
+  sheetSub: { color: orbit.textTertiary, fontSize: 13, marginTop: 4, marginBottom: 14, lineHeight: 18 },
+  sheetSearch: {
+    flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    backgroundColor: orbit.surface1,
+    borderWidth: 1,
+    borderColor: orbit.borderSubtle,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 44,
+    marginBottom: 8,
   },
-  emptyText: {
-    color: orbit.textSecond,
-    fontSize: 15,
-    fontWeight: '600',
-    marginTop: 8,
+  sheetSearchInput: { flex: 1, color: orbit.textPrimary, fontSize: 14, paddingVertical: 0 },
+  sheetList: { marginTop: 4 },
+  sheetEmpty: { alignItems: 'center', paddingVertical: 36, gap: 8 },
+  sheetEmptyText: { color: orbit.textTertiary, fontSize: 13 },
+  placeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 4,
   },
-  emptySubtext: {
-    color: orbit.textTertiary,
-    fontSize: 13,
+  placeRowActive: { backgroundColor: orbit.accentSoft, borderRadius: 12, paddingHorizontal: 10 },
+  placeMono: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: orbit.surface2,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
+  placeMonoText: { color: orbit.textSecond, fontSize: 16, fontWeight: '700' },
+  placeName: { color: orbit.textPrimary, fontSize: 15, fontWeight: '600' },
+  placeMeta: { color: orbit.textTertiary, fontSize: 12, marginTop: 2 },
 });
