@@ -259,6 +259,20 @@ export const MessageActionSheet = memo(function MessageActionSheet({
   const messageTs: number = message.timestamp;
   const isPinned = isUserMessage && (message as UserMessage).is_pinned;
 
+  /**
+   * The REAL Firestore room document ID for every write below.
+   * Must come from the parent (home screen passes the scope-aware roomId via
+   * the adapter's room_id field). Falls back to sector_id only as a last resort.
+   *
+   * BUGFIX: previously every action used message.sector_id directly as the room
+   * path — but a sector room lives at `${cityId}_${sectorId}` (and city/country/
+   * world rooms have entirely different IDs). The mismatch made the document
+   * lookup fail and silently no-op'd reactions, delete, pin and report (the
+   * "like button / bottom sheet doesn't work" bug).
+   */
+  const roomId: string =
+    (message as { room_id?: string }).room_id ?? message.sector_id;
+
   // ── Reset on open/close ─────────────────────────────────────────────────────
   const handleClose = useCallback(() => {
     setView('main');
@@ -304,7 +318,11 @@ export const MessageActionSheet = memo(function MessageActionSheet({
     }
 
     try {
-      await addReaction(message.id, emoji, currentUid, message.sector_id);
+      // BUGFIX: addReaction signature is (roomId, messageId, emoji, uid).
+      // It was previously called as (message.id, emoji, currentUid, sector_id)
+      // — wrong order AND wrong room — so it wrote to a nonexistent path and the
+      // transaction silently returned. This is why the like button did nothing.
+      await addReaction(roomId, message.id, emoji, currentUid);
     } catch {
       // silently fail (toast from caller if needed)
     } finally {
@@ -341,7 +359,7 @@ export const MessageActionSheet = memo(function MessageActionSheet({
     haptics.impactMedium();
     setLoadingAction('save');
     try {
-      await saveMessage(message.id, currentUid);
+      await saveMessage(message.id, currentUid, roomId, messageText);
       finishAction('save');
     } catch {
       setLoadingAction(null);
@@ -353,7 +371,7 @@ export const MessageActionSheet = memo(function MessageActionSheet({
     setLoadingAction('delete');
     setShowDeleteConfirm(false);
     try {
-      await deleteMessage(message.id, message.sector_id, currentUid);
+      await deleteMessage(message.id, roomId, currentUid);
       finishAction('delete');
     } catch {
       setLoadingAction(null);
@@ -364,7 +382,7 @@ export const MessageActionSheet = memo(function MessageActionSheet({
     haptics.impactMedium();
     setLoadingAction('pin');
     try {
-      await pinMessage(message.id, message.sector_id);
+      await pinMessage(message.id, roomId);
       finishAction('pin');
     } catch {
       setLoadingAction(null);
@@ -375,7 +393,7 @@ export const MessageActionSheet = memo(function MessageActionSheet({
     haptics.impactMedium();
     setLoadingAction('unpin');
     try {
-      await unpinMessage(message.id, message.sector_id);
+      await unpinMessage(message.id, roomId);
       finishAction('unpin');
     } catch {
       setLoadingAction(null);
@@ -387,7 +405,7 @@ export const MessageActionSheet = memo(function MessageActionSheet({
     haptics.notificationError();
     setReportLoading(true);
     try {
-      await reportMessage(message.id, reportReason, currentUid, message.sector_id);
+      await reportMessage(message.id, reportReason, currentUid, roomId);
     } catch {
       // server error — still dismiss (report queued locally)
     } finally {
