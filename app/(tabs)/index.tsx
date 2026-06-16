@@ -14,10 +14,11 @@
  * Row 3 (32px): Online strip — always names active scope geography
  * Hides on scroll-down · Reappears on scroll-up (§9.3.4)
  * [2]  Offline Banner (conditional · 32px)
- * [3]  Inverted FlatList — 6 message variants + 8-skeleton state
- * [4]  ScrollFAB — new-message chip (conditional)
- * [5]  ChatInput — sticky; slides down to fill gap when nav hidden (§9.3.5)
- * [6]  CrownBottomNav (organism) — fixed full-width bar (§9.3 PRD)
+ * [3]  LiveTop30Bar (Task Card #19) — View Mode Switcher
+ * [4]  Inverted FlatList — 6 message variants + 8-skeleton state + Top30 variant
+ * [5]  ScrollFAB — new-message chip (conditional)
+ * [6]  ChatInput — sticky; slides down to fill gap when nav hidden (§9.3.5)
+ * [7]  CrownBottomNav (organism) — fixed full-width bar (§9.3 PRD)
  * Tabs: Home · Explore · Crown · Profile
  * Hides on scroll-down (translateY 100%) · Reappears on scroll-up
  * NO floating glass island · NO backdrop-filter
@@ -91,8 +92,6 @@ import { colors, palette, zIndex, spacing } from '@/constants/colors';
 import { layout }                            from '@/constants/spacing';
 import { FONT_BODY, FONT_HEADING }           from '@/constants/typography';
 // ── Organisms (PRD §9.2 + §9.3) ───────────────────────────────────────────
-// HomeHeader: 3-row header organism (Row1 wordmark + Row2 scope + Row3 strip)
-// CrownBottomNav: Simple fixed full-width bottom nav organism (§9.3)
 import HomeHeader, {
   hideHeader,
   showHeader,
@@ -117,7 +116,7 @@ import SectorPickerSheet          from '@/components/organisms/SectorPickerSheet
 import CountryPickerSheet         from '@/components/organisms/CountryPickerSheet';
 import { MessageActionSheet }     from '@/components/organisms/MessageActionSheet';
 import { AuthGateSheet }          from '@/components/organisms/AuthGateSheet';
-import { SendFailedModal }         from '@/components/organisms/SendFailedModal';
+import { SendFailedModal }        from '@/components/organisms/SendFailedModal';
 // ── Firestore (UNCHANGED) ─────────────────────────────────────────────────
 import {
   subscribeToMessages,
@@ -132,48 +131,50 @@ import {
 }                                 from '@/lib/firestore-rooms';
 // ── Types ─────────────────────────────────────────────────────────────────
 import type { CWMessage, CWRoom } from '@/types/cw';
+
 // ─────────────────────────────────────────────────────────────────────────────
 // § 1 — CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
 
-const MESSAGE_PAGE_SIZE  = 50    as const;
-const SKELETON_COUNT     = 8     as const;
-const TRUST_ANCHOR_MS    = 60_000 as const;
+const MESSAGE_PAGE_SIZE  = 50;
+const SKELETON_COUNT     = 8;
+const TRUST_ANCHOR_MS    = 60000;
 
-const DEFAULT_CITY_ID      = 'chandigarh'  as const;
-const DEFAULT_CITY_LABEL   = 'Chandigarh'  as const;
-const DEFAULT_COUNTRY_ID    = 'IN'          as const;
-const DEFAULT_COUNTRY_LABEL = 'India'       as const;
-const DEFAULT_COUNTRY_EMOJI = '🇮🇳'         as const;
-const DEFAULT_SECTOR_ID    = 'sector-17'   as const;
-const DEFAULT_SECTOR_LABEL = 'Sector 17'   as const;
+const DEFAULT_CITY_ID       = 'chandigarh';
+const DEFAULT_CITY_LABEL    = 'Chandigarh';
+const DEFAULT_COUNTRY_ID    = 'IN';
+const DEFAULT_COUNTRY_LABEL = 'India';
+const DEFAULT_COUNTRY_EMOJI = '🇮🇳';
+const DEFAULT_SECTOR_ID     = 'sector-17';
+const DEFAULT_SECTOR_LABEL  = 'Sector 17';
+
 // PRD §19.2 — Brand color tokens (light mode)
-const BRAND_GOLD    = '#D4A017' as const;
-// --fg-brand
-const TEXT_STRONG   = '#1A1A1A' as const;   // --fg-text-strong
-const TEXT_MUTED    = '#6B5B2E' as const;
-// --fg-text-muted
-const BG_SURFACE    = '#FFFFFF' as const;   // --bg-surface
-const BORDER_SUBTLE = '#E8D5A0' as const;
-// --border-subtle
+const BRAND_GOLD    = '#D4A017';
+const TEXT_STRONG   = '#1A1A1A';
+const TEXT_MUTED    = '#6B5B2E';
+const BG_SURFACE    = '#FFFFFF';
+const BORDER_SUBTLE = '#E8D5A0';
 
 // PRD §9.3 — Bottom nav height (content area, excluding safe-area)
-const BOTTOM_NAV_HEIGHT = 56 as const;
+const BOTTOM_NAV_HEIGHT = 56;
+
 // ── Task Card #19 — Live / Top 30 Toggle ─────────────────────────────────
 /** Messages older than this are excluded from the Top 30 pool */
-const TWO_HOURS_MS       = 2 * 60 * 60 * 1_000 as const;
+const TWO_HOURS_MS       = 7200000; // 2 * 60 * 60 * 1000
 /** Hard cap on Top 30 list size */
-const TOP30_LIMIT        = 30                    as const;
+const TOP30_LIMIT        = 30;
 /** AsyncStorage key prefix for per-scope view mode pref */
-const VIEW_PREF_KEY_PFX  = 'crown:view_mode:'   as const;
+const VIEW_PREF_KEY_PFX  = 'crown:view_mode:';
+
 // PRD §9.3.4 — Scroll delta threshold for hide/show (prevents jitter)
-const SCROLL_DELTA_THRESHOLD = 4 as const;
+const SCROLL_DELTA_THRESHOLD = 4;
 // PRD §9.3.5 — Scroll y threshold for "at bottom" detection (inverted list)
-const AT_BOTTOM_Y_THRESHOLD = 10 as const;
+const AT_BOTTOM_Y_THRESHOLD = 10;
 // PRD §10.6 — ScrollFAB appears after scrolling this many px up
-const SCROLL_FAB_THRESHOLD = 80 as const;
+const SCROLL_FAB_THRESHOLD = 80;
 // PRD §10.1 — Trust anchor hides after scrolling past this y
-const TRUST_ANCHOR_SCROLL_THRESHOLD = 20 as const;
+const TRUST_ANCHOR_SCROLL_THRESHOLD = 20;
+
 /** Derive scope-aware roomId */
 function buildRoomId(
   scope: ScopeKey,
@@ -233,7 +234,7 @@ interface FailedMsg {
 
 function formatTime(ts: { toDate(): Date } | null | undefined): string {
   try {
-    const date: Date = ts?.toDate?.() ?? new Date(ts as number);
+    const date: Date = ts?.toDate?.() ?? new Date(ts as unknown as number);
     let h = date.getHours();
     const m = date.getMinutes();
     const ap = h >= 12 ? 'PM' : 'AM';
@@ -403,6 +404,7 @@ const MessageRow = React.memo(function MessageRow({
     />
   );
 });
+
 // ─────────────────────────────────────────────────────────────────────────────
 // § 4b — LIVE / TOP 30 TOGGLE BAR  (Task Card #19)
 //
@@ -417,6 +419,7 @@ const LIVE_TOP30_OPTIONS: SegmentOption[] = [
   { label: '⚡ Live', value: 'live'   },
   { label: '🏆 Top 30', value: 'top30' },
 ];
+
 interface LiveTop30BarProps {
   viewMode: ViewMode;
   onChange: (mode: ViewMode) => void;
@@ -471,7 +474,7 @@ const Top30MessageRow = React.memo(function Top30MessageRow({
 
   // Sum all emoji reaction counts for this message
   const totalReactions = useMemo(
-    () => Object.values(msg.reactions ?? {}).reduce((s: number, n: number) => s + n, 0),
+    () => Object.values(msg.reactions ?? {}).reduce((s: number, n: number | any) => s + Number(n), 0),
     [msg.reactions],
   );
 
@@ -508,8 +511,6 @@ const Top30MessageRow = React.memo(function Top30MessageRow({
   );
 });
 
-
-
 function ChatSkeleton() {
   return (
     <View style={S.chatList} testID="home-chat-skeleton">
@@ -544,21 +545,30 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
+  
   // ── Location ─────────────────────────────────────────────────────────────
-  const [countryId,    setCountryId]    = useState(DEFAULT_COUNTRY_ID);
-  const [countryLabel, setCountryLabel] = useState(DEFAULT_COUNTRY_LABEL);
-  const [countryEmoji, setCountryEmoji] = useState(DEFAULT_COUNTRY_EMOJI);
-  const [cityId,       setCityId]       = useState(DEFAULT_CITY_ID);
-  const [cityLabel,    setCityLabel]    = useState(DEFAULT_CITY_LABEL);
-  const [sectorId,     setSectorId]     = useState(DEFAULT_SECTOR_ID);
-  const [sectorLabel,  setSectorLabel]  = useState(DEFAULT_SECTOR_LABEL);
+  const [countryId,    setCountryId]    = useState<string>(DEFAULT_COUNTRY_ID);
+  const [countryLabel, setCountryLabel] = useState<string>(DEFAULT_COUNTRY_LABEL);
+  const [countryEmoji, setCountryEmoji] = useState<string>(DEFAULT_COUNTRY_EMOJI);
+  const [cityId,       setCityId]       = useState<string>(DEFAULT_CITY_ID);
+  const [cityLabel,    setCityLabel]    = useState<string>(DEFAULT_CITY_LABEL);
+  const [sectorId,     setSectorId]     = useState<string>(DEFAULT_SECTOR_ID);
+  const [sectorLabel,  setSectorLabel]  = useState<string>(DEFAULT_SECTOR_LABEL);
+  
   // ── Scope (4-scope switcher — PRD §9.2 Row 2) ────────────────────────────
   const [activeScope, setActiveScope] = useState<ScopeKey>('sector');
+  
+  // ── View Mode (Task Card #19) ─────────────────────────────────────────────
+  const [viewMode, setViewMode] = useState<ViewMode>('live');
+  // Sector is always live
+  const effectiveViewMode = activeScope === 'sector' ? 'live' : viewMode;
+
   // ── Room ID — scope-aware ─────────────────────────────────────────────────
   const roomId = useMemo(
     () => buildRoomId(activeScope, countryId, cityId, sectorId),
     [activeScope, countryId, cityId, sectorId],
   );
+  
   // ── Room metadata ─────────────────────────────────────────────────────────
   const [room,        setRoom]        = useState<CWRoom | null>(null);
   const [roomLoading, setRoomLoading] = useState(true);
@@ -567,19 +577,16 @@ export default function HomeScreen() {
   const [messages,   setMessages]    = useState<CWMessage[]>([]);
   const [isLoading,  setIsLoading]   = useState(true);
   const [isOffline,  setIsOffline]   = useState(false);
+  
   // ── ScrollFAB ─────────────────────────────────────────────────────────────
   const [newMsgCount,  setNewMsgCount]  = useState(0);
   const [isScrolledUp, setIsScrolledUp] = useState(false);
+  
   // ── Scroll Coordination — Swiggy-Style (PRD §9.3.4 + §9.3.5) ────────────
-  // navHidden=true  → header up, nav down, input fills 56px gap
-  // navHidden=false → all three visible, coordinated 200ms ease
   const [navHidden, setNavHidden] = useState(false);
-  // ── isInputFocused — PRD §9.2 Row 2 Exception ────────────────────────────
-  // When composing, Row 2 scope switcher NEVER hides so user can retarget scope
   const [isInputFocused, setIsInputFocused] = useState(false);
-  // ── lastScrollY ref — scroll delta tracking (PRD §9.3.4) ─────────────────
-  // useRef avoids re-renders on every scroll event (perf-critical path)
   const lastScrollY = useRef(0);
+  
   // ── Sheets ────────────────────────────────────────────────────────────────
   const [countrySheetOpen, setCountrySheetOpen] = useState(false);
   const [citySheetOpen,   setCitySheetOpen]   = useState(false);
@@ -587,28 +594,48 @@ export default function HomeScreen() {
   const [authSheetOpen,   setAuthSheetOpen]   = useState(false);
   const [actionSheetOpen, setActionSheetOpen] = useState(false);
   const [actionMsg,       setActionMsg]       = useState<ActionSheetMsg | null>(null);
+  
   // ── Send-failed modal ─────────────────────────────────────────────────────
   const [failedModalOpen, setFailedModalOpen] = useState(false);
   const [failedMsg,       setFailedMsg]       = useState<FailedMsg | null>(null);
+  
   // ── Trust anchor ──────────────────────────────────────────────────────────
   const [showTrustAnchor, setShowTrustAnchor] = useState(true);
+  
   // ── Refs ──────────────────────────────────────────────────────────────────
   const flatListRef   = useRef<FlatList<CWMessage>>(null);
   const msgUnsubRef   = useRef<MsgUnsubscribe | null>(null);
   const roomUnsubRef  = useRef<RoomUnsubscribe | null>(null);
   const firstLoadRef  = useRef(true);
+  
   // ── Bottom tab state (PRD §9.3) ───────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<BottomTab>('home');
+  
   // ── User credits + DM count ───────────────────────────────────────────────
   const [userCredits,   setUserCredits]   = useState(0);
   const [unreadDmCount, setUnreadDmCount] = useState(0);
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // § 8.1 — KEYBOARD LISTENER (isInputFocused tracking)
-  // PRD §9.2: Row 2 scope switcher never hides when composing a message.
-  // Track keyboard show/hide to set isInputFocused state.
+  // § 8.0 — LOAD VIEW MODE PERSISTENCE (Task Card #19)
   // ═══════════════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    AsyncStorage.getItem(`${VIEW_PREF_KEY_PFX}${activeScope}`)
+      .then((saved) => {
+        if (saved === 'live' || saved === 'top30') setViewMode(saved);
+        else setViewMode('live');
+      })
+      .catch(() => {});
+  }, [activeScope]);
 
+  const handleViewModeChange = useCallback((mode: ViewMode) => {
+    setViewMode(mode);
+    flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+    AsyncStorage.setItem(`${VIEW_PREF_KEY_PFX}${activeScope}`, mode).catch(() => {});
+  }, [activeScope]);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // § 8.1 — KEYBOARD LISTENER (isInputFocused tracking)
+  // ═══════════════════════════════════════════════════════════════════════════
   useEffect(() => {
     const showSub = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
@@ -625,13 +652,8 @@ export default function HomeScreen() {
   }, []);
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // § 8.1b — SCROLL-TO-BOTTOM SIGNAL (PRD §9.3.3)
-  // CrownBottomNav fires 'crown:scrollToBottom' via DeviceEventEmitter when
-  // the user re-taps the already-active HOME tab.
-  // This handler receives it and
-  // scrolls the FlatList to offset 0 (= latest messages, because inverted).
+  // § 8.1b — SCROLL-TO-BOTTOM SIGNAL
   // ═══════════════════════════════════════════════════════════════════════════
-
   useEffect(() => {
     const { DeviceEventEmitter } = require('react-native');
     const sub = DeviceEventEmitter.addListener('crown:scrollToBottom', () => {
@@ -639,10 +661,10 @@ export default function HomeScreen() {
     });
     return () => sub.remove();
   }, []);
+
   // ═══════════════════════════════════════════════════════════════════════════
   // § 8.2 — FIRESTORE SUBSCRIPTIONS (UNCHANGED)
   // ═══════════════════════════════════════════════════════════════════════════
-
   useEffect(() => {
     setRoomLoading(true);
     roomUnsubRef.current?.();
@@ -652,6 +674,7 @@ export default function HomeScreen() {
     });
     return () => { roomUnsubRef.current?.(); };
   }, [roomId]);
+
   useEffect(() => {
     setIsLoading(true);
     setMessages([]);
@@ -689,11 +712,13 @@ export default function HomeScreen() {
       decrementOnlineCount(roomId).catch(() => {});
     };
   }, [roomId, user?.uid]);
+
   useEffect(() => {
     if (!showTrustAnchor) return;
     const t = setTimeout(() => setShowTrustAnchor(false), TRUST_ANCHOR_MS);
     return () => clearTimeout(t);
   }, [showTrustAnchor]);
+
   useEffect(() => {
     NetInfo.fetch().then((state: NetInfoState) => {
       setIsOffline(!(state.isConnected ?? true));
@@ -703,30 +728,33 @@ export default function HomeScreen() {
     });
     return () => unsub();
   }, []);
+
   useEffect(() => {
     if (!user?.uid) {
       setUserCredits(0);
       setUnreadDmCount(0);
       return;
     }
-    import('@/lib/firestore-users').then(({ subscribeToUserProfile }) => {
-      const unsubUser = subscribeToUserProfile(user.uid, (profile) => {
+    // Fixed Type mismatch dynamically importing alias
+    import('@/lib/firestore-users').then(({ subscribeToUser }) => {
+      const unsubUser = subscribeToUser(user.uid, (profile: any) => {
         setUserCredits(profile?.credits ?? 0);
       });
       return () => unsubUser();
     }).catch(() => {});
 
     import('@/lib/firestore-messages').then(({ subscribeToUnreadDmCount }) => {
+      // Assumes `subscribeToUnreadDmCount` has been implemented in lib.
       const unsubDm = subscribeToUnreadDmCount(user.uid, (count) => {
         setUnreadDmCount(count);
       });
       return () => unsubDm();
     }).catch(() => {});
   }, [user?.uid]);
-  // ═══════════════════════════════════════════════════════════════════════════
-  // § 8.3 — SEND MESSAGE (optimistic — UNCHANGED)
-  // ═══════════════════════════════════════════════════════════════════════════
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // § 8.3 — SEND MESSAGE (optimistic)
+  // ═══════════════════════════════════════════════════════════════════════════
   const handleSend = useCallback(async (text: string) => {
     if (!user?.uid) return;
     const trimmed = text.trim();
@@ -765,10 +793,10 @@ export default function HomeScreen() {
       setFailedModalOpen(true);
     }
   }, [user?.uid, roomId]);
-  // ═══════════════════════════════════════════════════════════════════════════
-  // § 8.4 — FAILED MESSAGE RETRY (UNCHANGED)
-  // ═══════════════════════════════════════════════════════════════════════════
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // § 8.4 — FAILED MESSAGE RETRY
+  // ═══════════════════════════════════════════════════════════════════════════
   const handleRetryFailed = useCallback(async () => {
     if (!failedMsg) return;
     const failed = failedMsg;
@@ -777,66 +805,46 @@ export default function HomeScreen() {
     setMessages((prev) => prev.filter((m) => m.id !== failed.id));
     await handleSend(failed.text);
   }, [failedMsg, handleSend]);
-  // ═══════════════════════════════════════════════════════════════════════════
-  // § 8.5 — AUTH GATE (LAW 4 — Peek-Before-Join — UNCHANGED)
-  // ═══════════════════════════════════════════════════════════════════════════
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // § 8.5 — AUTH GATE (LAW 4)
+  // ═══════════════════════════════════════════════════════════════════════════
   const handleAuthGate = useCallback(() => {
     setAuthSheetOpen(true);
   }, []);
-  // ═══════════════════════════════════════════════════════════════════════════
-  // § 8.6 — LONG PRESS → MESSAGE ACTION SHEET (UNCHANGED)
-  // ═══════════════════════════════════════════════════════════════════════════
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // § 8.6 — LONG PRESS
+  // ═══════════════════════════════════════════════════════════════════════════
   const handleLongPress = useCallback((msg: CWMessage) => {
     const adapted = adaptToActionMsg(msg, user?.uid ?? null, cityId, sectorId);
     setActionMsg(adapted);
     setActionSheetOpen(true);
   }, [user?.uid, cityId, sectorId]);
-  // ═══════════════════════════════════════════════════════════════════════════
-  // § 8.7 — SCROLL HANDLER (PRD §9.3.4 + §9.3.5 — Swiggy-Style Coordination)
-  //
-  // Three-element coordination on every scroll frame (no re-render overhead):
-  //   1. delta > 4px DOWN → reading mode
-  //      hideHeader() — header slides up (-translateY 100%, 220ms easeInQuad)
-  //      hideNav()    — nav slides down (+translateY 100%, 200ms ease)
-  //      setNavHidden(true) — ChatInput bottom drops to insets.bottom (gap-fill)
-  //   2. delta < -4px UP → controls mode — all three snap back
-  //      showHeader() / showNav() / setNavHidden(false)
-  //   3. atBottom (y < 10 on inverted list) → always force controls visible
-  //
-  // PERF: lastScrollY is a ref — zero re-renders per scroll frame.
-  //       Only setNavHidden / setIsScrolledUp / setShowTrustAnchor cause renders
-  //       and those are gated behind equality checks.
-  // ═══════════════════════════════════════════════════════════════════════════
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // § 8.7 — SCROLL HANDLER
+  // ═══════════════════════════════════════════════════════════════════════════
   const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const currentY = event.nativeEvent.contentOffset.y;
     const delta    = currentY - lastScrollY.current;
     lastScrollY.current = currentY;
 
-    // ── PRD §9.3.4 — Swiggy-style hide/show ─────────────────────────────
     const atBottom = currentY < AT_BOTTOM_Y_THRESHOLD;
 
     if (atBottom || delta < -SCROLL_DELTA_THRESHOLD) {
-      // Scrolling UP or at latest message → show all controls
-      showHeader();        // HomeHeader slides back (headerScrollAnim → 0)
-      showNav();           // CrownBottomNav slides back (navScrollAnim → 0)
-      setNavHidden(false); // ChatInput: bottom returns to 56 + insets.bottom
+      showHeader();
+      showNav();
+      setNavHidden(false);
     } else if (delta > SCROLL_DELTA_THRESHOLD) {
-      // Scrolling DOWN → reading mode: hide header + nav, input fills gap
-      hideHeader();        // HomeHeader slides up (headerScrollAnim → 1)
+      hideHeader();
       hideNav();
-      // CrownBottomNav slides down (navScrollAnim → 1)
       setNavHidden(true);
-      // ChatInput: bottom falls to insets.bottom only
     }
 
-    // ── ScrollFAB threshold ───────────────────────────────────────────────
     const scrolledUp = currentY > SCROLL_FAB_THRESHOLD;
     if (scrolledUp !== isScrolledUp) setIsScrolledUp(scrolledUp);
 
-    // ── Trust anchor: hide on first scroll ───────────────────────────────
     if (currentY > TRUST_ANCHOR_SCROLL_THRESHOLD && showTrustAnchor) {
       setShowTrustAnchor(false);
     }
@@ -847,31 +855,23 @@ export default function HomeScreen() {
     setNewMsgCount(0);
     setIsScrolledUp(false);
   }, []);
-  // ═══════════════════════════════════════════════════════════════════════════
-  // § 8.8 — SCOPE PRESS (PRD §10.8 — single tap vs tap-when-active)
-  //
-  //   Single tap on non-active scope → switch scope
-  //   Tap already-active 'city'    → open CityPickerSheet
-  //   Tap already-active 'sector'  → open SectorPickerSheet
-  //   Tap already-active 'country' → (future: country picker)
-  //   Tap already-active 'world'   → no action (only one world room)
-  // ═══════════════════════════════════════════════════════════════════════════
 
-  // PRD §9.2 — Single tap = switch scope; re-tap active = open picker
-  // Split into two callbacks matching HomeHeader's onScopeChange / onPickerOpen API
+  // ═══════════════════════════════════════════════════════════════════════════
+  // § 8.8 — SCOPE PRESS
+  // ═══════════════════════════════════════════════════════════════════════════
   const handleScopeChange = useCallback((scope: ScopeKey) => {
     setActiveScope(scope);
   }, []);
+
   const handlePickerOpen = useCallback((scope: ScopeKey) => {
     if (scope === 'country') { setCountrySheetOpen(true); return; }
     if (scope === 'city')    { setCitySheetOpen(true);    return; }
     if (scope === 'sector')  { setSectorSheetOpen(true);  return; }
-    // 'world' — no picker (only one world room)
   }, []);
+
   // ═══════════════════════════════════════════════════════════════════════════
   // § 8.9 — CITY / SECTOR / COUNTRY SELECTION
   // ═══════════════════════════════════════════════════════════════════════════
-
   const handleCountrySelect = useCallback((id: string, name: string, emoji: string) => {
     setCountryId(id);
     setCountryLabel(name);
@@ -889,80 +889,86 @@ export default function HomeScreen() {
       .join(' ');
     setSectorLabel(label);
   }, []);
-  // ═══════════════════════════════════════════════════════════════════════════
-  // § 8.10 — BOTTOM TAB PRESS (PRD §9.3.3)
-  //
-  //   'home'    → scroll to bottom (latest messages) — no route push
-  //   'explore' → router.push('/(tabs)/discover')
-  //   'crown'   → router.push('/(tabs)/ranks')
-  //   'profile' → router.push('/(tabs)/profile')
-  // ═══════════════════════════════════════════════════════════════════════════
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // § 8.10 — BOTTOM TAB PRESS
+  // ═══════════════════════════════════════════════════════════════════════════
   const handleTabPress = useCallback((tab: BottomTab) => {
     setActiveTab(tab);
-
     if (tab === 'home') {
-      // PRD §9.3.3: Tapping Home while on Home → scroll to latest message (bottom)
       flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
       return;
     }
-
-    // PRD §9.3.3: Other tabs push to their respective routes
     if (tab === 'explore') { router.push('/(tabs)/discover' as never); return; }
     if (tab === 'crown')   { router.push('/(tabs)/ranks'    as never); return; }
     if (tab === 'profile') { router.push('/(tabs)/profile'  as never); return; }
   }, [router]);
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // § 8.11 — FLATLIST DATA (newest-first for inverted list — UNCHANGED)
+  // § 8.11 — FLATLIST DATA (Live vs Top 30)
   // ═══════════════════════════════════════════════════════════════════════════
+  const displayMessages = useMemo(() => {
+    if (effectiveViewMode === 'live') {
+      return [...messages].reverse();
+    }
 
-  const invertedMessages = useMemo(() => [...messages].reverse(), [messages]);
-  const renderItem = useCallback(({ item }: { item: CWMessage }) => (
-    <MessageRow
-      msg={item}
-      currentUid={user?.uid ?? null}
-      onLongPress={handleLongPress}
-    />
-  ), [user?.uid, handleLongPress]);
+    // Top 30 Logic
+    const now = Date.now();
+    const valid = messages.filter((m) => {
+      const ts = (m.timestamp as any)?.toMillis?.() ?? (typeof m.timestamp === 'number' ? m.timestamp : now);
+      return (now - ts) <= TWO_HOURS_MS && !m.isDeleted;
+    });
+
+    const sorted = valid.sort((a, b) => {
+      const aReacts = Object.values(a.reactions ?? {}).reduce((s: number, n: any) => s + Number(n), 0);
+      const bReacts = Object.values(b.reactions ?? {}).reduce((s: number, n: any) => s + Number(n), 0);
+      return bReacts - aReacts;
+    });
+
+    // Reversed because the FlatList is inverted (index 0 is at the bottom visually)
+    // We want #1 rank to appear at the Top of the Flatlist visually.
+    return sorted.slice(0, TOP30_LIMIT).reverse();
+  }, [messages, effectiveViewMode]);
+
+  const renderItem = useCallback(({ item, index }: { item: CWMessage; index: number }) => {
+    if (effectiveViewMode === 'live') {
+      return (
+        <MessageRow
+          msg={item}
+          currentUid={user?.uid ?? null}
+          onLongPress={handleLongPress}
+        />
+      );
+    }
+    
+    // For Top 30 in an inverted list, rank depends on array length vs index
+    const rank = displayMessages.length - index;
+    
+    return (
+      <Top30MessageRow
+        msg={item}
+        currentUid={user?.uid ?? null}
+        onLongPress={handleLongPress}
+        rank={rank}
+        totalSeen={messages.length}
+      />
+    );
+  }, [user?.uid, handleLongPress, effectiveViewMode, displayMessages.length, messages.length]);
+
   const keyExtractor = useCallback((item: CWMessage) => item.id, []);
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // § 8.12 — KAV OFFSET (PRD §9.2)
-  // Row1(56) + Row2(48) + Row3(32) = 136px + safeAreaTop
+  // § 8.12 — KAV OFFSET
   // ═══════════════════════════════════════════════════════════════════════════
-
   const kavOffset = insets.top + 56 + 48 + 32;
-  // = insets.top + 136px
 
   // ═══════════════════════════════════════════════════════════════════════════
   // § 8.13 — RENDER
   // ═══════════════════════════════════════════════════════════════════════════
-
   return (
     <View style={S.screen}>
       <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
 
-      {/*
-       * ── [1] THREE-ROW HOME HEADER — organisms/HomeHeader (PRD §9.2) ──────
-       *
-       * Row 1 (56px): "CROWN" wordmark + 🔔 Bell + 💬 DM
-       * Row 2 (48px): 4-Scope Switcher (World / Country / City / Sector)
-       * PRD v3.1: NO track background — sliding capsule only
-       * PRD §9.2: Row 2 NEVER hides when composerFocused=true
-       * Row 3 (32px): Online count strip — always names the active geography
-       *
-       * Rule 03: NO avatar here. Avatar ONLY in Profile tab (CrownBottomNav).
-       * Scroll coordination: hideHeader() / showHeader() called from scroll
-       * handler below — HomeHeader animates internally via headerScrollAnim.
-       */}
-      {/*
-       * FIX #1 — Wrapper View hata diya.
-       * Pehle <View style={{ paddingTop: insets.top }}> ke andar HomeHeader tha.
-       * React Native Web ka default overflow:hidden us wrapper ko 0-height
-       * collapse kar ke header ko clip kar raha tha.
-       * HomeHeader apna paddingTop:insets.top khud handle karta hai.
-       */}
       <HomeHeader
         activeScope={activeScope}
         scopeLabels={{
@@ -983,41 +989,24 @@ export default function HomeScreen() {
         composerFocused={isInputFocused}
       />
 
-      {/*
-       * ── [2] OFFLINE BANNER (conditional · 32px) ───────────────────────────
-       */}
       <OfflineBanner visible={isOffline} />
 
-      {/*
-       * ── KEYBOARD AVOIDING WRAPPER ─────────────────────────────────────────
-       * iOS: behavior="padding" — pushes content up by keyboard height
-       * kavOffset: safeAreaTop + 56 + 48 + 32 = safeAreaTop + 136px
-       */}
       <KeyboardAvoidingView
         style={S.kav}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? kavOffset : undefined}
       >
-        {/*
-         * ── [3] CHAT BODY — Inverted FlatList ─────────────────────────────
-         *
-         * 6 message variants rendered by MessageRow → MessageBubble:
-         * 'right'  — own message (gold fill, right-aligned)
-         * 'left'   — other user (cream fill, left-aligned)
-         * 'ai'     — AI companion (dotted ring, 🤖 AI pill)
-         * 'mayor'  — Mayor announcement (gold left-accent)
-         * 'system' — System event (centered chip)
-         * 'date'   — Date separator (hairline chip)
-         *
-         * paddingBottom: BOTTOM_NAV_HEIGHT(56) + insets.bottom + 72(input bar)
-         * PRD §9.3.5: 72px accounts for ChatInput bar above the nav.
-         */}
+        {/* VIEW MODE SWITCHER (Visible only for non-sector scopes) */}
+        {activeScope !== 'sector' && (
+          <LiveTop30Bar viewMode={effectiveViewMode} onChange={handleViewModeChange} />
+        )}
+
         {isLoading ? (
           <ChatSkeleton />
         ) : (
           <FlatList<CWMessage>
             ref={flatListRef}
-            data={invertedMessages}
+            data={displayMessages}
             renderItem={renderItem}
             keyExtractor={keyExtractor}
             inverted
@@ -1025,11 +1014,6 @@ export default function HomeScreen() {
             contentContainerStyle={[
               S.chatContent,
               {
-                // FIX #2 — Inverted FlatList mein padding direction ulta hota hai:
-                //   paddingTop    = visual BOTTOM → newest message ke neeche
-                //                   ChatInput (72px) + CrownBottomNav (56px) + safe-area
-                //   paddingBottom = visual TOP    → oldest message ke upar
-                //                   HomeHeader (136px) + safe-area
                 paddingTop:    BOTTOM_NAV_HEIGHT + insets.bottom + 72,
                 paddingBottom: insets.top + 136 + 8,
               },
@@ -1047,15 +1031,10 @@ export default function HomeScreen() {
             maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
             testID="home-chat-list"
             ListEmptyComponent={
-              // FIX #3 — ListEmptyComponent ko inverted FlatList ka
-              // container-level transform milta hai (scale:-1 / scaleY:-1) lekin
-              // individual item jaisa counter-transform NAHI milta. Isliye empty
-              // state 180° rotate dikhta tha.
-              // Yeh wrapper cancel karta hai.
               <View style={{
                 transform: Platform.select({
-                  android: [{ scaleY: -1 as number }],
-                  default: [{ scale: -1 as number }],
+                  android: [{ scaleY: -1 }],
+                  default: [{ scaleY: -1 }],
                 }),
               }}>
                 <ChatEmptyState sectorLabel={sectorLabel} />
@@ -1064,68 +1043,23 @@ export default function HomeScreen() {
           />
         )}
 
-        {/*
-         * ── [4] SCROLL FAB (new messages chip) ────────────────────────────
-         * Positioned above ChatInput and CrownBottomNav.
-         */}
         <ScrollFAB
           visible={isScrolledUp && newMsgCount > 0}
           label={newMsgCount > 0 ? `${newMsgCount} nayi messages` : 'New messages'}
           onPress={handleScrollToBottom}
         />
 
-        {/*
-         * ── [5] STICKY CHAT INPUT (PRD §9.3.5 — Gap-Fill Trick) ──────────
-         *
-         * navHidden prop:   When true, ChatInput slides down by 56px to fill
-         * the vacated space of the hidden CrownBottomNav.
-         * Both the nav (translateY 100%) and input (bottom shift)
-         * animate at 200ms ease — zero visual gap, zero jump.
-         *
-         * navVisible prop:  Inverse of navHidden — provided for components that
-         * prefer the affirmative form.
-         *
-         * Placeholder reflects active scope (PRD §10.1 note).
-         * Rule 03: NO user avatar in this composer.
-         * disabled=true when offline.
-         */}
         <ChatInput
           onSend={handleSend}
           isAuthenticated={!!user}
           onAuthGate={handleAuthGate}
           placeholder={getScopePlaceholder(activeScope, cityLabel, sectorLabel, 'India')}
           disabled={isOffline}
-          // ── PRD §9.3.5 — Scroll Coordination props ─────────────────────
           navHidden={navHidden}
           navVisible={!navHidden}
         />
       </KeyboardAvoidingView>
 
-      {/*
-       * ── [6] CROWN BOTTOM NAV — organisms/CrownBottomNav (PRD §9.3) ───────
-       *
-       * Replaces internal SimpleBottomNav.
-       * Organism version receives navHidden
-       * prop and handles its own translateY(100%) slide animation (200ms ease).
-       *
-       * PRD Founder mandate: "No floating Glass Island. The bottom nav is a
-       * simple, full-width, fixed bar — exactly like WhatsApp / Telegram."
-       *
-       * - Full-width edge-to-edge (left: 0, right: 0)
-       * - Height: 56px + safe-area-inset-bottom
-       * - Solid white bg (--bg-surface)
-       * - border-top: 1px --border-subtle
-       * - NO backdrop-filter · NO transparency · NO border-radius
-       *
-       * navHidden=true  → translateY(100%) — slides fully off-screen (200ms)
-       * navHidden=false → translateY(0%)   — slides back in (200ms)
-       *
-       * Tabs: Home · Explore · Crown · Profile
-       * Active: var(--fg-brand) gold icon + bold label
-       * Inactive: var(--fg-text-muted) muted
-       *
-       * Rule 03: Profile tab shows avatar ONLY here (not in header)
-       */}
       <CrownBottomNav
         activeTab={activeTab}
         onTabPress={handleTabPress}
@@ -1137,11 +1071,6 @@ export default function HomeScreen() {
           SHEETS & MODALS
           ═══════════════════════════════════════════════════════════════════ */}
 
-      {/*
-       * COUNTRY PICKER SHEET
-       * Triggered: tap already-active 'country' scope button (PRD §10.8)
-       * Design: 72% height · hero cards · full-row gold active state
-       */}
       <CountryPickerSheet
         visible={countrySheetOpen}
         onClose={() => setCountrySheetOpen(false)}
@@ -1149,22 +1078,14 @@ export default function HomeScreen() {
         onSelect={handleCountrySelect}
       />
 
-      {/*
-       * CITY PICKER SHEET
-       * Triggered: tap already-active 'city' scope button (PRD §10.8)
-       */}
       <CityPickerSheet
         visible={citySheetOpen}
         onClose={() => setCitySheetOpen(false)}
         selected={cityId}
-        countryCode={countryId} // <--- FIX HERE: Yeh pehle missing tha
+        countryCode={countryId}
         onSelect={handleCitySelect}
       />
 
-      {/*
-       * SECTOR PICKER SHEET
-       * Triggered: tap already-active 'sector' scope button (PRD §10.8)
-       */}
       <SectorPickerSheet
         visible={sectorSheetOpen}
         onClose={() => setSectorSheetOpen(false)}
@@ -1173,10 +1094,6 @@ export default function HomeScreen() {
         onSelect={handleSectorSelect}
       />
 
-      {/*
-       * AUTH GATE SHEET (LAW 4 — Peek-Before-Join)
-       * Half-screen · DISMISSIBLE · "Pehle dekho · sign up baad mein"
-       */}
       <AuthGateSheet
         visible={authSheetOpen}
         onClose={() => setAuthSheetOpen(false)}
@@ -1184,10 +1101,6 @@ export default function HomeScreen() {
         triggerAction="input_tap"
       />
 
-      {/*
-       * MESSAGE ACTION SHEET
-       * Triggered by long-press (350ms) on any message bubble.
-       */}
       {actionMsg && user?.uid && (
         <MessageActionSheet
           visible={actionSheetOpen}
@@ -1198,10 +1111,6 @@ export default function HomeScreen() {
         />
       )}
 
-      {/*
-       * SEND FAILED MODAL
-       * Shows ⚠️ icon + "Dobara bhejo" CTA after send failure.
-       */}
       {failedMsg !== null && (
         <SendFailedModal
           visible={failedModalOpen}
@@ -1224,28 +1133,20 @@ export default function HomeScreen() {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // § 9 — STYLES
-// PRD §19.2 color tokens. Zero hardcoded hex outside token constants above.
-// Header styles removed — now managed by organisms/HomeHeader.
-// BottomNav styles removed — now managed by organisms/CrownBottomNav.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const S = StyleSheet.create({
-
-  // ── Root screen ───────────────────────────────────────────────────────────
-  // PRD §19.2: --bg-surface = #FFFFFF (white)
   screen: {
     flex:            1,
-    backgroundColor: BG_SURFACE,            // #FFFFFF — PRD §19.2
+    backgroundColor: BG_SURFACE,            
   },
-
-  // ── Offline Banner ────────────────────────────────────────────────────────
   offlineBanner: {
     height:            32,
-    backgroundColor:   palette.ink[950],    // warm ink — dark bg
+    backgroundColor:   palette.ink?.[950] || '#111827',
     flexDirection:     'row',
     alignItems:        'center',
-    paddingHorizontal: spacing.base,        // 16px
-    zIndex:            zIndex.fixedHeader,  // 900
+    paddingHorizontal: spacing.base,        
+    zIndex:            zIndex.fixedHeader,  
   },
   offlineIcon: {
     marginRight: 6,
@@ -1257,24 +1158,18 @@ const S = StyleSheet.create({
     color:      palette.white,
     flex:       1,
   },
-
-  // ── KAV wrapper ───────────────────────────────────────────────────────────
   kav: {
     flex: 1,
   },
-
-  // ── Chat FlatList ─────────────────────────────────────────────────────────
   chatList: {
     flex:            1,
-    backgroundColor: BG_SURFACE,           // white
+    backgroundColor: BG_SURFACE,           
   },
   chatContent: {
-    paddingHorizontal: spacing.sm,         // 8px
+    paddingHorizontal: spacing.sm,         
     paddingTop:        8,
     paddingBottom:     16,
   },
-
-  // ── Empty state ───────────────────────────────────────────────────────────
   emptyState: {
     flex:              1,
     alignItems:        'center',
@@ -1301,5 +1196,45 @@ const S = StyleSheet.create({
     color:      TEXT_MUTED,
     textAlign:  'center',
     lineHeight: 22,
+  },
+  // ── Missing Top 30 / Toggle Styles (Fix Applied) ──────────────────────────
+  liveTop30Bar: {
+    paddingHorizontal: spacing.base,
+    paddingVertical: 8,
+    backgroundColor: BG_SURFACE,
+    zIndex: zIndex.fixedHeader,
+  },
+  liveTop30Control: {
+    height: 32,
+  },
+  top30Row: {
+    marginBottom: spacing.sm,
+  },
+  top30RankLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.sm,
+    marginBottom: 4,
+    gap: 8,
+  },
+  top30RankNum: {
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', 
+    fontSize: 14,
+    fontWeight: '700',
+    color: BRAND_GOLD,
+  },
+  top30PercentilePill: {
+    backgroundColor: palette.ink?.[50] || '#F9F9F9',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: BORDER_SUBTLE,
+  },
+  top30PercentileText: {
+    fontFamily: FONT_BODY.medium,
+    fontSize: 11,
+    fontWeight: '500',
+    color: TEXT_MUTED,
   },
 });
