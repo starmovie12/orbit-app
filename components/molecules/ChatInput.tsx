@@ -354,7 +354,11 @@ const ChatInputBase: React.FC<ChatInputProps> = ({
   // ── AUTO-GROW + SHRINK ────────────────────────────────────────────────────────
   // Web: reset textarea height to "auto" before reading scrollHeight, so the box
   //      both grows and shrinks (fixes the stuck-tall ratchet bug).
-  const measureWeb = useCallback((): void => {
+  // Function declarations are hoisted → safe to reference from any hook, and
+  // they avoid a React-Compiler dependency-array TDZ on these symbols.
+  // Both only touch stable refs/setters, so they are intentionally NOT listed
+  // in any dependency array.
+  function measureWeb(): void {
     if (Platform.OS !== 'web') return;
     const el = inputRef.current as unknown as HTMLTextAreaElement | null;
     if (!el) return;
@@ -363,27 +367,27 @@ const ChatInputBase: React.FC<ChatInputProps> = ({
     const next = Math.max(MIN_INPUT_H, Math.min(el.scrollHeight, MAX_INPUT_H));
     el.style.height = `${next}px`;
     setInputHeight(next);
-  }, []);
+  }
 
   // Web: size the empty textarea to exactly one line on mount.
   useEffect(() => {
     if (Platform.OS === 'web') requestAnimationFrame(measureWeb);
-  }, [measureWeb]);
+  }, []);
 
-  const resetHeight = useCallback((): void => {
+  function resetHeight(): void {
     setInputHeight(MIN_INPUT_H);
     if (Platform.OS === 'web') {
       const el = inputRef.current as unknown as HTMLTextAreaElement | null;
       if (el) el.style.height = `${MIN_INPUT_H}px`;
     }
-  }, []);
+  }
 
   const handleChangeText = useCallback(
     (t: string): void => {
       setText(t);
       if (Platform.OS === 'web') requestAnimationFrame(measureWeb);
     },
-    [measureWeb],
+    [],
   );
 
   // Native only — web is handled by measureWeb (avoids the scrollHeight ratchet).
@@ -410,7 +414,7 @@ const ChatInputBase: React.FC<ChatInputProps> = ({
       hideNav();                          // hide bottom nav while typing
       requestAnimationFrame(measureWeb);  // keep empty box at one line
     }
-  }, [isAuthenticated, onAuthGate, haptics, measureWeb]);
+  }, [isAuthenticated, onAuthGate, haptics]);
 
   const handleInputBlur = useCallback((): void => {
     setIsFocused(false);
@@ -430,7 +434,7 @@ const ChatInputBase: React.FC<ChatInputProps> = ({
     sendingTimerRef.current = setTimeout(() => {
       setSendState('idle');
     }, SENDING_IDLE_RESET_MS);
-  }, [text, sendState, haptics, onSend, resetHeight]);
+  }, [text, sendState, haptics, onSend]);
 
   // ── Emoji ─────────────────────────────────────────────────────────────────────
   const handleEmojiToggle = useCallback((): void => {
@@ -449,7 +453,7 @@ const ChatInputBase: React.FC<ChatInputProps> = ({
       setText((prev) => prev + emoji);
       if (Platform.OS === 'web') requestAnimationFrame(measureWeb);
     },
-    [haptics, measureWeb],
+    [haptics],
   );
 
   // ── Plus → image picker ─────────────────────────────────────────────────────
