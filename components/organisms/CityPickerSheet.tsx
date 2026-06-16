@@ -162,9 +162,6 @@ const L = {
   alphaBarW:    22,
 } as const;
 // ─── Design token aliases (parity — palette-sourced, gold #D4A017) ────────────
-// NOTE: these replace the previous City sheet's hardcoded rgba(201,162,39,…)
-// (the banned #C9A227).
-// gold here is palette.gold[600] = #D4A017.
 const T = {
   sheetBg:       colors.bg.surface,   // #FFFFFF
   text:          palette.ink[950],
@@ -225,7 +222,7 @@ export interface CityDoc {
   online_count:     number;
   sector_count:     number;
   is_active:        boolean;
-  search_keywords?: string[]; // ✅ NAYA UPGRADE: Super-Search ke liye add kiya gaya
+  search_keywords?: string[]; 
 }
 
 export interface CityPickerSheetProps {
@@ -244,6 +241,26 @@ export interface CityPickerSheetProps {
 // ─── Utility: diacritic normalization ─────────────────────────────────────────
 function normalizeDiacritics(str: string): string {
   return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+// ─── ✅ SMART DATA SANITIZER: Clean raw database names ───────────────────────
+// Removes weird dots, diacritics (like Ï), and leading special characters
+function formatCleanName(str: string): string {
+  if (!str) return '';
+  // 1. Remove accents/diacritics (e.g., 'ï' -> 'i', 'é' -> 'e')
+  let clean = str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  // 2. Remove ANY dots/periods (e.g., "A.in" -> "Ain")
+  clean = clean.replace(/\./g, '');
+  // 3. Remove leading special characters (hyphens, commas at the start)
+  clean = clean.replace(/^[^a-zA-Z0-9]+/g, '');
+  // 4. Remove extra spaces
+  clean = clean.replace(/\s+/g, ' ').trim();
+  
+  if (clean.length > 0) {
+    // Ensure first letter is capitalized for beautiful UI
+    clean = clean.charAt(0).toUpperCase() + clean.slice(1);
+  }
+  return clean || str;
 }
 
 // ─── Utility: city monogram (first letter, uppercase) ─────────────────────────
@@ -1298,7 +1315,8 @@ function CityPickerSheetBase({
     const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setRM);
     return () => sub.remove();
   }, []);
-// ── Load on open — getCities() realtime + timeout fallback (UNCHANGED layer) ─
+
+// ── Load on open — getCities() realtime + timeout fallback ───────────────────
   useEffect(() => {
     if (!visible) return;
 
@@ -1312,7 +1330,7 @@ function CityPickerSheetBase({
 
     let settled = false;
 
-    // Recents (local, fast) — load in parallel with the subscription.
+    // Recents (local, fast)
     AsyncStorage.getItem(CW_RECENT_CITIES_KEY)
       .then((raw) => {
         if (raw && isMountedRef.current) {
@@ -1321,25 +1339,31 @@ function CityPickerSheetBase({
       })
       .catch(() => { /* non-critical */ });
 
-    // Safety timeout: never stay blank — fall back to the built-in list.
+    // Safety timeout
     const timeoutId = setTimeout(() => {
       if (!settled && isMountedRef.current) {
-        // Fallback sirf tabhi dikhao agar country India ho. 
-        // Varna Argentina vagera me Chandigarh load ho jayega.
         const fallbackToUse = countryCode === 'IN' ? FALLBACK_CITIES : [];
         setCities((prev) => (prev.length > 0 ? prev : fallbackToUse));
         setSheetState('idle');
       }
     }, CITY_LOAD_TIMEOUT_MS);
 
-    // ── FIXED: Passing countryCode to getCities
+    // ── DATA FETCH AND SANITIZATION ──
     const unsub = getCities(countryCode, (docs: CityDoc[]) => {
       settled = true;
       clearTimeout(timeoutId);
       if (!isMountedRef.current) return;
       
       const fallbackToUse = countryCode === 'IN' ? FALLBACK_CITIES : [];
-      setCities(docs.length > 0 ? docs : fallbackToUse);
+      
+      // ✅ Yahan ganda data saaf ho raha hai
+      const cleanDocs = docs.map(d => ({
+        ...d,
+        name: formatCleanName(d.name),
+        state: d.state ? formatCleanName(d.state) : undefined,
+      }));
+      
+      setCities(cleanDocs.length > 0 ? cleanDocs : fallbackToUse);
       setSheetState('idle');
     });
     unsubRef.current = unsub;
@@ -1348,7 +1372,7 @@ function CityPickerSheetBase({
       unsubRef.current?.();
       unsubRef.current = undefined;
     };
-  }, [visible, countryCode]); // <── Re-run if countryCode changes
+  }, [visible, countryCode]); 
 
 // ── Pull-to-refresh — re-subscribe (getCities is realtime) ──────────────────
   const handleRefresh = useCallback(() => {
@@ -1357,13 +1381,21 @@ function CityPickerSheetBase({
     const unsub = getCities(countryCode, (docs: CityDoc[]) => {
       if (!isMountedRef.current) return;
       const fallbackToUse = countryCode === 'IN' ? FALLBACK_CITIES : [];
-      setCities(docs.length > 0 ? docs : fallbackToUse);
+      
+      // ✅ Yahan ganda data saaf ho raha hai
+      const cleanDocs = docs.map(d => ({
+        ...d,
+        name: formatCleanName(d.name),
+        state: d.state ? formatCleanName(d.state) : undefined,
+      }));
+      
+      setCities(cleanDocs.length > 0 ? cleanDocs : fallbackToUse);
       setIsRefreshing(false);
     });
     unsubRef.current = unsub;
   }, [countryCode]);
 
-// ── Retry (dormant — getCities falls back gracefully; kept for parity) ──────
+// ── Retry ───────────────────────────────────────────────────────────────────
   const handleRetry = useCallback(() => {
     setSheetState('loading');
     setError(null);
@@ -1371,7 +1403,15 @@ function CityPickerSheetBase({
     const unsub = getCities(countryCode, (docs: CityDoc[]) => {
       if (!isMountedRef.current) return;
       const fallbackToUse = countryCode === 'IN' ? FALLBACK_CITIES : [];
-      setCities(docs.length > 0 ? docs : fallbackToUse);
+      
+      // ✅ Yahan ganda data saaf ho raha hai
+      const cleanDocs = docs.map(d => ({
+        ...d,
+        name: formatCleanName(d.name),
+        state: d.state ? formatCleanName(d.state) : undefined,
+      }));
+      
+      setCities(cleanDocs.length > 0 ? cleanDocs : fallbackToUse);
       setSheetState('idle');
     });
     unsubRef.current = unsub;
