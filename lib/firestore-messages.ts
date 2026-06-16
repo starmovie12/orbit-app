@@ -264,6 +264,12 @@ export async function sendMessage(
     editedAt:  null,
     timestamp: serverTimestamp() as any,
     status:    (message.status ?? 'sent') as CWMessageStatus,
+    // Denormalized sender identity — snapshot so the chat row renders the
+    // avatar + name with zero extra reads. Defaulted to null when not supplied.
+    senderName:   message.senderName   ?? null,
+    senderHandle: message.senderHandle ?? null,
+    senderEmoji:  message.senderEmoji  ?? null,
+    senderColor:  message.senderColor  ?? null,
   };
 
   await roomMessagesRef(roomId).doc(id).set(doc);
