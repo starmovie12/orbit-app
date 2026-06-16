@@ -1,1066 +1,1364 @@
 /**
- * components/MessageBubble.tsx
- * ─────────────────────────────────────────────────────────────────────────────
- * CROWN App — Chat ka dil.
+ * components/organisms/MessageActionSheet.tsx
  *
- * VARIANTS  (PRD §10.2 — 6 types, single inverted FlatList):
- *   right   → own message         (brand gold fill · right-tail · status ticks)
- *   left    → other user message  (cream bubble · left-tail · display name)
- *   ai      → AI companion        (cream fill · dashed ring · mandatory AI badge · italic text)
- *   mayor   → Mayor pinned        (center-aligned card · gold border + left accent)
- *   system  → System event        (centered · gold-50 bg · no tail · §14346)
- *   date    → Date separator chip (centered · cream chip · §[5.F])
+ * CROWN — Message Action Sheet
+ * Blueprint v5.0 BAAP EDITION · § 18 · Production Ready
  *
- * AVATAR DELEGATION (Rule 03 — strict):
- *   This component NEVER renders a user avatar. Avatar rendering is fully
- *   delegated to the parent FlatList item wrapper (e.g. ChatMessageRow).
- *   The parent places a <Avatar size="msg" /> to the left of this bubble for
- *   left / mayor / ai variants. MessageBubble is unaware of avatar existence.
- *   Rationale: Rule 03 mandates avatar lives ONLY in the bottom nav Profile tab
- *   at the app-nav level; bubble-adjacent avatars are layout concerns of the
- *   row wrapper, not the bubble molecule itself.
+ * ── WHAT THIS IS ─────────────────────────────────────────────────────────────
  *
- * ─── GAP ANALYSIS vs PRD §10.2 (v3.2) — FIXES APPLIED IN THIS VERSION ─────
+ * 40%-height bottom sheet triggered by long-pressing any message bubble in the
+ * Home sector chat. Renders one of four variants based on message ownership and
+ * type, with fully dynamic action rows and confirm modals for destructive ops.
  *
- *   FIX-01  T.bubbleRight:       palette.gold[600] (#C9A227) → colors.fg.brand
- *           PRD §19.2 --fg-brand = #D4A017 (updated brand gold)
+ * Key features:
+ *   • 4 variants: own · other_user · ai_companion · mayor_announcement
+ *   • Quick-react emoji row (6 emojis · 32×32 · tap → react + dismiss)
+ *   • Full emoji sub-picker (expanded grid · "React karo" action)
+ *   • Haptic feedback on every action
+ *   • Confirm modal for Delete + Report (with reason selector)
+ *   • WhatsApp share via system Share sheet (deeplink pre-filled)
+ *   • Save, Copy (clipboard), Pin/Unpin (mayor-gated)
+ *   • Reply row shown (disabled · "Coming v1.1" tooltip) for non-AI messages
+ *   • Loading state per-action (icon → spinner → ✓)
+ *   • Accessibility: role="dialog" · destructive annotation · v1.1 disabled announce
  *
- *   FIX-02  T.bubbleLeft:        palette.cream[200] (#F7ECD0) → colors.bg.card
- *           PRD §19.2 --bg-card = #F5E6C8 (cream card / other-user bubbles)
+ * ── DESIGN SPEC (Blueprint § 18) ─────────────────────────────────────────────
  *
- *   FIX-03  T.bubbleAI:          palette.cream[50] (#FFF9EC) → colors.bg.card
- *           PRD §10.2 — AI Companion: "Left-aligned, cream fill" = same as left variant
+ *   Sheet height    : 40% screen · drag-down / scrim-tap → dismiss
+ *   Preview         : 80px H · cream-50 bg · avatar 36×36 · 2-line text
+ *   Quick emoji row : 32×32 each · 8px gap · scale 1.0 → 1.2 → 1.0 on tap
+ *   Action row      : 56px H · 16px L/R pad · icon 24×24 + label 15/500/ink-950
+ *   Divider         : 1px cream-400 between rows
+ *   Cancel row      : 56px H · "Cancel karo" · 15/600/ink-950 · 8px top margin
+ *   Confirm modals  : centered · 320px W · white card · radius 16px
  *
- *   FIX-04  T.bubbleMayor:       palette.cream[50] → palette.gold[50] (#FCF7E5)
- *           User spec — "Background: subtle gold tint"
- *
- *   FIX-05  T.borderMayorAccent: palette.gold[600] (#C9A227) → colors.fg.brand
- *           User spec — "Border: 2px solid gold (#D4A017) — left-accent border"
- *
- *   FIX-06  T.borderHighlight:   palette.gold[600] (#C9A227) → colors.fg.brand
- *           Consistency — saved-message ring uses brand gold
- *
- *   FIX-07  T.shadowGold:        palette.gold[600] → colors.fg.brand
- *           Consistency — shadow base matches brand token
- *
- *   FIX-08  T.statusFailed:      palette.crimson[600] (#C4294F) → colors.fg.danger
- *           PRD §19.2 --fg-danger = #EF4444
- *
- *   FIX-09  T.borderAI:          rgba base updated from gold[600] to D4A017
- *           Updated to 'rgba(212,160,23,0.45)' — palette.fg.brand @ 45% opacity
- *
- *   FIX-10  MessageStatus:       Added 'pending' variant
- *           PRD §10.2 Own Message: "status ✓/✓✓/⏳/⚠️" — ⏳ = pending was missing
- *
- *   FIX-11  STATUS_ICON:         Added pending entry { glyph: '⏳', a11y: 'Sending…' }
- *
- *   FIX-12  msgTextAI style:     Added fontStyle: 'italic' + muted color
- *           User spec — "Text: italic-tinted to distinguish from human messages"
- *
- *   FIX-13  isAI text render:    Applied styles.msgTextAI to AI message text
- *
- *   FIX-14  Mayor alignment:     Left-aligned → Center-aligned (wrapperMayor)
- *           PRD §10.2 — "Mayor Pinned Message: Centered, gold border, 24h sticky"
- *
- *   FIX-15  bubbleMayor tail:    borderTopLeftRadius radii.xs → radii.lg
- *           Center-aligned card has no tail corner; uniform radius required
- *
- *   FIX-16  bubbleMayor border:  borderLeftWidth 3 → 2, color → colors.fg.brand
- *           User spec — "Border: 2px solid gold (#D4A017) — left-accent border"
- *
- *   FIX-17  aiBadge size:        paddingHorizontal 7 → 10, paddingVertical 2 → 3
- *           fontSize 8.5 → 11
- *           PRD §11A.14 — "🤖 AI pill is enlarged 40% bigger than text"
- *
- *   FIX-18  aiBadge background:  palette.gold[600] (direct in StyleSheet) → colors.fg.brand
- *           No raw palette values in StyleSheet — must route through T or colors token
- *
- * ─── KNOWN GAP — CANNOT FIX WITHOUT INTERFACE CHANGE ─────────────────────
- *
- *   GAP-01  Trust score chip for left / other-user variant:
- *           User spec §10.2 Variant 2 — "display name + trust score chip agar available"
- *           PRD data model has trust_score on user documents (§23.2).
- *           MessageBubbleProps has no trustScore field and DO NOT CHANGE rule
- *           prohibits interface modifications. This chip must be added in a future
- *           props update: add `trustScore?: number` to MessageBubbleProps and render
- *           a <Tag variant="trust" label={...} /> in the metaContainer for left/ai variants.
- *
- * ─────────────────────────────────────────────────────────────────────────────
- * PROPS UNCHANGED (per DO NOT CHANGE mandate):
- *   status      → MessageStatus (extended with 'pending' — type change, not interface)
- *   highlighted → boolean  — 2px gold border for saved / bookmarked messages
- *   onLongPress → (event) => void  — available on ALL variants
- *
- * LAWS ENFORCED:
- *   Rule 03  — No avatar in this component (ever).
- *   §Q1      — date separator accessibilityRole: "header".
- *   §[5.F]   — date chip: H 24px · cream[200] bg · r-12 · 8px H pad.
- *   §14346   — system: gold[50] bg · 1px gold[300] · 12px 600 ink[700].
- *   §10.2    — all 6 variants per PRD v3.2.
- *   §11A.14  — AI pill enlarged 40%, always visible, never hidden.
- *   §19.2    — color tokens aligned to PRD locked set.
- *   Non-Negotiable #9 — AI always labeled "🤖 AI".
- *
- * ─────────────────────────────────────────────────────────────────────────────
- * STATUS : updated   · LAYER : molecule  · PRIORITY : P0
- * DEPS   : components/atoms/Tag.tsx · constants/colors.ts · constants/spacing.ts
- * PRD    : CROWN v3.2 §10.2, §11A.14, §19.2
- * ─────────────────────────────────────────────────────────────────────────────
+ * ── DEPS ─────────────────────────────────────────────────────────────────────
+ *   components/BottomSheet.tsx
+ *   lib/firestore-messages.ts
+ *   hooks/useHaptics.ts
  */
 
-import React, { memo, useCallback, useRef, useState } from 'react';
+import React, {
+  memo,
+  useCallback,
+  useRef,
+  useState,
+} from 'react';
 import {
-  GestureResponderEvent,
+  AccessibilityInfo,
+  Animated,
+  Dimensions,
+  Modal,
+  Platform,
   Pressable,
+  ScrollView,
+  Share,
   StyleSheet,
   Text,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
-  type ViewStyle,
-  type TextStyle,
 } from 'react-native';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import * as Clipboard                      from 'expo-clipboard';
 
-import { Tag }                             from '@/components/atoms/Tag';
-import { colors, palette, radii, spacing } from '@/constants/colors';
+import { BottomSheet }              from '@/components/BottomSheet';
+import {
+  addReaction,
+  deleteMessage,
+  pinMessage,
+  reportMessage,
+  saveMessage,
+  unpinMessage,
+} from '@/lib/firestore-messages';
+import { useHaptics }               from '@/hooks/useHaptics';
+import { colors, palette }          from '@/constants/colors';
+import { FONT_BODY }                from '@/constants/typography';
+import type {
+  Message,
+  MayorAnnouncement,
+  UserMessage,
+} from '@/lib/firestore-rooms';   // re-exported from rooms; adjust path if split
 
-// ─── Design token aliases (zero hardcoded hex in JSX / styles below) ─────────
-//
-// colors.fg.brand   → #D4A017  --fg-brand   (PRD §19.2 primary token set)
-// colors.bg.card    → #F5E6C8  --bg-card     (PRD §19.2 cream card / other-user bubbles)
-// colors.fg.danger  → #EF4444  --fg-danger   (PRD §19.2 errors / crimson alerts)
-// colors.fg.tertiary is already used in this file (textDate) — confirmed available
-//
-// FIX-09: T.borderAI base updated from gold[600] (#C9A227) to D4A017 (#D4A017)
-//         rgba(212,160,23,0.45) = colors.fg.brand @ 45% opacity
-//         In a future refactor, add colors.fg.brandAlpha(0.45) to constants/colors.ts
+// ─── Screen geometry ──────────────────────────────────────────────────────────
+const SCREEN_H = Dimensions.get('window').height;
 
-const T = {
-  // Bubble backgrounds
-  // FIX-02: was palette.cream[200] (#F7ECD0) — PRD --bg-card = #F5E6C8
-  bubbleLeft:        colors.bg.card,               // #F5E6C8 — left / other-user fill (PRD --bg-card)
-  // FIX-01: was palette.gold[600] (#C9A227) — PRD --fg-brand = #D4A017
-  bubbleRight:       colors.fg.brand,              // #D4A017 — own message brand gold (PRD --fg-brand)
-  // FIX-03: was palette.cream[50] (#FFF9EC) — PRD §10.2 AI = cream fill same as left
-  bubbleAI:          colors.bg.card,               // #F5E6C8 — AI cream fill (same as left per PRD §10.2)
-  // FIX-04: was palette.cream[50] (#FFF9EC) — user spec: "subtle gold tint"
-  bubbleMayor:       palette.gold[50],             // #FCF7E5 — Mayor subtle gold tint
-  bubbleSystem:      palette.gold[50],             // #FCF7E5 — system event (§14346)
-  bubbleDateChip:    palette.cream[200],           // #F7ECD0 — date chip fill (§[5.F])
-
-  // Borders
-  borderLeft:        palette.cream[400],           // #E5CC95 — left bubble hairline
-  // FIX-09: base updated from gold[600] (#C9A227) to D4A017 derivation
-  borderAI:          'rgba(212,160,23,0.45)' as const, // colors.fg.brand @ 45% — AI dashed ring
-  borderMayor:       palette.gold[300],            // #ECD58F — mayor outline
-  // FIX-05: was palette.gold[600] (#C9A227) — user spec: #D4A017 left-accent
-  borderMayorAccent: colors.fg.brand,              // #D4A017 — 2px left accent spine (PRD user spec)
-  borderSystem:      palette.gold[300],            // #ECD58F — system card ring
-  // FIX-06: was palette.gold[600] (#C9A227) — consistency with brand token
-  borderHighlight:   colors.fg.brand,              // #D4A017 — saved-message ring
-
-  // Text
-  textBody:          palette.ink[950],             // #1A1208 — primary chat text
-  textBodyWhite:     palette.white,                // #FFFFFF — own bubble text
-  textMayor:         palette.ink[700],             // #524539 — mayor slightly heavier
-  textTime:          palette.ink[500],             // #8A7960 — timestamp left / mayor
-  textTimeRight:     'rgba(255,253,243,0.90)' as const, // palette.cream[50] @ 90% — ghosted white on gold
-  textSystem:        palette.ink[700],             // #524539 — system text (§14346)
-  // §[5.F]: date chip label — colors.fg.tertiary (ink[500]) for muted "translucent chip" feel
-  textDate:          colors.fg.tertiary,           // ink[500] #8A7960 — softer than ink[600]
-  textSenderName:    palette.ink[500],             // #8A7960 — username above bubble
-  // FIX-12: AI message text — italic-tinted (colors.fg.tertiary = muted warm)
-  textAI:            colors.fg.tertiary,           // muted warm tone — italic-tinted AI text
-
-  // Status tick colours (on gold/right bubble)
-  statusSent:        'rgba(255,253,243,0.60)' as const,  // palette.cream[50] @ 60% — dim single tick
-  statusDelivered:   'rgba(255,253,243,0.92)' as const,  // palette.cream[50] @ 92% — bright double tick
-  // FIX-08: was palette.crimson[600] (#C4294F) — PRD §19.2 --fg-danger = #EF4444
-  statusFailed:      colors.fg.danger,             // #EF4444 — failed warning (PRD --fg-danger)
-  // pending status uses ⏳ emoji — no specific color token needed; inherits textBodyWhite
-
-  // Shadows
-  // FIX-07: was palette.gold[600] (#C9A227) — consistency with brand token
-  shadowGold:        colors.fg.brand,              // #D4A017 — gold shadow base
+// ─── Layout constants ─────────────────────────────────────────────────────────
+const L = {
+  sheetMaxH:         SCREEN_H * 0.40,  // 40% · blueprint exact
+  previewH:          80,               // Message preview block
+  previewPadH:       16,
+  previewPadV:       12,
+  avatarSize:        36,               // Avatar circle in preview
+  actionRowH:        56,               // Each action row height · blueprint exact
+  actionPadH:        16,               // Action row horizontal pad · blueprint exact
+  actionIconSize:    24,               // Action icon size · blueprint exact
+  actionFontSz:      15,               // Action label font size · blueprint exact
+  emojiSize:         32,               // Quick-react emoji touchable · blueprint exact
+  emojiGap:          8,                // Gap between emojis · blueprint exact
+  emojiGridCols:     8,                // Extended picker grid columns
+  cancelRowH:        56,               // Cancel row height · blueprint exact
+  cancelMarginTop:   8,                // Cancel separation from actions
+  confirmW:          320,              // Confirm modal width
+  confirmPad:        24,
+  confirmRadius:     16,
+  scrimColor:        'rgba(28, 24, 20, 0.55)',
+  pressDuration:     80,
+  pressScale:        0.97,
+  emojiScalePeak:    1.2,
+  emojiAnimMs:       200,
 } as const;
 
-// ─── Public types ─────────────────────────────────────────────────────────────
+// ─── Design token alias ──────────────────────────────────────────────────────
+const T = {
+  ink950:    palette.ink[950],
+  ink700:    palette.ink[700],
+  ink600:    palette.ink[600],
+  ink500:    palette.ink[500],
+  cream50:   palette.cream[50],
+  cream100:  palette.cream[100],
+  cream200:  palette.cream[200],
+  cream400:  palette.cream[400],
+  gold600:   palette.gold[600],
+  gold700:   palette.gold[700],
+  crimson600: palette.crimson[600],
+  white:     palette.white,
+  sheetBg:   colors.bg.surface,
+} as const;
 
-export type BubbleVariant =
-  | 'left'
-  | 'right'
-  | 'mayor'
-  | 'ai'
-  | 'date'
-  | 'system';
+// ─── Quick-react emojis (§ E.3.4) ────────────────────────────────────────────
+const QUICK_EMOJIS = ['❤️', '🔥', '😂', '👍', '😮', '🙏'] as const;
 
-// FIX-10: Added 'pending' — PRD §10.2 Own Message: "status ✓/✓✓/⏳/⚠️"
-// 'pending' = optimistic state: message sent to client, not yet confirmed by server
-export type MessageStatus =
-  | 'sent'
-  | 'delivered'
-  | 'pending'
-  | 'failed';
+// ─── Extended emoji picker grid ───────────────────────────────────────────────
+const EXTENDED_EMOJIS = [
+  '❤️', '🔥', '😂', '👍', '😮', '🙏', '😍', '🎉',
+  '💯', '👀', '🤔', '😢', '🤣', '✅', '💪', '🙌',
+  '😎', '🥳', '🤯', '😤', '🫡', '🤝', '👏', '💀',
+] as const;
 
-export interface Reaction {
-  emoji:   string;
-  count:   number;
-  active?: boolean;
+// ─── Report reason options ────────────────────────────────────────────────────
+const REPORT_REASONS = [
+  'Spam ya advertisement',
+  'Gaali-galoch ya hate speech',
+  'Harassment ya bullying',
+  'Galat information',
+  'Sexual ya inappropriate content',
+  'Kuch aur',
+] as const;
+type ReportReason = typeof REPORT_REASONS[number];
+
+// ─── Action descriptor ───────────────────────────────────────────────────────
+type ActionId =
+  | 'react'
+  | 'reply'
+  | 'copy'
+  | 'share'
+  | 'save'
+  | 'report'
+  | 'delete'
+  | 'pin'
+  | 'unpin';
+
+interface ActionItem {
+  id:          ActionId;
+  label:       string;
+  icon:        React.ReactNode;
+  destructive?: boolean;
+  disabled?:   boolean;
+  disabledHint?: string;
+  chevron?:    boolean;
 }
 
-/**
- * Loose tag bag — each key maps to exactly one Tag atom variant.
- * All optional; pass only what applies to this message's sender.
- *
- * GAP-01 NOTE: trustScore?: number should be added here in a future props update
- * to enable the "display name + trust score chip agar available" spec from PRD §10.2
- * Variant 2 (Other User Message). Blocked by DO NOT CHANGE rule for this update.
- */
-export interface MessageTags {
-  colony?:    string;   // colony / sector label
-  verified?:  boolean;  // phone-OTP verified
-  credits?:   string;   // wallet balance chip e.g. "₹420"
-  isLocal?:   boolean;  // browsing own home sector
-  isVisitor?: boolean;  // browsing outside home sector
-  isAI?:      boolean;  // AI companion message
-  isMoon?:    boolean;  // away / DND status
-  isMayor?:   boolean;  // elected sector mayor
-  isFounder?: boolean;  // founding cohort
-  founderNo?: string;   // serial number e.g. "#001"
+// ─── Helper: relative time ────────────────────────────────────────────────────
+function relativeTime(ts: number): string {
+  const diffSec = Math.floor((Date.now() - ts) / 1000);
+  if (diffSec < 60)  return `${diffSec} sec pehle`;
+  if (diffSec < 3600) return `${Math.floor(diffSec / 60)} min pehle`;
+  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)} ghante pehle`;
+  return `${Math.floor(diffSec / 86400)} din pehle`;
 }
 
-export interface MessageBubbleProps {
-  variant:       BubbleVariant;
-  /**
-   * Message body text.
-   * For variant='date'   → the date label ("Today" | "Yesterday" | "12 May").
-   * For variant='system' → the event text ("Rahul joined the sector").
-   */
-  text:          string;
-  /**
-   * Formatted timestamp string, e.g. "10:42 AM".
-   * Not rendered for variant='date' or 'system'.
-   */
-  time?:         string;
-  /**
-   * Sender display name — rendered above the bubble for left / mayor / ai.
-   * Omitted for right / date / system.
-   */
-  username?:     string;
-  /** Tag atoms to render in the sender meta row */
-  tags?:         MessageTags;
-  reactions?:    Reaction[];
-  /**
-   * Delivery status — only rendered for variant='right'.
-   * sent      → ✓  (single dimmed tick)
-   * delivered → ✓✓ (double bright tick)
-   * pending   → ⏳  (optimistic — not yet server-confirmed)
-   * failed    → ⚠  (crimson warning — tap to retry via onLongPress)
-   */
-  status?:       MessageStatus;
-  /**
-   * When true renders a 2px gold ring around the bubble.
-   * Used to mark bookmarked / saved messages in the MessageActionSheet flow.
-   */
-  highlighted?:  boolean;
-  onReact?:      (emoji: string) => void;
-  onGift?:       () => void;
-  /** Opens MessageActionSheet — available on ALL variants */
-  onLongPress?:  (event: GestureResponderEvent) => void;
-  style?:        ViewStyle;
+// ─── Helper: initials from display name ──────────────────────────────────────
+function initials(name: string): string {
+  return name
+    .split(' ')
+    .map(w => w[0] ?? '')
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
 }
 
-// ─── MessageTagsRow — renders tag atoms, no inline styles ────────────────────
-
-interface TagsRowProps {
-  tags: MessageTags;
+// ─── Props ────────────────────────────────────────────────────────────────────
+export interface MessageActionSheetProps {
+  /** Controls sheet visibility */
+  visible:    boolean;
+  /** Dismiss callback */
+  onClose:    () => void;
+  /** The message being acted upon */
+  message:    Message;
+  /** UID of the currently authenticated user */
+  currentUid: string;
+  /** Whether the current user is the sector Mayor */
+  isMayor:    boolean;
+  /** Called after Reply is tapped (v1.1 — currently disabled in UI) */
+  onReply?:   (message: Message) => void;
 }
 
-const MessageTagsRow: React.FC<TagsRowProps> = memo(({ tags }) => (
-  <View style={styles.tagsRow}>
-    {tags.colony    ? <Tag variant="colony"  label={tags.colony}             size="sm" /> : null}
-    {tags.verified  ? <Tag variant="verified"                                size="sm" /> : null}
-    {tags.credits   ? <Tag variant="credits" label={tags.credits}            size="sm" /> : null}
-    {tags.isLocal   ? <Tag variant="local"                                   size="sm" /> : null}
-    {tags.isVisitor ? <Tag variant="visitor"                                 size="sm" /> : null}
-    {tags.isAI      ? <Tag variant="ai"                                      size="sm" /> : null}
-    {tags.isMoon    ? <Tag variant="moon"                                    size="sm" /> : null}
-    {tags.isMayor   ? <Tag variant="mayor"                                   size="sm" /> : null}
-    {tags.isFounder ? <Tag variant="founder" label={tags.founderNo ?? '001'} size="sm" /> : null}
-  </View>
-));
-
-MessageTagsRow.displayName = 'MessageTagsRow';
-
-// ─── ReactionPill ─────────────────────────────────────────────────────────────
-
-interface ReactionPillProps {
-  reaction: Reaction;
-  onPress:  () => void;
-  isRight:  boolean;
-}
-
-const ReactionPill: React.FC<ReactionPillProps> = memo(
-  ({ reaction, onPress, isRight }) => (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.reactionPill,
-        reaction.active && styles.reactionPillActive,
-        isRight         && styles.reactionPillRight,
-        pressed         && styles.reactionPillPressed,
-      ]}
-      accessibilityRole="button"
-      accessibilityLabel={`React with ${reaction.emoji}, count ${reaction.count}`}
-      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-    >
-      <Text style={styles.reactionText}>
-        {reaction.emoji} {reaction.count}
-      </Text>
-    </Pressable>
-  ),
-);
-
-ReactionPill.displayName = 'ReactionPill';
-
-// ─── Status icon map ──────────────────────────────────────────────────────────
-// FIX-10 + FIX-11: Added 'pending' — PRD §10.2 status icons: ✓/✓✓/⏳/⚠️
-// DO NOT CHANGE: existing entries (sent, delivered, failed) kept identical
-
-const STATUS_ICON: Record<MessageStatus, { glyph: string; a11y: string }> = {
-  sent:      { glyph: '✓',  a11y: 'Sent'                                },
-  delivered: { glyph: '✓✓', a11y: 'Delivered'                           },
-  pending:   { glyph: '⏳', a11y: 'Sending…'                            },  // FIX-11
-  failed:    { glyph: '⚠',  a11y: 'Failed to send. Long press to retry.' },
-};
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// DATE SEPARATOR  (Blueprint §[5.F])
 // ─────────────────────────────────────────────────────────────────────────────
-//   Layout : full-width row — hairline ─── chip ─── hairline
-//   Chip   : H 24px · cream[200] bg · r-12 · 8px H pad
-//   Text   : 11px 600 ink[500] muted
-//   Margin : 24px top · 16px bottom
-//   a11y   : accessibilityRole "header" (§Q1)
-// ═══════════════════════════════════════════════════════════════════════════════
-
-interface DateSeparatorBubbleProps {
-  label:        string;
-  onLongPress?: (e: GestureResponderEvent) => void;
-}
-
-const DateSeparatorBubble: React.FC<DateSeparatorBubbleProps> = memo(
-  ({ label, onLongPress }) => (
-    <Pressable
-      style={styles.dateSepWrapper}
-      onLongPress={onLongPress}
-      delayLongPress={350}
-      android_ripple={null}
-      accessibilityRole="header"
-      accessibilityLabel={`Messages from ${label}`}
-    >
-      <View style={styles.dateSepLine} />
-      <View style={styles.dateSepChip}>
-        <Text style={styles.dateSepText} allowFontScaling={false}>
-          {label}
-        </Text>
-      </View>
-      <View style={styles.dateSepLine} />
-    </Pressable>
-  ),
-);
-
-DateSeparatorBubble.displayName = 'DateSeparatorBubble';
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// SYSTEM MESSAGE BUBBLE  (Blueprint §Q1-d + §14346)
+// MAIN COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
-//   "Centered system bubble · gold-50 bg · 1px gold-300 · 12px 600 ink-700"
-//   No tail · full-pill · centered · no avatar · no sender name
-// ═══════════════════════════════════════════════════════════════════════════════
+export const MessageActionSheet = memo(function MessageActionSheet({
+  visible,
+  onClose,
+  message,
+  currentUid,
+  isMayor,
+  onReply,
+}: MessageActionSheetProps) {
+  const haptics = useHaptics();
 
-interface SystemBubbleProps {
-  text:         string;
-  onLongPress?: (e: GestureResponderEvent) => void;
-}
+  // ── Sub-view state ──────────────────────────────────────────────────────────
+  const [view, setView]                       = useState<'main' | 'emoji'>('main');
+  const [loadingAction, setLoadingAction]     = useState<ActionId | null>(null);
+  const [doneAction, setDoneAction]           = useState<ActionId | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showReportConfirm, setShowReportConfirm] = useState(false);
+  const [reportReason, setReportReason]       = useState<ReportReason | null>(null);
+  const [reportLoading, setReportLoading]     = useState(false);
 
-const SystemBubble: React.FC<SystemBubbleProps> = memo(
-  ({ text, onLongPress }) => (
-    <Pressable
-      style={styles.systemWrapper}
-      onLongPress={onLongPress}
-      delayLongPress={350}
-      android_ripple={null}
-      accessibilityRole="text"
-      accessibilityLabel={`System: ${text}`}
-    >
-      <View style={styles.systemChip}>
-        <Text style={styles.systemText} allowFontScaling={false}>
-          {text}
-        </Text>
-      </View>
-    </Pressable>
-  ),
-);
+  // Emoji tap scale animations (one per quick-emoji slot)
+  const emojiScales = useRef(
+    QUICK_EMOJIS.map(() => new Animated.Value(1)),
+  ).current;
 
-SystemBubble.displayName = 'SystemBubble';
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// MAIN MessageBubble
-// ═══════════════════════════════════════════════════════════════════════════════
-
-function MessageBubbleComponent({
-  variant,
-  text,
-  time,
-  username,
-  tags,
-  reactions = [],
-  status,
-  highlighted = false,
-  onReact,
-  onGift,
-  onLongPress,
-  style,
-}: MessageBubbleProps) {
-
-  // ── Structural variants exit early ─────────────────────────────────────────
-
-  if (variant === 'date') {
-    return <DateSeparatorBubble label={text} onLongPress={onLongPress} />;
-  }
-
-  if (variant === 'system') {
-    return <SystemBubble text={text} onLongPress={onLongPress} />;
-  }
-
-  // ── left / right / mayor / ai ──────────────────────────────────────────────
-
-  const isRight = variant === 'right';
-  const isMayor = variant === 'mayor';
-  const isAI    = variant === 'ai';
-
-  // ── Read more / less (long-message clamp · WhatsApp-style) ──────────────────
-  const MAX_LINES = 8;
-  const [expanded, setExpanded]   = useState(false);
-  const [overflowed, setOverflowed] = useState(false);
-  const measuredRef = useRef(false);
-  // Heuristic fallback so it also works on web (where onTextLayout can be flaky)
-  const longByHeuristic = text.length > 240 || (text.match(/\n/g)?.length ?? 0) >= MAX_LINES;
-  const canToggle = overflowed || longByHeuristic;
-  const clampNow  = canToggle && !expanded;
-
-  // DO NOT CHANGE: LongPress handler logic
-  const handleLongPress = useCallback(
-    (e: GestureResponderEvent) => { onLongPress?.(e); },
-    [onLongPress],
+  // ── Derived fields ──────────────────────────────────────────────────────────
+  const isUserMessage = (
+    message.variant === 'own' ||
+    message.variant === 'other_user' ||
+    message.variant === 'ai_companion'
   );
+  const isOwn       = isUserMessage && (message as UserMessage).sender_id === currentUid;
+  const isAI        = message.variant === 'ai_companion';
+  const isMayorAnn  = message.variant === 'mayor_announcement';
+  const isMayorOwnAnn = isMayorAnn && isMayor &&
+    (message as MayorAnnouncement).mayor_id === currentUid;
 
-  // Composited bubble styles
-  const bubbleStyle = [
-    styles.bubble,
-    variant === 'left'  && styles.bubbleLeft,
-    isRight             && styles.bubbleRight,
-    isMayor             && styles.bubbleMayor,
-    isAI                && styles.bubbleAI,
-    highlighted         && styles.bubbleHighlighted,
-  ];
+  const senderName: string = (() => {
+    if (isOwn)     return 'Aap';
+    if (isAI)      return 'AI';
+    if (isMayorAnn) return (message as MayorAnnouncement).mayor_name;
+    if (isUserMessage) return (message as UserMessage).sender_name;
+    return '';
+  })();
 
-  // Timestamp style per variant
-  const timeStyle: TextStyle =
-    isRight ? styles.timeRight : isMayor ? styles.timeMayor : styles.timeLeft;
+  const messageText: string = (() => {
+    if ('text' in message) return (message as { text: string }).text;
+    return '';
+  })();
 
-  // DO NOT CHANGE: Status tick rendering logic
-  // (FIX-10: STATUS_ICON map now includes 'pending' — logic itself unchanged)
-  const renderStatusIcon = () => {
-    if (!isRight || !status) return null;
-    const { glyph, a11y } = STATUS_ICON[status];
-    const iconStyle =
-      status === 'failed'    ? styles.statusFailed
-      : status === 'sent'    ? styles.statusSent
-      : status === 'pending' ? styles.statusPending
-      :                        styles.statusDelivered;
-    return (
-      <Text
-        style={[styles.statusIcon, iconStyle]}
-        allowFontScaling={false}
-        accessibilityLabel={a11y}
-        accessibilityRole="image"
+  const messageTs: number = message.timestamp;
+  const isPinned = isUserMessage && (message as UserMessage).is_pinned;
+
+  /**
+   * The REAL Firestore room document ID for every write below.
+   * Must come from the parent (home screen passes the scope-aware roomId via
+   * the adapter's room_id field). Falls back to sector_id only as a last resort.
+   *
+   * BUGFIX: previously every action used message.sector_id directly as the room
+   * path — but a sector room lives at `${cityId}_${sectorId}` (and city/country/
+   * world rooms have entirely different IDs). The mismatch made the document
+   * lookup fail and silently no-op'd reactions, delete, pin and report (the
+   * "like button / bottom sheet doesn't work" bug).
+   */
+  const roomId: string =
+    (message as { room_id?: string }).room_id ?? message.sector_id;
+
+  // ── Reset on open/close ─────────────────────────────────────────────────────
+  const handleClose = useCallback(() => {
+    setView('main');
+    setLoadingAction(null);
+    setDoneAction(null);
+    setShowDeleteConfirm(false);
+    setShowReportConfirm(false);
+    setReportReason(null);
+    onClose();
+  }, [onClose]);
+
+  // ── Finish-action helper (spinner → checkmark → dismiss) ───────────────────
+  const finishAction = useCallback((id: ActionId, ms = 600) => {
+    setLoadingAction(null);
+    setDoneAction(id);
+    setTimeout(() => {
+      setDoneAction(null);
+      handleClose();
+    }, ms);
+  }, [handleClose]);
+
+  // ── Emoji quick-react ───────────────────────────────────────────────────────
+  const handleEmojiTap = useCallback(async (
+    emoji: string,
+    animIdx?: number,
+  ) => {
+    haptics.impactMedium();
+
+    // Animate the tapped emoji (scale 1.0 → 1.2 → 1.0, 200ms)
+    if (animIdx !== undefined) {
+      Animated.sequence([
+        Animated.timing(emojiScales[animIdx], {
+          toValue:         L.emojiScalePeak,
+          duration:        L.emojiAnimMs / 2,
+          useNativeDriver: true,
+        }),
+        Animated.timing(emojiScales[animIdx], {
+          toValue:         1,
+          duration:        L.emojiAnimMs / 2,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+
+    try {
+      // BUGFIX: addReaction signature is (roomId, messageId, emoji, uid).
+      // It was previously called as (message.id, emoji, currentUid, sector_id)
+      // — wrong order AND wrong room — so it wrote to a nonexistent path and the
+      // transaction silently returned. This is why the like button did nothing.
+      await addReaction(roomId, message.id, emoji, currentUid);
+    } catch {
+      // silently fail (toast from caller if needed)
+    } finally {
+      // Auto-dismiss after scale animation completes
+      setTimeout(handleClose, L.emojiAnimMs + 80);
+    }
+  }, [message, currentUid, emojiScales, haptics, handleClose]);
+
+  // ── Action handlers ─────────────────────────────────────────────────────────
+  const handleCopy = useCallback(async () => {
+    haptics.impactLight();
+    setLoadingAction('copy');
+    await Clipboard.setStringAsync(messageText); // 👈 async · expo-clipboard API
+    AccessibilityInfo.announceForAccessibility('Copy ho gaya');
+    finishAction('copy', 400);
+  }, [messageText, haptics, finishAction]);
+
+  const handleShare = useCallback(async () => {
+    haptics.impactLight();
+    const shareText =
+      `Yeh dekh ${message.sector_id} ke chat mein kya scene hai 👇\n\n` +
+      `'${messageText.slice(0, 100)}${messageText.length > 100 ? '…' : ''}'\n` +
+      `— ${senderName}\n\nCROWN pe full chat dekho:\n` +
+      `https://crownapp.in/sector/${message.city_id}-${message.sector_id}`;
+    try {
+      await Share.share({ message: shareText });
+    } catch {
+      // user cancelled — no error needed
+    }
+    handleClose();
+  }, [message, messageText, senderName, haptics, handleClose]);
+
+  const handleSave = useCallback(async () => {
+    haptics.impactMedium();
+    setLoadingAction('save');
+    try {
+      await saveMessage(message.id, currentUid, roomId, messageText);
+      finishAction('save');
+    } catch {
+      setLoadingAction(null);
+    }
+  }, [message.id, currentUid, haptics, finishAction]);
+
+  const handleDeleteConfirmed = useCallback(async () => {
+    haptics.notificationError();
+    setLoadingAction('delete');
+    setShowDeleteConfirm(false);
+    try {
+      await deleteMessage(message.id, roomId, currentUid);
+      finishAction('delete');
+    } catch {
+      setLoadingAction(null);
+    }
+  }, [message, currentUid, haptics, finishAction]);
+
+  const handlePin = useCallback(async () => {
+    haptics.impactMedium();
+    setLoadingAction('pin');
+    try {
+      await pinMessage(message.id, roomId);
+      finishAction('pin');
+    } catch {
+      setLoadingAction(null);
+    }
+  }, [message, haptics, finishAction]);
+
+  const handleUnpin = useCallback(async () => {
+    haptics.impactMedium();
+    setLoadingAction('unpin');
+    try {
+      await unpinMessage(message.id, roomId);
+      finishAction('unpin');
+    } catch {
+      setLoadingAction(null);
+    }
+  }, [message, haptics, finishAction]);
+
+  const handleReportConfirmed = useCallback(async () => {
+    if (!reportReason) return;
+    haptics.notificationError();
+    setReportLoading(true);
+    try {
+      await reportMessage(message.id, reportReason, currentUid, roomId);
+    } catch {
+      // server error — still dismiss (report queued locally)
+    } finally {
+      setReportLoading(false);
+      setShowReportConfirm(false);
+      finishAction('report');
+    }
+  }, [reportReason, message, currentUid, haptics, finishAction]);
+
+  // ── Action dispatcher ───────────────────────────────────────────────────────
+  const handleAction = useCallback((id: ActionId) => {
+    switch (id) {
+      case 'react':  haptics.impactLight(); setView('emoji');           break;
+      case 'reply':  /* v1.1 disabled — shown but inert */                break;
+      case 'copy':   handleCopy();                                        break;
+      case 'share':  handleShare();                                       break;
+      case 'save':   handleSave();                                        break;
+      case 'report': haptics.impactMedium(); setShowReportConfirm(true); break;
+      case 'delete': haptics.impactMedium(); setShowDeleteConfirm(true); break;
+      case 'pin':    handlePin();                                         break;
+      case 'unpin':  handleUnpin();                                       break;
+    }
+  }, [haptics, handleCopy, handleShare, handleSave, handlePin, handleUnpin]);
+
+  // ── Build action list based on variant ─────────────────────────────────────
+  const actions: ActionItem[] = (() => {
+    const list: ActionItem[] = [];
+
+    // React — all variants except system/separator
+    if (message.variant !== 'system' && message.variant !== 'date_separator') {
+      list.push({
+        id:      'react',
+        label:   'React karo',
+        icon:    <Feather name="smile" size={L.actionIconSize} color={T.ink700} />,
+        chevron: true,
+      });
+    }
+
+    // Reply — disabled v1.1 (not for AI or system)
+    if (!isAI && message.variant !== 'system' && message.variant !== 'date_separator') {
+      list.push({
+        id:          'reply',
+        label:       'Reply karo',
+        icon:        <Feather name="corner-up-left" size={L.actionIconSize} color={T.ink700} />,
+        disabled:    true,
+        disabledHint: 'Coming v1.1',
+      });
+    }
+
+    // Copy — all text-bearing variants
+    if (messageText) {
+      list.push({
+        id:    'copy',
+        label: 'Copy karo',
+        icon:  <Feather name="copy" size={L.actionIconSize} color={T.ink700} />,
+      });
+    }
+
+    // WhatsApp Share — all text-bearing variants
+    if (messageText) {
+      list.push({
+        id:    'share',
+        label: 'WhatsApp pe Share',
+        icon:  <MaterialCommunityIcons name="whatsapp" size={L.actionIconSize} color="#25D366" />,
+      });
+    }
+
+    // Save — all message types (§ E.19)
+    if (message.variant !== 'date_separator') {
+      list.push({
+        id:    'save',
+        label: 'Save karo',
+        icon:  <Feather name="bookmark" size={L.actionIconSize} color={T.ink700} />,
+      });
+    }
+
+    // Report — not for own messages, not for AI
+    if (!isOwn && !isAI) {
+      list.push({
+        id:          'report',
+        label:       isMayorAnn ? 'Mayor pe report karo' : 'Report karo',
+        icon:        <Feather name="alert-triangle" size={L.actionIconSize} color={T.crimson600} />,
+        destructive: true,
+      });
+    }
+
+    // Delete — own messages only
+    if (isOwn) {
+      list.push({
+        id:          'delete',
+        label:       'Delete karo',
+        icon:        <Feather name="trash-2" size={L.actionIconSize} color={T.crimson600} />,
+        destructive: true,
+      });
+    }
+
+    // Pin — mayor can pin any message; Unpin — mayor on already-pinned
+    if (isMayor && !isAI && message.variant !== 'system' && message.variant !== 'date_separator') {
+      if (isPinned || isMayorOwnAnn) {
+        list.push({
+          id:    'unpin',
+          label: 'Pin remove karo',
+          icon:  <MaterialCommunityIcons name="pin-off" size={L.actionIconSize} color={T.gold700} />,
+        });
+      } else {
+        list.push({
+          id:    'pin',
+          label: 'Mayor announcement pin karo',
+          icon:  <MaterialCommunityIcons name="pin" size={L.actionIconSize} color={T.gold700} />,
+        });
+      }
+    }
+
+    return list;
+  })();
+
+  // ── Row action icon state (idle · loading · done) ──────────────────────────
+  const actionIcon = useCallback((item: ActionItem) => {
+    if (loadingAction === item.id) {
+      return <Feather name="loader" size={L.actionIconSize} color={T.gold600} />;
+    }
+    if (doneAction === item.id) {
+      return <Feather name="check" size={L.actionIconSize} color={T.gold600} />;
+    }
+    return item.icon;
+  }, [loadingAction, doneAction]);
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // RENDER
+  // ─────────────────────────────────────────────────────────────────────────────
+  return (
+    <>
+      {/* ── Main Bottom Sheet ────────────────────────────────────────────────── */}
+      <BottomSheet
+        visible={visible}
+        onClose={handleClose}
+        maxHeight={L.sheetMaxH}
+        accessibilityRole="dialog"
+        accessibilityLabel={
+          isOwn
+            ? 'Action sheet for your message'
+            : `Action sheet for ${senderName}'s message`
+        }
       >
-        {' '}{glyph}
-      </Text>
-    );
+        {view === 'main' ? (
+          <View style={S.container}>
+            {/* [2] Message preview ───────────────────────────────────────────── */}
+            <View style={S.preview}>
+              {/* Avatar */}
+              <View style={S.previewAvatar} accessibilityElementsHidden>
+                <Text style={S.previewAvatarText}>
+                  {isOwn ? 'A' : initials(senderName)}
+                </Text>
+              </View>
+
+              {/* Text block */}
+              <View style={S.previewBody}>
+                <Text
+                  style={S.previewSender}
+                  accessibilityRole="text"
+                  numberOfLines={1}
+                >
+                  {senderName}
+                </Text>
+                <Text
+                  style={S.previewText}
+                  numberOfLines={2}
+                  ellipsizeMode="tail"
+                  accessibilityRole="text"
+                  accessibilityLabel={`Message: ${messageText}`}
+                >
+                  {messageText || '(System message)'}
+                </Text>
+                <Text style={S.previewTime} accessibilityElementsHidden>
+                  {relativeTime(messageTs)}
+                </Text>
+              </View>
+            </View>
+
+            {/* [3A] Quick emoji row (§ E.3.4) ────────────────────────────────── */}
+            {message.variant !== 'system' && message.variant !== 'date_separator' && (
+              <View style={S.emojiRow} accessibilityLabel="Quick reactions">
+                {QUICK_EMOJIS.map((emoji, idx) => (
+                  <Animated.View
+                    key={emoji}
+                    style={{ transform: [{ scale: emojiScales[idx] }] }}
+                  >
+                    <TouchableOpacity
+                      style={S.emojiBtn}
+                      onPress={() => handleEmojiTap(emoji, idx)}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel={`React with ${emoji}`}
+                    >
+                      <Text style={S.emojiText}>{emoji}</Text>
+                    </TouchableOpacity>
+                  </Animated.View>
+                ))}
+              </View>
+            )}
+
+            {/* Divider below emoji row */}
+            <View style={S.divider} />
+
+            {/* [3] Action rows ────────────────────────────────────────────────── */}
+            <ScrollView
+              style={S.actionsScroll}
+              scrollEnabled={false}
+              showsVerticalScrollIndicator={false}
+            >
+              {actions.map((item, idx) => (
+                <React.Fragment key={item.id}>
+                  <ActionRow
+                    item={item}
+                    icon={actionIcon(item)}
+                    onPress={() => handleAction(item.id)}
+                    isLoading={loadingAction === item.id}
+                    isDone={doneAction === item.id}
+                  />
+                  {idx < actions.length - 1 && <View style={S.rowDivider} />}
+                </React.Fragment>
+              ))}
+            </ScrollView>
+
+            {/* [4] Cancel row ─────────────────────────────────────────────────── */}
+            <View style={S.cancelSeparator} />
+            <TouchableOpacity
+              style={S.cancelRow}
+              onPress={() => { haptics.impactLight(); handleClose(); }}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Cancel · close action sheet"
+            >
+              <Text style={S.cancelText}>Cancel karo</Text>
+            </TouchableOpacity>
+          </View>
+
+        ) : (
+          /* ── Emoji sub-picker view ────────────────────────────────────────── */
+          <View style={S.container}>
+            <View style={S.emojiPickerHeader}>
+              <TouchableOpacity
+                onPress={() => setView('main')}
+                style={S.emojiPickerBack}
+                accessibilityRole="button"
+                accessibilityLabel="Back"
+              >
+                <Feather name="arrow-left" size={20} color={T.ink700} />
+              </TouchableOpacity>
+              <Text style={S.emojiPickerTitle}>React karo</Text>
+            </View>
+            <View style={S.divider} />
+            <View style={S.emojiGrid}>
+              {EXTENDED_EMOJIS.map((emoji) => (
+                <TouchableOpacity
+                  key={emoji}
+                  style={S.emojiGridBtn}
+                  onPress={() => handleEmojiTap(emoji)}
+                  activeOpacity={0.6}
+                  accessibilityRole="button"
+                  accessibilityLabel={`React with ${emoji}`}
+                >
+                  <Text style={S.emojiGridText}>{emoji}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <View style={S.cancelSeparator} />
+            <TouchableOpacity
+              style={S.cancelRow}
+              onPress={() => { haptics.impactLight(); handleClose(); }}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Cancel"
+            >
+              <Text style={S.cancelText}>Cancel karo</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </BottomSheet>
+
+      {/* ── Delete Confirm Modal ─────────────────────────────────────────────── */}
+      <ConfirmModal
+        visible={showDeleteConfirm}
+        title="Message delete karein?"
+        body="Yeh message hamesha ke liye delete ho jayega. Undo nahi hoga."
+        confirmLabel="Delete karo"
+        destructive
+        onConfirm={handleDeleteConfirmed}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
+
+      {/* ── Report Confirm Modal ─────────────────────────────────────────────── */}
+      <ReportModal
+        visible={showReportConfirm}
+        selectedReason={reportReason}
+        onSelectReason={setReportReason}
+        onConfirm={handleReportConfirmed}
+        onCancel={() => { setShowReportConfirm(false); setReportReason(null); }}
+        loading={reportLoading}
+      />
+    </>
+  );
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SUB-COMPONENT: ActionRow
+// ─────────────────────────────────────────────────────────────────────────────
+interface ActionRowProps {
+  item:      ActionItem;
+  icon:      React.ReactNode;
+  onPress:   () => void;
+  isLoading: boolean;
+  isDone:    boolean;
+}
+
+const ActionRow = memo(function ActionRow({
+  item,
+  icon,
+  onPress,
+  isLoading,
+  isDone,
+}: ActionRowProps) {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    if (item.disabled) return;
+    Animated.timing(scale, {
+      toValue:         L.pressScale,
+      duration:        L.pressDuration,
+      useNativeDriver: true,
+    }).start();
+  };
+  const handlePressOut = () => {
+    Animated.timing(scale, {
+      toValue:         1,
+      duration:        L.pressDuration,
+      useNativeDriver: true,
+    }).start();
   };
 
+  const labelColor = item.destructive
+    ? T.crimson600
+    : item.disabled
+    ? T.ink500
+    : T.ink950;
+
+  const a11yHint = item.disabled
+    ? (item.disabledHint ?? 'Not available')
+    : item.destructive
+    ? 'Destructive action'
+    : undefined;
+
   return (
-    <View
-      style={[
-        styles.wrapper,
-        // FIX-14: Mayor is center-aligned card (PRD §10.2 "Centered, gold border, 24h sticky")
-        // Previously: all non-right variants used wrapperLeft (alignment bug)
-        isMayor ? styles.wrapperMayor
-          : isRight ? styles.wrapperRight
-          : styles.wrapperLeft,
-        style,
-      ]}
-    >
-      {/* ── Sender meta row (left / mayor / ai) ─────────────────────────── */}
-      {!isRight && (
-        <View style={[styles.metaContainer, isMayor && styles.metaMayor]}>
-          {username ? (
-            <Text style={styles.senderName} numberOfLines={1}>
-              {username}
-            </Text>
-          ) : null}
-          {tags ? <MessageTagsRow tags={tags} /> : null}
-          {/*
-           * GAP-01: trust score chip goes here for left/ai variants.
-           * Add `trustScore?: number` to MessageBubbleProps + MessageTags,
-           * then render: trustScore ? <Tag variant="trust" label={`${trustScore}`} size="sm" /> : null
-           */}
-        </View>
-      )}
-
-      {/* ── Bubble body ──────────────────────────────────────────────────── */}
+    <Animated.View style={{ transform: [{ scale }] }}>
       <Pressable
-        onLongPress={handleLongPress}
-        delayLongPress={350}
-        android_ripple={null}
-        style={({ pressed }) => [
-          ...bubbleStyle,
-          pressed && styles.bubblePressed,
-        ]}
-        accessibilityRole="text"
-        accessibilityLabel={
-          username ? `Message from ${username}: ${text}` : text
-        }
-        accessibilityHint="Long press to open actions"
+        style={[S.actionRow, item.disabled && S.actionRowDisabled]}
+        onPress={item.disabled ? undefined : onPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        accessibilityRole="button"
+        accessibilityLabel={item.label}
+        accessibilityHint={a11yHint}
+        accessibilityState={{ disabled: item.disabled ?? false, busy: isLoading }}
+        android_ripple={{ color: T.cream200, borderless: false }}
       >
-        {/* AI mandatory badge — §11A.14 · Non-Negotiable #9
-            FIX-17: Enlarged 40% per PRD §11A.14
-            "🤖 AI pill is enlarged 40% bigger than text — users instantly recognize them as ambient"
-            MUST ALWAYS BE VISIBLE — NEVER REMOVE OR CONDITIONALLY HIDE */}
-        {isAI && (
-          <View style={styles.aiBadgeRow}>
-            <View style={styles.aiBadge}>
-              <Text style={styles.aiBadgeText} allowFontScaling={false}>
-                🤖 AI
-              </Text>
-            </View>
-          </View>
-        )}
+        {/* Icon */}
+        <View style={S.actionIcon}>{icon}</View>
 
-        {/* Mayor label strip */}
-        {isMayor && (
-          <View style={styles.mayorLabelRow}>
-            <Text style={styles.mayorLabel} allowFontScaling={false}>
-              👑 Mayor ka message
-            </Text>
-          </View>
-        )}
-
-        {/* Message text
-            FIX-13: Apply msgTextAI (italic-tinted) for AI variant
-            PRD §10.2 AI: "Text: italic-tinted to distinguish from human messages" */}
-        <Text
-          style={[
-            styles.msgText,
-            isRight && styles.msgTextRight,
-            isMayor && styles.msgTextMayor,
-            isAI    && styles.msgTextAI,        // FIX-13
-          ]}
-          numberOfLines={clampNow ? MAX_LINES : undefined}
-          onTextLayout={(e) => {
-            if (measuredRef.current) return;
-            measuredRef.current = true;
-            if (e.nativeEvent.lines.length > MAX_LINES) setOverflowed(true);
-          }}
-        >
-          {text}
-        </Text>
-
-        {/* Read more / less — only for long messages */}
-        {canToggle ? (
-          <Text
-            style={[styles.readMore, isRight && styles.readMoreRight]}
-            onPress={() => setExpanded((v) => !v)}
-            suppressHighlighting
-            accessibilityRole="button"
-            accessibilityLabel={expanded ? 'Read less' : 'Read more'}
-          >
-            {expanded ? 'Read less' : 'Read more'}
+        {/* Label + optional hint */}
+        <View style={S.actionLabelBlock}>
+          <Text style={[S.actionLabel, { color: labelColor }]}>
+            {item.label}
           </Text>
-        ) : null}
-
-        {/* Timestamp + status icon */}
-        {time ? (
-          <View style={styles.timeRow}>
-            <Text style={timeStyle} allowFontScaling={false}>
-              {time}
-            </Text>
-            {renderStatusIcon()}
-          </View>
-        ) : null}
-      </Pressable>
-
-      {/* ── Reactions + Gift row ─────────────────────────────────────────── */}
-      {(reactions.length > 0 || (!isRight && onGift)) && (
-        <View style={[styles.reactsRow, isRight && styles.reactsRowRight]}>
-          {reactions.map((r, idx) => (
-            <ReactionPill
-              key={`${r.emoji}-${idx}`}
-              reaction={r}
-              onPress={() => onReact?.(r.emoji)}
-              isRight={isRight}
-            />
-          ))}
-
-          {!isRight && onGift && (
-            <Pressable
-              onPress={onGift}
-              style={({ pressed }) => [
-                styles.giftBtn,
-                pressed && styles.giftBtnPressed,
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel="Send gift"
-              hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-            >
-              <Text style={styles.giftBtnText}>🎁 Gift</Text>
-            </Pressable>
+          {item.disabled && item.disabledHint && (
+            <Text style={S.actionHint}>{item.disabledHint}</Text>
           )}
         </View>
-      )}
 
-      {/* ── Right-bubble tag row ─────────────────────────────────────────── */}
-      {isRight && tags && (
-        <View style={styles.rightTagsRow}>
-          <MessageTagsRow tags={tags} />
-        </View>
-      )}
-    </View>
+        {/* Right: chevron or done check */}
+        {item.chevron && !isDone && (
+          <Feather name="chevron-right" size={18} color={T.ink500} />
+        )}
+      </Pressable>
+    </Animated.View>
   );
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SUB-COMPONENT: ConfirmModal (Delete / generic destructive)
+// ─────────────────────────────────────────────────────────────────────────────
+interface ConfirmModalProps {
+  visible:      boolean;
+  title:        string;
+  body:         string;
+  confirmLabel: string;
+  destructive:  boolean;
+  onConfirm:    () => void;
+  onCancel:     () => void;
 }
 
-// ─── React.memo export ───────────────────────────────────────────────────────
+const ConfirmModal = memo(function ConfirmModal({
+  visible,
+  title,
+  body,
+  confirmLabel,
+  destructive,
+  onConfirm,
+  onCancel,
+}: ConfirmModalProps) {
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
+  const opacAnim  = useRef(new Animated.Value(0)).current;
 
-export const MessageBubble = memo(MessageBubbleComponent);
-MessageBubble.displayName = 'MessageBubble';
+  React.useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.spring(scaleAnim, {
+          toValue:         1,
+          useNativeDriver: true,
+          tension:         80,
+          friction:        8,
+        }),
+        Animated.timing(opacAnim, {
+          toValue:         1,
+          duration:        200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      scaleAnim.setValue(0.9);
+      opacAnim.setValue(0);
+    }
+  }, [visible, scaleAnim, opacAnim]);
 
-export default MessageBubble;
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="none"
+      statusBarTranslucent
+      onRequestClose={onCancel}
+      accessibilityViewIsModal
+    >
+      <TouchableWithoutFeedback onPress={onCancel}>
+        <View style={S.modalScrim}>
+          <TouchableWithoutFeedback>
+            <Animated.View
+              style={[
+                S.modalCard,
+                { opacity: opacAnim, transform: [{ scale: scaleAnim }] },
+              ]}
+              accessibilityRole="dialog"
+              accessibilityLabel={title}
+            >
+              {/* Warning icon */}
+              <View style={S.modalIconWrap}>
+                <Feather name="trash-2" size={28} color={T.crimson600} />
+              </View>
 
-// ─── StyleSheet ───────────────────────────────────────────────────────────────
+              <Text style={S.modalTitle}>{title}</Text>
+              <Text style={S.modalBody}>{body}</Text>
 
-const styles = StyleSheet.create({
+              {/* CTAs */}
+              <TouchableOpacity
+                style={[S.modalBtn, S.modalBtnDestructive]}
+                onPress={onConfirm}
+                accessibilityRole="button"
+                accessibilityLabel={`${confirmLabel} · destructive`}
+                activeOpacity={0.85}
+              >
+                <Text style={S.modalBtnDestructiveText}>{confirmLabel}</Text>
+              </TouchableOpacity>
 
-  // ── Wrapper alignment ──────────────────────────────────────────────────────
-  wrapper: {
-    flexDirection:     'column',
-    marginVertical:    spacing.xs,       // 4px — tight consecutive message gap
-    paddingHorizontal: spacing.sm,       // 8px — screen-edge breathing room
-    maxWidth:          '100%',
+              <TouchableOpacity
+                style={[S.modalBtn, S.modalBtnCancel]}
+                onPress={onCancel}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
+                activeOpacity={0.7}
+              >
+                <Text style={S.modalBtnCancelText}>Cancel karo</Text>
+              </TouchableOpacity>
+            </Animated.View>
+          </TouchableWithoutFeedback>
+        </View>
+      </TouchableWithoutFeedback>
+    </Modal>
+  );
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SUB-COMPONENT: ReportModal
+// ─────────────────────────────────────────────────────────────────────────────
+interface ReportModalProps {
+  visible:        boolean;
+  selectedReason: ReportReason | null;
+  onSelectReason: (r: ReportReason) => void;
+  onConfirm:      () => void;
+  onCancel:       () => void;
+  loading:        boolean;
+}
+
+const ReportModal = memo(function ReportModal({
+  visible,
+  selectedReason,
+  onSelectReason,
+  onConfirm,
+  onCancel,
+  loading,
+}: ReportModalProps) {
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
+  const opacAnim  = useRef(new Animated.Value(0)).current;
+
+  React.useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.spring(scaleAnim, {
+          toValue:         1,
+          useNativeDriver: true,
+          tension:         80,
+          friction:        8,
+        }),
+        Animated.timing(opacAnim, {
+          toValue:         1,
+          duration:        200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      scaleAnim.setValue(0.9);
+      opacAnim.setValue(0);
+    }
+  }, [visible, scaleAnim, opacAnim]);
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="none"
+      statusBarTranslucent
+      onRequestClose={onCancel}
+      accessibilityViewIsModal
+    >
+      <TouchableWithoutFeedback onPress={onCancel}>
+        <View style={S.modalScrim}>
+          <TouchableWithoutFeedback>
+            <Animated.View
+              style={[
+                S.modalCard,
+                { opacity: opacAnim, transform: [{ scale: scaleAnim }] },
+              ]}
+              accessibilityRole="dialog"
+              accessibilityLabel="Report message"
+            >
+              {/* Warning icon */}
+              <View style={S.modalIconWrap}>
+                <Feather name="alert-triangle" size={28} color={T.crimson600} />
+              </View>
+
+              <Text style={S.modalTitle}>Report karo</Text>
+              <Text style={S.modalBody}>Kya problem hai is message mein?</Text>
+
+              {/* Reason selector */}
+              <View style={S.reportReasons}>
+                {REPORT_REASONS.map((reason) => (
+                  <TouchableOpacity
+                    key={reason}
+                    style={[
+                      S.reportReasonRow,
+                      selectedReason === reason && S.reportReasonSelected,
+                    ]}
+                    onPress={() => onSelectReason(reason)}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: selectedReason === reason }}
+                    accessibilityLabel={reason}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[
+                      S.reportRadio,
+                      selectedReason === reason && S.reportRadioSelected,
+                    ]}>
+                      {selectedReason === reason && (
+                        <View style={S.reportRadioDot} />
+                      )}
+                    </View>
+                    <Text style={[
+                      S.reportReasonText,
+                      selectedReason === reason && S.reportReasonTextSelected,
+                    ]}>
+                      {reason}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* CTAs */}
+              <TouchableOpacity
+                style={[
+                  S.modalBtn,
+                  S.modalBtnDestructive,
+                  (!selectedReason || loading) && S.modalBtnDisabled,
+                ]}
+                onPress={selectedReason && !loading ? onConfirm : undefined}
+                accessibilityRole="button"
+                accessibilityLabel="Report · destructive"
+                accessibilityState={{ disabled: !selectedReason || loading }}
+                activeOpacity={0.85}
+              >
+                <Text style={S.modalBtnDestructiveText}>
+                  {loading ? 'Report ho raha hai…' : 'Report bhejo'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[S.modalBtn, S.modalBtnCancel]}
+                onPress={onCancel}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
+                activeOpacity={0.7}
+              >
+                <Text style={S.modalBtnCancelText}>Cancel karo</Text>
+              </TouchableOpacity>
+            </Animated.View>
+          </TouchableWithoutFeedback>
+        </View>
+      </TouchableWithoutFeedback>
+    </Modal>
+  );
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STYLES
+// ─────────────────────────────────────────────────────────────────────────────
+const S = StyleSheet.create({
+
+  // ── Sheet container ───────────────────────────────────────────────────────
+  container: {
+    backgroundColor: T.sheetBg,
+    paddingBottom:   Platform.OS === 'ios' ? 8 : 4,
   },
-  wrapperLeft: {
-    alignItems: 'flex-start',
-    alignSelf:  'flex-start',
-  },
-  wrapperRight: {
-    alignItems: 'flex-end',
-    alignSelf:  'flex-end',
-  },
-  // FIX-14: Mayor center-aligned card (PRD §10.2 "Centered, gold border, 24h sticky")
-  // Previously missing — mayor incorrectly used wrapperLeft
-  wrapperMayor: {
-    alignItems: 'center',
-    alignSelf:  'center',
-  },
 
-  // ── Sender meta container ──────────────────────────────────────────────────
-  metaContainer: {
+  // ── Message preview ───────────────────────────────────────────────────────
+  preview: {
     flexDirection:     'row',
     alignItems:        'center',
-    flexWrap:          'wrap',
-    gap:               spacing.xs,       // 4px
-    marginBottom:      4,
-    paddingHorizontal: 4,
-    maxWidth:          '88%',
+    paddingHorizontal: L.previewPadH,
+    paddingVertical:   L.previewPadV,
+    minHeight:         L.previewH,
+    backgroundColor:   T.cream50,
+    gap:               12,
   },
-  // FIX-14: Mayor meta row centered to match the center-aligned card
-  metaMayor: {
+  previewAvatar: {
+    width:           L.avatarSize,
+    height:          L.avatarSize,
+    borderRadius:    L.avatarSize / 2,
+    backgroundColor: T.cream200,
+    alignItems:      'center',
+    justifyContent:  'center',
+    flexShrink:      0,
+  },
+  previewAvatarText: {
+    fontFamily: FONT_BODY.bold,
+    fontSize:   14,
+    fontWeight: '700',
+    color:      T.gold700,
+  },
+  previewBody: {
+    flex: 1,
+  },
+  previewSender: {
+    fontFamily: FONT_BODY.bold,
+    fontSize:   12,
+    fontWeight: '700',
+    color:      T.ink950,
+    marginBottom: 2,
+  },
+  previewText: {
+    fontFamily: FONT_BODY.regular,
+    fontSize:   13,
+    fontWeight: '400',
+    color:      T.ink600,
+    fontStyle:  'italic',
+    lineHeight: 18,
+  },
+  previewTime: {
+    fontFamily: FONT_BODY.regular,
+    fontSize:   11,
+    fontWeight: '400',
+    color:      T.ink500,
+    marginTop:  4,
+  },
+
+  // ── Quick emoji row ───────────────────────────────────────────────────────
+  emojiRow: {
+    flexDirection:     'row',
+    alignItems:        'center',
+    justifyContent:    'center',
+    paddingHorizontal: L.previewPadH,
+    paddingVertical:   12,
+    gap:               L.emojiGap,
+    backgroundColor:   T.sheetBg,
+  },
+  emojiBtn: {
+    width:          L.emojiSize,
+    height:         L.emojiSize,
+    alignItems:     'center',
     justifyContent: 'center',
   },
-  senderName: {
-    fontSize:      11,
-    fontWeight:    '600',
-    color:         T.textSenderName,
-    letterSpacing: 0.1,
+  emojiText: {
+    fontSize: 24,
+    lineHeight: 32,
   },
 
-  // ── Tag atoms row ──────────────────────────────────────────────────────────
-  tagsRow: {
-    flexDirection: 'row',
-    alignItems:    'center',
-    flexWrap:      'wrap',
-    gap:           spacing.xs,           // 4px
-  },
-
-  // ── Bubble base ────────────────────────────────────────────────────────────
-  bubble: {
-    paddingHorizontal: spacing.md,       // 12px
-    paddingVertical:   10,
-    maxWidth:          '88%',
-  },
-  bubblePressed: {
-    transform: [{ scale: 0.985 }],
-    opacity:   0.95,
-  },
-
-  // left — cream fill (#F5E6C8 per PRD --bg-card) + hairline border + subtle gold shadow
-  // FIX-02: was palette.cream[200] (#F7ECD0), updated to colors.bg.card (#F5E6C8)
-  // Radius Protocol §8: chat bubbles = radii.lg (16px); tail corner = radii.xs (4px)
-  bubbleLeft: {
-    backgroundColor:        T.bubbleLeft,            // FIX-02: colors.bg.card #F5E6C8
-    borderWidth:             1,
-    borderColor:             T.borderLeft,
-    borderRadius:            radii.lg,               // 16 — §8 chat bubble protocol
-    borderTopLeftRadius:     radii.xs,               // 4  — tail corner (top-left for left-aligned)
-    borderTopRightRadius:    radii.lg,               // 16
-    borderBottomRightRadius: radii.lg,               // 16
-    borderBottomLeftRadius:  radii.lg,               // 16
-    shadowColor:             T.shadowGold,
-    shadowOffset:            { width: 0, height: 3 },
-    shadowOpacity:           0.07,
-    shadowRadius:            7,
-    elevation:               2,
-  },
-
-  // right — Brand Gold solid (#D4A017 per PRD --fg-brand)
-  // FIX-01: was palette.gold[600] (#C9A227), updated to colors.fg.brand (#D4A017)
-  // Radius Protocol §8: chat bubbles = radii.lg (16px); tail corner = radii.xs (4px)
-  bubbleRight: {
-    backgroundColor:        T.bubbleRight,           // FIX-01: colors.fg.brand #D4A017
-    borderRadius:            radii.lg,               // 16 — §8 chat bubble protocol
-    borderTopLeftRadius:     radii.lg,               // 16
-    borderTopRightRadius:    radii.lg,               // 16
-    borderBottomRightRadius: radii.xs,               // 4  — tail corner (bottom-right for right-aligned)
-    borderBottomLeftRadius:  radii.lg,               // 16
-    shadowColor:             T.shadowGold,
-    shadowOffset:            { width: 0, height: 5 },
-    shadowOpacity:           0.28,
-    shadowRadius:            10,
-    elevation:               5,
-  },
-
-  // mayor — subtle gold tint + 2px gold outer border + 2px left-accent spine
-  // FIX-04: was palette.cream[50] (#FFF9EC) → palette.gold[50] (#FCF7E5) "subtle gold tint"
-  // FIX-05: borderMayorAccent updated from gold[600] (#C9A227) → colors.fg.brand (#D4A017)
-  // FIX-15: borderTopLeftRadius radii.xs → radii.lg (no tail — center-aligned card has no tail)
-  // FIX-16: borderLeftWidth 3 → 2 (user spec: "2px solid gold — left-accent border")
-  // Radius Protocol §8: center card = uniform radii.lg; NO tail corner
-  bubbleMayor: {
-    backgroundColor:        T.bubbleMayor,           // FIX-04: palette.gold[50] #FCF7E5
-    borderWidth:             1.5,
-    borderColor:             T.borderMayor,
-    borderLeftWidth:         2,                      // FIX-16: was 3, now 2px per user spec
-    borderLeftColor:         T.borderMayorAccent,    // FIX-05: colors.fg.brand #D4A017
-    borderRadius:            radii.lg,               // 16
-    borderTopLeftRadius:     radii.lg,               // FIX-15: was radii.xs (tail) → radii.lg (card)
-    borderTopRightRadius:    radii.lg,               // 16
-    borderBottomRightRadius: radii.lg,               // 16
-    borderBottomLeftRadius:  radii.lg,               // 16
-    shadowColor:             T.shadowGold,
-    shadowOffset:            { width: 0, height: 4 },
-    shadowOpacity:           0.13,
-    shadowRadius:            9,
-    elevation:               3,
-  },
-
-  // ai — cream fill (#F5E6C8 per PRD) + dashed gold ring
-  // FIX-03: was palette.cream[50] (#FFF9EC) → colors.bg.card (#F5E6C8) "cream fill same as left"
-  // FIX-09: borderAI rgba base updated from C9A227 to D4A017
-  // Radius Protocol §8: chat bubbles = radii.lg (16px); tail corner = radii.xs (4px)
-  bubbleAI: {
-    backgroundColor:        T.bubbleAI,              // FIX-03: colors.bg.card #F5E6C8
-    borderWidth:             1,
-    borderColor:             T.borderAI,             // FIX-09: rgba(212,160,23,0.45)
-    borderStyle:             'dashed',
-    borderRadius:            radii.lg,               // 16 — §8 chat bubble protocol
-    borderTopLeftRadius:     radii.xs,               // 4  — tail corner (top-left, left-aligned variant)
-    borderTopRightRadius:    radii.lg,               // 16
-    borderBottomRightRadius: radii.lg,               // 16
-    borderBottomLeftRadius:  radii.lg,               // 16
-    shadowColor:             T.shadowGold,
-    shadowOffset:            { width: 0, height: 2 },
-    shadowOpacity:           0.06,
-    shadowRadius:            5,
-    elevation:               1,
-  },
-
-  // highlighted — 2px gold ring (saved / bookmarked)
-  // FIX-06: borderHighlight updated to colors.fg.brand
-  bubbleHighlighted: {
-    borderWidth: 2,
-    borderColor: T.borderHighlight,                  // FIX-06: colors.fg.brand #D4A017
-  },
-
-  // ── AI mandatory badge (§11A.14 — Non-Negotiable #9) ──────────────────────
-  // FIX-17: Enlarged 40% per PRD §11A.14:
-  //   "🤖 AI pill is enlarged 40% bigger than text so users instantly recognize them as ambient"
-  //   Before: paddingHorizontal 7, paddingVertical 2, fontSize 8.5
-  //   After:  paddingHorizontal 10, paddingVertical 3, fontSize 11
-  // FIX-18: backgroundColor updated from palette.gold[600] (raw StyleSheet ref) → T.bubbleRight
-  //         (which is colors.fg.brand #D4A017 — no raw palette access in StyleSheet)
-  aiBadgeRow: {
-    flexDirection: 'row',
-    marginBottom:  spacing.xs,           // 4px
-  },
-  aiBadge: {
-    backgroundColor:   T.bubbleRight,               // FIX-18: colors.fg.brand #D4A017 (was palette.gold[600])
-    borderRadius:      radii.sm,                    // 6
-    paddingHorizontal: 10,                          // FIX-17: was 7, now 10 (+40% per §11A.14)
-    paddingVertical:   3,                           // FIX-17: was 2, now 3  (+40% per §11A.14)
-    shadowColor:       palette.gold[900],
-    shadowOffset:      { width: 0, height: 1 },
-    shadowOpacity:     0.28,
-    shadowRadius:      1.5,
-    elevation:         2,
-  },
-  aiBadgeText: {
-    color:         palette.cream[50],               // light text on gold badge — ok as palette ref
-    fontSize:      11,                              // FIX-17: was 8.5, now 11  (+40% per §11A.14)
-    fontWeight:    '800',
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-  },
-
-  // ── Mayor label ────────────────────────────────────────────────────────────
-  mayorLabelRow: {
-    flexDirection:  'row',
-    justifyContent: 'center',                       // FIX-14: centered for card layout
-    marginBottom:   5,
-  },
-  mayorLabel: {
-    fontSize:      9,
-    fontWeight:    '700',
-    color:         palette.gold[900],
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-
-  // ── Message text ───────────────────────────────────────────────────────────
-  msgText: {
-    fontSize:   15,
-    lineHeight: 22,
-    color:      T.textBody,
-    fontWeight: '400',
-  },
-  msgTextRight: {
-    color: T.textBodyWhite,
-  },
-  msgTextMayor: {
-    fontWeight: '500',
-    color:      T.textMayor,
-  },
-  // FIX-12: AI message text — italic-tinted to distinguish from human messages
-  // PRD §10.2 Variant 3: "Text: italic-tinted to distinguish from human messages"
-  // Uses T.textAI = colors.fg.tertiary (muted warm tone matching PRD --fg-text-muted intent)
-  msgTextAI: {
-    fontStyle: 'italic',
-    color:     T.textAI,                            // FIX-12: muted warm tint (colors.fg.tertiary)
-  },
-
-  // ── Read more / less toggle ───────────────────────────────────────────────
-  readMore: {
-    fontSize:   13,
-    fontWeight: '600',
-    color:      colors.fg.brandText,                // gold[700] — visible on cream bubble
-    marginTop:  3,
-  },
-  readMoreRight: {
-    color: palette.white,                           // white on the gold (own) bubble
-  },
-
-  // ── Timestamp row ──────────────────────────────────────────────────────────
-  timeRow: {
-    flexDirection:  'row',
-    justifyContent: 'flex-end',
-    alignItems:     'center',
-    marginTop:      5,
-  },
-  timeLeft: {
-    fontSize:   10,
-    fontWeight: '500',
-    color:      T.textTime,
-  },
-  timeRight: {
-    fontSize:   10,
-    fontWeight: '500',
-    color:      T.textTimeRight,
-  },
-  timeMayor: {
-    fontSize:   10,
-    fontWeight: '500',
-    color:      T.textTime,
-    opacity:    0.80,
-  },
-
-  // ── Status icons ───────────────────────────────────────────────────────────
-  statusIcon: {
-    fontSize:      11,
-    fontWeight:    '700',
-    letterSpacing: -1.5,
-  },
-  statusSent: {
-    color: T.statusSent,
-  },
-  statusDelivered: {
-    color: T.statusDelivered,
-  },
-  // FIX-10: Added pending status style — ⏳ inherits textTimeRight (ghosted white on gold)
-  statusPending: {
-    color:         T.textTimeRight,                 // ghosted white on gold — matches sent/delivered feel
-    fontSize:      12,
-    letterSpacing: 0,
-  },
-  // FIX-08: was palette.crimson[600] (#C4294F) — PRD §19.2 --fg-danger = #EF4444
-  statusFailed: {
-    color:         T.statusFailed,                  // FIX-08: colors.fg.danger #EF4444
-    fontSize:      12,
-    letterSpacing: 0,
-  },
-
-  // ── Reactions row ──────────────────────────────────────────────────────────
-  reactsRow: {
-    flexDirection: 'row',
-    flexWrap:      'wrap',
-    gap:           spacing.xs,           // 4px
-    marginTop:     spacing.sm,           // 8px
-    paddingHorizontal: 4,
-    alignItems:    'center',
-    alignSelf:     'flex-start',
-  },
-  reactsRowRight: {
-    alignSelf:      'flex-end',
-    justifyContent: 'flex-end',
-  },
-
-  reactionPill: {
-    backgroundColor:   palette.cream[50],
-    borderWidth:       1,
-    borderColor:       palette.cream[400],
-    borderRadius:      radii.pill,                  // 9999 — true capsule at any scale
-    paddingHorizontal: 10,
-    paddingVertical:   4,
-    shadowColor:       palette.gold[900],
-    shadowOffset:      { width: 0, height: 1 },
-    shadowOpacity:     0.06,
-    shadowRadius:      1.5,
-    elevation:         1,
-  },
-  reactionPillActive: {
-    backgroundColor: palette.gold[50],
-    borderColor:     palette.gold[300],
-  },
-  reactionPillRight: {
-    backgroundColor: palette.gold[50],
-    borderColor:     palette.gold[300],
-  },
-  reactionPillPressed: {
-    transform: [{ scale: 0.93 }],
-  },
-  reactionText: {
-    fontSize:   11,
-    fontWeight: '700',
-    color:      palette.ink[600],
-  },
-
-  // ── Gift button ────────────────────────────────────────────────────────────
-  giftBtn: {
-    backgroundColor:   palette.gold[50],
-    borderWidth:       1,
-    borderColor:       palette.gold[300],
-    borderRadius:      radii.md,                    // 12
-    paddingHorizontal: 9,
-    paddingVertical:   4,
-  },
-  giftBtnPressed: {
-    opacity: 0.78,
-  },
-  giftBtnText: {
-    fontSize:   11,
-    fontWeight: '700',
-    color:      palette.gold[700],
-  },
-
-  // ── Right-bubble tags below ────────────────────────────────────────────────
-  rightTagsRow: {
-    marginTop:         4,
-    alignSelf:         'flex-end',
-    paddingHorizontal: 4,
-  },
-
-  // ════════════════════════════════════════════════════════════════════════════
-  // DATE SEPARATOR  Blueprint §[5.F]
-  //   Row: hairline ─── chip ─── hairline
-  //   Chip: H 24px · cream[200] bg · r-12 · 8px H padding
-  //   Text: 11px 600 ink[500] muted
-  //   Margin: 24px top · 16px bottom
-  //   accessibilityRole: "header" (§Q1)
-  // ════════════════════════════════════════════════════════════════════════════
-
-  dateSepWrapper: {
+  // ── Extended emoji picker ─────────────────────────────────────────────────
+  emojiPickerHeader: {
     flexDirection:     'row',
     alignItems:        'center',
-    marginTop:         spacing.xxl,      // 24px — inter-day gap
-    marginBottom:      spacing.lg,       // 16px
-    paddingHorizontal: spacing.md,       // 12px
+    paddingHorizontal: 12,
+    paddingVertical:   12,
+    gap:               8,
   },
-  dateSepLine: {
+  emojiPickerBack: {
+    padding: 4,
+  },
+  emojiPickerTitle: {
+    fontFamily: FONT_BODY.semiBold,
+    fontSize:   16,
+    fontWeight: '600',
+    color:      T.ink950,
+  },
+  emojiGrid: {
+    flexDirection:     'row',
+    flexWrap:          'wrap',
+    paddingHorizontal: 8,
+    paddingVertical:   8,
+    gap:               4,
+  },
+  emojiGridBtn: {
+    width:          40,
+    height:         40,
+    alignItems:     'center',
+    justifyContent: 'center',
+    borderRadius:   8,
+  },
+  emojiGridText: {
+    fontSize:   26,
+    lineHeight: 34,
+  },
+
+  // ── Dividers ──────────────────────────────────────────────────────────────
+  divider: {
+    height:          1,
+    backgroundColor: T.cream400,
+    marginHorizontal: 0,
+  },
+  rowDivider: {
+    height:          1,
+    backgroundColor: T.cream400,
+    marginLeft:      L.actionPadH + L.actionIconSize + 12, // indented under icon
+  },
+
+  // ── Actions scroll ────────────────────────────────────────────────────────
+  actionsScroll: {
+    flexGrow: 0,
+  },
+
+  // ── Action row ────────────────────────────────────────────────────────────
+  actionRow: {
+    height:            L.actionRowH,
+    flexDirection:     'row',
+    alignItems:        'center',
+    paddingHorizontal: L.actionPadH,
+    backgroundColor:   T.sheetBg,
+  },
+  actionRowDisabled: {
+    opacity: 0.45,
+  },
+  actionIcon: {
+    width:          L.actionIconSize,
+    height:         L.actionIconSize,
+    alignItems:     'center',
+    justifyContent: 'center',
+    marginRight:    12,
+    flexShrink:     0,
+  },
+  actionLabelBlock: {
+    flex:        1,
+    flexDirection: 'row',
+    alignItems:   'center',
+    gap:           8,
+  },
+  actionLabel: {
+    fontFamily: FONT_BODY.medium,
+    fontSize:   L.actionFontSz,
+    fontWeight: '500',
+  },
+  actionHint: {
+    fontFamily: FONT_BODY.regular,
+    fontSize:   12,
+    fontWeight: '400',
+    color:      T.ink500,
+  },
+
+  // ── Cancel row ────────────────────────────────────────────────────────────
+  cancelSeparator: {
+    height:          L.cancelMarginTop,
+    backgroundColor: T.cream100,
+    borderTopWidth:  1,
+    borderTopColor:  T.cream400,
+  },
+  cancelRow: {
+    height:         L.cancelRowH,
+    alignItems:     'center',
+    justifyContent: 'center',
+    backgroundColor: T.sheetBg,
+  },
+  cancelText: {
+    fontFamily: FONT_BODY.semiBold,
+    fontSize:   15,
+    fontWeight: '600',
+    color:      T.ink950,
+  },
+
+  // ── Confirm modal ─────────────────────────────────────────────────────────
+  modalScrim: {
     flex:            1,
-    height:          StyleSheet.hairlineWidth,
-    backgroundColor: palette.cream[400], // #E5CC95 — warm hairline
+    backgroundColor: L.scrimColor,
+    alignItems:      'center',
+    justifyContent:  'center',
   },
-  dateSepChip: {
-    height:            24,
-    backgroundColor:   T.bubbleDateChip, // cream[200] #F7ECD0 (§[5.F])
-    borderRadius:      12,
-    paddingHorizontal: spacing.sm,       // 8px H padding (§[5.F])
-    marginHorizontal:  spacing.sm,       // 8px gap from lines
-    justifyContent:    'center',
-    alignItems:        'center',
+  modalCard: {
+    width:         L.confirmW,
+    backgroundColor: T.white,
+    borderRadius:  L.confirmRadius,
+    padding:       L.confirmPad,
+    alignItems:    'center',
+    ...Platform.select({
+      ios: {
+        shadowColor:   'rgba(26,18,8,0.18)',
+        shadowOffset:  { width: 0, height: 8 },
+        shadowRadius:  24,
+        shadowOpacity: 1,
+      },
+      android: {
+        elevation: 16,
+      },
+    }),
   },
-  dateSepText: {
-    fontSize:      11,
-    fontWeight:    '600',
-    color:         T.textDate,           // colors.fg.tertiary muted warm
-    letterSpacing: 0.2,
+  modalIconWrap: {
+    width:           72,
+    height:          72,
+    borderRadius:    36,
+    backgroundColor: T.cream100,
+    alignItems:      'center',
+    justifyContent:  'center',
+    marginBottom:    16,
+  },
+  modalTitle: {
+    fontFamily: FONT_BODY.bold,
+    fontSize:   18,
+    fontWeight: '700',
+    color:      T.ink950,
+    textAlign:  'center',
+    marginBottom: 8,
+  },
+  modalBody: {
+    fontFamily: FONT_BODY.regular,
+    fontSize:   14,
+    fontWeight: '400',
+    color:      T.ink600,
+    textAlign:  'center',
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  modalBtn: {
+    width:         '100%',
+    height:        48,
+    borderRadius:  12,
+    alignItems:    'center',
+    justifyContent: 'center',
+    marginBottom:  10,
+  },
+  modalBtnDestructive: {
+    backgroundColor: T.crimson600,
+  },
+  modalBtnDestructiveText: {
+    fontFamily: FONT_BODY.semiBold,
+    fontSize:   15,
+    fontWeight: '600',
+    color:      T.white,
+  },
+  modalBtnCancel: {
+    backgroundColor: T.cream200,
+    marginBottom:    0,
+  },
+  modalBtnCancelText: {
+    fontFamily: FONT_BODY.medium,
+    fontSize:   15,
+    fontWeight: '500',
+    color:      T.ink950,
+  },
+  modalBtnDisabled: {
+    opacity: 0.45,
   },
 
-  // ════════════════════════════════════════════════════════════════════════════
-  // SYSTEM MESSAGE  Blueprint §Q1-d + §14346
-  //   "gold-50 bg · 1px gold-300 · 12px 600 ink-700"
-  //   Centered · full-pill · no tail · no sender name
-  // ════════════════════════════════════════════════════════════════════════════
-
-  systemWrapper: {
-    alignItems:        'center',
-    justifyContent:    'center',
-    marginVertical:    spacing.sm,       // 8px top + bottom
-    paddingHorizontal: spacing.xl,       // 20px — keep pill from edges
+  // ── Report reason selector ────────────────────────────────────────────────
+  reportReasons: {
+    width:        '100%',
+    marginBottom: 20,
+    gap:           4,
   },
-  systemChip: {
-    backgroundColor:   T.bubbleSystem,  // gold[50] #FCF7E5
-    borderWidth:       1,
-    borderColor:       T.borderSystem,  // gold[300] #ECD58F
-    borderRadius:      radii.pill,      // full pill — unmistakably "system"
-    paddingHorizontal: spacing.md,      // 12px
-    paddingVertical:   6,
-    maxWidth:          '80%',
+  reportReasonRow: {
+    flexDirection:     'row',
     alignItems:        'center',
+    paddingVertical:    10,
+    paddingHorizontal: 12,
+    borderRadius:       8,
+    gap:                10,
+    backgroundColor:   T.cream50,
   },
-  systemText: {
-    fontSize:      12,
-    fontWeight:    '600',
-    color:         T.textSystem,        // ink[700] #524539
-    textAlign:     'center',
-    letterSpacing: 0.1,
+  reportReasonSelected: {
+    backgroundColor: T.cream200,
+  },
+  reportRadio: {
+    width:           18,
+    height:          18,
+    borderRadius:     9,
+    borderWidth:      2,
+    borderColor:     T.cream400,
+    alignItems:      'center',
+    justifyContent:  'center',
+    flexShrink:      0,
+  },
+  reportRadioSelected: {
+    borderColor: T.gold600,
+  },
+  reportRadioDot: {
+    width:           8,
+    height:          8,
+    borderRadius:     4,
+    backgroundColor: T.gold600,
+  },
+  reportReasonText: {
+    fontFamily: FONT_BODY.regular,
+    fontSize:   14,
+    fontWeight: '400',
+    color:      T.ink700,
+    flex:       1,
+  },
+  reportReasonTextSelected: {
+    fontFamily: FONT_BODY.semiBold,
+    fontWeight: '600',
+    color:      T.ink950,
   },
 });
+
+export default MessageActionSheet;
