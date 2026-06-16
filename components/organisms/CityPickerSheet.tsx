@@ -219,12 +219,13 @@ type ListItem    = SectionItem | CityItem | DividerItem;
  * state:        used as the filter axis (replaces Country's "region").
  */
 export interface CityDoc {
-  id:           string;
-  name:         string;
-  state?:       string;
-  online_count: number;
-  sector_count: number;
-  is_active:    boolean;
+  id:               string;
+  name:             string;
+  state?:           string;
+  online_count:     number;
+  sector_count:     number;
+  is_active:        boolean;
+  search_keywords?: string[]; // ✅ NAYA UPGRADE: Super-Search ke liye add kiya gaya
 }
 
 export interface CityPickerSheetProps {
@@ -1389,7 +1390,9 @@ function CityPickerSheetBase({
   const normIndex = useMemo(() => {
     const m = new Map<string, string>();
     for (const c of cities) {
-      m.set(c.id, normalizeDiacritics(`${c.name} ${c.state ?? ''}`));
+      // ✅ NAYA UPGRADE: Agar data mein search_keywords hain, toh unko bhi scan karega
+      const keywordsStr = c.search_keywords ? c.search_keywords.join(' ') : '';
+      m.set(c.id, normalizeDiacritics(`${c.name} ${c.state ?? ''} ${keywordsStr}`));
     }
     return m;
   }, [cities]);
