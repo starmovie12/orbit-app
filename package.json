@@ -29,6 +29,7 @@
     "@react-native-firebase/app": "^23.0.0",
     "@react-native-firebase/auth": "^23.0.0",
     "@react-native-firebase/firestore": "^23.0.0",
+    "@shopify/flash-list": "1.7.1",
     "@tanstack/react-query": "^5.56.2",
     "expo": "~54.0.27",
     "expo-av": "~15.1.6",
