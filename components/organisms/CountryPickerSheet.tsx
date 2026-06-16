@@ -6,509 +6,510 @@
  *
  * ── v5.15 CHANGELOG (Search Highlight + FlashList) ───────────────────────────
  *
- *  [v515-01] UX — Search highlight text in CountryRow name.
- *            When the user types in the search bar (e.g. "Ind"), the matching
- *            substring inside each result row name ("India", "Indonesia") is now
- *            painted gold with fontWeight:'800', while the non-matching portions
- *            stay in their normal style.
+ * [v515-01] UX — Search highlight text in CountryRow name.
+ * When the user types in the search bar (e.g. "Ind"), the matching
+ * substring inside each result row name ("India", "Indonesia") is now
+ * painted gold with fontWeight:'800', while the non-matching portions
+ * stay in their normal style.
  *
- *            Implementation:
- *              • New pure helper buildHighlightSegments(text, query): splits the
- *                original string into {content, highlight} segments using the same
- *                normalizeDiacritics logic already used by the search filter, so
- *                accented characters (e.g. "Réunion") highlight correctly even
- *                when the user types without accents ("reu").
- *              • New memo component <HighlightedText> renders the segments as a
- *                single <Text> with inline <Text> spans for highlighted chunks.
- *                Fast path: if no match is found the component renders a plain
- *                <Text> with zero overhead (same as before).
- *              • CountryRowProps gains an optional searchQuery?: string prop.
- *                renderItem passes searchQueryRef.current (a stable ref updated
- *                by useEffect) — same pattern as selectedRef, so renderItem's
- *                useCallback dep array stays untouched.
- *              • extraData updated to [selected, searchQuery] so FlashList
- *                re-renders rows when the query settles (150ms debounce).
- *              • New cr.nameHighlight style: color T.gold, fontWeight '800'.
- *                Slightly bolder than cr.nameActive (700) so the highlight reads
- *                as a distinct "found text" signal rather than a selection state.
+ * Implementation:
+ * • New pure helper buildHighlightSegments(text, query): splits the
+ * original string into {content, highlight} segments using the same
+ * normalizeDiacritics logic already used by the search filter, so
+ * accented characters (e.g. "Réunion") highlight correctly even
+ * when the user types without accents ("reu").
+ * • New memo component <HighlightedText> renders the segments as a
+ * single <Text> with inline <Text> spans for highlighted chunks.
+ * Fast path: if no match is found the component renders a plain
+ * <Text> with zero overhead (same as before).
+ * • CountryRowProps gains an optional searchQuery?: string prop.
+ * renderItem passes searchQueryRef.current (a stable ref updated
+ * by useEffect) — same pattern as selectedRef, so renderItem's
+ * useCallback dep array stays untouched.
+ * • extraData updated to [selected, searchQuery] so FlashList
+ * re-renders rows when the query settles (150ms debounce).
+ * • New cr.nameHighlight style: color T.gold, fontWeight '800'.
+ * Slightly bolder than cr.nameActive (700) so the highlight reads
+ * as a distinct "found text" signal rather than a selection state.
  *
- *  [v515-02] PERF — FlatList → FlashList (@shopify/flash-list).
- *            FlatList uses a JS-thread virtualisation loop. On low-end Android
- *            (2–3 GB RAM) rendering 250+ flag emojis + text causes frame drops
- *            during fast scroll. FlashList uses a native recycling pool (similar
- *            to RecyclerView / UICollectionView) — renders on the UI thread and
- *            maintains 60/120 fps even on mid-range hardware.
+ * [v515-02] PERF — FlatList → FlashList (@shopify/flash-list).
+ * FlatList uses a JS-thread virtualisation loop. On low-end Android
+ * (2–3 GB RAM) rendering 250+ flag emojis + text causes frame drops
+ * during fast scroll. FlashList uses a native recycling pool (similar
+ * to RecyclerView / UICollectionView) — renders on the UI thread and
+ * maintains 60/120 fps even on mid-range hardware.
  *
- *            Migration notes:
- *              • import FlashList from '@shopify/flash-list' (add the package:
- *                npx expo install @shopify/flash-list).
- *              • estimatedItemSize={L.rowH} (74) — FlashList's required hint.
- *              • overrideItemLayout replaces getItemLayout: exact sizes for
- *                SectionHeader (34px), Divider (1px), CountryRow (74px).
- *                FlashList uses this for accurate scrollToIndex positioning —
- *                the A-Z sidebar tap-to-jump behaviour is fully preserved.
- *              • listRef type: FlatList<ListItem> → FlashList<ListItem>.
- *              • getItemLayout callback + itemLayouts precomputation still exist
- *                but are now only used by the onScrollToIndexFailed fallback
- *                offset calculation (harmless dead code that can be cleaned up
- *                in a later pass if desired).
- *              • All other props (extraData, keyExtractor, renderItem,
- *                ListHeaderComponent, ListEmptyComponent, refreshControl,
- *                keyboardShouldPersistTaps, removeClippedSubviews, bounces,
- *                scrollToOffset, scrollToIndex) work identically on FlashList.
+ * Migration notes:
+ * • import FlashList from '@shopify/flash-list' (add the package:
+ * npx expo install @shopify/flash-list).
+ * • estimatedItemSize={L.rowH} (74) — FlashList's required hint.
+ * • overrideItemLayout replaces getItemLayout: exact sizes for
+ * SectionHeader (34px), Divider (1px), CountryRow (74px).
+ * FlashList uses this for accurate scrollToIndex positioning —
+ * the A-Z sidebar tap-to-jump behaviour is fully preserved.
+ * • listRef type: FlatList<ListItem> → FlashList<ListItem>.
+ * • getItemLayout callback + itemLayouts precomputation still exist
+ * but are now only used by the onScrollToIndexFailed fallback
+ * offset calculation (harmless dead code that can be cleaned up
+ * in a later pass if desired).
+ * • All other props (extraData, keyExtractor, renderItem,
+ * ListHeaderComponent, ListEmptyComponent, refreshControl,
+ * keyboardShouldPersistTaps, removeClippedSubviews, bounces,
+ * scrollToOffset, scrollToIndex) work identically on FlashList.
  *
  * ── v5.14 CHANGELOG (global K/M/B online-count formatter) ─────────────────────
  *
- *  [v514-01] I18N — fmtCount rewritten from India-specific (L/Cr, en-IN commas)
- *            to a global K/M/B short-form. The app is used worldwide and Lakh /
- *            Crore notation is unfamiliar — and confusing — to users outside
- *            South Asia. New thresholds: ≥1,000,000,000 → "B", ≥1,000,000 → "M",
- *            ≥1,000 → "K", below that → plain en-US number. Same one-decimal-place
- *            rule as before (whole values render without a decimal, e.g. "2B" /
- *            "1.2M" / "45K" / "850").
+ * [v514-01] I18N — fmtCount rewritten from India-specific (L/Cr, en-IN commas)
+ * to a global K/M/B short-form. The app is used worldwide and Lakh /
+ * Crore notation is unfamiliar — and confusing — to users outside
+ * South Asia. New thresholds: ≥1,000,000,000 → "B", ≥1,000,000 → "M",
+ * ≥1,000 → "K", below that → plain en-US number. Same one-decimal-place
+ * rule as before (whole values render without a decimal, e.g. "2B" /
+ * "1.2M" / "45K" / "850").
  *
  * ── v5.13 CHANGELOG (orange rank numerals + web focus ring fix) ───────────────
  *
- *  [v513-01] VISUAL — Rank numeral colour changed gold → orange.
- *            Uses the same warm-orange base (234,88,12) as the app's bottom
- *            navigation / Africa accent, at 0.65 opacity idle / 0.75 selected.
- *            Orange is more vivid and energetic on white cards than gold, and
- *            matches the rest of the app's accent language.
+ * [v513-01] VISUAL — Rank numeral colour changed gold → orange.
+ * Uses the same warm-orange base (234,88,12) as the app's bottom
+ * navigation / Africa accent, at 0.65 opacity idle / 0.75 selected.
+ * Orange is more vivid and energetic on white cards than gold, and
+ * matches the rest of the app's accent language.
  *
- *  [v513-02] WEB FIX — Browser focus ring ("black dabba") removed from search bar.
- *            Running on localhost (Expo Web / react-native-web), every browser draws
- *            a hard black outline on focused TextInput. outlineStyle:'none' in the
- *            StyleSheet is picked up by react-native-web and strips it; the property
- *            is a no-op on native iOS/Android so no platform guard is needed.
- *            The Reanimated gold glow (animatedBorderStyle) now owns the entire
- *            focus-state visual — no more system "black dabba".
+ * [v513-02] WEB FIX — Browser focus ring ("black dabba") removed from search bar.
+ * Running on localhost (Expo Web / react-native-web), every browser draws
+ * a hard black outline on focused TextInput. outlineStyle:'none' in the
+ * StyleSheet is picked up by react-native-web and strips it; the property
+ * is a no-op on native iOS/Android so no platform guard is needed.
+ * The Reanimated gold glow (animatedBorderStyle) now owns the entire
+ * focus-state visual — no more system "black dabba".
  *
  * ── v5.12 CHANGELOG (golden rank numerals + divider fix) ──────────────────────
  *
- *  [v512-01] VISUAL — Rank numeral upgraded to bright golden colour.
- *            Previous: rgba(212,160,23,0.25) — the dark/muted base gold at 25%
- *            opacity looked washed-out and brownish on device. New colour uses a
- *            brighter yellow-gold base (255,200,0) at 0.60 opacity so the numerals
- *            read as clearly, unmistakably GOLDEN — warm, vivid, not dark.
- *            Active state bumped to 0.70 for a subtle selected-card pulse.
+ * [v512-01] VISUAL — Rank numeral upgraded to bright golden colour.
+ * Previous: rgba(212,160,23,0.25) — the dark/muted base gold at 25%
+ * opacity looked washed-out and brownish on device. New colour uses a
+ * brighter yellow-gold base (255,200,0) at 0.60 opacity so the numerals
+ * read as clearly, unmistakably GOLDEN — warm, vivid, not dark.
+ * Active state bumped to 0.70 for a subtle selected-card pulse.
  *
- *  [v512-02] LAYOUT — RecentlyVisited sectionDivider: 6px → 1px, subtle colour.
- *            The 6px cream band above the "A" section header looked like a chunky
- *            platform divider — inconsistent with the 1px hairlines used everywhere
- *            else. Now: height:1, backgroundColor:T.borderSubtle, marginTop:0.
- *            Both sides of the "A" header now have identical thin hairlines —
- *            clean, consistent, premium.
+ * [v512-02] LAYOUT — RecentlyVisited sectionDivider: 6px → 1px, subtle colour.
+ * The 6px cream band above the "A" section header looked like a chunky
+ * platform divider — inconsistent with the 1px hairlines used everywhere
+ * else. Now: height:1, backgroundColor:T.borderSubtle, marginTop:0.
+ * Both sides of the "A" header now have identical thin hairlines —
+ * clean, consistent, premium.
  *
  * ── v5.11 CHANGELOG (ACTIVE badge restore + Top-10 trending) ──────────────────
  *
- *  [v511-01] UX — ACTIVE badge restored. "No one online" → "0 online".
- *            v5.10 removed the badge to "declutter", but it was the element that
- *            gave the header its premium, live feel. Restored. Simultaneously the
- *            "No one online" string was replaced with "0 online" to match HeroCard
- *            badge language — shorter, numeric, consistent across the entire sheet.
- *            New layout: 🇦🇽 Aland Islands · 0 online [ACTIVE]
+ * [v511-01] UX — ACTIVE badge restored. "No one online" → "0 online".
+ * v5.10 removed the badge to "declutter", but it was the element that
+ * gave the header its premium, live feel. Restored. Simultaneously the
+ * "No one online" string was replaced with "0 online" to match HeroCard
+ * badge language — shorter, numeric, consistent across the entire sheet.
+ * New layout: 🇦🇽 Aland Islands · 0 online [ACTIVE]
  *
- *  [v511-02] FEAT — TRENDING_COUNT raised 5 → 10 (Netflix/OTT Top-10 pattern).
- *            5 cards felt incomplete for a "Trending" list. 10 completes the OTT
- *            aesthetic: watermark numerals 1–10 scroll naturally on horizontal swipe,
- *            no vertical space cost, proper leaderboard feel. HeroCardProps rank
- *            comment updated (1–5 → 1–10). Skeleton loop also expands automatically
- *            since it uses the same TRENDING_COUNT constant.
+ * [v511-02] FEAT — TRENDING_COUNT raised 5 → 10 (Netflix/OTT Top-10 pattern).
+ * 5 cards felt incomplete for a "Trending" list. 10 completes the OTT
+ * aesthetic: watermark numerals 1–10 scroll naturally on horizontal swipe,
+ * no vertical space cost, proper leaderboard feel. HeroCardProps rank
+ * comment updated (1–5 → 1–10). Skeleton loop also expands automatically
+ * since it uses the same TRENDING_COUNT constant.
  *
  * ── v5.10 CHANGELOG (6 bugs — logic, visual, UX, Android) ─────────────────────
  *
- *  [v510-01] BUG — Recently Visited now hidden under region filters.
- *            `showRecents` was only gated on `!searchQuery`. So selecting "Asia"
- *            still showed Algeria (Africa) + Albania (Europe) in Recents. Fix:
- *            added `&& regionFilter === 'All'` — now mirrors showTrending's guard.
+ * [v510-01] BUG — Recently Visited now hidden under region filters.
+ * `showRecents` was only gated on `!searchQuery`. So selecting "Asia"
+ * still showed Algeria (Africa) + Albania (Europe) in Recents. Fix:
+ * added `&& regionFilter === 'All'` — now mirrors showTrending's guard.
  *
- *  [v510-02] VISUAL — Rank numeral opacity raised: 0.12 → 0.25 (idle) / 0.30 (active).
- *            0.12 was too ghostly — numbers were nearly invisible on real hardware.
- *            0.25/0.30 lands in the sweet spot: clearly readable as a background
- *            texture without competing with the country name.
+ * [v510-02] VISUAL — Rank numeral opacity raised: 0.12 → 0.25 (idle) / 0.30 (active).
+ * 0.12 was too ghostly — numbers were nearly invisible on real hardware.
+ * 0.25/0.30 lands in the sweet spot: clearly readable as a background
+ * texture without competing with the country name.
  *
- *  [v510-03] UX — "Counts at HH:MM pm" time label removed from Trending header.
- *            Static timestamps make an app feel stale. "TRENDING" alone reads as
- *            clean and real-time. RelativeTimeLabel prop removed from dep array.
+ * [v510-03] UX — "Counts at HH:MM pm" time label removed from Trending header.
+ * Static timestamps make an app feel stale. "TRENDING" alone reads as
+ * clean and real-time. RelativeTimeLabel prop removed from dep array.
  *
- *  [v510-04] LAYOUT — Hairline marginTop reduced 16 → 8 px.
- *            16px was too airy after user testing — cards looked detached from the
- *            section below. 8px gives shadow room (card shadowRadius:10 needs ≥3px)
- *            without the floaty gap.
+ * [v510-04] LAYOUT — Hairline marginTop reduced 16 → 8 px.
+ * 16px was too airy after user testing — cards looked detached from the
+ * section below. 8px gives shadow room (card shadowRadius:10 needs ≥3px)
+ * without the floaty gap.
  *
- *  [v510-05] UX — ACTIVE badge removed from header subtitle.
- *            "🇩🇿 Algeria · No one online ACTIVE" was noisy and redundant — the
- *            green LiveDot already communicates active state. Removing the badge
- *            makes the subtitle one clean line: flag + name + dot + count.
+ * [v510-05] UX — ACTIVE badge removed from header subtitle.
+ * "🇩🇿 Algeria · No one online ACTIVE" was noisy and redundant — the
+ * green LiveDot already communicates active state. Removing the badge
+ * makes the subtitle one clean line: flag + name + dot + count.
  *
- *  [v510-06] ANDROID — underlineColorAndroid="transparent" added to search TextInput.
- *            Android draws a hard black focus underline on TextInput by default.
- *            This is the system "focus ring" the user sees as a "black dabba".
- *            Setting transparent removes it; the Reanimated gold glow handles focus.
+ * [v510-06] ANDROID — underlineColorAndroid="transparent" added to search TextInput.
+ * Android draws a hard black focus underline on TextInput by default.
+ * This is the system "focus ring" the user sees as a "black dabba".
+ * Setting transparent removes it; the Reanimated gold glow handles focus.
  *
  * ── v5.9 CHANGELOG (HeroCard polish — watermark rank, breathing room, badge fix) ─
  *
- *  [v59-01] VISUAL — Rank numeral downgraded to watermark opacity (0.78 → 0.12).
- *           The 0.78 opacity solid-gold numeral overpowered the country name —
- *           "Aland Islands" was illegible against "2". New idle: rgba(212,160,23,0.12)
- *           (pure watermark). Selected: rgba(212,160,23,0.16) (slightly stronger).
- *           Result: the OTT-rank aesthetic is preserved as background texture while
- *           the country name and region label remain the clear visual priority.
+ * [v59-01] VISUAL — Rank numeral downgraded to watermark opacity (0.78 → 0.12).
+ * The 0.78 opacity solid-gold numeral overpowered the country name —
+ * "Aland Islands" was illegible against "2". New idle: rgba(212,160,23,0.12)
+ * (pure watermark). Selected: rgba(212,160,23,0.16) (slightly stronger).
+ * Result: the OTT-rank aesthetic is preserved as background texture while
+ * the country name and region label remain the clear visual priority.
  *
- *  [v59-02] LAYOUT — nameGroup.right expanded: 56 → 28 px.
- *           With the numeral now at 12% opacity, text can safely overlap it.
- *           Reducing the right guard from 56 to 28 gives long country names
- *           (e.g. "Aland Islands", "United Arab Emirates") ~28 extra px of width —
- *           enough to fit on one line without truncation on most cards.
+ * [v59-02] LAYOUT — nameGroup.right expanded: 56 → 28 px.
+ * With the numeral now at 12% opacity, text can safely overlap it.
+ * Reducing the right guard from 56 to 28 gives long country names
+ * (e.g. "Aland Islands", "United Arab Emirates") ~28 extra px of width —
+ * enough to fit on one line without truncation on most cards.
  *
- *  [v59-03] LAYOUT — 16 px breathing room added between Trending cards and hairline.
- *           The HeroCard shadow (shadowRadius:10, offset:3) needs ≥13px below the
- *           card to avoid clipping against the divider. hairline gets marginTop:16;
- *           heroScroll contentContainerStyle gains paddingVertical:10 so shadow also
- *           breathes inside the scroll content area above and below each card row.
+ * [v59-03] LAYOUT — 16 px breathing room added between Trending cards and hairline.
+ * The HeroCard shadow (shadowRadius:10, offset:3) needs ≥13px below the
+ * card to avoid clipping against the divider. hairline gets marginTop:16;
+ * heroScroll contentContainerStyle gains paddingVertical:10 so shadow also
+ * breathes inside the scroll content area above and below each card row.
  *
- *  [v59-04] LAYOUT — onlinePill.right tightened 11 → 8 px.
- *           Moves the badge 3px closer to the card's right edge, aligning it with
- *           the visual padding rhythm of the flag (left:12) on the other side.
+ * [v59-04] LAYOUT — onlinePill.right tightened 11 → 8 px.
+ * Moves the badge 3px closer to the card's right edge, aligning it with
+ * the visual padding rhythm of the flag (left:12) on the other side.
  *
  * ── v5.8 CHANGELOG (HeroCard polish — gold rank, tighter height, refined badge) ─
  *
- *  [v58-01] VISUAL — Rank numeral colour upgraded to rich metallic gold.
- *           Previous idle opacity (0.25) was barely visible against white.
- *           New: rgba(212,160,23,0.78) idle · rgba(212,160,23,0.96) selected.
- *           Both states now read as clearly gold without looking garish.
+ * [v58-01] VISUAL — Rank numeral colour upgraded to rich metallic gold.
+ * Previous idle opacity (0.25) was barely visible against white.
+ * New: rgba(212,160,23,0.78) idle · rgba(212,160,23,0.96) selected.
+ * Both states now read as clearly gold without looking garish.
  *
- *  [v58-02] LAYOUT — HeroCard height reduced 128 → 112 px.
- *           The 128px card had ~35px dead vertical space between flag and
- *           name — felt loose/unfinished. 112px closes that gap to ~14px,
- *           giving the card a tighter, more premium card feel. heroH comment
- *           updated; SkeletonHeroCard needs no position changes.
+ * [v58-02] LAYOUT — HeroCard height reduced 128 → 112 px.
+ * The 128px card had ~35px dead vertical space between flag and
+ * name — felt loose/unfinished. 112px closes that gap to ~14px,
+ * giving the card a tighter, more premium card feel. heroH comment
+ * updated; SkeletonHeroCard needs no position changes.
  *
- *  [v58-03] VISUAL — Online pill badge gets a hairline border for definition.
- *           rgba(0,0,0,0.05) background alone was nearly invisible on white.
- *           Added borderWidth:0.5 + borderColor:'rgba(0,0,0,0.10)' — the badge
- *           now has a subtle outlined appearance that reads as intentional UI.
+ * [v58-03] VISUAL — Online pill badge gets a hairline border for definition.
+ * rgba(0,0,0,0.05) background alone was nearly invisible on white.
+ * Added borderWidth:0.5 + borderColor:'rgba(0,0,0,0.10)' — the badge
+ * now has a subtle outlined appearance that reads as intentional UI.
  *
  * ── v5.7 CHANGELOG (OTT Ranking Card — HeroCard complete redesign) ────────────
  *
- *  [v57-01] VISUAL — HeroCard redesigned as a premium OTT-style ranking card.
- *           Previous: center-aligned vertical stack (flag → name → region → count).
- *           New layout (inspired by Netflix/Disney+ Top-10 aesthetic):
+ * [v57-01] VISUAL — HeroCard redesigned as a premium OTT-style ranking card.
+ * Previous: center-aligned vertical stack (flag → name → region → count).
+ * New layout (inspired by Netflix/Disney+ Top-10 aesthetic):
  *
- *             Top-left:     Large flag emoji (38px, no background box).
- *             Top-right:    Online status pill badge (green/grey dot + "N online").
- *             Bottom-left:  Country name (bold 13px) + region label (muted 10px).
- *             Bottom-right: Massive rank numeral (fontSize:80, metallic gold,
- *                           ~25% bleeds off the right edge — OTT clip aesthetic).
+ * Top-left:     Large flag emoji (38px, no background box).
+ * Top-right:    Online status pill badge (green/grey dot + "N online").
+ * Bottom-left:  Country name (bold 13px) + region label (muted 10px).
+ * Bottom-right: Massive rank numeral (fontSize:80, metallic gold,
+ * ~25% bleeds off the right edge — OTT clip aesthetic).
  *
- *  [v57-02] ARCH — Two-layer card structure: shadow outer + overflow-hidden inner.
- *           overflow:'hidden' on the inner View clips the bleeding rank numeral.
- *           Shadow / elevation live on the outer ReAnimated.View so they are
- *           never clipped (iOS shadow + Android elevation need a non-hidden parent).
+ * [v57-02] ARCH — Two-layer card structure: shadow outer + overflow-hidden inner.
+ * overflow:'hidden' on the inner View clips the bleeding rank numeral.
+ * Shadow / elevation live on the outer ReAnimated.View so they are
+ * never clipped (iOS shadow + Android elevation need a non-hidden parent).
  *
- *  [v57-03] UX — checkDot removed from HeroCard.
- *           The previous top-right check dot conflicted with the new online badge.
- *           Selected state is now communicated via border accent colour, name/
- *           region text tint, and enhanced card shadow (cardActive) — cleaner.
+ * [v57-03] UX — checkDot removed from HeroCard.
+ * The previous top-right check dot conflicted with the new online badge.
+ * Selected state is now communicated via border accent colour, name/
+ * region text tint, and enhanced card shadow (cardActive) — cleaner.
  *
- *  [v57-04] FEAT — rank prop added to HeroCardProps; call site passes index + 1.
- *           SkeletonHeroCard + skh StyleSheet updated to match the new positional
- *           layout (flag circle top-left, badge bar top-right, name + region
- *           bars bottom-left — no center alignment, no line3 gap bar).
+ * [v57-04] FEAT — rank prop added to HeroCardProps; call site passes index + 1.
+ * SkeletonHeroCard + skh StyleSheet updated to match the new positional
+ * layout (flag circle top-left, badge bar top-right, name + region
+ * bars bottom-left — no center alignment, no line3 gap bar).
  *
  * ── v5.6 CHANGELOG (HeroCard center-aligned badge redesign) ──────────────────
  *
- *  [v56-01] VISUAL — "• —" broken state fixed: "0 online" shown instead.
- *           HeroCard was rendering a green LiveDot + em-dash ("—") when
- *           onlineCount was 0 — looked like a render error. Now shows
- *           "0 online" in muted text, matching CountryRow badge behavior.
+ * [v56-01] VISUAL — "• —" broken state fixed: "0 online" shown instead.
+ * HeroCard was rendering a green LiveDot + em-dash ("—") when
+ * onlineCount was 0 — looked like a render error. Now shows
+ * "0 online" in muted text, matching CountryRow badge behavior.
  *
- *  [v56-02] VISUAL — Region label added to HeroCard (info parity).
- *           CountryRow shows region as subtitle; HeroCard was missing it.
- *           "Asia" / "Europe" / etc. now appears between name and count row.
- *           Uses `hc.region` style: 10px muted, center-aligned. On selected
- *           state it adopts the region accent colour with the rest of the card.
+ * [v56-02] VISUAL — Region label added to HeroCard (info parity).
+ * CountryRow shows region as subtitle; HeroCard was missing it.
+ * "Asia" / "Europe" / etc. now appears between name and count row.
+ * Uses `hc.region` style: 10px muted, center-aligned. On selected
+ * state it adopts the region accent colour with the rest of the card.
  *
- *  [v56-03] VISUAL — Floating heat-track bar removed from HeroCard.
- *           The yellow `heatTrackWrap` + `heatTrack` + `heatFill` block at the
- *           bottom of each card served no legible purpose and visually floated
- *           in empty space. Removed along with the `filled` local variable.
- *           `hc.heatTrackWrap`, `hc.heatTrack`, `hc.heatFill` deleted from
- *           StyleSheet. SkeletonHeroCard `skh.heatTrackWrap` + `skh.heatBar`
- *           also removed; `skh.line3` added for region placeholder.
+ * [v56-03] VISUAL — Floating heat-track bar removed from HeroCard.
+ * The yellow `heatTrackWrap` + `heatTrack` + `heatFill` block at the
+ * bottom of each card served no legible purpose and visually floated
+ * in empty space. Removed along with the `filled` local variable.
+ * `hc.heatTrackWrap`, `hc.heatTrack`, `hc.heatFill` deleted from
+ * StyleSheet. SkeletonHeroCard `skh.heatTrackWrap` + `skh.heatBar`
+ * also removed; `skh.line3` added for region placeholder.
  *
- *  [v56-04] LAYOUT — HeroCard redesigned as center-aligned badge.
- *           Previous: left-aligned with dead right-side space.
- *           New: `alignItems:'center'` + `justifyContent:'center'` stacks all
- *           four elements (flag → name → region → count) symmetrically.
- *           Flag: 34px emoji (was 30px). Name: 13px + textAlign:'center'.
- *           Gap tightened to 4 (was 5). heroH bumped 116→128 to give content
- *           room (100px inner vs ~96px content — 4px breathing room per edge).
- *           SkeletonHeroCard updated to match: centered, line3 for region.
+ * [v56-04] LAYOUT — HeroCard redesigned as center-aligned badge.
+ * Previous: left-aligned with dead right-side space.
+ * New: `alignItems:'center'` + `justifyContent:'center'` stacks all
+ * four elements (flag → name → region → count) symmetrically.
+ * Flag: 34px emoji (was 30px). Name: 13px + textAlign:'center'.
+ * Gap tightened to 4 (was 5). heroH bumped 116→128 to give content
+ * room (100px inner vs ~96px content — 4px breathing room per edge).
+ * SkeletonHeroCard updated to match: centered, line3 for region.
+ *
  * ── v5.5 CHANGELOG (CountryRow UI parity with CityPickerSheet) ───────────────
  *
- *  [v55-01] VISUAL — Heat-track bar + number removed from CountryRow.
- *           The horizontal progress bar (heatCol) and its numeric label added
- *           visual noise without user-legible meaning. Removed entirely, freeing
- *           space on the right side for the new badge (v55-03). `heatFill` local
- *           variable also removed from CountryRow (HeroCard keeps its own copy).
+ * [v55-01] VISUAL — Heat-track bar + number removed from CountryRow.
+ * The horizontal progress bar (heatCol) and its numeric label added
+ * visual noise without user-legible meaning. Removed entirely, freeing
+ * space on the right side for the new badge (v55-03). `heatFill` local
+ * variable also removed from CountryRow (HeroCard keeps its own copy).
  *
- *  [v55-02] VISUAL — Subtitle replaced: online-status → region label.
- *           CountryRow meta row previously showed "No one online" / "1K online"
- *           (a green/grey dot + text). Replaced with a plain region text label
- *           ("Asia", "Europe", "Americas", …) matching the City picker's subtitle
- *           pattern. Uses new `cr.regionLabel` / `cr.regionLabelActive` styles.
+ * [v55-02] VISUAL — Subtitle replaced: online-status → region label.
+ * CountryRow meta row previously showed "No one online" / "1K online"
+ * (a green/grey dot + text). Replaced with a plain region text label
+ * ("Asia", "Europe", "Americas", …) matching the City picker's subtitle
+ * pattern. Uses new `cr.regionLabel` / `cr.regionLabelActive` styles.
  *
- *  [v55-03] VISUAL — Online-count badge added right of body, left of arrow.
- *           A pill-shaped badge (dot + "{n} online") now sits between the country
- *           body and the chevron/check, exactly matching the CityPickerSheet badge
- *           position and style. Uses `cr.onlineBadge`, `cr.onlineBadgeActive`,
- *           `cr.badgeDot`, `cr.badgeText` styles. Badge dot is T.green when
- *           count > 0, T.border when zero. Background tints to DV.activeRowBg
- *           when row is selected. Text adopts region accent colour when selected.
+ * [v55-03] VISUAL — Online-count badge added right of body, left of arrow.
+ * A pill-shaped badge (dot + "{n} online") now sits between the country
+ * body and the chevron/check, exactly matching the CityPickerSheet badge
+ * position and style. Uses `cr.onlineBadge`, `cr.onlineBadgeActive`,
+ * `cr.badgeDot`, `cr.badgeText` styles. Badge dot is T.green when
+ * count > 0, T.border when zero. Background tints to DV.activeRowBg
+ * when row is selected. Text adopts region accent colour when selected.
  *
- *  [v55-STYLE-FIX] CRITICAL — StyleSheet cr block fully updated.
- *           Previous v5.5 pass correctly updated CountryRow JSX but left the
- *           StyleSheet unchanged: new styles were referenced but never defined
- *           (runtime crash), and 8 stale entries remained as dead code.
- *           This pass: removes `meta`, `dotStatic`, `count`, `countActive`,
- *           `heatCol`, `heatTrack`, `heatFill`, `heatNum`; adds `regionLabel`,
- *           `regionLabelActive`, `onlineBadge`, `onlineBadgeActive`, `badgeDot`,
- *           `badgeText`. JSX and StyleSheet are now fully in sync.
+ * [v55-STYLE-FIX] CRITICAL — StyleSheet cr block fully updated.
+ * Previous v5.5 pass correctly updated CountryRow JSX but left the
+ * StyleSheet unchanged: new styles were referenced but never defined
+ * (runtime crash), and 8 stale entries remained as dead code.
+ * This pass: removes `meta`, `dotStatic`, `count`, `countActive`,
+ * `heatCol`, `heatTrack`, `heatFill`, `heatNum`; adds `regionLabel`,
+ * `regionLabelActive`, `onlineBadge`, `onlineBadgeActive`, `badgeDot`,
+ * `badgeText`. JSX and StyleSheet are now fully in sync.
  *
  * ── v5.4 CHANGELOG (CRITICAL — sheet now actually opens) ─────────────────────
  *
- *  THE BUG: tapping the country scope did nothing — the sheet never opened, while
- *  the City and Sector sheets opened fine. Root cause: a previous pass migrated
- *  ONLY this sheet to @gorhom/bottom-sheet, a library that is NOT in package.json
- *  and that the app is not wired for (no provider, everything else uses the
- *  in-house sheet). The import could not resolve, so the component never rendered.
+ * THE BUG: tapping the country scope did nothing — the sheet never opened, while
+ * the City and Sector sheets opened fine. Root cause: a previous pass migrated
+ * ONLY this sheet to @gorhom/bottom-sheet, a library that is NOT in package.json
+ * and that the app is not wired for (no provider, everything else uses the
+ * in-house sheet). The import could not resolve, so the component never rendered.
  *
- *  THE FIX: reverted the sheet shell to the app's own Modal-based BottomSheet
- *  (`@/components/BottomSheet`) — the exact component CityPickerSheet and
- *  SectorPickerSheet use. It renders inside a React Native <Modal>, so it overlays
- *  the whole app and opens purely from the `visible` prop. No external dependency,
- *  no root provider, no ref. Net effect: this sheet now opens identically to its
- *  siblings, in this one file, with nothing else to install.
+ * THE FIX: reverted the sheet shell to the app's own Modal-based BottomSheet
+ * (`@/components/BottomSheet`) — the exact component CityPickerSheet and
+ * SectorPickerSheet use. It renders inside a React Native <Modal>, so it overlays
+ * the whole app and opens purely from the `visible` prop. No external dependency,
+ * no root provider, no ref. Net effect: this sheet now opens identically to its
+ * siblings, in this one file, with nothing else to install.
  *
- *  What changed mechanically:
- *    • import BottomSheet from '@/components/BottomSheet' (was @gorhom/bottom-sheet).
- *    • <BottomSheet visible/onClose/maxHeight/style> (was ref + snapPoints + backdrop).
- *    • BottomSheetFlatList  → plain react-native FlatList.
- *    • BottomSheetTextInput → plain react-native TextInput.
- *    • Removed sheetRef, snapPoints, renderBackdrop, handleSheetClose/Change, and
- *      the snapToIndex open/close effect — the host Modal + `visible` handle all of it.
- *    • onSheetIndexChange (bottom-nav hide/show) is preserved: it now fires 0 on
- *      open and -1 on close from the `visible` effect.
- *    • Single fixed sheet height (≈90% screen) replaces the 55%/92% snap pair; the
- *      search box sits at the top so the keyboard never covers it.
+ * What changed mechanically:
+ * • import BottomSheet from '@/components/BottomSheet' (was @gorhom/bottom-sheet).
+ * • <BottomSheet visible/onClose/maxHeight/style> (was ref + snapPoints + backdrop).
+ * • BottomSheetFlatList  → plain react-native FlatList.
+ * • BottomSheetTextInput → plain react-native TextInput.
+ * • Removed sheetRef, snapPoints, renderBackdrop, handleSheetClose/Change, and
+ * the snapToIndex open/close effect — the host Modal + `visible` handle all of it.
+ * • onSheetIndexChange (bottom-nav hide/show) is preserved: it now fires 0 on
+ * open and -1 on close from the `visible` effect.
+ * • Single fixed sheet height (≈90% screen) replaces the 55%/92% snap pair; the
+ * search box sits at the top so the keyboard never covers it.
  *
- *  ALL v5.3 work below (search relevance, selected-row accent rail, input hardening,
- *  switching-overlay a11y) and every earlier business-logic fix is fully preserved.
- *  NOTE: the v5.0–v5.3 notes below are HISTORICAL — they document the gorhom era,
- *  which v5.4 supersedes.
+ * ALL v5.3 work below (search relevance, selected-row accent rail, input hardening,
+ * switching-overlay a11y) and every earlier business-logic fix is fully preserved.
+ * NOTE: the v5.0–v5.3 notes below are HISTORICAL — they document the gorhom era,
+ * which v5.4 supersedes.
  *
  * ── v5.3 CHANGELOG (Polish Pass — search relevance, a11y, visual, docs) ───────
  *
- *  [v53-01] UX — Relevance-ranked search results.
- *           Results were filtered but kept "busiest first" order, so typing
- *           "in" could float a high-traffic territory above India. displayCountries
- *           now ranks matches: exact ISO → exact name → name-prefix → dial-prefix →
- *           substring, with onlineCount as the in-tier tie-break. Browse mode is
- *           untouched. Row structure / heights are identical, so getItemLayout and
- *           every empty-state check remain valid (only the order of matches changes).
+ * [v53-01] UX — Relevance-ranked search results.
+ * Results were filtered but kept "busiest first" order, so typing
+ * "in" could float a high-traffic territory above India. displayCountries
+ * now ranks matches: exact ISO → exact name → name-prefix → dial-prefix →
+ * substring, with onlineCount as the in-tier tie-break. Browse mode is
+ * untouched. Row structure / heights are identical, so getItemLayout and
+ * every empty-state check remain valid (only the order of matches changes).
  *
- *  [v53-02] VISUAL — Selected country rows now carry a region-accent left edge bar.
- *           The tinted background + bold name read as "selected" but scanned weakly
- *           in a long list. A 3px rounded accent rail (region colour) hugs the left
- *           gutter, matching the accent already used on selected HeroCards. Purely
- *           decorative (pointerEvents none) — no layout shift, no hit-area change.
+ * [v53-02] VISUAL — Selected country rows now carry a region-accent left edge bar.
+ * The tinted background + bold name read as "selected" but scanned weakly
+ * in a long list. A 3px rounded accent rail (region colour) hugs the left
+ * gutter, matching the accent already used on selected HeroCards. Purely
+ * decorative (pointerEvents none) — no layout shift, no hit-area change.
  *
- *  [v53-03] A11Y — Search input hardened + switching overlay announced.
- *           BottomSheetTextInput: spellCheck=false / autoComplete="off" /
- *           textContentType="none" / maxLength=40 — stops red squiggles under
- *           country names, keyboard autofill chips, and iOS strong-password offers
- *           on a pure search box. The switching overlay now exposes an
- *           accessibilityLabel so VoiceOver/TalkBack announce the country change.
+ * [v53-03] A11Y — Search input hardened + switching overlay announced.
+ * BottomSheetTextInput: spellCheck=false / autoComplete="off" /
+ * textContentType="none" / maxLength=40 — stops red squiggles under
+ * country names, keyboard autofill chips, and iOS strong-password offers
+ * on a pure search box. The switching overlay now exposes an
+ * accessibilityLabel so VoiceOver/TalkBack announce the country change.
  *
- *  [v53-04] DOCS — Corrected the dependency contract to match package.json:
- *           Reanimated is v4 (with react-native-worklets), not v3, and the worklets
- *           babel plugin ships inside babel-preset-expo on SDK 54 (no manual entry).
- *           NOTE: @gorhom/bottom-sheet must be present in package.json — install a
- *           v5.1.6+ release (the first line that officially supports Reanimated v4).
+ * [v53-04] DOCS — Corrected the dependency contract to match package.json:
+ * Reanimated is v4 (with react-native-worklets), not v3, and the worklets
+ * babel plugin ships inside babel-preset-expo on SDK 54 (no manual entry).
+ * NOTE: @gorhom/bottom-sheet must be present in package.json — install a
+ * v5.1.6+ release (the first line that officially supports Reanimated v4).
  *
  * ── v5.2 CHANGELOG (5 Critical Bugs Resolved) ────────────────────────────────
  *
- *  [FIX-v52-01] CRITICAL — getItemLayout search-results math corruption fixed.
- *               buildSearchResults inserts 1px dividers between country rows.
- *               The old formula returned 74px for ALL items including dividers,
- *               making FlatList's internal scroll map wrong from index 1 onward.
- *               New: even indices = Country (74px), odd = Divider (1px).
+ * [FIX-v52-01] CRITICAL — getItemLayout search-results math corruption fixed.
+ * buildSearchResults inserts 1px dividers between country rows.
+ * The old formula returned 74px for ALL items including dividers,
+ * making FlatList's internal scroll map wrong from index 1 onward.
+ * New: even indices = Country (74px), odd = Divider (1px).
  *
- *  [FIX-v52-02] CRITICAL — handleSelect UI freeze prevented.
- *               setSheetState('idle') and setSwitchingTo(null) were inside the
- *               try block after onSelect(). If onSelect threw, the spinner froze
- *               permanently. Both resets moved to finally — unconditionally runs.
+ * [FIX-v52-02] CRITICAL — handleSelect UI freeze prevented.
+ * setSheetState('idle') and setSwitchingTo(null) were inside the
+ * try block after onSelect(). If onSelect threw, the spinner froze
+ * permanently. Both resets moved to finally — unconditionally runs.
  *
- *  [FIX-v52-03] PERFORMANCE — tickNow extracted into RelativeTimeLabel component.
- *               setInterval was calling setTickNow every 60s on the root component,
- *               forcing a full re-render of CountryPickerSheetBase every minute.
- *               Now only the small time-label Text re-renders.
+ * [FIX-v52-03] PERFORMANCE — tickNow extracted into RelativeTimeLabel component.
+ * setInterval was calling setTickNow every 60s on the root component,
+ * forcing a full re-render of CountryPickerSheetBase every minute.
+ * Now only the small time-label Text re-renders.
  *
- *  [FIX-v52-04] RACE CONDITION — Promise.all for initial data load.
- *               AsyncStorage.getItem (recents) and fetchCountries() now resolve
- *               as one atomic batch via Promise.all, eliminating the "recents
- *               pop-in after countries render" layout thrash.
+ * [FIX-v52-04] RACE CONDITION — Promise.all for initial data load.
+ * AsyncStorage.getItem (recents) and fetchCountries() now resolve
+ * as one atomic batch via Promise.all, eliminating the "recents
+ * pop-in after countries render" layout thrash.
  *
- *  [FIX-v52-05] ARCHITECTURAL — shimmer + PulseContext fully migrated to Reanimated.
- *               shimmerAnim: useSharedValue + withRepeat (was Animated.loop).
- *               PulseProvider: useSharedValue + withRepeat (was Animated.loop).
- *               usePulse: returns SharedValue<number> (was Animated.Value).
- *               LiveDot: ReAnimated.View + useAnimatedStyle (was Animated.View).
- *               SkeletonRow / SkeletonHeroCard: ReAnimated.View + interpolate.
- *               RN Animated library now only used for HeroCard/CountryRow scale springs
- *               (useNativeDriver:true; no JS-thread blocking).
+ * [FIX-v52-05] ARCHITECTURAL — shimmer + PulseContext fully migrated to Reanimated.
+ * shimmerAnim: useSharedValue + withRepeat (was Animated.loop).
+ * PulseProvider: useSharedValue + withRepeat (was Animated.loop).
+ * usePulse: returns SharedValue<number> (was Animated.Value).
+ * LiveDot: ReAnimated.View + useAnimatedStyle (was Animated.View).
+ * SkeletonRow / SkeletonHeroCard: ReAnimated.View + interpolate.
+ * RN Animated library now only used for HeroCard/CountryRow scale springs
+ * (useNativeDriver:true; no JS-thread blocking).
  *
  * ── v5.1 CHANGELOG (Performance & Architecture Fixes) ────────────────────────
  *
- *  [FIX-01] CRITICAL — Re-render loop on A-Z pan drag resolved.
- *           `activeAlphaLetter` state moved from CountryPickerSheetBase into a
- *           new `AlphaSidebarAndOverlay` component. Pan frames now re-render only
- *           that tiny wrapper — not the heavy FlatList parent.
+ * [FIX-01] CRITICAL — Re-render loop on A-Z pan drag resolved.
+ * `activeAlphaLetter` state moved from CountryPickerSheetBase into a
+ * new `AlphaSidebarAndOverlay` component. Pan frames now re-render only
+ * that tiny wrapper — not the heavy FlatList parent.
  *
- *  [FIX-02] CRITICAL — Search filter pre-computation.
- *           `normalizeDiacritics(c.name)` and `dialCode.replace(/\D/g,'')` used
- *           to run for every country on every keystroke. Both are now computed
- *           once in `mapFSDoc` and stored as `normalizedName` / `cleanDialCode`
- *           fields on CountryDoc.
+ * [FIX-02] CRITICAL — Search filter pre-computation.
+ * `normalizeDiacritics(c.name)` and `dialCode.replace(/\D/g,'')` used
+ * to run for every country on every keystroke. Both are now computed
+ * once in `mapFSDoc` and stored as `normalizedName` / `cleanDialCode`
+ * fields on CountryDoc.
  *
- *  [FIX-03] ARCHITECTURAL — Eliminated all `useNativeDriver:false` Animated usage.
- *           `searchBorderAnim` → Reanimated `useSharedValue` + `interpolateColor`.
- *           `pillsHeight / pillsOpacity` → Reanimated `useSharedValue` + `withTiming`.
- *           `flashAnim` in CountryRow → Reanimated `withSequence`.
- *           All animations now run on the UI thread with zero JS involvement.
+ * [FIX-03] ARCHITECTURAL — Eliminated all `useNativeDriver:false` Animated usage.
+ * `searchBorderAnim` → Reanimated `useSharedValue` + `interpolateColor`.
+ * `pillsHeight / pillsOpacity` → Reanimated `useSharedValue` + `withTiming`.
+ * `flashAnim` in CountryRow → Reanimated `withSequence`.
+ * All animations now run on the UI thread with zero JS involvement.
  *
- *  [FIX-04] ARCHITECTURAL — BottomSheetView outerWrapper replaced with plain View.
- *           Eliminates gesture arbitration hijacking on Android where
- *           BottomSheetFlatList scroll could stall. BottomSheetFlatList still
- *           registers with the sheet's gesture coordinator via React context.
+ * [FIX-04] ARCHITECTURAL — BottomSheetView outerWrapper replaced with plain View.
+ * Eliminates gesture arbitration hijacking on Android where
+ * BottomSheetFlatList scroll could stall. BottomSheetFlatList still
+ * registers with the sheet's gesture coordinator via React context.
  *
- *  [FIX-05] ARCHITECTURAL — handleSelect: AsyncStorage calls are now fire-and-forget.
- *           `await` before disk I/O was introducing micro-lag before the sheet
- *           could dismiss. State updates happen in the `.then()` callback instead.
+ * [FIX-05] ARCHITECTURAL — handleSelect: AsyncStorage calls are now fire-and-forget.
+ * `await` before disk I/O was introducing micro-lag before the sheet
+ * could dismiss. State updates happen in the `.then()` callback instead.
  *
- *  [FIX-07] MINOR — usePulse fallback Animated.Value is now lazily initialized.
- *           Previously allocated unconditionally on every usePulse call even when
- *           a PulseProvider was present.
+ * [FIX-07] MINOR — usePulse fallback Animated.Value is now lazily initialized.
+ * Previously allocated unconditionally on every usePulse call even when
+ * a PulseProvider was present.
  *
- *  [FIX-08] MINOR — Haptic helpers wrapped in try/catch.
- *           Certain custom Android ROMs restrict vibration APIs and can throw.
+ * [FIX-08] MINOR — Haptic helpers wrapped in try/catch.
+ * Certain custom Android ROMs restrict vibration APIs and can throw.
  *
- *  [FIX-09] MINOR — Space-only search query guard.
- *           Pills collapse animation and displayCountries filter now use
- *           `rawQuery.trim()` / `searchQuery.trim()` to ignore whitespace-only input.
+ * [FIX-09] MINOR — Space-only search query guard.
+ * Pills collapse animation and displayCountries filter now use
+ * `rawQuery.trim()` / `searchQuery.trim()` to ignore whitespace-only input.
  *
- *  [FIX-12] MINOR — Cache write failure now logged in __DEV__ mode.
+ * [FIX-12] MINOR — Cache write failure now logged in __DEV__ mode.
  *
  * ── v5.0 CHANGELOG (Real Gorhom Integration) ─────────────────────────────────
  *
- *  Root Cause Fix: The previous "v4.0" file shipped a hand-rolled Modal +
- *  PanResponder BottomSheet in place of the real @gorhom/bottom-sheet library.
- *  Because both the PanResponder and FlatList ran on the JS thread, gesture
- *  arbitration (sheet-pan vs. inner-list-scroll) had an unavoidable one-frame
- *  delay on every gesture — the "sticky first frame" problem. This release
- *  deletes that shim entirely and wires up the real library.
+ * Root Cause Fix: The previous "v4.0" file shipped a hand-rolled Modal +
+ * PanResponder BottomSheet in place of the real @gorhom/bottom-sheet library.
+ * Because both the PanResponder and FlatList ran on the JS thread, gesture
+ * arbitration (sheet-pan vs. inner-list-scroll) had an unavoidable one-frame
+ * delay on every gesture — the "sticky first frame" problem. This release
+ * deletes that shim entirely and wires up the real library.
  *
- *  [v5-ARCH-01] Deleted the 314-line local BottomSheet / BottomSheetView /
- *               BottomSheetFlatList / BottomSheetBackdrop shim. All four now
- *               come from @gorhom/bottom-sheet v5. Gesture arbitration
- *               (sheet-pan vs. list-scroll) now runs on the UI thread via
- *               Reanimated v3 shared-value worklets — zero JS involvement on
- *               every scroll frame.
+ * [v5-ARCH-01] Deleted the 314-line local BottomSheet / BottomSheetView /
+ * BottomSheetFlatList / BottomSheetBackdrop shim. All four now
+ * come from @gorhom/bottom-sheet v5. Gesture arbitration
+ * (sheet-pan vs. list-scroll) now runs on the UI thread via
+ * Reanimated v3 shared-value worklets — zero JS involvement on
+ * every scroll frame.
  *
- *  [v5-ARCH-02] Replaced plain <TextInput> with <BottomSheetTextInput>.
- *               Gorhom's wrapper ensures keyboard show/hide is coordinated with
- *               the sheet's layout, eliminating the keyboard-covers-list bug on
- *               Android that the old kbH paddingBottom workaround tried to fix.
+ * [v5-ARCH-02] Replaced plain <TextInput> with <BottomSheetTextInput>.
+ * Gorhom's wrapper ensures keyboard show/hide is coordinated with
+ * the sheet's layout, eliminating the keyboard-covers-list bug on
+ * Android that the old kbH paddingBottom workaround tried to fix.
  *
- *  [v5-ARCH-03] Removed handleListScroll (dragBy) and handleListScrollEndDrag
- *               (snapBack / close). Both called non-existent methods on the real
- *               BottomSheet ref and their close() call could fire redundantly.
- *               gorhom's enablePanDownToClose handles the full dismiss gesture
- *               natively — when the list is at offset 0 and the user pulls down,
- *               the sheet collapses / closes with proper velocity physics on the
- *               UI thread. onScroll / scrollEventThrottle / onScrollEndDrag props
- *               have been removed from BottomSheetFlatList accordingly.
+ * [v5-ARCH-03] Removed handleListScroll (dragBy) and handleListScrollEndDrag
+ * (snapBack / close). Both called non-existent methods on the real
+ * BottomSheet ref and their close() call could fire redundantly.
+ * gorhom's enablePanDownToClose handles the full dismiss gesture
+ * natively — when the list is at offset 0 and the user pulls down,
+ * the sheet collapses / closes with proper velocity physics on the
+ * UI thread. onScroll / scrollEventThrottle / onScrollEndDrag props
+ * have been removed from BottomSheetFlatList accordingly.
  *
- *  [v5-ARCH-04] Removed onContentSizeChange adaptive-height logic (setHeight).
- *               setHeight was a custom method on the shim ref; it does not exist
- *               on the real BottomSheet. The two snap-point system (55% / 92%)
- *               is sufficient for all content volumes. searchQueryRef and its
- *               sync useEffect (whose sole consumer was onContentSizeChange)
- *               have been removed to keep the component clean.
+ * [v5-ARCH-04] Removed onContentSizeChange adaptive-height logic (setHeight).
+ * setHeight was a custom method on the shim ref; it does not exist
+ * on the real BottomSheet. The two snap-point system (55% / 92%)
+ * is sufficient for all content volumes. searchQueryRef and its
+ * sync useEffect (whose sole consumer was onContentSizeChange)
+ * have been removed to keep the component clean.
  *
- *  [v5-ARCH-05] sheetRef is now typed as BottomSheet (the gorhom default export)
- *               instead of the removed local BottomSheetHandle interface.
- *               The imperative API used — snapToIndex(0|1) and close() — is
- *               identical to the real library.
+ * [v5-ARCH-05] sheetRef is now typed as BottomSheet (the gorhom default export)
+ * instead of the removed local BottomSheetHandle interface.
+ * The imperative API used — snapToIndex(0|1) and close() — is
+ * identical to the real library.
  *
  * ── PRESERVED FROM v4.0 (zero changes) ───────────────────────────────────────
  *
- *  All business logic: Firebase fetch, buildAlphaSections, buildSearchResults,
- *  precomputeLayouts, normalizeDiacritics, mapFSDoc, mapToRegion, computeHeat,
- *  heatColour, fmtCount, fetchCountries, cache-first AsyncStorage strategy,
- *  jitter TTL, race-protection fetchIdRef, migrateRecentsCache.
+ * All business logic: Firebase fetch, buildAlphaSections, buildSearchResults,
+ * precomputeLayouts, normalizeDiacritics, mapFSDoc, mapToRegion, computeHeat,
+ * heatColour, fmtCount, fetchCountries, cache-first AsyncStorage strategy,
+ * jitter TTL, race-protection fetchIdRef, migrateRecentsCache.
  *
- *  All state: sheetState, rawQuery / searchQuery debounce, regionFilter, error,
- *  reducedMotion, recentIds, fetchedAt, switchingTo, isRefreshing, tickNow,
- *  activeAlphaLetter.
+ * All state: sheetState, rawQuery / searchQuery debounce, regionFilter, error,
+ * reducedMotion, recentIds, fetchedAt, switchingTo, isRefreshing, tickNow,
+ * activeAlphaLetter.
  *
- *  All handlers: handleSelect (FIX-SWITCHING), handleRetry (MED-06),
- *                handleRefresh (ADD-03), handleAlphabetPress, handleRegion,
- *                handleSearchFocus (auto-snap to 92%), handleSearchBlur,
- *                renderBackdrop (BottomSheetBackdrop, pressBehavior="close").
+ * All handlers: handleSelect (FIX-SWITCHING), handleRetry (MED-06),
+ * handleRefresh (ADD-03), handleAlphabetPress, handleRegion,
+ * handleSearchFocus (auto-snap to 92%), handleSearchBlur,
+ * renderBackdrop (BottomSheetBackdrop, pressBehavior="close").
  *
- *  All sub-components: LiveDot, SectionHeader, HeroCard (stagger entry),
- *                      CountryRow (flash animation), RowDivider, RegionPill,
- *                      AlphabetSidebar, LetterOverlay (spring/ease-out),
- *                      RecentlyVisitedSection, SkeletonRow, SkeletonHeroCard,
- *                      PulseProvider / PulseContext.
+ * All sub-components: LiveDot, SectionHeader, HeroCard (stagger entry),
+ * CountryRow (flash animation), RowDivider, RegionPill,
+ * AlphabetSidebar, LetterOverlay (spring/ease-out),
+ * RecentlyVisitedSection, SkeletonRow, SkeletonHeroCard,
+ * PulseProvider / PulseContext.
  *
- *  All animations: search bar glow (v4-FEAT-01), HeroCard stagger SlideInRight
- *                  (v4-FEAT-02), SwitchingOverlay FadeIn 150ms (v4-FEAT-03),
- *                  CountryRow flash (v4-FEAT-04), AnimatedPillsRow
- *                  height+opacity (v4-ARCH-06), LetterOverlay spring enter /
- *                  ease-out exit (v4-FEAT-04a), empty state FadeIn (v4-FEAT-07).
+ * All animations: search bar glow (v4-FEAT-01), HeroCard stagger SlideInRight
+ * (v4-FEAT-02), SwitchingOverlay FadeIn 150ms (v4-FEAT-03),
+ * CountryRow flash (v4-FEAT-04), AnimatedPillsRow
+ * height+opacity (v4-ARCH-06), LetterOverlay spring enter /
+ * ease-out exit (v4-FEAT-04a), empty state FadeIn (v4-FEAT-07).
  *
- *  All layout: merged title row (v4-ARCH-05), pinned shell / FlatList split,
- *              A-Z alphabet sidebar, adaptive paddingRight for alpha bar, all
- *              StyleSheet.create blocks (sh, sk, skh, sec, hc, cr, ab, lo, rv,
- *              rp).
+ * All layout: merged title row (v4-ARCH-05), pinned shell / FlatList split,
+ * A-Z alphabet sidebar, adaptive paddingRight for alpha bar, all
+ * StyleSheet.create blocks (sh, sk, skh, sec, hc, cr, ab, lo, rv,
+ * rp).
  *
  * ── PREREQUISITES ─────────────────────────────────────────────────────────────
- *   @/components/BottomSheet      — the app's in-house Modal sheet (already present;
- *                                   used by City & Sector pickers). No external
- *                                   bottom-sheet library and no root provider needed.
- *   react-native-reanimated v4   — paired with react-native-worklets. The worklets
- *                                  babel plugin ships inside babel-preset-expo (SDK 54),
- *                                  so no manual babel.config.js plugin entry is needed.
- *   GestureHandlerRootView at app root — already present in app/_layout.tsx (used by
- *                                  the A-Z sidebar PanResponder; standard RN setup).
+ * @/components/BottomSheet      — the app's in-house Modal sheet (already present;
+ * used by City & Sector pickers). No external
+ * bottom-sheet library and no root provider needed.
+ * react-native-reanimated v4   — paired with react-native-worklets. The worklets
+ * babel plugin ships inside babel-preset-expo (SDK 54),
+ * so no manual babel.config.js plugin entry is needed.
+ * GestureHandlerRootView at app root — already present in app/_layout.tsx (used by
+ * the A-Z sidebar PanResponder; standard RN setup).
  *
  * ── USAGE ─────────────────────────────────────────────────────────────────────
  *
- *   // Mount ALWAYS (not inside a conditional) for smooth gorhom behavior:
- *   <CountryPickerSheet
- *     visible={open}
- *     onClose={() => setOpen(false)}
- *     selected="IN"
- *     onSelect={(id, name, emoji) => { … }}
- *   />
+ * // Mount ALWAYS (not inside a conditional) for smooth gorhom behavior:
+ * <CountryPickerSheet
+ * visible={open}
+ * onClose={() => setOpen(false)}
+ * selected="IN"
+ * onSelect={(id, name, emoji) => { … }}
+ * />
  *
  * ── FIREBASE CONFIG ───────────────────────────────────────────────────────────
- *   Adjust @/lib/firebase import path if your db lives elsewhere.
- *   ADD-09: dialCode requires a `dial_code` field in Firestore (e.g. "+91").
- *           If absent, dial-code search silently degrades to name+ISO matching.
+ * Adjust @/lib/firebase import path if your db lives elsewhere.
+ * ADD-09: dialCode requires a `dial_code` field in Firestore (e.g. "+91").
+ * If absent, dial-code search silently degrades to name+ISO matching.
  */
 
 import React, {
@@ -545,7 +546,9 @@ import { FlashList } from '@shopify/flash-list';
 import { Feather }       from '@expo/vector-icons';
 import * as Haptics      from 'expo-haptics';
 import AsyncStorage      from '@react-native-async-storage/async-storage';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+
+// [NATIVE FIREBASE FIX] Use native firestore instead of Web SDK imports
+import { firestore } from '@/lib/firebase';
 
 // ── In-house BottomSheet ──────────────────────────────────────────────────────
 // [v54] Uses the app's own Modal-based BottomSheet — the SAME component the
@@ -575,7 +578,6 @@ import ReAnimated, {
   SlideInRight,
 } from 'react-native-reanimated';
 
-import { db }                    from '@/lib/firebase';
 import { palette }               from '@/constants/colors';
 import { FONT_BODY, FONT_HEADING } from '@/constants/typography';
 
@@ -587,13 +589,12 @@ const SHEET_HEIGHT = Math.round(Dimensions.get('window').height * 0.9);
 const CW_COUNTRY_KEY  = '@cw/country_id'           as const;
 const CW_RECENTS_KEY  = '@cw/recent_countries_v3'  as const;
 const MAX_RECENTS     = 3                           as const;
-const TRENDING_COUNT  = 10                          as const;  // [v511-02] Top-10 OTT pattern (was 5)
+const TRENDING_COUNT  = 10                          as const;
+// [v511-02] Top-10 OTT pattern (was 5)
 const MAX_RETRIES     = 3                           as const;
-
 // ─── Country cache (AsyncStorage) ─────────────────────────────────────────────
 const COUNTRIES_CACHE_KEY = '@cw/countries_v2'     as const;
 const COUNTRIES_CACHE_TTL = 6 * 60 * 60 * 1000    as const;
-
 // ─── Layout constants ──────────────────────────────────────────────────────────
 const L = {
   rowH:         74,
@@ -605,7 +606,7 @@ const L = {
   flagEmoji:    30,
   heroW:       154,
   heroH:       112,  // [v58] -16px: closes dead mid-card gap, tighter premium feel
-  heroR:        20,
+  heroR:       20,
   heatW:        48,
   heatH:         4,
   heatR:         2,
@@ -621,7 +622,6 @@ const L = {
   alphaItemH:   18,
   alphaBarW:    22,
 } as const;
-
 // ─── Design token aliases ──────────────────────────────────────────────────────
 const T = {
   sheetBg:       '#FFFFFF',
@@ -641,7 +641,6 @@ const T = {
   emerald:       palette.emerald[600],
   amber:         palette.amber[600],
 } as const;
-
 // ─── Derived overlay values ────────────────────────────────────────────────────
 const DV = {
   activeRowBg:    'rgba(212,160,23,0.09)' as const,
@@ -652,28 +651,32 @@ const DV = {
   regionPurple:   'rgba(139,92,246,1)'   as const,
   regionRed:      'rgba(220,38,38,1)'    as const,
 } as const;
-
 // ─── Haptic helpers ────────────────────────────────────────────────────────────
 // [FIX-08] try/catch: some custom Android ROMs restrict vibration APIs and throw.
 const hapticLight  = async (): Promise<void> => {
-  try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);  } catch { /* no-op */ }
+  try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+} catch { /* no-op */ }
 };
 const hapticMedium = async (): Promise<void> => {
-  try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch { /* no-op */ }
+  try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+} catch { /* no-op */ }
 };
 const hapticSelect = async (): Promise<void> => {
-  try { await Haptics.selectionAsync(); } catch { /* no-op */ }
+  try { await Haptics.selectionAsync();
+} catch { /* no-op */ }
 };
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
-type Region = 'Asia' | 'Americas' | 'Africa' | 'Europe' | 'Oceania' | 'Middle East';
+type Region = 'Asia' | 'Americas' | 'Africa' |
+'Europe' | 'Oceania' | 'Middle East';
 type RegionFilter = 'All' | Region;
 
-type SectionItem  = { type: 'section'; letter: string };
+type SectionItem  = { type: 'section';
+letter: string };
 type CountryItem  = { type: 'country'; country: CountryDoc };
-type DividerItem  = { type: 'divider'; id: string };
+type DividerItem  = { type: 'divider';
+id: string };
 type ListItem     = SectionItem | CountryItem | DividerItem;
-
 export interface CountryDoc {
   id:             string;
   name:           string;
@@ -699,9 +702,9 @@ export interface CountryPickerSheetProps {
    * index >= 0   → sheet open (55% or 92%) → hide bottom nav
    *
    * Usage in parent screen:
-   *   onSheetIndexChange={(i) =>
-   *     navigation.setOptions({ tabBarStyle: i === -1 ? undefined : { display: 'none' } })
-   *   }
+   * onSheetIndexChange={(i) =>
+   * navigation.setOptions({ tabBarStyle: i === -1 ? undefined : { display: 'none' } })
+   * }
    */
   onSheetIndexChange?: (index: number) => void;
 }
@@ -729,7 +732,6 @@ interface CountryCacheEntry {
 const MIDDLE_EAST_ISO = new Set<string>([
   'AE','BH','IQ','IR','IL','JO','KW','LB','OM','PS','QA','SA','SY','YE',
 ]);
-
 const REGION_FLAG_BG: Record<Region, string> = {
   'Asia':        'rgba(212,160,23,0.14)',
   'Americas':    'rgba(16,185,129,0.13)',
@@ -738,7 +740,6 @@ const REGION_FLAG_BG: Record<Region, string> = {
   'Oceania':     'rgba(139,92,246,0.12)',
   'Middle East': 'rgba(220,38,38,0.11)',
 };
-
 const REGION_ACCENT: Record<Region, string> = {
   'Asia':        T.gold,
   'Americas':    T.emerald,
@@ -747,7 +748,6 @@ const REGION_ACCENT: Record<Region, string> = {
   'Oceania':     DV.regionPurple,
   'Middle East': DV.regionRed,
 };
-
 const REGION_FILTERS: RegionFilter[] = [
   'All','Asia','Europe','Americas','Africa','Oceania','Middle East',
 ];
@@ -765,7 +765,8 @@ function normalizeDiacritics(str: string): string {
 // with zero overhead (identical to the v5.14 behaviour).
 interface Segment { content: string; highlight: boolean }
 
-function buildHighlightSegments(text: string, query: string): Segment[] | null {
+function buildHighlightSegments(text: string, query: string): Segment[] |
+null {
   if (!query) return null;
   const normText  = normalizeDiacritics(text);
   const normQuery = normalizeDiacritics(query);
@@ -774,7 +775,7 @@ function buildHighlightSegments(text: string, query: string): Segment[] | null {
   const end    = idx + normQuery.length;
   const segs: Segment[] = [];
   if (idx > 0)           segs.push({ content: text.slice(0, idx),  highlight: false });
-                         segs.push({ content: text.slice(idx, end), highlight: true  });
+  segs.push({ content: text.slice(idx, end), highlight: true  });
   if (end < text.length) segs.push({ content: text.slice(end),      highlight: false });
   return segs;
 }
@@ -807,7 +808,6 @@ const HighlightedText = memo<{
     </Text>
   );
 });
-
 // ─── Utility: Region mapping ───────────────────────────────────────────────────
 function mapToRegion(continent: string, iso2: string): Region {
   if (MIDDLE_EAST_ISO.has(iso2)) return 'Middle East';
@@ -867,12 +867,14 @@ function fmtCount(n: number): string {
 function mapFSDoc(docId: string, data: Partial<FSCountry>): CountryDoc {
   const iso2         = ((data.iso2 ?? docId) as string).toUpperCase();
   const onlineCount  = Number(data.online_count ?? 0);
-  const name         = data.name ?? iso2;
+  const name         = data.name ??
+  iso2;
   const dialCode     = data.dial_code;
   return {
     id:             iso2,
     name,
-    emoji:          data.flag ?? '🌐',
+    emoji:          data.flag ??
+    '🌐',
     onlineCount,
     heat:           computeHeat(onlineCount),
     region:         mapToRegion(data.continent ?? '', iso2),
@@ -880,7 +882,8 @@ function mapFSDoc(docId: string, data: Partial<FSCountry>): CountryDoc {
     // [FIX-02] Pre-computed once here — zero cost in the search filter hot-path.
     // Previously normalizeDiacritics(c.name) ran for every country on every keystroke.
     normalizedName: normalizeDiacritics(name),
-    cleanDialCode:  dialCode?.replace(/\D/g, '') ?? '',
+    cleanDialCode:  dialCode?.replace(/\D/g, '') ??
+    '',
   };
 }
 
@@ -915,16 +918,18 @@ async function fetchCountries(bypassCache = false): Promise<[CountryDoc[], numbe
     } catch { /* cache miss — fall through */ }
   }
 
-  const snap = await getDocs(
-    query(collection(db, 'countries'), where('is_active', '==', true)),
-  );
+  // [NATIVE FIREBASE FIX] Use native firestore method instead of web sdk
+  const snap = await firestore()
+    .collection('countries')
+    .where('is_active', '==', true)
+    .get();
+
   const docs = snap.docs.map((d) => mapFSDoc(d.id, d.data() as Partial<FSCountry>));
   docs.sort((a, b) =>
     b.onlineCount !== a.onlineCount
       ? b.onlineCount - a.onlineCount
       : a.name.localeCompare(b.name),
   );
-
   // [CRIT-05] Jitter ±30 min prevents thundering herd on TTL expiry
   const fetchedAt = Date.now();
   const jitterMs  = (Math.random() - 0.5) * 60 * 60 * 1000;
@@ -936,7 +941,6 @@ async function fetchCountries(bypassCache = false): Promise<[CountryDoc[], numbe
     // [FIX-12] Surface cache write failures in dev — user never sees stale data silently
     if (__DEV__) console.warn('[CountryPickerSheet] cache write failed (storage full?):', e);
   });
-
   return [docs, fetchedAt];
 }
 
@@ -946,7 +950,6 @@ function buildAlphaSections(sorted: CountryDoc[]): ListItem[] {
   const items: ListItem[] = [];
   let prevLetter     = '';
   let prevWasSection = true;
-
   for (const country of sorted) {
     const letter = country.name[0]?.toUpperCase() ?? '#';
     if (letter !== prevLetter) {
@@ -1027,18 +1030,15 @@ const PulseProvider = memo<{ children: React.ReactNode }>(({ children }) => {
 
   return <PulseContext.Provider value={ctx}>{children}</PulseContext.Provider>;
 });
-
 function usePulse(enabled: boolean): SharedValue<number> {
   const ctx = React.useContext(PulseContext);
   // [FIX-05] useSharedValue(1) is the fallback for tests/Storybook (no PulseProvider).
   // Called unconditionally (hook rules) — lightweight in the normal app path since ctx always exists.
   const fallback = useSharedValue(1);
-
   useEffect(() => {
     if (!enabled || !ctx) return;
     return ctx.register();
   }, [enabled, ctx]);
-
   return ctx ? ctx.anim : fallback;
 }
 
@@ -1066,7 +1066,6 @@ const LiveDot = memo<{ size?: number; gold?: boolean; pulse?: boolean }>(
     );
   },
 );
-
 // ─── SkeletonRow ───────────────────────────────────────────────────────────────
 // [FIX-05] shimmer is now SharedValue<number> — opacity interpolation on UI thread
 const SkeletonRow = memo<{ shimmer: SharedValue<number> }>(({ shimmer }) => {
@@ -1084,7 +1083,6 @@ const SkeletonRow = memo<{ shimmer: SharedValue<number> }>(({ shimmer }) => {
     </View>
   );
 });
-
 const sk = StyleSheet.create({
   row:   { flexDirection:'row', alignItems:'center', paddingHorizontal:L.rowPadH, height:L.rowH, gap:14 },
   flag:  { width:L.flagBox, height:L.flagBox, borderRadius:L.flagRadius, backgroundColor:T.surfaceWell },
@@ -1093,7 +1091,6 @@ const sk = StyleSheet.create({
   line2: { height:11, borderRadius:6, backgroundColor:T.surfaceWell, width:'38%' as const },
   heat:  { width:L.heatW, height:8, borderRadius:4, backgroundColor:T.surfaceWell },
 });
-
 // ─── [ADD-10] SkeletonHeroCard ─────────────────────────────────────────────────
 // [FIX-05] shimmer is now SharedValue<number> — opacity interpolation on UI thread.
 // [v57-04] Updated to mirror the new OTT ranking card layout:
@@ -1109,13 +1106,12 @@ const SkeletonHeroCard = memo<{ shimmer: SharedValue<number> }>(({ shimmer }) =>
       {/* Top-right: badge bar placeholder */}
       <ReAnimated.View style={[skh.badge,  animStyle]} />
       {/* Bottom-left: country name bar */}
-      <ReAnimated.View style={[skh.name,   animStyle]} />
+      <ReAnimated.View style={[skh.name,  animStyle]} />
       {/* Below name: region bar */}
       <ReAnimated.View style={[skh.region, animStyle]} />
     </ReAnimated.View>
   );
 });
-
 const skh = StyleSheet.create({
   // [v57] OTT card skeleton — mirrors the new HeroCard positional layout.
   // Previous centered line1/line2/line3 layout replaced with absolute-positioned
@@ -1181,7 +1177,6 @@ const SectionHeader = memo<{ letter: string }>(({ letter }) => (
     </Text>
   </View>
 ));
-
 const sec = StyleSheet.create({
   wrap: {
     height:            L.sectionH,
@@ -1209,9 +1204,12 @@ interface HeroCardProps {
   country:        CountryDoc;
   isSelected:     boolean;
   onPress:        (country: CountryDoc) => void;
-  rank:           number;        // [v511] 1-based trending position (1–10, was 1–5)
-  entryDelay?:    number;        // ms delay for stagger (0, 40, 80, 120, 160)
-  reducedMotion?: boolean;       // skip animation for accessibility
+  rank:           number;
+  // [v511] 1-based trending position (1–10, was 1–5)
+  entryDelay?:    number;
+  // ms delay for stagger (0, 40, 80, 120, 160)
+  reducedMotion?: boolean;
+  // skip animation for accessibility
 }
 
 const HeroCard = memo<HeroCardProps>(({
@@ -1246,7 +1244,6 @@ const HeroCard = memo<HeroCardProps>(({
   );
 
   const isOnline = country.onlineCount > 0;
-
   return (
     <Pressable
       onPress={handlePress}
@@ -1290,8 +1287,8 @@ const HeroCard = memo<HeroCardProps>(({
             </Text>
           </View>
 
-          {/* BOTTOM-RIGHT: Massive rank numeral — bleeds ~25% off the right edge.  */}
-          {/* [v57-01] OTT Top-10 aesthetic; overflow:hidden on inner clips it.     */}
+          {/* BOTTOM-RIGHT: Massive rank numeral — bleeds ~25% off the right edge. */}
+          {/* [v57-01] OTT Top-10 aesthetic; overflow:hidden on inner clips it. */}
           <Text
             style={[hc.rankNum, isSelected && hc.rankNumActive]}
             accessible={false}
@@ -1358,13 +1355,13 @@ const hc = StyleSheet.create({
 
   // TOP-RIGHT: Online status pill badge  ──  [green/grey dot]  [N online]
   onlinePill: {
-    position:          'absolute',
+    position:      'absolute',
     top:               11,
     right:             8,    // [v59-04] tightened 11→8 — badge aligns with flag's left:12 rhythm
     flexDirection:     'row',
     alignItems:        'center',
     gap:               4,
-    backgroundColor:   'rgba(0,0,0,0.04)',
+    backgroundColor:  'rgba(0,0,0,0.04)',
     borderWidth:       0.5,
     borderColor:       'rgba(0,0,0,0.10)',
     paddingHorizontal: 7,
@@ -1466,7 +1463,6 @@ const CountryRow = memo<CountryRowProps>(({ country, isSelected, onPress, search
   const onPressOut  = useCallback(() =>
     Animated.spring(scale, { toValue: 1.00, useNativeDriver: true, speed: 55, bounciness: 4 }).start(),
   [scale]);
-
   return (
     <Pressable
       onPress={handlePress}
@@ -1532,8 +1528,9 @@ const CountryRow = memo<CountryRowProps>(({ country, isSelected, onPress, search
         )}
 
         {/* [v53-02] Selected-state left accent rail — region colour, rounded pill.
-            Anchors the eye to the active row in a long list. Decorative only:
-            sits in the left gutter, pointerEvents="none", no layout impact. */}
+            Anchors the eye to the active row in a long list.
+            Decorative only: sits in the left gutter, pointerEvents="none", no layout impact.
+        */}
         {isSelected && (
           <View
             style={[cr.selectedRail, { backgroundColor: accent }]}
@@ -1543,8 +1540,8 @@ const CountryRow = memo<CountryRowProps>(({ country, isSelected, onPress, search
         )}
 
         {/* [FIX-03] Flash overlay: Reanimated (UI thread) — previously used
-            Animated with useNativeDriver:false which blocked the JS thread.
-            pointerEvents="none" ensures it never intercepts touches. */}
+             Animated with useNativeDriver:false which blocked the JS thread.
+             pointerEvents="none" ensures it never intercepts touches. */}
         <ReAnimated.View
           style={[StyleSheet.absoluteFill, { backgroundColor: DV.activeRowBg }, flashStyle]}
           pointerEvents="none"
@@ -1644,7 +1641,6 @@ const cr = StyleSheet.create({
     borderRadius: 1.5,
   },
 });
-
 // ─── RowDivider ────────────────────────────────────────────────────────────────
 const RowDivider = memo(() => (
   <View
@@ -1653,7 +1649,6 @@ const RowDivider = memo(() => (
     importantForAccessibility="no-hide-descendants"
   />
 ));
-
 // ─── RegionPill ────────────────────────────────────────────────────────────────
 interface RegionPillProps {
   label:   RegionFilter;
@@ -1678,7 +1673,6 @@ const RegionPill = memo<RegionPillProps>(({ label, active, count, onPress }) => 
     </Pressable>
   );
 });
-
 const rp = StyleSheet.create({
   pill: {
     height:            L.pillH,
@@ -1691,10 +1685,9 @@ const rp = StyleSheet.create({
     backgroundColor:   T.sheetBg,
   },
   pillActive: { borderColor:T.gold, backgroundColor:T.goldSubtle },
-  text:       { fontSize:13, fontWeight:'600', color:T.textSecondary, fontFamily:FONT_BODY.semiBold },
+  text:      { fontSize:13, fontWeight:'600', color:T.textSecondary, fontFamily:FONT_BODY.semiBold },
   textActive: { color: T.gold },
 });
-
 // ─── AlphabetSidebar ──────────────────────────────────────────────────────────
 interface AlphabetSidebarProps {
   letters:        string[];
@@ -1737,7 +1730,6 @@ const AlphabetSidebar = memo<AlphabetSidebarProps>(
         }
       }
     }, []);
-
     const panHandlers = useRef(
       PanResponder.create({
         onStartShouldSetPanResponder: () => true,
@@ -1751,7 +1743,6 @@ const AlphabetSidebar = memo<AlphabetSidebarProps>(
         },
       }).panHandlers,
     ).current;
-
     return (
       <View
         style={ab.wrap}
@@ -1810,7 +1801,6 @@ const ab = StyleSheet.create({
   },
   letter: { fontSize:10, fontWeight:'700', color:T.gold, fontFamily:FONT_BODY.bold },
 });
-
 // ─── [v4-FEAT-04] LetterOverlay — Spring enter, ease-out exit ─────────────────
 // Reanimated useSharedValue approach avoids re-mount jank during rapid pan.
 // Single mounted instance: animates in when letter becomes non-null, out when null.
@@ -1847,7 +1837,6 @@ const LetterOverlay = memo<{ letter: string | null; reducedMotion?: boolean }>(
       transform: [{ scale: scale.value }],
       opacity:    opacity.value,
     }));
-
     // Always render (keeps exit animation alive); invisible via opacity
     return (
       <View style={lo.container} pointerEvents="none">
@@ -1892,7 +1881,6 @@ const lo = StyleSheet.create({
     includeFontPadding: false,
   },
 });
-
 // ─── [FIX-01] AlphaSidebarAndOverlay ─────────────────────────────────────────
 // Root cause of re-render bug: activeAlphaLetter was state in CountryPickerSheetBase.
 // Every pan frame called setActiveAlphaLetter → re-rendered the entire parent tree
@@ -1923,7 +1911,6 @@ const AlphaSidebarAndOverlay = memo<AlphaSidebarAndOverlayProps>(
   },
 );
 
-
 interface RecentlyVisitedProps {
   countries: CountryDoc[];
   selected:  string;
@@ -1949,7 +1936,6 @@ const RecentlyVisitedSection = memo<RecentlyVisitedProps>(
     </View>
   ),
 );
-
 const rv = StyleSheet.create({
   headerRow: {
     flexDirection:    'row',
@@ -2003,10 +1989,8 @@ const RelativeTimeLabel = memo<{ fetchedAt: number | null }>(({ fetchedAt }) => 
 
   return <Text style={sh.countTimeLabel}>{label}</Text>;
 });
-
 // ─── Main component ────────────────────────────────────────────────────────────
 type SheetState = 'loading' | 'idle' | 'switching';
-
 function CountryPickerSheetBase({
   visible,
   onClose,
@@ -2040,25 +2024,70 @@ function CountryPickerSheetBase({
   const isMountedRef  = useRef(true);
   const isSwitchingRef  = useRef(false);
   const retryCountRef   = useRef(0);
-  const [retryCount,    setRetryCount]   = useState(0); // [A11Y-03] state mirrors ref so a11y label re-renders
+  const [retryCount,    setRetryCount]   = useState(0);
+  // [A11Y-03] state mirrors ref so a11y label re-renders
   const selectedRef     = useRef(selected);
   const recentIdsRef    = useRef(recentIds);
   // [v515-01] searchQueryRef — stable ref that renderItem reads without needing
   // searchQuery in its useCallback dep array. Keeps the dep array unchanged from v5.14.
   const searchQueryRef  = useRef(searchQuery);
 
+  // ── [NATIVE SWIPE-TO-DISMISS (PanResponder)] ────────────────────────────────
+  // Google Photos style drag-to-close behavior logic.
+  const panY = useRef(new Animated.Value(0)).current;
+
+  const dragResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        // Only trigger if user is dragging downwards directly from the header
+        return gestureState.dy > 10 && Math.abs(gestureState.dx) < 20;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        if (gestureState.dy > 0) {
+          panY.setValue(gestureState.dy);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        // If swiped down past 150px OR with fast velocity -> Close
+        if (gestureState.dy > 150 || gestureState.vy > 1.0) {
+          Animated.timing(panY, {
+            toValue: SHEET_HEIGHT,
+            duration: 200,
+            useNativeDriver: true,
+          }).start(() => {
+            onClose();
+            // Reset position for next time
+            setTimeout(() => panY.setValue(0), 100);
+          });
+        } else {
+          // Snap back to top if not dragged enough
+          Animated.spring(panY, {
+            toValue: 0,
+            useNativeDriver: true,
+            bounciness: 5,
+          }).start();
+        }
+      },
+    })
+  ).current;
+
+  useEffect(() => {
+    if (visible) {
+      panY.setValue(0);
+    }
+  }, [visible, panY]);
+  // ────────────────────────────────────────────────────────────────────────────
+
   useEffect(() => { selectedRef.current   = selected;     }, [selected]);
   useEffect(() => { recentIdsRef.current  = recentIds;    }, [recentIds]);
   useEffect(() => { searchQueryRef.current = searchQuery; }, [searchQuery]);
-
   useEffect(() => {
     isMountedRef.current = true;
     return () => { isMountedRef.current = false; };
   }, []);
-
   // ── [FEAT-06] One-time v2→v3 recents migration ───────────────────────────────
   useEffect(() => { void migrateRecentsCache(); }, []);
-
   // ── [v54] Open side-effects — the Modal opens via the `visible` prop ──────────
   // No imperative snap/close needed. We still (a) fire the subtle open haptic and
   // (b) preserve the bottom-nav hide/show contract: onSheetIndexChange(0) on open,
@@ -2071,13 +2100,11 @@ function CountryPickerSheetBase({
       onSheetIndexChange?.(-1);
     }
   }, [visible, onSheetIndexChange]);
-
   // ── [FIX-SCROLL-01] shellHRef — measure shell height for layout metrics ───────
   // Shell height is recorded here; no longer drives any adaptive height logic
   // (setHeight was a custom method on the removed shim). onShellLayout is kept as
   // a stable measurement hook for any future use.
   const shellHRef = useRef(0);
-
   // ── [FIX-03] AnimatedPillsRow — migrated from Animated (useNativeDriver:false) ─
   // to Reanimated SharedValues so height + opacity run on the UI thread.
   const pillsH  = useSharedValue(L.pillRowH);
@@ -2087,7 +2114,6 @@ function CountryPickerSheetBase({
     opacity:  pillsOp.value,
     overflow: 'hidden' as const,
   }));
-
   useEffect(() => {
     // [FIX-09] trim() — prevents space-only input from collapsing pills unnecessarily
     const isSearching = rawQuery.trim().length > 0;
@@ -2099,24 +2125,20 @@ function CountryPickerSheetBase({
       pillsOp.value = withTiming(1,          { duration: 180, easing: REasing.out(REasing.cubic) });
     }
   }, [rawQuery, pillsH, pillsOp]);
-
   // ── [FIX-03] Search bar focus glow — migrated from Animated (useNativeDriver:false) ─
   // Reanimated interpolateColor runs on the UI thread — no JS-thread block on keyboard show.
   const searchFocused = useSharedValue(0);
   const animatedBorderStyle = useAnimatedStyle(() => ({
     borderColor: interpolateColor(searchFocused.value, [0, 1], [T.border, T.gold]),
   }));
-
   const handleSearchFocus = useCallback(() => {
     // [v54] No snap needed — the sheet is already at its fixed full height and the
     // search box sits at the top, so the keyboard never covers it. Just glow.
     searchFocused.value = withTiming(1, { duration: 180 });
   }, [searchFocused]);
-
   const handleSearchBlur = useCallback(() => {
     searchFocused.value = withTiming(0, { duration: 150 });
   }, [searchFocused]);
-
   // ── [FIX-HEIGHT-03] Shell layout measurement ─────────────────────────────────
   // Records shell height for future layout calculations.
   const onShellLayout = useCallback(
@@ -2126,7 +2148,6 @@ function CountryPickerSheetBase({
     },
     [],
   );
-
   // ── [FIX-05] Shimmer animation — Reanimated withRepeat (UI thread) ───────────
   const shimmerAnim = useSharedValue(0);
   useEffect(() => {
@@ -2153,21 +2174,18 @@ function CountryPickerSheetBase({
     const id = setTimeout(() => setSearchQuery(rawQuery), 150);
     return () => clearTimeout(id);
   }, [rawQuery]);
-
   // ── [SCROLL-05] Reset list scroll when search query settles ──────────────────
   // Without this, changing search terms while mid-list leaves a blank area at
   // top because the previous scroll position doesn't match the new result set.
   useEffect(() => {
     listRef.current?.scrollToOffset({ offset: 0, animated: false });
   }, [searchQuery]);
-
   // ── Reduced motion ────────────────────────────────────────────────────────────
   useEffect(() => {
     void AccessibilityInfo.isReduceMotionEnabled().then(setRM);
     const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setRM);
     return () => sub.remove();
   }, []);
-
   // ── Load on open ──────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!visible) return;
@@ -2195,7 +2213,6 @@ function CountryPickerSheetBase({
         try { return JSON.parse(raw) as string[]; } catch { return []; }
       })
       .catch((): string[] => []);
-
     Promise.all([recentsPromise, fetchCountries()])
       .then(([recents, [docs, ts]]) => {
         if (fetchIdRef.current !== currentFetchId) return;
@@ -2285,13 +2302,11 @@ function CountryPickerSheetBase({
     if (regionFilter === 'All') return countries;
     return countries.filter((c) => c.region === regionFilter);
   }, [countries, regionFilter]);
-
   // [HIGH-04] Sort once per regionFilter change
   const sortedRegionFiltered = useMemo(
     () => [...regionFiltered].sort((a, b) => a.name.localeCompare(b.name)),
     [regionFiltered],
   );
-
   // [HIGH-08] Search within regionFiltered. [FIX-02] Uses pre-computed fields —
   // normalizeDiacritics + dialCode.replace() no longer run per-country per keystroke.
   const displayCountries = useMemo<CountryDoc[]>(() => {
@@ -2305,7 +2320,7 @@ function CountryPickerSheetBase({
 
     // ── Filter — predicate UNCHANGED from v5.2 (same set of matches) ────────────
     const matches = regionFiltered.filter((c) => {
-      if (c.normalizedName.includes(normQ))              return true; // [FIX-02] pre-computed
+      if (c.normalizedName.includes(normQ))          return true; // [FIX-02] pre-computed
       if (c.id.toLowerCase() === normQ)                  return true;
       if (isDialQ && c.cleanDialCode.startsWith(digits)) return true; // [FIX-02] pre-computed
       return false;
@@ -2338,7 +2353,6 @@ function CountryPickerSheetBase({
     () => countries.slice(0, TRENDING_COUNT),
     [countries],
   );
-
   // [ADD-08] Country counts per region
   const regionCounts = useMemo<Partial<Record<RegionFilter, number>>>(() => {
     const counts: Partial<Record<RegionFilter, number>> = { 'All': countries.length };
@@ -2347,12 +2361,10 @@ function CountryPickerSheetBase({
     }
     return counts;
   }, [countries]);
-
   const selectedCountry = useMemo(
     () => countries.find((c) => c.id === selected) ?? null,
     [countries, selected],
   );
-
   const recentCountries = useMemo<CountryDoc[]>(
     () => recentIds.flatMap((id) => {
       const c = countries.find((c) => c.id === id);
@@ -2360,13 +2372,11 @@ function CountryPickerSheetBase({
     }),
     [recentIds, countries],
   );
-
   // ── Flat data + A-Z sections ──────────────────────────────────────────────────
   const flatData = useMemo<ListItem[]>(() => {
     if (searchQuery.trim()) return buildSearchResults(displayCountries);
     return buildAlphaSections(sortedRegionFiltered);
   }, [displayCountries, searchQuery, sortedRegionFiltered]);
-
   // [PERF-01] During search, flatData contains only CountryItem rows (no sections
   // or dividers), so every item is exactly L.rowH tall. Skip the O(n) precomputation
   // on every keystroke; use a simple formula instead. Precompute only in browse mode
@@ -2375,7 +2385,6 @@ function CountryPickerSheetBase({
     () => (searchQuery.trim() ? null : precomputeLayouts(flatData)),
     [flatData, searchQuery],
   );
-
   // ── Alphabet sidebar ──────────────────────────────────────────────────────────
   const alphabetLetters = useMemo<string[]>(() => {
     if (searchQuery.trim()) return [];
@@ -2383,7 +2392,6 @@ function CountryPickerSheetBase({
       .filter((item): item is SectionItem => item.type === 'section')
       .map((item) => item.letter);
   }, [flatData, searchQuery]);
-
   const sectionIndexMap = useMemo<Map<string, number>>(() => {
     const map = new Map<string, number>();
     flatData.forEach((item, i) => {
@@ -2391,20 +2399,17 @@ function CountryPickerSheetBase({
     });
     return map;
   }, [flatData]);
-
   const handleAlphabetPress = useCallback((letter: string) => {
     const index = sectionIndexMap.get(letter);
     if (index === undefined) return;
     listRef.current?.scrollToIndex({ index, animated: !reducedMotion, viewOffset: 0 });
   }, [sectionIndexMap, reducedMotion]);
-
   // ── Region filter ─────────────────────────────────────────────────────────────
   const handleRegion = useCallback((r: RegionFilter) => {
     void hapticSelect();
     setRegionFilter(r);
     listRef.current?.scrollToOffset({ offset: 0, animated: false });
   }, []);
-
   // ── Selection ─────────────────────────────────────────────────────────────────
   const handleSelect = useCallback(async (country: CountryDoc) => {
     if (isSwitchingRef.current) return;
@@ -2430,7 +2435,6 @@ function CountryPickerSheetBase({
       onSelect(country.id, country.name, country.emoji);
       // ↑ parent prop — if it throws, execution jumps to finally.
       // UI reset is in finally so the spinner is NEVER permanently stuck.
-
       await new Promise<void>((r) => setTimeout(r, reducedMotion ? 0 : 160));
       onClose();
     } finally {
@@ -2443,14 +2447,12 @@ function CountryPickerSheetBase({
       }
     }
   }, [onClose, onSelect, reducedMotion]);
-
   // ── List helpers ──────────────────────────────────────────────────────────────
   const keyExtractor = useCallback((item: ListItem): string => {
     if (item.type === 'section') return `sec-${item.letter}`;
     if (item.type === 'divider') return item.id;
     return `country-${item.country.id}`;
   }, []);
-
   // [PERF-04] `selected` was in the useCallback dep array, so every selection
   // change recreated renderItem → ALL CountryRow instances re-rendered (even
   // un-selected ones). Fix: read selected from selectedRef inside renderItem
@@ -2468,7 +2470,8 @@ function CountryPickerSheetBase({
         searchQuery={searchQueryRef.current}  // [v515-01] highlights matched text
       />
     );
-  }, [handleSelect]); // no `selected`/`searchQuery` deps — refs + extraData handle reactivity
+  }, [handleSelect]);
+  // no `selected`/`searchQuery` deps — refs + extraData handle reactivity
 
   const getItemLayout = useCallback(
     (_: unknown, index: number) => {
@@ -2492,12 +2495,10 @@ function CountryPickerSheetBase({
     },
     [itemLayouts],
   );
-
   const clearSearch = useCallback(() => {
     setRawQuery('');
     searchRef.current?.focus();
   }, []);
-
   // ── Dynamic labels ────────────────────────────────────────────────────────────
   // [UX-04] Removed hardcoded 195 — it was wrong when collection size differs
   // and caused a jarring number-jump when data loaded. Empty string avoids any count.
@@ -2509,12 +2510,10 @@ function CountryPickerSheetBase({
   // [v510-01] BUG FIX — was missing regionFilter guard; showed cross-region recents.
   // Algeria (Africa) + Albania (Europe) appeared under Asia filter. Now mirrors showTrending.
   const showRecents  = recentCountries.length > 0 && !searchQuery.trim() && regionFilter === 'All';
-
   const isRegionSearchEmpty =
     searchQuery.trim().length > 0 &&
     displayCountries.length === 0 &&
     regionFilter !== 'All';
-
   // ── [FIX-LAYOUT-1] ListHeaderComponent: Trending + Recents ───────────────────
   const renderListHeader = useCallback(() => (
     <>
@@ -2532,7 +2531,7 @@ function CountryPickerSheetBase({
             keyboardShouldPersistTaps="handled"
             accessibilityLabel="Trending countries"
           >
-            {/* [v4-FEAT-02] Stagger entry: index * 40ms delay per PRD spec */}
+             {/* [v4-FEAT-02] Stagger entry: index * 40ms delay per PRD spec */}
             {/* [v57-04]     rank={index + 1} feeds the OTT rank numeral      */}
             {trendingCountries.map((c, index) => (
               <HeroCard
@@ -2557,7 +2556,8 @@ function CountryPickerSheetBase({
         />
       )}
     </>
-  ), [showTrending, showRecents, trendingCountries, recentCountries, selected, handleSelect, reducedMotion]); // [v510-03] fetchedAt removed — RelativeTimeLabel removed
+  ), [showTrending, showRecents, trendingCountries, recentCountries, selected, handleSelect, reducedMotion]);
+  // [v510-03] fetchedAt removed — RelativeTimeLabel removed
 
   // ── [FIX-LAYOUT-2] ListEmptyComponent: empty states inside FlatList ──────────
   // [v4-FEAT-07] Empty state fade-in — opacity 0→1 over 200ms.
@@ -2613,6 +2613,7 @@ function CountryPickerSheetBase({
   //   renders its own drag handle + backdrop; we supply only the body below.
   // └── View (outerWrapper, flex:1) ← sole child; flex column
   //     ├── View (pinnedShell)         ← PINNED SHELL — never scrolls
+  //     │   ├── dragHandleWrap         ← Swipe to Dismiss Handle
   //     │   ├── titleRowMerged         ← Globe + Title + ActiveInline + Close
   //     │   ├── searchWrap (Animated)  ← animated border glow
   //     │   │     └── TextInput        ← plain RN input (top of sheet → keyboard-safe)
@@ -2636,14 +2637,21 @@ function CountryPickerSheetBase({
       maxHeight={SHEET_HEIGHT}
       style={sh.sheetShell}
     >
-      {/* [v54] OUTER WRAPPER — flex:1 fills the sheet's content area (which is
-          flex:1 in BottomSheet.tsx), so the inner FlatList sizes and scrolls. */}
-      <View style={sh.outerWrapper}>
+      {/* NATIVE DRAG-TO-CLOSE WRAPPER */}
+      <Animated.View style={[sh.outerWrapper, { transform: [{ translateY: panY }] }]}>
 
 
       {/* ── PINNED SHELL — The "Shell vs Content" principle (PRD §2 Principle 5) ── */}
       {/* SearchBar, title, pills live here. They CANNOT scroll away.             */}
-      <View style={sh.pinnedShell} onLayout={onShellLayout}>
+      
+      {/* Attach panHandlers directly to the top pinned shell so dragging it pulls down the sheet */}
+      <View style={sh.pinnedShell} onLayout={onShellLayout} {...dragResponder.panHandlers}>
+
+        {/* ── [NATIVE SWIPE-TO-DISMISS] Drag Handle  ─────────────────────── */}
+        {/* Ye wahi choti si line hai jo aapne Vaul example mein dekhi thi */}
+        <View style={sh.dragHandleWrap}>
+          <View style={sh.dragHandle} />
+        </View>
 
         {/* ── [v4-ARCH-05] MERGED TITLE ROW — saves 52px vs v3.3 ──────────────── */}
         {/* Old: [Title row 54px] + [Active strip 52px] = 106px */}
@@ -2741,7 +2749,8 @@ function CountryPickerSheetBase({
         </ReAnimated.View>
 
         {/* ── [FIX-03] ANIMATED PILLS ROW — Reanimated height + opacity ─────────
-            Both height and opacity now run entirely on the UI thread.            */}
+            Both height and opacity now run entirely on the UI thread.
+        */}
         <ReAnimated.View style={[sh.pillAnimWrap, animatedPillsStyle]}>
           {sheetState !== 'loading' && error == null && (
             <ScrollView
@@ -2770,7 +2779,8 @@ function CountryPickerSheetBase({
 
       {/* ── CONTENT ZONE — Everything below the shell ─────────────────────────── */}
 
-      {sheetState === 'loading' ? (
+      {sheetState === 'loading' ?
+      (
 
         // [ADD-10] Skeleton trending + rows
         <View style={sh.contentArea}>
@@ -2816,7 +2826,8 @@ function CountryPickerSheetBase({
           </View>
         </View>
 
-      ) : error != null ? (
+      ) : error != null ?
+      (
 
         <View style={sh.stateWrap}>
           <View style={sh.stateIconCircle}>
@@ -2850,7 +2861,8 @@ function CountryPickerSheetBase({
           accessibilityLabel="Country list"
         >
           {/* [A11Y-02] Hidden view announces search result count to screen readers.
-              polite = waits for current speech to finish before announcing. */}
+              polite = waits for current speech to finish before announcing.
+          */}
           {searchQuery.trim().length > 0 && (
             <View
               accessible
@@ -2892,7 +2904,7 @@ function CountryPickerSheetBase({
             // onScrollToIndexFailed fallback offset calculation.
             overrideItemLayout={(layout, item) => {
               if (item.type === 'section') { layout.size = L.sectionH; return; }
-              if (item.type === 'divider') { layout.size = L.divH;     return; }
+              if (item.type === 'divider') { layout.size = L.divH; return; }
               layout.size = L.rowH;
             }}
             removeClippedSubviews={Platform.OS === 'android'}
@@ -2915,7 +2927,8 @@ function CountryPickerSheetBase({
           />
 
           {/* [FIX-01] AlphaSidebarAndOverlay owns activeAlphaLetter state internally.
-              Only this component re-renders on each pan frame — not the FlatList above. */}
+              Only this component re-renders on each pan frame — not the FlatList above.
+          */}
           {showAlpha && (
             <AlphaSidebarAndOverlay
               letters={alphabetLetters}
@@ -2960,7 +2973,7 @@ function CountryPickerSheetBase({
         </ReAnimated.View>
       )}
 
-      </View>{/* ── [FIX-04] close outerWrapper (plain View) ── */}
+      </Animated.View>{/* ── [FIX-04] close outerWrapper (now Animated.View) ── */}
     </BottomSheet>
   );
 }
@@ -3001,6 +3014,20 @@ const sh = StyleSheet.create({
     paddingBottom:   6,
   },
 
+  // ── [NATIVE SWIPE-TO-DISMISS] Drag Handle Indicator Styles ───────────────
+  dragHandleWrap: {
+    width: '100%',
+    alignItems: 'center',
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  dragHandle: {
+    width: 48,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: T.borderSubtle,
+  },
+
   // ── [v4-ARCH-05] Merged title row ─────────────────────────────────────────────
   // v3.3: titleRow (54px) + activeStrip (52px) = 106px
   // v4.0: titleRowMerged (~52px) = saves 54px
@@ -3008,7 +3035,7 @@ const sh = StyleSheet.create({
     flexDirection:     'row',
     alignItems:        'center',
     paddingHorizontal: L.rowPadH,
-    paddingVertical:   12,
+    paddingVertical:   6, // thoda kam kiya kyunki upar drag handle aa gaya hai
     gap:               12,
   },
   globeIconWrap: {
@@ -3159,7 +3186,7 @@ const sh = StyleSheet.create({
   },
   heroScroll: {
     paddingHorizontal: L.rowPadH,
-    paddingVertical:   10,    // [v59-03] shadow breathing — prevents card shadow clipping inside scroll
+    paddingVertical:   10,  // [v59-03] shadow breathing — prevents card shadow clipping inside scroll
     gap:               12,
   },
 
@@ -3272,14 +3299,4 @@ const sh = StyleSheet.create({
     alignItems:      'center',
     justifyContent:  'center',
   },
-  // [UX-01] ActivityIndicator absolutely fills the wrap so it rings the card
-  switchActivityRing: {
-    position: 'absolute',
-    width:    80,
-    height:   80,
-  },
-  switchFlag: { fontSize:30 },
-
-  // [A11Y-02] Visually hidden — zero-size container used only for live region announcements
-  srOnly: { width: 0, height: 0, overflow: 'hidden' },
-});
+  // [UX-
