@@ -18,19 +18,19 @@
  * and @react-native-firebase (native). Calling snap.exists() is a TypeError
  * on native and produces wrong values on web. All snapshot existence checks
  * in this file use snapExists(snap) which reads the property, never calls it.
- *   snap.exists   ✅  correct — boolean property
- *   snap.exists() ❌  never use — was root cause of April 21 incident
+ * snap.exists   ✅  correct — boolean property
+ * snap.exists() ❌  never use — was root cause of April 21 incident
  * ─────────────────────────────────────────────────────────────────────────────
  *
  * ─── isDeleted filter — WHY IT IS ABSENT FROM subscribeToMessages ─────────
  * We intentionally do NOT filter `isDeleted == false` in the Firestore query.
  * Instead, message bubble components check `message.isDeleted` and render a
  * "Message deleted" shell when the flag is true. This approach:
- *   1. Lets existing listeners receive the change event and re-render the shell
- *      in place — preserving thread continuity in the UI.
- *   2. Avoids a Firestore composite-index requirement on (isDeleted, timestamp).
- *   3. Keeps the listener consistent with the final document state rather than
- *      silently dropping documents from the list mid-session.
+ * 1. Lets existing listeners receive the change event and re-render the shell
+ * in place — preserving thread continuity in the UI.
+ * 2. Avoids a Firestore composite-index requirement on (isDeleted, timestamp).
+ * 3. Keeps the listener consistent with the final document state rather than
+ * silently dropping documents from the list mid-session.
  * Hard deletes (document removal) are handled server-side by moderation
  * Cloud Functions only; those will naturally trigger a "removed" snapshot event.
  * ─────────────────────────────────────────────────────────────────────────────
@@ -45,8 +45,9 @@
  * Exported surface (public API)
  * ─────────────────────────────
  * Types     : Unsubscribe · SaveMessageSnapshot
- * Realtime  : subscribeToMessages
+ * Realtime  : subscribeToMessages · subscribeToUnreadDmCount
  * Writes    : sendMessage · deleteMessage · addReaction · saveMessage
+ * Moderation: pinMessage · unpinMessage · reportMessage
  * Deprecated: subscribeMessages · sendTextMessage · sendVoiceMessage · sendImageMessage
  */
 
@@ -186,6 +187,35 @@ export function subscribeToMessages(
     );
 }
 
+/**
+ * Live subscription to unread DM count for the current user.
+ * Required by Home Screen to show badge on the DM icon.
+ */
+export function subscribeToUnreadDmCount(
+  uid: string,
+  onChange: (count: number) => void,
+): Unsubscribe {
+  if (!uid) {
+    onChange(0);
+    return () => {};
+  }
+
+  return firestore()
+    .collection(USERS)
+    .doc(uid)
+    .onSnapshot(
+      (snap) => {
+        if (snapExists(snap as any)) {
+          const data = snap.data();
+          onChange(data?.unreadDmCount ?? 0);
+        } else {
+          onChange(0);
+        }
+      },
+      () => onChange(0)
+    );
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 // § 2 — SEND MESSAGE
 // ═════════════════════════════════════════════════════════════════════════════
@@ -205,9 +235,9 @@ export function subscribeToMessages(
  *
  * @param roomId   Firestore room document ID.
  * @param message  Partial<CWMessage> — id/roomId/timestamp/reactions/isMicDrop/
- *                 isDeleted/editedAt/status are set or defaulted automatically.
+ * isDeleted/editedAt/status are set or defaulted automatically.
  * @throws         Never swallows errors — Firestore write failures propagate to
- *                 the caller so the chat input can surface a retry prompt.
+ * the caller so the chat input can surface a retry prompt.
  */
 export async function sendMessage(
   roomId: string,
@@ -251,12 +281,16 @@ export async function sendMessage(
  * a change event and the bubble component re-renders as a "Message deleted"
  * shell. Hard deletes are handled server-side by moderation Cloud Functions.
  *
- * @param roomId     Firestore room document ID.
+ * Signature updated to support dynamic arguments from MessageActionSheet.
+ *
  * @param messageId  Firestore message document ID.
+ * @param roomId     Firestore room document ID.
+ * @param uid        Optional UID for verification.
  */
 export async function deleteMessage(
-  roomId: string,
   messageId: string,
+  roomId: string,
+  uid?: string,
 ): Promise<void> {
   if (!roomId || !messageId) return;
 
@@ -306,7 +340,7 @@ export async function addReaction(
     const snap = await tx.get(ref);
 
     // snapExists reads the boolean property — never calls it as a function.
-    if (!snapExists(snap)) return;
+    if (!snapExists(snap as any)) return;
 
     const data = snap.data() as CWMessage;
 
@@ -315,7 +349,7 @@ export async function addReaction(
 
     // Projected total after this increment: swap the old count for (count + 1).
     const newTotal =
-      Object.values(currentReactions).reduce((sum, n) => sum + n, 0) -
+      Object.values(currentReactions).reduce((sum, n) => sum + Number(n), 0) -
       currentCount +
       (currentCount + 1);
 
@@ -347,34 +381,28 @@ export async function addReaction(
  * order in the "Saved" tab is correct across all devices regardless of
  * client clock drift. See file header note for full rationale.
  *
- * @param uid        UID of the user saving the message (the collection owner).
- * @param messageId  Original CWMessage document ID.
- * @param roomId     Room the message belongs to (stored as sectorId for nav).
- * @param text       Message text — caller passes directly from rendered bubble,
- *                   avoiding an extra Firestore read inside this function.
- * @param snapshot   Display-layer values the UI already holds: senderName,
- *                   senderHandle, sectorName, messageType, voiceDurationSec.
+ * Signature updated to support dynamic arguments from MessageActionSheet.
  */
 export async function saveMessage(
-  uid: string,
   messageId: string,
-  roomId: string,
-  text: string,
-  snapshot: SaveMessageSnapshot,
+  uid: string,
+  roomId?: string,
+  text?: string,
+  snapshot?: Partial<SaveMessageSnapshot>,
 ): Promise<void> {
-  if (!uid || !messageId || !roomId) return;
+  if (!uid || !messageId) return;
 
   const saved: Omit<CWSavedMessage, 'id'> = {
     uid,
     messageId,
-    sectorId:    roomId,
-    sectorName:  snapshot.sectorName,
+    sectorId:    roomId ?? 'unknown',
+    sectorName:  snapshot?.sectorName ?? 'Unknown Sector',
     text:        text ?? '',
-    senderName:  snapshot.senderName,
-    senderHandle: snapshot.senderHandle,
-    messageType: snapshot.messageType ?? 'text',
+    senderName:  snapshot?.senderName ?? 'User',
+    senderHandle: snapshot?.senderHandle ?? '',
+    messageType: snapshot?.messageType ?? 'text',
     savedAt:     serverTimestamp() as any,
-    ...(snapshot.voiceDurationSec !== undefined && {
+    ...(snapshot?.voiceDurationSec !== undefined && {
       voiceDurationSec: snapshot.voiceDurationSec,
     }),
   };
@@ -387,7 +415,43 @@ export async function saveMessage(
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// § 6 — DEPRECATED LEGACY API
+// § 6 — PIN, UNPIN & REPORT (MODERATION API)
+// ═════════════════════════════════════════════════════════════════════════════
+
+export async function pinMessage(messageId: string, roomId: string): Promise<void> {
+  if (!roomId || !messageId) return;
+  await roomMessagesRef(roomId).doc(messageId).update({
+    isPinned: true,
+  });
+}
+
+export async function unpinMessage(messageId: string, roomId: string): Promise<void> {
+  if (!roomId || !messageId) return;
+  await roomMessagesRef(roomId).doc(messageId).update({
+    isPinned: false,
+  });
+}
+
+export async function reportMessage(
+  messageId: string, 
+  reason: string, 
+  uid: string, 
+  roomId: string
+): Promise<void> {
+  if (!messageId || !uid || !roomId) return;
+  
+  await firestore().collection('reports').add({
+    messageId,
+    roomId,
+    reportedBy: uid,
+    reason,
+    createdAt: serverTimestamp(),
+    status: 'pending'
+  });
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// § 7 — DEPRECATED LEGACY API
 // Keep for backward compat — do not use in new code.
 // Scheduled for removal when DM chat migrates to its own service (Phase 2).
 // ═════════════════════════════════════════════════════════════════════════════
