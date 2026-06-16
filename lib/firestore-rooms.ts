@@ -406,12 +406,13 @@ export interface SectorRow {
  * Shape of a /cities document as expected by CityPickerSheet.
  */
 interface CityDoc {
-  id:           string;
-  name:         string;
-  state?:       string;
-  online_count: number;
-  sector_count: number;
-  is_active:    boolean;
+  id:               string;
+  name:             string;
+  state?:           string;
+  online_count:     number;
+  sector_count:     number;
+  is_active:        boolean;
+  search_keywords?: string[];
 }
 
 /**
@@ -451,12 +452,13 @@ export function getCities(
           if (!d.name) return;
 
           list.push({
-            id:           doc.id,
-            name:         d.name as string,
-            state:        (d.state_name ?? d.admin_name ?? d.state ?? d.state_code ?? undefined) as string | undefined,
-            online_count: (d.online_count as number) ?? 0,
-            sector_count: (d.sector_count as number) ?? 0,
-            is_active:    true,
+            id:              doc.id,
+            name:            d.name as string,
+            state:           (d.state_name ?? d.admin_name ?? d.state ?? d.state_code ?? undefined) as string | undefined,
+            online_count:    (d.online_count as number) ?? 0,
+            sector_count:    (d.sector_count as number) ?? 0,
+            is_active:       true,
+            search_keywords: (d.search_keywords as string[]) || undefined,
           });
         });
 
