@@ -344,11 +344,6 @@ const ChatInputBase: React.FC<ChatInputProps> = ({
     };
   }, []);
 
-  // Web: size the empty textarea to exactly one line on mount.
-  useEffect(() => {
-    if (Platform.OS === 'web') requestAnimationFrame(measureWeb);
-  }, [measureWeb]);
-
   // ── idle ↔ active ─────────────────────────────────────────────────────────────
   const hasText = text.trim().length > 0;
   useEffect(() => {
@@ -369,6 +364,11 @@ const ChatInputBase: React.FC<ChatInputProps> = ({
     el.style.height = `${next}px`;
     setInputHeight(next);
   }, []);
+
+  // Web: size the empty textarea to exactly one line on mount.
+  useEffect(() => {
+    if (Platform.OS === 'web') requestAnimationFrame(measureWeb);
+  }, [measureWeb]);
 
   const resetHeight = useCallback((): void => {
     setInputHeight(MIN_INPUT_H);
