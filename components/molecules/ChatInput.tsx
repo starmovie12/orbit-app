@@ -36,6 +36,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 
 import { useHaptics } from '@/hooks/useHaptics';
+import { hideNav, showNav } from '@/components/organisms/CrownBottomNav';
 import { animation, colors, palette, radii } from '@/constants/colors';
 import { FONT_BODY, FONT_SIZE } from '@/constants/typography';
 
@@ -134,13 +135,13 @@ function resolvePlaceholder(
   if (override !== undefined && override !== '') return override;
   switch (scope) {
     case 'world':
-      return 'World ki chat mein message likho...';
+      return 'Message the world…';
     case 'country':
-      return 'India ki chat mein message likho...';
+      return 'Message your country…';
     case 'city':
-      return `${cityLabel} ki chat mein message likho...`;
+      return `Message ${cityLabel}…`;
     case 'sector':
-      return `${sectorLabel} mein message likho...`;
+      return `Message ${sectorLabel}…`;
   }
 }
 
@@ -296,7 +297,9 @@ const ChatInputBase: React.FC<ChatInputProps> = ({
   const spinLoop = useRef<Animated.CompositeAnimation | null>(null);
 
   // ── Gap-fill via translateY ─────────────────────────────────────────────────
-  const isHidden = navHidden !== undefined ? navHidden : !navVisible;
+  const isHiddenProp = navHidden !== undefined ? navHidden : !navVisible;
+  // On web, focusing the input opens the keyboard → hide the nav + drop the box.
+  const isHidden = isHiddenProp || (Platform.OS === 'web' && isFocused);
   const slide = useRef(new Animated.Value(isHidden ? 1 : 0)).current;
 
   useEffect(() => {
@@ -341,6 +344,11 @@ const ChatInputBase: React.FC<ChatInputProps> = ({
     };
   }, []);
 
+  // Web: size the empty textarea to exactly one line on mount.
+  useEffect(() => {
+    if (Platform.OS === 'web') requestAnimationFrame(measureWeb);
+  }, [measureWeb]);
+
   // ── idle ↔ active ─────────────────────────────────────────────────────────────
   const hasText = text.trim().length > 0;
   useEffect(() => {
@@ -355,6 +363,7 @@ const ChatInputBase: React.FC<ChatInputProps> = ({
     if (Platform.OS !== 'web') return;
     const el = inputRef.current as unknown as HTMLTextAreaElement | null;
     if (!el) return;
+    el.rows = 1;                       // neutralize browser's default 2-row textarea
     el.style.height = 'auto';
     const next = Math.max(MIN_INPUT_H, Math.min(el.scrollHeight, MAX_INPUT_H));
     el.style.height = `${next}px`;
@@ -397,9 +406,16 @@ const ChatInputBase: React.FC<ChatInputProps> = ({
     setShowEmoji(false);
     setIsFocused(true);
     haptics.impactLight();
-  }, [isAuthenticated, onAuthGate, haptics]);
+    if (Platform.OS === 'web') {
+      hideNav();                          // hide bottom nav while typing
+      requestAnimationFrame(measureWeb);  // keep empty box at one line
+    }
+  }, [isAuthenticated, onAuthGate, haptics, measureWeb]);
 
-  const handleInputBlur = useCallback((): void => setIsFocused(false), []);
+  const handleInputBlur = useCallback((): void => {
+    setIsFocused(false);
+    if (Platform.OS === 'web') showNav();  // restore bottom nav
+  }, []);
 
   // ── Send ──────────────────────────────────────────────────────────────────────
   const handleSend = useCallback((): void => {
