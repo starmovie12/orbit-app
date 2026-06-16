@@ -108,6 +108,7 @@ import SegmentedControl, {
 }                                  from '@/components/molecules/SegmentedControl';
 // ── Atoms / Molecules ─────────────────────────────────────────────────────
 import MessageBubble              from '@/components/MessageBubble';
+import Avatar                     from '@/components/atoms/Avatar';
 import ScrollFAB                  from '@/components/atoms/ScrollFAB';
 import SkeletonBubble             from '@/components/atoms/SkeletonBubble';
 // ── Sheet / Modal organisms ───────────────────────────────────────────────
@@ -211,6 +212,14 @@ type BottomTab = 'home' | 'explore' | 'crown' | 'profile';
 interface ActionSheetMsg {
   id:           string;
   variant:      'own' | 'other_user' | 'ai_companion' | 'mayor_announcement' | 'system' | 'date_separator';
+  /**
+   * REAL Firestore room document ID — e.g. 'world' | 'in' | 'chandigarh'
+   * | 'chandigarh_sector-17'. This is what every reaction / delete / pin /
+   * report write MUST target. (sector_id alone is NEVER a valid room path —
+   * see buildRoomId.) Previously the sheet wrongly used sector_id as the room,
+   * which silently no-op'd every action (the "like button doesn't work" bug).
+   */
+  room_id:      string;
   sector_id:    string;
   city_id:      string;
   timestamp:    number;
@@ -268,6 +277,7 @@ function mapStatus(msg: CWMessage): React.ComponentProps<typeof MessageBubble>['
 function adaptToActionMsg(
   msg: CWMessage,
   currentUid: string | null,
+  roomId: string,
   cityId: string,
   sectorId: string,
 ): ActionSheetMsg {
@@ -282,14 +292,16 @@ function adaptToActionMsg(
     default:       variant = isOwn ? 'own' : 'other_user';
   }
   return {
-    id:        msg.id,
+    id:          msg.id,
     variant,
-    sector_id: sectorId,
-    city_id:   cityId,
-    timestamp: (msg.timestamp as any)?.toMillis?.() ?? Date.now(),
-    text:      msg.text ?? undefined,
-    sender_id: msg.uid || undefined,
-    is_pinned: false,
+    room_id:     roomId,
+    sector_id:   sectorId,
+    city_id:     cityId,
+    timestamp:   (msg.timestamp as any)?.toMillis?.() ?? Date.now(),
+    text:        msg.text ?? undefined,
+    sender_id:   msg.uid || undefined,
+    sender_name: msg.senderName ?? undefined,
+    is_pinned:   false,
   };
 }
 
@@ -392,7 +404,16 @@ const MessageRow = React.memo(function MessageRow({
     ? '🚫 Yeh message delete ho gaya'
     : (msg.text ?? '');
 
-  return (
+  // Avatar shows for other-user + AI rows only — own messages (right) never show
+  // an avatar (WhatsApp pattern); system/date are centered; mayor is a centered
+  // card. Sender name renders above the bubble for left/ai/mayor.
+  const isAvatarVariant = variant === 'left' || variant === 'ai';
+  const username =
+    variant === 'left' || variant === 'ai' || variant === 'mayor'
+      ? (msg.senderName ?? msg.senderHandle ?? undefined)
+      : undefined;
+
+  const bubble = (
     <MessageBubble
       variant={variant}
       text={displayText}
@@ -400,9 +421,29 @@ const MessageRow = React.memo(function MessageRow({
       status={status}
       reactions={reactions}
       tags={tags}
+      username={username}
       onLongPress={handleLongPress}
     />
   );
+
+  // Other-user / AI rows: avatar column on the left, bubble column on the right.
+  if (isAvatarVariant) {
+    return (
+      <View style={S.avatarRow}>
+        <Avatar
+          name={msg.senderName ?? undefined}
+          emoji={variant === 'ai' ? undefined : (msg.senderEmoji ?? undefined)}
+          color={msg.senderColor ?? undefined}
+          ai={variant === 'ai'}
+          size={32}
+          style={S.avatarRowAvatar}
+        />
+        <View style={S.avatarRowBubble}>{bubble}</View>
+      </View>
+    );
+  }
+
+  return bubble;
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -762,20 +803,32 @@ export default function HomeScreen() {
 
     const optId = `opt_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
+    // Snapshot the sender's identity so the message renders with avatar + name
+    // (CROWN avatars are emoji-on-color — no photo). Own messages don't show an
+    // avatar, but we still denormalize so OTHER users see it on their screens.
+    const senderName   = user.displayName ?? user.username ?? null;
+    const senderHandle = user.username ?? null;
+    const senderEmoji  = user.emoji ?? null;
+    const senderColor  = user.color ?? null;
+
     const optimistic: CWMessage = {
-      id:        optId,
+      id:           optId,
       roomId,
-      uid:       user.uid,
-      text:      trimmed,
-      imageURL:  null,
-      variant:   'right',
-      reactions: {},
-      replyToId: null,
-      isMicDrop: false,
-      isDeleted: false,
-      editedAt:  null,
-      timestamp: { toDate: () => new Date(), toMillis: () => Date.now() } as any,
-      status:    'sent',
+      uid:          user.uid,
+      text:         trimmed,
+      imageURL:     null,
+      variant:      'right',
+      reactions:    {},
+      replyToId:    null,
+      isMicDrop:    false,
+      isDeleted:    false,
+      editedAt:     null,
+      timestamp:    { toDate: () => new Date(), toMillis: () => Date.now() } as any,
+      status:       'sent',
+      senderName,
+      senderHandle,
+      senderEmoji,
+      senderColor,
     };
 
     setMessages((prev) => [...prev, optimistic]);
@@ -784,6 +837,7 @@ export default function HomeScreen() {
     try {
       await sendMessage(roomId, {
         id: optId, uid: user.uid, text: trimmed, variant: 'right', status: 'sent',
+        senderName, senderHandle, senderEmoji, senderColor,
       });
     } catch {
       setMessages((prev) =>
@@ -817,10 +871,10 @@ export default function HomeScreen() {
   // § 8.6 — LONG PRESS
   // ═══════════════════════════════════════════════════════════════════════════
   const handleLongPress = useCallback((msg: CWMessage) => {
-    const adapted = adaptToActionMsg(msg, user?.uid ?? null, cityId, sectorId);
+    const adapted = adaptToActionMsg(msg, user?.uid ?? null, roomId, cityId, sectorId);
     setActionMsg(adapted);
     setActionSheetOpen(true);
-  }, [user?.uid, cityId, sectorId]);
+  }, [user?.uid, roomId, cityId, sectorId]);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // § 8.7 — SCROLL HANDLER
@@ -1169,6 +1223,20 @@ const S = StyleSheet.create({
     paddingHorizontal: spacing.sm,         
     paddingTop:        8,
     paddingBottom:     16,
+  },
+  // ── Other-user / AI row: avatar on the left, bubble column on the right ─────
+  avatarRow: {
+    flexDirection: 'row',
+    alignItems:    'flex-start',
+    paddingLeft:   spacing.sm,             // 8 — screen-edge breathing room
+  },
+  avatarRowAvatar: {
+    marginTop:   2,                        // nudge to sit beside the sender name
+    marginRight: 2,
+  },
+  avatarRowBubble: {
+    flex:     1,
+    minWidth: 0,                           // allow the bubble to shrink-wrap text
   },
   emptyState: {
     flex:              1,
