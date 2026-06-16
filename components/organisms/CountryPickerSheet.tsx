@@ -2032,16 +2032,21 @@ function CountryPickerSheetBase({
   // searchQuery in its useCallback dep array. Keeps the dep array unchanged from v5.14.
   const searchQueryRef  = useRef(searchQuery);
 
-  // ── [NATIVE SWIPE-TO-DISMISS (PanResponder)] ────────────────────────────────
+  // ── [SMART SWIPE-TO-DISMISS (PanResponder)] ────────────────────────────────
   // Google Photos style drag-to-close behavior logic.
   const panY = useRef(new Animated.Value(0)).current;
+  const listIsAtTop = useRef(true); // Tracker ki user abhi list ke Top par hai ya nahi
 
   const dragResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        // Only trigger if user is dragging downwards directly from the header
-        return gestureState.dy > 10 && Math.abs(gestureState.dx) < 20;
+        // SCROLL HIJACK: 
+        // Sheet tabhi control cheenegi jab user list ke sabse upar (Top) ho
+        // aur intentionally niche swipe (dy > 5) kar raha ho.
+        const isSwipingDown = gestureState.dy > 5;
+        const isVerticalSwipe = Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+        return listIsAtTop.current && isSwipingDown && isVerticalSwipe;
       },
       onPanResponderMove: (_, gestureState) => {
         if (gestureState.dy > 0) {
@@ -2049,23 +2054,23 @@ function CountryPickerSheetBase({
         }
       },
       onPanResponderRelease: (_, gestureState) => {
-        // If swiped down past 150px OR with fast velocity -> Close
+        // Agar 150px se jyada niche drag kar diya, ya zorse swipe kiya -> Close
         if (gestureState.dy > 150 || gestureState.vy > 1.0) {
           Animated.timing(panY, {
             toValue: SHEET_HEIGHT,
-            duration: 200,
+            duration: 250,
             useNativeDriver: true,
           }).start(() => {
             onClose();
-            // Reset position for next time
-            setTimeout(() => panY.setValue(0), 100);
+            // Nayi opening ke liye wapas reset
+            setTimeout(() => panY.setValue(0), 200);
           });
         } else {
-          // Snap back to top if not dragged enough
+          // Agar poora drag nahi kiya to spring karke wapas position par
           Animated.spring(panY, {
             toValue: 0,
             useNativeDriver: true,
-            bounciness: 5,
+            bounciness: 4,
           }).start();
         }
       },
@@ -2075,6 +2080,7 @@ function CountryPickerSheetBase({
   useEffect(() => {
     if (visible) {
       panY.setValue(0);
+      listIsAtTop.current = true;
     }
   }, [visible, panY]);
   // ────────────────────────────────────────────────────────────────────────────
@@ -2179,6 +2185,7 @@ function CountryPickerSheetBase({
   // top because the previous scroll position doesn't match the new result set.
   useEffect(() => {
     listRef.current?.scrollToOffset({ offset: 0, animated: false });
+    listIsAtTop.current = true;
   }, [searchQuery]);
   // ── Reduced motion ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -2409,6 +2416,7 @@ function CountryPickerSheetBase({
     void hapticSelect();
     setRegionFilter(r);
     listRef.current?.scrollToOffset({ offset: 0, animated: false });
+    listIsAtTop.current = true;
   }, []);
   // ── Selection ─────────────────────────────────────────────────────────────────
   const handleSelect = useCallback(async (country: CountryDoc) => {
@@ -2611,20 +2619,20 @@ function CountryPickerSheetBase({
   //
   // BottomSheet (@/components/BottomSheet — Modal-based, opens on `visible`)
   //   renders its own drag handle + backdrop; we supply only the body below.
-  // └── View (outerWrapper, flex:1) ← sole child; flex column
+  // └── Animated.View (outerWrapper, flex:1, animates on swipe-down)
   //     ├── View (pinnedShell)         ← PINNED SHELL — never scrolls
   //     │   ├── dragHandleWrap         ← Swipe to Dismiss Handle
   //     │   ├── titleRowMerged         ← Globe + Title + ActiveInline + Close
   //     │   ├── searchWrap (Animated)  ← animated border glow
-  //     │   │     └── TextInput        ← plain RN input (top of sheet → keyboard-safe)
+  //     │   │     └── TextInput        ← plain RN input (top of sheet)
   //     │   └── pillAnimWrap (Animated)← height+opacity collapse
   //     │
   //     └── (conditional on sheetState)
   //         loading  → View + skeleton
   //         error    → View + error state
-  //         idle     → FlatList (single scroll owner)
-  //                      + AlphabetSidebar (absolute, no conflict)
-  //                      + LetterOverlay (absolute, Reanimated)
+  //         idle     → FlashList (Tracks onScroll, hands control to dragResponder if at top)
+  //                      + AlphabetSidebar
+  //                      + LetterOverlay
   //
   // SwitchingOverlay (absoluteFillObject, zIndex:99, FadeIn 150ms)
   // ─────────────────────────────────────────────────────────────────────────────
@@ -2632,30 +2640,23 @@ function CountryPickerSheetBase({
     <BottomSheet
       visible={visible}
       onClose={onClose}
-      // [v54] Fixed tall sheet (≈90% screen). maxHeight + explicit height keep the
-      // height stable across loading/idle so there is no jump when data arrives.
       maxHeight={SHEET_HEIGHT}
       style={sh.sheetShell}
     >
-      {/* NATIVE DRAG-TO-CLOSE WRAPPER */}
-      <Animated.View style={[sh.outerWrapper, { transform: [{ translateY: panY }] }]}>
+      {/* ── DRAG RESPONDER ATTACHED TO THE VERY TOP WRAPPER ── */}
+      <Animated.View 
+        style={[sh.outerWrapper, { transform: [{ translateY: panY }] }]}
+        {...dragResponder.panHandlers}
+      >
 
+      {/* ── PINNED SHELL ── */}
+      <View style={sh.pinnedShell} onLayout={onShellLayout}>
 
-      {/* ── PINNED SHELL — The "Shell vs Content" principle (PRD §2 Principle 5) ── */}
-      {/* SearchBar, title, pills live here. They CANNOT scroll away.             */}
-      
-      {/* Attach panHandlers directly to the top pinned shell so dragging it pulls down the sheet */}
-      <View style={sh.pinnedShell} onLayout={onShellLayout} {...dragResponder.panHandlers}>
-
-        {/* ── [NATIVE SWIPE-TO-DISMISS] Drag Handle  ─────────────────────── */}
-        {/* Ye wahi choti si line hai jo aapne Vaul example mein dekhi thi */}
+        {/* Drag Handle Indicator */}
         <View style={sh.dragHandleWrap}>
           <View style={sh.dragHandle} />
         </View>
 
-        {/* ── [v4-ARCH-05] MERGED TITLE ROW — saves 52px vs v3.3 ──────────────── */}
-        {/* Old: [Title row 54px] + [Active strip 52px] = 106px */}
-        {/* New: [Merged row ~52px] = 52px — 54px saved */}
         <View style={sh.titleRowMerged}>
           {/* Left: Globe icon */}
           <View style={sh.globeIconWrap}>
@@ -2666,7 +2667,6 @@ function CountryPickerSheetBase({
           <View style={sh.titleTextGroup}>
             <Text style={sh.title}>Choose Country</Text>
 
-            {/* [v4-ARCH-05] Active strip inline below title */}
             {selectedCountry != null && sheetState !== 'loading' && (
               <View
                 style={sh.activeInline}
@@ -2681,13 +2681,11 @@ function CountryPickerSheetBase({
                   {selectedCountry.name}
                 </Text>
                 <Text style={sh.activeSep} accessible={false}>{'\u00B7'}</Text>
-                {/* [v511-01] "No one online" → "0 online" — numeric, matches HeroCard badge language */}
                 <Text style={sh.activeCountInline} numberOfLines={1}>
                   {selectedCountry.onlineCount > 0
                     ? `${fmtCount(selectedCountry.onlineCount)} online`
                     : '0 online'}
                 </Text>
-                {/* [v511-01] ACTIVE badge restored — gives header its premium "live" indicator */}
                 <View style={sh.activeBadge}>
                   <Text style={sh.activeBadgeText}>ACTIVE</Text>
                 </View>
@@ -2707,8 +2705,6 @@ function CountryPickerSheetBase({
           </Pressable>
         </View>
 
-        {/* ── [FIX-03] SEARCH BAR — Reanimated border glow (UI thread) ────────── */}
-        {/* borderColor interpolation now runs on UI thread via Reanimated          */}
         <ReAnimated.View style={[sh.searchWrap, animatedBorderStyle]}>
           <Feather name="search" size={18} color={T.textTertiary} />
           <TextInput
@@ -2722,11 +2718,7 @@ function CountryPickerSheetBase({
             autoCapitalize="none"
             returnKeyType="search"
             clearButtonMode="never"
-            // [v510-06] Android draws a hard black underline on focus by default.
-            // Setting transparent removes it — the Reanimated gold glow handles focus state.
             underlineColorAndroid="transparent"
-            // [v53-03] Treat this strictly as a search box: no squiggles, no keyboard
-            // autofill chips, no iOS strong-password / contact autofill offers.
             spellCheck={false}
             autoComplete="off"
             textContentType="none"
@@ -2748,9 +2740,6 @@ function CountryPickerSheetBase({
           )}
         </ReAnimated.View>
 
-        {/* ── [FIX-03] ANIMATED PILLS ROW — Reanimated height + opacity ─────────
-            Both height and opacity now run entirely on the UI thread.
-        */}
         <ReAnimated.View style={[sh.pillAnimWrap, animatedPillsStyle]}>
           {sheetState !== 'loading' && error == null && (
             <ScrollView
@@ -2777,7 +2766,7 @@ function CountryPickerSheetBase({
         <View style={sh.hairline} />
         </View>
 
-      {/* ── CONTENT ZONE — Everything below the shell ─────────────────────────── */}
+      {/* ── CONTENT ZONE ─────────────────────────── */}
 
       {sheetState === 'loading' ?
       (
@@ -2801,8 +2790,6 @@ function CountryPickerSheetBase({
             </ScrollView>
             <View style={sh.hairline} />
           </View>
-          {/* [UX-03] Skeleton recents prevent the jarring pop-in. Show only when we
-              already know recentIds exist (loaded from AsyncStorage before fetch). */}
           {recentIds.length > 0 && (
             <View>
               <View style={rv.headerRow}>
@@ -2850,19 +2837,11 @@ function CountryPickerSheetBase({
 
       ) : (
 
-        // [v5-ARCH-01] ONE scroll owner. BottomSheetFlatList from the real gorhom
-        // library participates in the same RNGH gesture responder tree as the sheet
-        // itself. Expansion (55%→92%) is intercepted before the list can scroll;
-        // once at 92% the list scrolls freely. Pull-down from list top collapses/
-        // closes the sheet — all on the UI thread via Reanimated shared values.
         <View
           style={sh.listWrap}
           accessibilityRole="radiogroup"
           accessibilityLabel="Country list"
         >
-          {/* [A11Y-02] Hidden view announces search result count to screen readers.
-              polite = waits for current speech to finish before announcing.
-          */}
           {searchQuery.trim().length > 0 && (
             <View
               accessible
@@ -2871,20 +2850,13 @@ function CountryPickerSheetBase({
               style={sh.srOnly}
             />
           )}
-          {/* [v515-02] FlashList replaces FlatList — native recycling pool (RecyclerView /
-              UICollectionView) keeps 60/120 fps on mid-range Android with 250+ flag emojis.
-              Drop-in API: estimatedItemSize + overrideItemLayout replace getItemLayout. */}
           <FlashList
             ref={listRef}
             data={flatData}
-            // [v515-01,v515-02] extraData includes searchQuery so FlashList re-renders
-            // rows when the query settles (150ms debounce) to paint highlights.
             extraData={[selected, searchQuery]}
             renderItem={renderItem}
             keyExtractor={keyExtractor}
-            // [FIX-LAYOUT-1] Trending + Recents scroll WITH the list
             ListHeaderComponent={renderListHeader}
-            // [FIX-LAYOUT-2] Empty states inside FlashList
             ListEmptyComponent={renderListEmpty}
             showsVerticalScrollIndicator={false}
             style={sh.flatList}
@@ -2894,14 +2866,7 @@ function CountryPickerSheetBase({
             }}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
-            // [v515-02] estimatedItemSize — FlashList's required size hint.
-            // Most items are CountryRows (L.rowH = 74); sections (34) and dividers (1)
-            // are exact via overrideItemLayout, so 74 is the safest estimate.
             estimatedItemSize={L.rowH}
-            // [v515-02] overrideItemLayout — gives FlashList exact sizes for each item
-            // type so scrollToIndex (A-Z sidebar tap) lands precisely.
-            // Replaces getItemLayout; old getItemLayout callback kept only for the
-            // onScrollToIndexFailed fallback offset calculation.
             overrideItemLayout={(layout, item) => {
               if (item.type === 'section') { layout.size = L.sectionH; return; }
               if (item.type === 'divider') { layout.size = L.divH; return; }
@@ -2911,6 +2876,11 @@ function CountryPickerSheetBase({
             bounces={true}
             alwaysBounceVertical={true}
             overScrollMode="always"
+            // ── SCROLL HIJACK: FlashList ka Top point record kar rahe hain ──
+            onScroll={(e) => {
+              listIsAtTop.current = e.nativeEvent.contentOffset.y <= 0;
+            }}
+            scrollEventThrottle={16}
             onScrollToIndexFailed={(info) => {
               const offset = itemLayouts?.[info.index]?.offset
                 ?? L.rowH * info.index;
@@ -2926,9 +2896,6 @@ function CountryPickerSheetBase({
             }
           />
 
-          {/* [FIX-01] AlphaSidebarAndOverlay owns activeAlphaLetter state internally.
-              Only this component re-renders on each pan frame — not the FlatList above.
-          */}
           {showAlpha && (
             <AlphaSidebarAndOverlay
               letters={alphabetLetters}
@@ -2940,8 +2907,6 @@ function CountryPickerSheetBase({
 
       )}
 
-      {/* ── [v4-FEAT-03] SWITCHING OVERLAY — FadeIn 150ms ─────────────────────── */}
-      {/* v3.3: instant snap (felt like a bug) → v4.0: 150ms fade (intentional) */}
       {sheetState === 'switching' && (
         <ReAnimated.View
           entering={!reducedMotion ? FadeIn.duration(150) : undefined}
@@ -2955,9 +2920,6 @@ function CountryPickerSheetBase({
               : 'Switching country'
           }
         >
-          {/* [UX-01] Spinner ring around the emoji clarifies "loading in progress".  */}
-          {/* Without it, users on slow connections tapped repeatedly thinking the  */}
-          {/* first tap didn't register (isSwitchingRef guard silently ate the taps). */}
           <View style={sh.switchSpinnerWrap}>
             <ActivityIndicator
               size={60}
@@ -2973,14 +2935,13 @@ function CountryPickerSheetBase({
         </ReAnimated.View>
       )}
 
-      </Animated.View>{/* ── [FIX-04] close outerWrapper (now Animated.View) ── */}
+      </Animated.View>
     </BottomSheet>
   );
 }
 
 // [BUG-03] Wrap in PulseProvider so each mounted sheet gets its own isolated
-// Animated.Value. Without this, two sheets in a Navigator stack share the module-
-// level `_pulse` object, corrupting ref counts and causing visual glitches.
+// Animated.Value.
 export const CountryPickerSheet = memo((props: CountryPickerSheetProps) => (
   <PulseProvider>
     <CountryPickerSheetBase {...props} />
@@ -2990,30 +2951,17 @@ export default CountryPickerSheet;
 
 // ─── Styles ────────────────────────────────────────────────────────────────────
 const sh = StyleSheet.create({
-
-  // [v54] Passed to the in-house BottomSheet's `style` prop. Forces a fixed height
-  // and paints the sheet white (the shared sheet defaults to a dark surface). The
-  // shared sheet already rounds its top corners (24px); we keep its background.
   sheetShell: {
     height:          SHEET_HEIGHT,
     backgroundColor: T.sheetBg,
   },
-
-  // ── [v54] Single outer wrapper — sole child of BottomSheet's content area ──────
-  // flex:1 fills the content area (BottomSheet.content is flex:1); interior uses a
-  // normal flex-column layout so pinnedShell and the list stack vertically.
   outerWrapper: {
     flex: 1,
   },
-
-  // ── [v4-ARCH-05] Pinned shell — never scrolls ─────────────────────────────────
-  // Replaces v3.3's sh.header + separate activeStrip + pillWrap + searchWrap.
-  // SearchBar is here → cannot be buried by keyboard → [v4-ARCH-03] fix.
   pinnedShell: {
     backgroundColor: T.sheetBg,
     paddingBottom:   6,
   },
-
   // ── [NATIVE SWIPE-TO-DISMISS] Drag Handle Indicator Styles ───────────────
   dragHandleWrap: {
     width: '100%',
@@ -3027,10 +2975,6 @@ const sh = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: T.borderSubtle,
   },
-
-  // ── [v4-ARCH-05] Merged title row ─────────────────────────────────────────────
-  // v3.3: titleRow (54px) + activeStrip (52px) = 106px
-  // v4.0: titleRowMerged (~52px) = saves 54px
   titleRowMerged: {
     flexDirection:     'row',
     alignItems:        'center',
@@ -3058,8 +3002,6 @@ const sh = StyleSheet.create({
     fontFamily:    FONT_HEADING.semiBold,
     letterSpacing: -0.3,
   },
-
-  // [v4-ARCH-05] Active strip now inline — replaces the 52px standalone row
   activeInline: {
     flexDirection: 'row',
     alignItems:    'center',
@@ -3097,7 +3039,6 @@ const sh = StyleSheet.create({
     letterSpacing: 0.7,
     fontFamily:    FONT_BODY.bold,
   },
-
   closeBtn: {
     width:           L.closeBtn,
     height:          L.closeBtn,
@@ -3108,8 +3049,6 @@ const sh = StyleSheet.create({
     flexShrink:      0,
   },
   closeBtnPressed: { opacity:0.60 },
-
-  // ── [v4-FEAT-01] Search bar with Animated border color ───────────────────────
   searchWrap: {
     flexDirection:     'row',
     alignItems:        'center',
@@ -3120,7 +3059,6 @@ const sh = StyleSheet.create({
     borderRadius:      L.searchH / 2,
     paddingHorizontal: 14,
     borderWidth:       1.5,
-    // borderColor is Animated — set via animatedBorderColor interpolation
     gap:               8,
   },
   searchInput: {
@@ -3129,16 +3067,9 @@ const sh = StyleSheet.create({
     color:           T.text,
     fontFamily:      FONT_BODY.regular,
     paddingVertical: 0,
-    // [v513-02] Web-only: strips the browser's hard black "focus ring" on tap.
-    // react-native-web reads outlineStyle; native iOS/Android ignores it safely.
     outlineStyle:    'none',
   },
-
-  // ── [v4-ARCH-06] Animated pills wrapper ──────────────────────────────────────
-  // height is animated (50→0 or 0→50) via Animated.Value
-  // overflow:'hidden' clips the pills as height collapses
   pillAnimWrap: {
-    // height is controlled by Animated.Value — don't set static height here
   },
   pillScroll: {
     paddingHorizontal: L.rowPadH,
@@ -3146,20 +3077,15 @@ const sh = StyleSheet.create({
     gap:               10,
     flexDirection:     'row',
   },
-
   hairline: {
     height:          1,
-    marginTop:       8,    // [v510-04] 16px was too airy (cards felt detached); 8px keeps shadow + compact look
+    marginTop:       8,
     backgroundColor: T.borderSubtle,
   },
-
-  // ── Content area ──────────────────────────────────────────────────────────────
   contentArea: { flex:1 },
   listWrap:    { flex:1, position:'relative' },
   flatList:    { flex:1 },
   listContent: { paddingBottom: Platform.OS === 'android' ? 32 : 28 },
-
-  // ── Trending section ──────────────────────────────────────────────────────────
   trendingSection:  { paddingBottom:12 },
   trendingLabelRow: {
     flexDirection:    'row',
@@ -3186,11 +3112,9 @@ const sh = StyleSheet.create({
   },
   heroScroll: {
     paddingHorizontal: L.rowPadH,
-    paddingVertical:   10,  // [v59-03] shadow breathing — prevents card shadow clipping inside scroll
+    paddingVertical:   10,
     gap:               12,
   },
-
-  // ── Empty / error states ──────────────────────────────────────────────────────
   stateWrap: {
     alignItems:        'center',
     paddingTop:        44,
@@ -3245,8 +3169,6 @@ const sh = StyleSheet.create({
     fontFamily:    FONT_HEADING.semiBold,
     letterSpacing: 0.2,
   },
-
-  // [ADD-07] "Search All Countries" CTA
   ctaBtn: {
     flexDirection:     'row',
     alignItems:        'center',
@@ -3266,9 +3188,6 @@ const sh = StyleSheet.create({
     fontFamily:    FONT_HEADING.semiBold,
     letterSpacing: 0.1,
   },
-
-  // ── [v4-FEAT-03] Switching overlay — fades in via ReAnimated FadeIn 150ms ────
-  // v3.3: instant appear (felt like bug). v4.0: 150ms fade (intentional).
   switchOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor:      DV.switchOverlay,
@@ -3292,11 +3211,17 @@ const sh = StyleSheet.create({
     shadowOffset:    { width:0, height:8 },
     elevation:       10,
   },
-  // [UX-01] Wrapper centres the spinner ring + emoji card together
   switchSpinnerWrap: {
     width:           80,
     height:          80,
     alignItems:      'center',
     justifyContent:  'center',
   },
-  // [UX-
+  switchActivityRing: {
+    position: 'absolute',
+    width:    80,
+    height:   80,
+  },
+  switchFlag: { fontSize:30 },
+  srOnly: { width: 0, height: 0, overflow: 'hidden' },
+});
