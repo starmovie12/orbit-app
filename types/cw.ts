@@ -115,6 +115,17 @@ export interface CWMessage {
   editedAt: Timestamp | null;          // null if never edited
   timestamp: Timestamp;                // server timestamp (FieldValue.serverTimestamp())
   status: CWMessageStatus;             // meaningful only for 'right' variant (own messages)
+
+  // ── Denormalized sender identity (snapshot at send time) ───────────────────
+  // Stored on the message so the chat row can render the WhatsApp/Telegram-style
+  // avatar + name WITHOUT an extra /users/{uid} read per message. CROWN avatars
+  // are emoji-on-color (no photo uploads) — `senderEmoji` + `senderColor` ARE the
+  // avatar. All optional so older messages (written before this field existed)
+  // still render via an initials fallback.
+  senderName?: string | null;         // displayName ?? username at send time
+  senderHandle?: string | null;       // @username at send time
+  senderEmoji?: string | null;        // chosen avatar emoji (UserDoc.emoji)
+  senderColor?: string | null;        // chosen avatar color  (UserDoc.color)
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
