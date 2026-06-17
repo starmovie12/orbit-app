@@ -1,37 +1,19 @@
 /**
- * CROWN — Ranks Screen (ranks.tsx) — v2.0 PREMIUM EDITION
+ * CROWN — Crown Tab Screen (app/(tabs)/ranks.tsx)
  *
- * ┌──────────────────────────────────────────────────────────────┐
- * │  OMEGA-ENGINE V5.0 GOD-MIND · FOUR-CHAIR COUNCIL APPROVED   │
- * │  Aesthetic Direction: CYBER SOVEREIGN                        │
- * │  Dark base + brand-gold accent + Space Mono tabular nums.   │
- * │  Signature element: Three-tier podium, crown icon, pillar.  │
- * └──────────────────────────────────────────────────────────────┘
+ * The status & bidding center. Opens to the user's current standing in big type,
+ * then the four tier rank cards, the live cycle phase panel, the battle schedule,
+ * a conditional city-invasion card, the bid-history feed, and the crown-journey
+ * timeline. A non-dismissible Decision Prompt overlay (LAW 3) takes over during
+ * Phase 5 if the user is the Merit Winner. Sleep-Safe Auto-Accept settings open
+ * from the header.
  *
- * Architecture class:
- *   REACT_NATIVE_SCREEN + MOBILE_FIRST + REAL_TIME + HYPER_LOCAL
+ * Implements CROWN-TAB PRD §4.1 (wireframe order) and §18 (laws). Visual language
+ * is lifted from the home screen: WHITE page, CREAM cards, DARK-GOLD + AMBER
+ * accents. No black, no dark panels. Every colour comes from tokens.
  *
- * Upgrades from v1.0:
- *   • Reanimated v4 — tab indicator withSpring, YOU pill slide-up,
- *     shimmer pulse, challenge bar withTiming, clock pulse loop
- *   • Three-tier podium: heights Gold=88 Silver=62 Bronze=48dp,
- *     crown "award" Feather icon above rank-#1, gold ring border
- *   • Gold / Silver / Bronze left-border row treatment (token-only)
- *   • Content-matched shimmer skeleton replaces ActivityIndicator
- *   • Challenge cards with animated XP progress bars
- *   • Weekly countdown clock pulses via Reanimated loop
- *   • FONT_HEADING / FONT_BODY / FONT_MONO typography constants
- *   • Named constants for every timing, spring, dimension value
- *   • Zero raw hex values — all colours from orbit.* token refs
- *   • Accessibility: accessibilityRole + accessibilityLabel on every
- *     interactive element; accessibilityElementsHidden on decoration
- *   • useCallback on renderRankRow — prevents unnecessary re-renders
- *   • Platform.select shadow (iOS) / elevation (Android) on YOU pill
- *
- * Firestore /users/{uid} fields consumed:
- *   username, displayName, karma, weeklyKarma?, badge, trophies[]
- *
- * @module screens/ranks
+ * Data layer: @react-native-firebase namespaced listeners (crown-rank/api/*),
+ * scoped strictly to the authenticated user.
  */
 
 import React, {
@@ -42,1452 +24,1091 @@ import React, {
   useState,
 } from 'react';
 import {
-  FlatList,
-  LayoutChangeEvent,
-  Platform,
-  ScrollView,
-  StyleProp,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
   View,
-  ViewStyle,
-  ViewToken,
+  Text,
+  StyleSheet,
+  ScrollView,
+  RefreshControl,
+  TouchableOpacity,
+  Animated,
+  StatusBar,
 } from 'react-native';
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Feather } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import {
-  ScreenHeader,
-  Divider,
-  TierPill,
-  Avatar,
-  IconBox,
-} from '@/components/shared';
-import { orbit } from '@/constants/colors';
+
 import { useAuth } from '@/contexts/AuthContext';
-import { firestore } from '@/lib/firebase';
-import { RANKS_DATA, WEEKLY_CHALLENGES } from '@/constants/data';
-import type { UserDoc } from '@/lib/firestore-users';
+import { firestore, serverTimestamp } from '@/lib/firebase';
 
-/* ═══════════════════════════════════════════════════════════════════
- *  DESIGN TOKENS — CROWN Cyber Sovereign direction
- *  All colour values sourced from orbit.* — zero raw hex anywhere.
- *  TODO: migrate RANK_* → colors.fg.rankGold / rankSilver / rankBronze
- *        after colors.ts token system update (CROWN LAW 2 migration).
- * ═══════════════════════════════════════════════════════════════════ */
+import {
+  COLORS_DARK,
+  FONTS,
+  FONT_SIZES,
+  SPACING,
+  RADIUS,
+  Z_INDEX,
+  TOUCH_TARGET,
+  SCREEN_HEADER_HEIGHT,
+  BOTTOM_NAV_HEIGHT,
+  MOTION,
+} from '@/crown-rank/tokens';
+import type {
+  Tier,
+  RankCardData,
+  CyclePhaseInfo,
+  TitleHolderState,
+  UserTitle,
+  FreezeTime,
+  TimelineNode,
+  BidRecord,
+  InvasionData,
+  DecisionPromptData,
+  SleepSafeSettings,
+} from '@/crown-rank/types';
+import {
+  TIER_TO_TITLE,
+  getTitleString,
+  formatScore,
+  PHASE_META,
+} from '@/crown-rank/constants/titles';
+import {
+  getProgressPercent,
+  getMilestoneLabel,
+  computeAcceptAmount,
+} from '@/crown-rank/core/rank';
 
-// ── Typography constants — CROWN design law ──────────────────────
-const FONT_HEADING = 'Syne_700Bold'       as const;
-const FONT_BODY    = 'Inter_400Regular'   as const;
-const FONT_MONO    = 'SpaceMono_400Regular' as const;
+import {
+  subscribeToUserCrownData,
+  subscribeToRankScore,
+  pollRankPosition,
+  fetchBattleSchedule,
+  fetchCrownJourney,
+  clearRankCaches,
+  type UserCrownData,
+  type RankTier,
+  type JourneyEntry,
+} from '@/crown-rank/api/rank';
+import {
+  subscribeToAllActiveCycles,
+  PHASE_DURATIONS_MS,
+  type ActiveCycle,
+} from '@/crown-rank/api/cycles';
+import { subscribeToUserBids, placeBid, withdrawBid } from '@/crown-rank/api/bids';
+import { subscribeToActiveInvasion, joinInvasion } from '@/crown-rank/api/invasions';
 
-// ── Rank-tier accent colours — orbit token references ────────────
-// Gold   = orbit.warning  (amber-gold)
-// Silver = orbit.textSecond (muted silver)
-// Bronze = orbit.textTertiary (warm dim)
-const RANK_GOLD_FG   = orbit.warning;       // rank #1 text / icon / border
-const RANK_SILVER_FG = orbit.textSecond;    // rank #2 text / icon / border
-const RANK_BRONZE_FG = orbit.textTertiary;  // rank #3 text / icon / border
+import CrownHeroCard from '@/crown-rank/components/CrownHeroCard';
+import RankCard from '@/crown-rank/components/RankCard';
+import CyclePhasePanel from '@/crown-rank/components/CyclePhasePanel';
+import BattleScheduleStrip from '@/crown-rank/components/BattleScheduleStrip';
+import InvasionCard from '@/crown-rank/components/InvasionCard';
+import BidRow from '@/crown-rank/components/BidRow';
+import CrownJourneyTimeline from '@/crown-rank/components/CrownJourneyTimeline';
+import DecisionPromptOverlay from '@/crown-rank/components/DecisionPromptOverlay';
+import SleepSafeSheet from '@/crown-rank/components/SleepSafeSheet';
+import RankDetailSheet from '@/crown-rank/components/RankDetailSheet';
+import BidSheet from '@/crown-rank/components/BidSheet';
 
-/* ═══════════════════════════════════════════════════════════════════
- *  ANIMATION & LAYOUT CONSTANTS — zero magic numbers
- * ═══════════════════════════════════════════════════════════════════ */
+import { useDecision } from '@/crown-rank/hooks/useDecision';
 
-// Spring presets (Reanimated v4)
-const SPRING_TAB  = { mass: 1, stiffness: 280, damping: 28 } as const;
-const SPRING_PILL = { mass: 1, stiffness: 220, damping: 22 } as const;
+// ─────────────────────────────────────────────────────────────────────────────
+// CONSTANTS
+// ─────────────────────────────────────────────────────────────────────────────
 
-// Timing
-const SHIMMER_DURATION_MS      = 1200 as const;
-const CLOCK_PULSE_DURATION_MS  = 900  as const;
-const PROGRESS_DURATION_MS     = 720  as const;
-const COUNTDOWN_TICK_MS        = 1000 as const;
+/** Display order: local → global. */
+const TIER_ORDER: Tier[] = ['baron', 'viceroy', 'sovereign', 'imperator'];
 
-// Dimensions — 4dp grid
-const PODIUM_HEIGHT_GOLD       = 88   as const;
-const PODIUM_HEIGHT_SILVER     = 62   as const;
-const PODIUM_HEIGHT_BRONZE     = 48   as const;
-const PODIUM_PILLAR_WIDTH      = 72   as const;
-const AVATAR_SIZE_GOLD         = 64   as const;
-const AVATAR_SIZE_PODIUM       = 50   as const;
-const AVATAR_SIZE_ROW          = 40   as const;
-const AVATAR_SIZE_STICKY       = 28   as const;
-const TAB_INDICATOR_H          = 36   as const;
-const TAB_INSET                = 4    as const;
-const CHALLENGE_PROGRESS_MAX   = 500  as const;
-const STICKY_PILL_MIN_W        = 220  as const;
-const YOU_PILL_BOTTOM_WEB      = 96   as const;
-const YOU_PILL_BOTTOM_PAD      = 80   as const;
-const ROW_PRESS_OPACITY        = 0.75 as const;
-const SEPARATOR_INDENT         = 72   as const;
-
-/* ═══════════════════════════════════════════════════════════════════
- *  SCREEN CONSTANTS
- * ═══════════════════════════════════════════════════════════════════ */
-
-const TABS           = ['Global', 'Weekly', 'Challenges'] as const;
-const USERS_LIMIT    = 100 as const;
-type Tab = typeof TABS[number];
-
-/* ═══════════════════════════════════════════════════════════════════
- *  TYPES
- * ═══════════════════════════════════════════════════════════════════ */
-
-/** Unified leaderboard row — from Firestore or mock. */
-type LeaderUser = {
-  id:          string;   // Firestore uid or mock id
-  name:        string;   // username / displayName
-  karma:       number;   // all-time karma
-  weeklyKarma: number;   // weekly karma (reset Sundays 00:00 IST)
-  badge:       string;   // TierPill tier string
-  trophies:    string[]; // achievement ids
+const TIER_TO_SCOPE: Record<Tier, 'sector' | 'city' | 'country' | 'world'> = {
+  baron: 'sector',
+  viceroy: 'city',
+  sovereign: 'country',
+  imperator: 'world',
 };
 
-/* ═══════════════════════════════════════════════════════════════════
- *  HELPERS
- * ═══════════════════════════════════════════════════════════════════ */
+const TIER_PRIORITY: Record<Tier, number> = {
+  imperator: 0,
+  sovereign: 1,
+  viceroy: 2,
+  baron: 3,
+};
 
-function mockToLeaderUser(m: (typeof RANKS_DATA)[0]): LeaderUser {
+const MIN_REFRESH_MS = 400;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface Geo {
+  id: string;
+  label: string;
+}
+
+function capitalize(s: string | null | undefined): string | null {
+  if (!s) return null;
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/** Resolve a geography per tier from the crown doc, with profile/default fallbacks. */
+function resolveGeographies(
+  crown: UserCrownData | null,
+  regionCity: string | null,
+): Record<Tier, Geo> {
+  const ct = crown?.currentTitles;
   return {
-    id:          m.id,
-    name:        m.name,
-    karma:       m.karma,
-    weeklyKarma: m.weeklyKarma,
-    badge:       m.badge,
-    trophies:    m.trophies,
+    baron: {
+      id: ct?.sector?.geographyId || '_sector_',
+      label: ct?.sector?.geographyName || 'Your Sector',
+    },
+    viceroy: {
+      id: ct?.city?.geographyId || regionCity || '_city_',
+      label: ct?.city?.geographyName || capitalize(regionCity) || 'Your City',
+    },
+    sovereign: {
+      id: ct?.country?.geographyId || '_country_',
+      label: ct?.country?.geographyName || 'India',
+    },
+    imperator: {
+      id: ct?.world?.geographyId || '_world_',
+      label: ct?.world?.geographyName || 'World',
+    },
   };
 }
 
-/** Milliseconds until next Sunday 00:00:00 IST (UTC+5:30). */
-function msUntilNextSunday(): number {
-  const now       = new Date();
-  const IST_MS    = 330 * 60 * 1000; // 5h 30m in ms
-  const nowIST    = new Date(now.getTime() + IST_MS);
-  const dayIST    = nowIST.getUTCDay();
-  const daysLeft  = dayIST === 0 ? 7 : 7 - dayIST;
-  const nextSun   = new Date(nowIST);
-  nextSun.setUTCDate(nowIST.getUTCDate() + daysLeft);
-  nextSun.setUTCHours(0, 0, 0, 0);
-  return nextSun.getTime() - nowIST.getTime();
+function defaultPhaseInfo(): CyclePhaseInfo {
+  const now = Date.now();
+  const next = now + PHASE_DURATIONS_MS[1];
+  return {
+    phase: 1,
+    phaseName: PHASE_META[1].name,
+    phaseEmoji: PHASE_META[1].emoji,
+    phaseStartedAt: new Date(now).toISOString(),
+    nextPhaseAt: new Date(next).toISOString(),
+    freezeAt: new Date(next).toISOString(),
+    auctionEndsAt: null,
+    decisionEndsAt: null,
+    meritWinnerId: null,
+    highestBid: null,
+    baseBidPrice: null,
+  };
 }
 
-function fmtCountdown(ms: number): string {
-  if (ms <= 0) return '0s';
-  const total = Math.floor(ms / 1000);
-  const d     = Math.floor(total / 86400);
-  const h     = Math.floor((total % 86400) / 3600);
-  const m     = Math.floor((total % 3600) / 60);
-  const s     = total % 60;
-  if (d > 0) return `${d}d ${h}h ${m}m`;
-  if (h > 0) return `${h}h ${m}m ${s}s`;
-  return `${m}m ${s}s`;
+/** Convert an api ActiveCycle to the typed CyclePhaseInfo the UI consumes. */
+function toPhaseInfo(cycle: ActiveCycle | null | undefined): CyclePhaseInfo {
+  if (!cycle) return defaultPhaseInfo();
+  const phase = cycle.phase;
+  const nextPhaseAtMs = cycle.phaseStartedAtMs + PHASE_DURATIONS_MS[phase];
+  return {
+    phase,
+    phaseName: PHASE_META[phase].name,
+    phaseEmoji: PHASE_META[phase].emoji,
+    phaseStartedAt: new Date(cycle.phaseStartedAtMs).toISOString(),
+    nextPhaseAt: new Date(nextPhaseAtMs).toISOString(),
+    freezeAt: new Date(cycle.freezeAtMs).toISOString(),
+    auctionEndsAt:
+      cycle.auctionEndsAtMs != null
+        ? new Date(cycle.auctionEndsAtMs).toISOString()
+        : null,
+    decisionEndsAt:
+      cycle.decisionEndsAtMs != null
+        ? new Date(cycle.decisionEndsAtMs).toISOString()
+        : null,
+    meritWinnerId: cycle.meritWinnerId,
+    highestBid: cycle.highestBid
+      ? { amount: cycle.highestBid.amount, bidderId: cycle.highestBid.bidderId }
+      : null,
+    baseBidPrice: cycle.baseBidPrice,
+  };
 }
 
-/* ═══════════════════════════════════════════════════════════════════
- *  SUB-COMPONENT: SkeletonPulse
- *  Reanimated v4 opacity pulse — content-matched shimmer blocks.
- * ═══════════════════════════════════════════════════════════════════ */
+/** Next round-number milestone target for the progress bar. */
+function nextMilestoneTarget(score: number): number {
+  if (score < 100) return 100;
+  if (score < 500) return 500;
+  if (score < 1000) return 1000;
+  if (score < 5000) return 5000;
+  return Math.ceil((score + 1) / 5000) * 5000;
+}
 
-type SkeletonPulseProps = {
-  width: number | '100%';
-  height: number;
-  borderRadius?: number;
-  style?: StyleProp<ViewStyle>;
-};
+/** Top-N milestone label from a rank position, or null. */
+function milestoneFromPosition(position: number | null): string | null {
+  if (position == null || position < 1) return null;
+  if (position <= 10) return 'Top 10';
+  if (position <= 50) return 'Top 50';
+  if (position <= 100) return 'Top 100';
+  return null;
+}
 
-function SkeletonPulse({
-  width,
+function buildTitleState(crown: UserCrownData | null): TitleHolderState {
+  if (!crown) return { has: false };
+  const titles: UserTitle[] = [];
+  (Object.keys(TIER_TO_SCOPE) as Tier[]).forEach((tier) => {
+    const scope = TIER_TO_SCOPE[tier];
+    const t = crown.currentTitles[scope];
+    if (t && t.active) {
+      titles.push({
+        tier,
+        geographyId: t.geographyId,
+        geographyLabel: t.geographyName,
+        cyclesHeld: t.cyclesHeld,
+        cycleReward: t.cycleReward,
+        pinViews: null,
+        heldSince:
+          t.heldSinceTs != null
+            ? new Date(t.heldSinceTs).toISOString()
+            : new Date().toISOString(),
+      });
+    }
+  });
+  if (titles.length === 0) return { has: false };
+  const primaryTitle = titles.reduce((best, cur) =>
+    TIER_PRIORITY[cur.tier] < TIER_PRIORITY[best.tier] ? cur : best,
+  );
+  return { has: true, titles, primaryTitle };
+}
+
+function dayLabel(targetMs: number): string {
+  const now = new Date();
+  const target = new Date(targetMs);
+  const startOfDay = (d: Date) =>
+    new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const diffDays = Math.round((startOfDay(target) - startOfDay(now)) / 86400000);
+  if (diffDays <= 0) return 'TODAY';
+  if (diffDays === 1) return 'TOMORROW';
+  if (diffDays < 7) {
+    return target.toLocaleDateString(undefined, { weekday: 'short' }).toUpperCase();
+  }
+  return '+' + diffDays + ' DAYS';
+}
+
+function localTimeLabel(targetMs: number): string {
+  try {
+    return new Date(targetMs).toLocaleTimeString(undefined, {
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  } catch {
+    return '';
+  }
+}
+
+function journeyToNodes(entries: JourneyEntry[]): TimelineNode[] {
+  return entries.map((e) => {
+    const label =
+      e.type === 'title'
+        ? e.tier
+          ? TIER_TO_TITLE[e.tier as Tier]
+          : 'Title'
+        : e.type === 'first_title'
+        ? 'First Title'
+        : e.badgeType ?? 'Badge';
+    return {
+      nodeId: e.entryId,
+      type: e.type,
+      tier: (e.tier as Tier) ?? null,
+      label,
+      geographyLabel: e.geographyName || null,
+      earnedAt: new Date(e.earnedAtMs).toISOString(),
+      detail: {
+        rankScore: e.rankScore,
+        bidReceived: e.bidReceived,
+        userDecision:
+          e.keptTitle === true ? 'kept' : e.keptTitle === false ? 'accepted' : null,
+        cycleDurationHeld: null,
+        cycleNumber: 0,
+      },
+    };
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SKELETON (loading shimmer) — PRD §19.1
+// ─────────────────────────────────────────────────────────────────────────────
+
+const SkeletonBlock: React.FC<{ height: number; radius?: number }> = ({
   height,
-  borderRadius = 6,
-  style,
-}: SkeletonPulseProps) {
-  const opacity = useSharedValue(0.25);
+  radius = RADIUS.card,
+}) => {
+  const opacity = useRef(new Animated.Value(0.4)).current;
 
   useEffect(() => {
-    opacity.value = withRepeat(
-      withTiming(0.7, {
-        duration: SHIMMER_DURATION_MS,
-        easing: Easing.inOut(Easing.ease),
-      }),
-      -1,
-      true, // reverse: ping-pong
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, {
+          toValue: 1,
+          duration: MOTION.shimmer / 2,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacity, {
+          toValue: 0.4,
+          duration: MOTION.shimmer / 2,
+          useNativeDriver: true,
+        }),
+      ]),
     );
-  }, []);
-
-  const animStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
+    loop.start();
+    return () => loop.stop();
+  }, [opacity]);
 
   return (
     <Animated.View
-      accessibilityElementsHidden
-      importantForAccessibility="no"
-      style={[
-        {
-          width,
-          height,
-          borderRadius,
-          backgroundColor: orbit.surface2,
-        },
-        animStyle,
-        style,
-      ]}
+      style={{
+        height,
+        width: '100%',
+        borderRadius: radius,
+        backgroundColor: COLORS_DARK.shimmerPeak,
+        opacity,
+      }}
     />
   );
-}
-
-/* ═══════════════════════════════════════════════════════════════════
- *  SUB-COMPONENT: LeaderboardSkeleton
- *  Content-matched loading state — shown while Firestore hydrates.
- * ═══════════════════════════════════════════════════════════════════ */
-
-function LeaderboardSkeleton() {
-  return (
-    <View
-      accessibilityRole="none"
-      accessibilityLabel="Loading leaderboard"
-    >
-      {/* Fake podium strip */}
-      <View style={sk.podiumRow}>
-        {/* Order: Silver (left), Gold (centre), Bronze (right) */}
-        {[
-          { avSize: AVATAR_SIZE_PODIUM, pillarH: PODIUM_HEIGHT_SILVER },
-          { avSize: AVATAR_SIZE_GOLD,   pillarH: PODIUM_HEIGHT_GOLD   },
-          { avSize: AVATAR_SIZE_PODIUM, pillarH: PODIUM_HEIGHT_BRONZE },
-        ].map((item, i) => (
-          <View key={i} style={sk.podiumCol}>
-            <SkeletonPulse
-              width={item.avSize}
-              height={item.avSize}
-              borderRadius={item.avSize / 2}
-            />
-            <SkeletonPulse
-              width={PODIUM_PILLAR_WIDTH}
-              height={item.pillarH}
-              borderRadius={4}
-              style={{ marginTop: 10 }}
-            />
-          </View>
-        ))}
-      </View>
-
-      {/* Separator */}
-      <View style={{ height: 1, backgroundColor: orbit.borderSubtle, marginHorizontal: 20, marginBottom: 8 }} />
-
-      {/* Fake rank rows × 7 */}
-      {Array.from({ length: 7 }).map((_, i) => (
-        <View key={i} style={sk.rankRow}>
-          <SkeletonPulse width={24} height={14} borderRadius={4} />
-          <SkeletonPulse
-            width={AVATAR_SIZE_ROW}
-            height={AVATAR_SIZE_ROW}
-            borderRadius={AVATAR_SIZE_ROW / 2}
-          />
-          <View style={{ flex: 1, gap: 6 }}>
-            <SkeletonPulse width="100%" height={13} borderRadius={4} />
-            <SkeletonPulse width={72} height={10} borderRadius={4} />
-          </View>
-          <View style={{ alignItems: 'flex-end', gap: 6 }}>
-            <SkeletonPulse width={52} height={15} borderRadius={4} />
-            <SkeletonPulse width={36} height={9} borderRadius={4} />
-          </View>
-        </View>
-      ))}
-    </View>
-  );
-}
-
-const sk = StyleSheet.create({
-  podiumRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'flex-end',
-    paddingHorizontal: 24,
-    paddingVertical: 24,
-  },
-  podiumCol: {
-    alignItems: 'center',
-    flex: 1,
-    gap: 0,
-  },
-  rankRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    gap: 12,
-  },
-});
-
-/* ═══════════════════════════════════════════════════════════════════
- *  SUB-COMPONENT: RankBadge
- *  Circular rank number — gold/silver/bronze for top 3, neutral else.
- * ═══════════════════════════════════════════════════════════════════ */
-
-type RankBadgeProps = { n: number; size?: number };
-
-function RankBadge({ n, size = 20 }: RankBadgeProps) {
-  const bg =
-    n === 1 ? RANK_GOLD_FG :
-    n === 2 ? RANK_SILVER_FG :
-    n === 3 ? RANK_BRONZE_FG :
-    orbit.surface2;
-  const fg = n <= 3 ? orbit.bg : orbit.textTertiary;
-
-  return (
-    <View
-      accessibilityElementsHidden
-      importantForAccessibility="no"
-      style={{
-        width:           size,
-        height:          size,
-        borderRadius:    size / 2,
-        backgroundColor: bg,
-        alignItems:      'center',
-        justifyContent:  'center',
-      }}
-    >
-      <Text
-        style={{
-          color:      fg,
-          fontSize:   Math.round(size * 0.52),
-          fontWeight: '800',
-          fontFamily: FONT_MONO,
-          lineHeight: size,
-        }}
-      >
-        {n}
-      </Text>
-    </View>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════════════
- *  SUB-COMPONENT: PodiumStrip
- *
- *  Premium three-tier podium:
- *    Column order (L → R): Rank 2 | Rank 1 | Rank 3
- *    Pillar heights:        62dp   | 88dp   | 48dp
- *    Avatar sizes:          50dp   | 64dp   | 50dp
- *    Rank 1 gets: crown "award" icon above, gold ring border, larger avatar
- *    All pillar caps use tier-appropriate accent colour top border.
- * ═══════════════════════════════════════════════════════════════════ */
-
-type PodiumStripProps = { top3: LeaderUser[]; isWeekly: boolean };
-
-function PodiumStrip({ top3, isWeekly }: PodiumStripProps) {
-  // Display order: [dataIdx=1 (rank2), dataIdx=0 (rank1), dataIdx=2 (rank3)]
-  const COLS = [
-    {
-      dataIdx: 1,
-      rank:    2,
-      pillarH: PODIUM_HEIGHT_SILVER,
-      avSize:  AVATAR_SIZE_PODIUM,
-      fgColor: RANK_SILVER_FG,
-      isCrown: false,
-    },
-    {
-      dataIdx: 0,
-      rank:    1,
-      pillarH: PODIUM_HEIGHT_GOLD,
-      avSize:  AVATAR_SIZE_GOLD,
-      fgColor: RANK_GOLD_FG,
-      isCrown: true,
-    },
-    {
-      dataIdx: 2,
-      rank:    3,
-      pillarH: PODIUM_HEIGHT_BRONZE,
-      avSize:  AVATAR_SIZE_PODIUM,
-      fgColor: RANK_BRONZE_FG,
-      isCrown: false,
-    },
-  ] as const;
-
-  return (
-    <View style={styles.podiumStrip}>
-      {COLS.map(({ dataIdx, rank, pillarH, avSize, fgColor, isCrown }) => {
-        const user     = top3[dataIdx];
-        const karmaVal = isWeekly ? user.weeklyKarma : user.karma;
-
-        return (
-          <View key={user.id} style={styles.podiumColumn}>
-            {/* Crown icon for rank #1 — decorative, hidden from a11y */}
-            {isCrown ? (
-              <Feather
-                name="award"
-                size={22}
-                color={RANK_GOLD_FG}
-                style={{ marginBottom: 4 }}
-                accessibilityElementsHidden
-                importantForAccessibility="no"
-              />
-            ) : (
-              /* Spacer matching crown icon height so columns align */
-              <View style={{ height: 26 }} />
-            )}
-
-            {/* Avatar — gold ring for rank #1 */}
-            <View
-              style={[
-                styles.podiumAvatarWrap,
-                isCrown && {
-                  borderWidth:  2,
-                  borderColor:  RANK_GOLD_FG,
-                  borderRadius: (avSize + 12) / 2,
-                  padding:      3,
-                },
-              ]}
-            >
-              <Avatar
-                name={user.name}
-                size={avSize}
-                ringed={isCrown}
-              />
-              {/* Rank badge — bottom-right of avatar */}
-              <View
-                style={[styles.podiumBadgePos, { borderColor: orbit.bg }]}
-              >
-                <RankBadge n={rank} size={20} />
-              </View>
-            </View>
-
-            {/* Username */}
-            <Text
-              style={[
-                styles.podiumName,
-                { color: fgColor },
-                isCrown && { fontFamily: FONT_HEADING },
-              ]}
-              numberOfLines={1}
-            >
-              {user.name}
-            </Text>
-
-            {/* Karma value */}
-            <Text
-              style={[
-                styles.podiumKarma,
-                isCrown && { color: RANK_GOLD_FG, fontFamily: FONT_MONO },
-              ]}
-              numberOfLines={1}
-            >
-              {karmaVal.toLocaleString()}
-            </Text>
-
-            {/* Platform pillar — taller = higher rank */}
-            <View
-              style={[
-                styles.podiumPillar,
-                {
-                  height:          pillarH,
-                  borderTopColor:  fgColor,
-                  backgroundColor: orbit.surface1,
-                },
-              ]}
-            />
-          </View>
-        );
-      })}
-    </View>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════════════
- *  SUB-COMPONENT: WeeklyResetBar
- *  Live countdown with pulsing clock icon (Reanimated v4 loop).
- * ═══════════════════════════════════════════════════════════════════ */
-
-function WeeklyResetBar({ countdown }: { countdown: string }) {
-  const clockOpacity = useSharedValue(1);
-
-  useEffect(() => {
-    clockOpacity.value = withRepeat(
-      withTiming(0.3, {
-        duration: CLOCK_PULSE_DURATION_MS,
-        easing: Easing.inOut(Easing.ease),
-      }),
-      -1,
-      true,
-    );
-  }, []);
-
-  const clockStyle = useAnimatedStyle(() => ({
-    opacity: clockOpacity.value,
-  }));
-
-  return (
-    <View style={styles.weeklyResetBar}>
-      <Animated.View style={clockStyle}>
-        <Feather
-          name="clock"
-          size={13}
-          color={RANK_GOLD_FG}
-          accessibilityElementsHidden
-          importantForAccessibility="no"
-        />
-      </Animated.View>
-      <Text style={styles.weeklyResetText}>
-        {'  Resets in '}
-        <Text style={[styles.weeklyResetCountdown, { fontFamily: FONT_MONO }]}>
-          {countdown}
-        </Text>
-        {'  ·  Top 3 win bonus credits'}
-      </Text>
-    </View>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════════════
- *  SUB-COMPONENT: ChallengeProgressBar
- *  Animated XP bar — width based on entries / CHALLENGE_PROGRESS_MAX.
- *  Uses onLayout-measured pixel width for smooth Reanimated animation.
- * ═══════════════════════════════════════════════════════════════════ */
-
-function ChallengeProgressBar({ entries }: { entries: number }) {
-  const pct = Math.min(entries / CHALLENGE_PROGRESS_MAX, 1);
-  const [trackW, setTrackW] = useState(0);
-  const barW = useSharedValue(0);
-
-  useEffect(() => {
-    if (trackW > 0) {
-      barW.value = withTiming(pct * trackW, {
-        duration: PROGRESS_DURATION_MS,
-        easing: Easing.out(Easing.cubic),
-      });
-    }
-  }, [pct, trackW]);
-
-  const barStyle = useAnimatedStyle(() => ({
-    width: barW.value,
-  }));
-
-  return (
-    <View
-      style={styles.progressTrack}
-      onLayout={(e: LayoutChangeEvent) =>
-        setTrackW(e.nativeEvent.layout.width)
-      }
-    >
-      <Animated.View
-        style={[styles.progressFill, barStyle]}
-        accessibilityElementsHidden
-        importantForAccessibility="no"
-      />
-    </View>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════════════
- *  SUB-COMPONENT: ChallengesTab
- * ═══════════════════════════════════════════════════════════════════ */
-
-function ChallengesTab({ bottomPad }: { bottomPad: number }) {
-  return (
-    <ScrollView
-      showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ paddingBottom: bottomPad }}
-    >
-      <View style={styles.challengesSection}>
-        <Text style={styles.sectionLabel}>ACTIVE THIS WEEK</Text>
-
-        {WEEKLY_CHALLENGES.map((c, i) => (
-          <React.Fragment key={c.id}>
-            <TouchableOpacity
-              style={styles.challengeItem}
-              activeOpacity={ROW_PRESS_OPACITY}
-              accessibilityRole="button"
-              accessibilityLabel={`${c.title}. ${c.entries} entries. Ends ${c.ends}. Prize +${c.prize} karma.`}
-            >
-              <IconBox icon={c.icon} size={40} />
-
-              <View style={styles.challengeBody}>
-                <Text style={styles.challengeTitle} numberOfLines={1}>
-                  {c.title}
-                </Text>
-                <Text style={styles.challengeMeta}>
-                  {c.entries.toLocaleString()} entries · ends {c.ends}
-                </Text>
-                <ChallengeProgressBar entries={c.entries} />
-              </View>
-
-              <View style={styles.prizePill}>
-                <Feather
-                  name="zap"
-                  size={10}
-                  color={RANK_GOLD_FG}
-                  accessibilityElementsHidden
-                  importantForAccessibility="no"
-                />
-                <Text style={styles.prizeText}>+{c.prize}</Text>
-              </View>
-            </TouchableOpacity>
-
-            {i < WEEKLY_CHALLENGES.length - 1 && <Divider />}
-          </React.Fragment>
-        ))}
-      </View>
-    </ScrollView>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════════════
- *  SUB-COMPONENT: TabBar
- *  Reanimated v4 sliding pill indicator.
- *  onLayout measures actual bar width; indicator X offset is sprung.
- * ═══════════════════════════════════════════════════════════════════ */
-
-type TabBarProps = {
-  activeTab: Tab;
-  onTabPress: (t: Tab) => void;
 };
 
-const TAB_ICONS: Record<Tab, React.ComponentProps<typeof Feather>['name']> = {
-  Global:     'globe',
-  Weekly:     'calendar',
-  Challenges: 'zap',
-};
+const ScreenSkeleton: React.FC = () => (
+  <View style={styles.skeletonWrap}>
+    <SkeletonBlock height={148} radius={RADIUS.dais} />
+    {TIER_ORDER.map((t) => (
+      <SkeletonBlock key={t} height={108} />
+    ))}
+    <SkeletonBlock height={120} />
+  </View>
+);
 
-function TabBar({ activeTab, onTabPress }: TabBarProps) {
-  const [barW, setBarW] = useState(0);
-  const indicatorX      = useSharedValue(0);
+// ─────────────────────────────────────────────────────────────────────────────
+// SECTION HEADER
+// ─────────────────────────────────────────────────────────────────────────────
 
-  // Spring indicator to the position of the active tab segment
-  useEffect(() => {
-    const idx  = TABS.indexOf(activeTab);
-    const segW = barW / TABS.length;
-    indicatorX.value = withSpring(
-      segW * idx + TAB_INSET,
-      SPRING_TAB,
-    );
-  }, [activeTab, barW]);
+const SectionHeader: React.FC<{ title: string; caption?: string }> = ({
+  title,
+  caption,
+}) => (
+  <View style={styles.sectionHeader}>
+    <Text style={styles.sectionTitle}>{title}</Text>
+    {caption ? <Text style={styles.sectionCaption}>{caption}</Text> : null}
+  </View>
+);
 
-  const indicatorStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: indicatorX.value }],
-    /* PERF: transform — compositor thread, zero layout/paint cost */
-  }));
+// ─────────────────────────────────────────────────────────────────────────────
+// SCREEN
+// ─────────────────────────────────────────────────────────────────────────────
 
-  const segW = barW > 0 ? barW / TABS.length - TAB_INSET * 2 : 0;
+export default function CrownScreen() {
+  const insets = useSafeAreaInsets();
+  const { firebaseUser, user } = useAuth();
+  const uid = firebaseUser?.uid ?? null;
+  const regionCity = user?.region ?? null;
+  const myHandle = user?.username ?? user?.displayName ?? 'you';
 
-  return (
-    <View style={styles.tabBarOuter}>
-      <View
-        style={styles.tabBar}
-        onLayout={(e: LayoutChangeEvent) =>
-          setBarW(e.nativeEvent.layout.width)
-        }
-      >
-        {/* Sliding indicator pill — rendered only after bar is measured */}
-        {barW > 0 && (
-          <Animated.View
-            accessibilityElementsHidden
-            importantForAccessibility="no"
-            style={[
-              styles.tabIndicator,
-              {
-                width:  segW,
-                height: TAB_INDICATOR_H,
-              },
-              indicatorStyle,
-            ]}
-          />
-        )}
+  // ── Remote state ────────────────────────────────────────────────────────────
+  const [crown, setCrown] = useState<UserCrownData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [cycles, setCycles] = useState<Partial<Record<Tier, ActiveCycle | null>>>({});
+  const [scores, setScores] = useState<Partial<Record<Tier, number>>>({});
+  const [positions, setPositions] = useState<
+    Partial<Record<Tier, { position: number; delta: number }>>
+  >({});
+  const [freezeTimes, setFreezeTimes] = useState<FreezeTime[]>([]);
+  const [journey, setJourney] = useState<TimelineNode[]>([]);
+  const [bids, setBids] = useState<BidRecord[]>([]);
+  const [invasion, setInvasion] = useState<InvasionData | null>(null);
 
-        {/* Tab buttons */}
-        {TABS.map(tab => {
-          const active = activeTab === tab;
-          return (
-            <TouchableOpacity
-              key={tab}
-              style={styles.tab}
-              onPress={() => onTabPress(tab)}
-              activeOpacity={0.8}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: active }}
-              accessibilityLabel={tab}
-            >
-              <Feather
-                name={TAB_ICONS[tab]}
-                size={13}
-                color={active ? orbit.textPrimary : orbit.textTertiary}
-              />
-              <Text style={[styles.tabText, active && styles.tabTextActive]}>
-                {tab}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-    </View>
-  );
-}
+  // ── UI state ─────────────────────────────────────────────────────────────────
+  const [refreshing, setRefreshing] = useState(false);
+  const [, setRefreshKey] = useState(0);
+  const [sleepSheetOpen, setSleepSheetOpen] = useState(false);
+  const [detailTier, setDetailTier] = useState<Tier | null>(null);
+  const [bidSheetTier, setBidSheetTier] = useState<Tier | null>(null);
+  const [placingBid, setPlacingBid] = useState(false);
 
-/* ═══════════════════════════════════════════════════════════════════
- *  SUB-COMPONENT: StickyYouPill
- *  Floats above bottom nav when user's row scrolls off-screen.
- *  Reanimated v4: slides up from below with spring, hides off-screen.
- * ═══════════════════════════════════════════════════════════════════ */
-
-type StickyYouPillProps = {
-  me:       LeaderUser;
-  myIndex:  number;
-  isWeekly: boolean;
-  show:     boolean;        // true when own row is NOT visible in list
-  bottom:   number;
-  onPress:  () => void;
-};
-
-function StickyYouPill({
-  me,
-  myIndex,
-  isWeekly,
-  show,
-  bottom,
-  onPress,
-}: StickyYouPillProps) {
-  const translateY = useSharedValue(120);
-
-  useEffect(() => {
-    translateY.value = withSpring(show ? 0 : 120, SPRING_PILL);
-    /* PERF: transform (translateY) — compositor only, zero layout cost */
-  }, [show]);
-
-  const pillStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
-  }));
-
-  const karmaVal = isWeekly ? me.weeklyKarma : me.karma;
-
-  return (
-    <Animated.View
-      style={[styles.stickyYou, { bottom }, pillStyle]}
-      pointerEvents={show ? 'box-none' : 'none'}
-    >
-      <TouchableOpacity
-        style={styles.stickyYouInner}
-        activeOpacity={0.88}
-        onPress={onPress}
-        accessibilityRole="button"
-        accessibilityLabel={`Jump to your rank #${myIndex + 1}`}
-      >
-        <Avatar name={me.name} size={AVATAR_SIZE_STICKY} />
-
-        <View style={styles.stickyYouTextCol}>
-          <Text style={styles.stickyYouLabel}>
-            YOU · #{myIndex + 1}
-          </Text>
-          <Text style={[styles.stickyYouKarma, { fontFamily: FONT_MONO }]}>
-            {karmaVal.toLocaleString()} karma
-          </Text>
-        </View>
-
-        <Feather
-          name="chevron-up"
-          size={18}
-          color={orbit.textPrimary}
-          accessibilityElementsHidden
-          importantForAccessibility="no"
-        />
-      </TouchableOpacity>
-    </Animated.View>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════════════
- *  MAIN SCREEN: RanksScreen
- * ═══════════════════════════════════════════════════════════════════ */
-
-export default function RanksScreen() {
-  const insets           = useSafeAreaInsets();
-  const router           = useRouter();
-  const { firebaseUser } = useAuth();
-
-  const [activeTab, setTab]              = useState<Tab>('Global');
-  const [leaders, setLeaders]            = useState<LeaderUser[]>([]);
-  const [loading, setLoading]            = useState(true);
-  const [usingMock, setUsingMock]        = useState(false);
-  const [myRowVisible, setMyRowVisible]  = useState(true);
-  const [countdown, setCountdown]        = useState(
-    () => fmtCountdown(msUntilNextSunday()),
+  const geographies = useMemo(
+    () => resolveGeographies(crown, regionCity),
+    [crown, regionCity],
   );
 
-  const flatListRef = useRef<FlatList<LeaderUser>>(null);
-  const myUid       = firebaseUser?.uid ?? null;
+  const geoKey = useMemo(
+    () => TIER_ORDER.map((t) => geographies[t].id).join('|'),
+    [geographies],
+  );
 
-  /* ── Countdown ticker — 1s interval ── */
+  // ── Subscribe: user crown document ────────────────────────────────────────────
   useEffect(() => {
-    const id = setInterval(() => {
-      setCountdown(fmtCountdown(msUntilNextSunday()));
-    }, COUNTDOWN_TICK_MS);
-    return () => clearInterval(id);
-  }, []);
-
-  /* ── Firestore realtime subscription ── */
-  useEffect(() => {
-    let unsub: (() => void) | undefined;
-
-    const applyMock = () => {
-      setLeaders(RANKS_DATA.map(mockToLeaderUser));
-      setUsingMock(true);
+    if (!uid) {
       setLoading(false);
-    };
-
-    try {
-      unsub = firestore()
-        .collection('users')
-        .orderBy('karma', 'desc')
-        .limit(USERS_LIMIT)
-        .onSnapshot(
-          (qs) => {
-            if (qs.empty) {
-              applyMock();
-              return;
-            }
-
-            const list: LeaderUser[] = [];
-            qs.forEach((docSnap) => {
-              const d = docSnap.data() as UserDoc & { weeklyKarma?: number };
-              // Only fully-onboarded users with a username
-              if (!d.onboardingComplete || !d.username) return;
-              list.push({
-                id:          docSnap.id,
-                name:        d.username,
-                karma:       d.karma ?? 0,
-                // Phase 1 compat: weeklyKarma not yet written → 12% placeholder
-                weeklyKarma: d.weeklyKarma ?? Math.round((d.karma ?? 0) * 0.12),
-                badge:       d.badge   ?? 'ACTIVE',
-                trophies:    d.trophies ?? [],
-              });
-            });
-
-            if (list.length === 0) {
-              applyMock();
-            } else {
-              setLeaders(list);
-              setUsingMock(false);
-              setLoading(false);
-            }
-          },
-          () => applyMock(), // network error → fall to mock
-        );
-    } catch {
-      applyMock(); // subscribe failed (emulator offline, etc.)
+      return;
     }
+    setLoading(true);
+    const unsub = subscribeToUserCrownData(
+      uid,
+      (data) => {
+        setCrown(data);
+        setLoading(false);
+      },
+      () => {
+        setCrown(null);
+        setLoading(false);
+      },
+    );
+    return () => {
+      unsub();
+      clearRankCaches();
+    };
+  }, [uid]);
 
-    return () => unsub?.();
+  // ── Subscribe: all active cycles (per tier) ───────────────────────────────────
+  useEffect(() => {
+    if (!uid) return;
+    const tierGeo: Partial<Record<RankTier, string>> = {};
+    TIER_ORDER.forEach((t) => {
+      tierGeo[t] = geographies[t].id;
+    });
+    const stop = subscribeToAllActiveCycles(
+      tierGeo,
+      (tier, cycle) => setCycles((prev) => ({ ...prev, [tier]: cycle })),
+      (tier) => setCycles((prev) => ({ ...prev, [tier]: null })),
+    );
+    return stop;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uid, geoKey]);
+
+  // ── Subscribe: rank scores + poll positions (per tier, when cycle known) ──────
+  useEffect(() => {
+    if (!uid) return;
+    const unsubs: Array<() => void> = [];
+
+    TIER_ORDER.forEach((tier) => {
+      const geo = geographies[tier];
+      const cycle = cycles[tier];
+      const cycleId = cycle?.cycleId;
+      if (!geo.id || !cycleId) return;
+
+      unsubs.push(
+        subscribeToRankScore(
+          uid,
+          tier,
+          geo.id,
+          cycleId,
+          (data) =>
+            setScores((prev) => ({ ...prev, [tier]: data.breakdown.totalScore })),
+          () => {},
+        ),
+      );
+
+      unsubs.push(
+        pollRankPosition(
+          uid,
+          tier,
+          geo.id,
+          cycleId,
+          (pos) =>
+            setPositions((prev) => ({
+              ...prev,
+              [tier]: { position: pos.position, delta: pos.delta },
+            })),
+          () => {},
+        ),
+      );
+    });
+
+    return () => unsubs.forEach((u) => u());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uid, geoKey, cycles]);
+
+  // ── Subscribe: user bid history ───────────────────────────────────────────────
+  useEffect(() => {
+    if (!uid) return;
+    const unsub = subscribeToUserBids(
+      uid,
+      (list) => setBids(list),
+      () => setBids([]),
+    );
+    return unsub;
+  }, [uid]);
+
+  // ── Subscribe: active city invasion ───────────────────────────────────────────
+  useEffect(() => {
+    if (!uid) return;
+    const cityId = geographies.viceroy.id;
+    if (!cityId || cityId === '_city_') {
+      setInvasion(null);
+      return;
+    }
+    const unsub = subscribeToActiveInvasion(
+      cityId,
+      uid,
+      (inv) => setInvasion(inv),
+      () => setInvasion(null),
+    );
+    return unsub;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uid, geographies.viceroy.id]);
+
+  // ── Fetch: battle schedule + crown journey (on load + refresh) ────────────────
+  const loadAsyncData = useCallback(async () => {
+    if (!uid) return;
+    const tierGeo: Partial<Record<RankTier, string>> = {};
+    TIER_ORDER.forEach((t) => {
+      tierGeo[t] = geographies[t].id;
+    });
+
+    const [items, entries] = await Promise.all([
+      fetchBattleSchedule(tierGeo),
+      fetchCrownJourney(uid),
+    ]);
+
+    const mapped: FreezeTime[] = items.map((it) => ({
+      tier: it.tier,
+      geographyId: it.geographyId,
+      geographyLabel: it.geographyName,
+      cycleId: it.cycleId,
+      freezeAt: new Date(it.freezeAtMs).toISOString(),
+      freezeIn: Math.max(0, Math.round((it.freezeAtMs - Date.now()) / 1000)),
+      dateLabel: dayLabel(it.freezeAtMs),
+      localTime: localTimeLabel(it.freezeAtMs),
+      isSleepWindow: it.isSleepWindow,
+    }));
+
+    setFreezeTimes(mapped);
+    setJourney(journeyToNodes(entries));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uid, geoKey]);
+
+  useEffect(() => {
+    loadAsyncData();
+  }, [loadAsyncData]);
+
+  // ── Derived: rank card data per tier ──────────────────────────────────────────
+  const rankCards = useMemo<RankCardData[]>(() => {
+    return TIER_ORDER.map((tier) => {
+      const geo = geographies[tier];
+      const phaseInfo = toPhaseInfo(cycles[tier]);
+      const score = scores[tier] ?? 0;
+      const posData = positions[tier];
+      const rawPosition =
+        posData && posData.position > 0 ? posData.position : null;
+      const rankPosition = phaseInfo.phase === 1 ? null : rawPosition;
+      const delta = posData?.delta ?? 0;
+      const movement: 'up' | 'down' | 'same' =
+        delta > 0 ? 'up' : delta < 0 ? 'down' : 'same';
+
+      const target = nextMilestoneTarget(score);
+      const scoreNeeded = Math.max(0, target - score);
+      const milestoneHeld = milestoneFromPosition(rankPosition);
+      const milestoneLabel = getMilestoneLabel(
+        rankPosition,
+        score,
+        scoreNeeded,
+        milestoneHeld,
+        null,
+      );
+
+      return {
+        tier,
+        geographyId: geo.id,
+        geographyLabel: geo.label,
+        rankPosition,
+        rankScore: score,
+        progressPercent: getProgressPercent(score, target),
+        milestoneLabel,
+        milestoneHeld,
+        milestoneHeldSince: null,
+        movement,
+        movementDelta: Math.abs(delta),
+        cyclePhase: phaseInfo,
+      };
+    });
+  }, [geographies, cycles, scores, positions]);
+
+  const titleState = useMemo(() => buildTitleState(crown), [crown]);
+
+  // ── Derived: primary cycle for the phase panel (highest-tier the user touches)
+  const primaryTier = useMemo<Tier>(() => {
+    if (titleState.has) return titleState.primaryTitle.tier;
+    return 'viceroy';
+  }, [titleState]);
+
+  const primaryCard = useMemo(
+    () => rankCards.find((c) => c.tier === primaryTier) ?? rankCards[1],
+    [rankCards, primaryTier],
+  );
+
+  // ── Derived: Decision Prompt data (Phase 5 + user is Merit Winner) ────────────
+  const decisionData = useMemo<DecisionPromptData | null>(() => {
+    if (!uid) return null;
+    for (const tier of TIER_ORDER) {
+      const cycle = cycles[tier];
+      if (
+        cycle &&
+        cycle.phase === 5 &&
+        cycle.meritWinnerId === uid &&
+        cycle.decisionEndsAtMs != null
+      ) {
+        const geo = geographies[tier];
+        const hb = cycle.highestBid;
+        const scope = TIER_TO_SCOPE[tier];
+        const keepReward = crown?.currentTitles[scope]?.cycleReward ?? 0;
+        return {
+          tier,
+          geographyId: geo.id,
+          geographyLabel: geo.label,
+          titleString: getTitleString(tier, geo.label),
+          highestBid: hb
+            ? {
+                amount: hb.amount,
+                bidderId: hb.bidderId,
+                bidderHandle: hb.bidderHandle,
+                bidderTrustScore: hb.bidderTrustScore,
+              }
+            : null,
+          acceptAmount: hb ? computeAcceptAmount(hb.amount) : 0,
+          keepCycleReward: keepReward,
+          decisionEndsIn: Math.max(
+            0,
+            Math.round((cycle.decisionEndsAtMs - Date.now()) / 1000),
+          ),
+        };
+      }
+    }
+    return null;
+  }, [uid, cycles, geographies, crown]);
+
+  // ── Decision execution callbacks ──────────────────────────────────────────────
+  const executeAccept = useCallback(
+    async (geographyId: string, tier: string) => {
+      const amount = decisionData?.highestBid?.amount ?? 0;
+      if (uid) {
+        await firestore()
+          .collection('users')
+          .doc(uid)
+          .collection('crown_decisions')
+          .doc(tier + '_' + geographyId)
+          .set(
+            {
+              choice: 'accept',
+              tier,
+              geography_id: geographyId,
+              decided_at: serverTimestamp(),
+            },
+            { merge: true },
+          );
+      }
+      return { creditsReceived: computeAcceptAmount(amount) };
+    },
+    [uid, decisionData],
+  );
+
+  const executeKeep = useCallback(
+    async (geographyId: string, tier: string) => {
+      if (!uid) return;
+      await firestore()
+        .collection('users')
+        .doc(uid)
+        .collection('crown_decisions')
+        .doc(tier + '_' + geographyId)
+        .set(
+          {
+            choice: 'keep',
+            tier,
+            geography_id: geographyId,
+            decided_at: serverTimestamp(),
+          },
+          { merge: true },
+        );
+    },
+    [uid],
+  );
+
+  const decision = useDecision(decisionData, executeAccept, executeKeep);
+
+  // ── Sleep-Safe settings ───────────────────────────────────────────────────────
+  const sleepSettings = useMemo<SleepSafeSettings>(() => {
+    const ss = crown?.sleepSafe;
+    return {
+      baronThreshold: ss?.baronThreshold ?? null,
+      viceroyThreshold: ss?.viceroyThreshold ?? null,
+      sovereignThreshold: ss?.sovereignThreshold ?? null,
+      imperatorThreshold: ss?.imperatorThreshold ?? null,
+      wakeForAny: ss?.wakeForAny ?? false,
+      minWakeAmount: ss?.minWakeAmount ?? 0,
+    };
+  }, [crown]);
+
+  const handleSaveSleepSafe = useCallback(
+    async (settings: SleepSafeSettings) => {
+      if (!uid) return;
+      await firestore()
+        .collection('users')
+        .doc(uid)
+        .set(
+          {
+            sleep_safe: {
+              baron_threshold: settings.baronThreshold,
+              viceroy_threshold: settings.viceroyThreshold,
+              sovereign_threshold: settings.sovereignThreshold,
+              imperator_threshold: settings.imperatorThreshold,
+              wake_for_any: settings.wakeForAny,
+              min_wake_amount: settings.minWakeAmount,
+            },
+          },
+          { merge: true },
+        );
+      setSleepSheetOpen(false);
+    },
+    [uid],
+  );
+
+  // ── Handlers ──────────────────────────────────────────────────────────────────
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    const started = Date.now();
+    clearRankCaches();
+    try {
+      await loadAsyncData();
+    } finally {
+      const elapsed = Date.now() - started;
+      if (elapsed < MIN_REFRESH_MS) {
+        await new Promise<void>((r) => setTimeout(r, MIN_REFRESH_MS - elapsed));
+      }
+      setRefreshKey((k) => k + 1);
+      setRefreshing(false);
+    }
+  }, [loadAsyncData]);
+
+  const handlePlaceBid = useCallback(
+    async (amount: number) => {
+      if (!uid || !bidSheetTier) return;
+      const geo = geographies[bidSheetTier];
+      const cycle = cycles[bidSheetTier];
+      if (!cycle) return;
+      setPlacingBid(true);
+      try {
+        await placeBid({
+          userId: uid,
+          userHandle: myHandle,
+          userTrustScore: crown?.trustScore ?? 0,
+          tier: bidSheetTier,
+          geographyId: geo.id,
+          geographyLabel: geo.label,
+          cycleId: cycle.cycleId,
+          amount,
+        });
+        setBidSheetTier(null);
+      } catch {
+        // Surface handled by sheet remaining open; no crash.
+      } finally {
+        setPlacingBid(false);
+      }
+    },
+    [uid, bidSheetTier, geographies, cycles, myHandle, crown],
+  );
+
+  const handleWithdrawBid = useCallback(async (bid: BidRecord) => {
+    try {
+      await withdrawBid({
+        tier: bid.tier,
+        geographyId: bid.geographyId,
+        bidId: bid.bidId,
+      });
+    } catch {
+      // no-op on failure
+    }
   }, []);
 
-  /* ── Sorted list per active tab ── */
-  const sortedLeaders = useMemo<LeaderUser[]>(() => {
-    if (activeTab === 'Weekly') {
-      return [...leaders].sort((a, b) => b.weeklyKarma - a.weeklyKarma);
+  const handleJoinInvasion = useCallback(async () => {
+    if (!uid || !invasion) return;
+    try {
+      await joinInvasion(invasion.invasionId, uid, myHandle, 'going');
+    } catch {
+      // no-op
     }
-    // Global — Firestore already sorts by karma desc
-    return leaders;
-  }, [leaders, activeTab]);
+  }, [uid, invasion, myHandle]);
 
-  const isWeekly = activeTab === 'Weekly';
+  const detailCard = useMemo(
+    () => (detailTier ? rankCards.find((c) => c.tier === detailTier) ?? null : null),
+    [detailTier, rankCards],
+  );
 
-  /* ── Current user's rank index in the sorted list ── */
-  const myIndex = useMemo(() => {
-    if (!myUid) {
-      // Mock mode: treat 'ghost_player' as the local "ME" row
-      return usingMock
-        ? sortedLeaders.findIndex(u => u.name === 'ghost_player')
-        : -1;
-    }
-    return sortedLeaders.findIndex(u => u.id === myUid);
-  }, [sortedLeaders, myUid, usingMock]);
+  const bidSheetCycle = bidSheetTier ? cycles[bidSheetTier] : null;
 
-  const me = myIndex >= 0 ? sortedLeaders[myIndex] : null;
+  // ── No-auth fallback ──────────────────────────────────────────────────────────
+  if (!uid) {
+    return (
+      <View style={[styles.root, styles.centered, { paddingTop: insets.top }]}>
+        <StatusBar barStyle="dark-content" backgroundColor={COLORS_DARK.bgSurface} />
+        <Text style={styles.emptyTitle}>Your Crown</Text>
+        <Text style={styles.emptyBody}>
+          Sign in to see your rank, titles and the live battle cycle.
+        </Text>
+      </View>
+    );
+  }
 
-  /* ── Viewability handler — drives sticky YOU pill visibility ── */
-  const handleViewableItemsChanged = useRef(
-    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
-      const myId = myUid ?? sortedLeaders[myIndex]?.id;
-      const vis  = viewableItems.some((v: ViewToken) => v?.item?.id === myId);
-      setMyRowVisible(vis);
-    },
-  ).current;
+  // ── Render ────────────────────────────────────────────────────────────────────
+  return (
+    <View style={styles.root}>
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS_DARK.bgSurface} />
 
-  /* ── Scroll to own row ── */
-  const scrollToMe = useCallback(() => {
-    if (myIndex >= 0 && flatListRef.current) {
-      flatListRef.current.scrollToIndex({
-        index:        myIndex,
-        animated:     true,
-        viewPosition: 0.4,
-      });
-    }
-  }, [myIndex]);
+      {/* Sticky header */}
+      <View style={[styles.header, { paddingTop: insets.top }]}>
+        <View style={styles.headerRow}>
+          <Text style={styles.wordmark}>👑 CROWN</Text>
+          <TouchableOpacity
+            style={styles.gearBtn}
+            onPress={() => setSleepSheetOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Auto-Accept settings"
+            hitSlop={8}
+          >
+            <Text style={styles.gearIcon}>⚙</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
 
-  /* ── Rank row renderer (memoised) ── */
-  const renderRankRow = useCallback(
-    ({ item, index }: { item: LeaderUser; index: number }) => {
-      const rank     = index + 1;
-      const isMe     = item.id === myUid || (usingMock && item.name === 'ghost_player');
-      const isTop3   = rank <= 3;
-      const karmaVal = isWeekly ? item.weeklyKarma : item.karma;
-
-      // Tier accent colour for top-3 rows (token refs only)
-      const tierFg =
-        rank === 1 ? RANK_GOLD_FG :
-        rank === 2 ? RANK_SILVER_FG :
-        rank === 3 ? RANK_BRONZE_FG :
-        orbit.textTertiary;
-
-      // Left border accent for top-3 rows
-      const tierBorderStyle =
-        rank === 1 ? styles.rankItemGold   :
-        rank === 2 ? styles.rankItemSilver :
-        rank === 3 ? styles.rankItemBronze :
-        undefined;
-
-      return (
-        <TouchableOpacity
-          style={[
-            styles.rankItem,
-            tierBorderStyle,
-            isMe && styles.rankItemMe,
+      {loading && !crown ? (
+        <ScreenSkeleton />
+      ) : (
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: insets.bottom + BOTTOM_NAV_HEIGHT + SPACING.xl },
           ]}
-          activeOpacity={ROW_PRESS_OPACITY}
-          onPress={() => {
-            if (!isMe && item.id && !item.id.startsWith('mock_')) {
-              router.push(`/user/${item.id}` as never);
-            }
-          }}
-          accessibilityRole="button"
-          accessibilityLabel={`Rank ${rank}. ${item.name}. ${karmaVal.toLocaleString()} karma.`}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={COLORS_DARK.fgBrand}
+              colors={[COLORS_DARK.fgBrand]}
+            />
+          }
         >
-          {/* Rank number / badge */}
-          {isTop3 ? (
-            <RankBadge n={rank} size={26} />
-          ) : (
-            <Text style={[styles.rankNum, isMe && styles.rankNumMe]}>
-              #{rank}
-            </Text>
-          )}
-
-          {/* Avatar */}
-          <Avatar
-            name={item.name}
-            size={AVATAR_SIZE_ROW}
-            ringed={isMe || rank === 1}
+          {/* [1] Crown Hero */}
+          <CrownHeroCard
+            titleState={titleState}
+            onSeeAllTitles={() => {}}
           />
 
-          {/* Name + tier + trophies */}
-          <View style={styles.rankBody}>
-            <View style={styles.rankNameRow}>
-              <Text
-                style={[
-                  styles.rankName,
-                  isMe   && styles.rankNameMe,
-                  isTop3 && { color: tierFg },
-                ]}
-                numberOfLines={1}
-              >
-                {item.name}
-              </Text>
-              {isMe && (
-                <View style={styles.youTag}>
-                  <Text style={styles.youTagText}>YOU</Text>
-                </View>
-              )}
-            </View>
-
-            <View style={styles.rankBadgeRow}>
-              <TierPill tier={item.badge} />
-              {item.trophies.slice(0, 3).map((trophy, ti) => (
-                <Feather
-                  key={`${trophy}-${ti}`}
-                  name="star"
-                  size={8}
-                  color={RANK_GOLD_FG}
-                  style={{ opacity: 0.65 }}
-                  accessibilityElementsHidden
-                  importantForAccessibility="no"
+          {/* [2] Four tier rank cards */}
+          <View style={styles.section}>
+            <SectionHeader title="Your standings" caption="Tap a tier for the full breakdown" />
+            <View style={styles.cardStack}>
+              {rankCards.map((card) => (
+                <RankCard
+                  key={card.tier}
+                  data={card}
+                  onPress={() => setDetailTier(card.tier)}
                 />
               ))}
             </View>
           </View>
 
-          {/* Score */}
-          <View style={styles.rankScore}>
-            <Text
-              style={[
-                styles.rankKarmaVal,
-                { fontFamily: FONT_MONO },
-                isTop3 && { color: tierFg },
-              ]}
-            >
-              {karmaVal.toLocaleString()}
-            </Text>
-            <Text style={styles.rankKarmaLbl}>
-              {isWeekly ? 'WK KRM' : 'KARMA'}
-            </Text>
-          </View>
-        </TouchableOpacity>
-      );
-    },
-    [myUid, usingMock, isWeekly, router],
-  );
-
-  /* ── Bottom padding — accounts for Glass Island nav ── */
-  const bottomPad     = Platform.OS === 'web' ? 90 : insets.bottom + 70;
-  const youPillBottom = Platform.OS === 'web'
-    ? YOU_PILL_BOTTOM_WEB
-    : insets.bottom + YOU_PILL_BOTTOM_PAD;
-
-  /* ── Render ── */
-  return (
-    <View style={[styles.screen, { backgroundColor: orbit.bg }]}>
-
-      {/* ── Header ── */}
-      <ScreenHeader
-        title="Leaderboard"
-        right={
-          usingMock && !loading ? (
-            <View style={styles.demoPill}>
-              <Feather
-                name="database"
-                size={10}
-                color={orbit.textTertiary}
-                style={{ marginRight: 4 }}
-                accessibilityElementsHidden
-                importantForAccessibility="no"
+          {/* [3] Active cycle phase panel */}
+          {primaryCard ? (
+            <View style={styles.section}>
+              <CyclePhasePanel
+                cyclePhase={primaryCard.cyclePhase}
+                geographyLabel={primaryCard.geographyLabel}
+                tierLabel={TIER_TO_TITLE[primaryCard.tier]}
+                rankScore={primaryCard.rankScore}
+                onPlaceBid={() => setBidSheetTier(primaryCard.tier)}
               />
-              <Text style={styles.demoPillText}>DEMO</Text>
             </View>
-          ) : undefined
-        }
+          ) : null}
+
+          {/* [4] Battle schedule strip */}
+          {freezeTimes.length > 0 ? (
+            <View style={styles.section}>
+              <SectionHeader title="Battle schedule" caption="Next freeze times" />
+              <BattleScheduleStrip
+                freezeTimes={freezeTimes}
+                onSleepWarningTap={() => setSleepSheetOpen(true)}
+              />
+            </View>
+          ) : null}
+
+          {/* [5] Conditional invasion card */}
+          {invasion ? (
+            <View style={styles.section}>
+              <SectionHeader title="City under siege" />
+              <InvasionCard invasion={invasion} onJoinInvasion={handleJoinInvasion} />
+            </View>
+          ) : null}
+
+          {/* [6] Bid history feed */}
+          <View style={styles.section}>
+            <SectionHeader title="Your bids" />
+            {bids.length > 0 ? (
+              <View style={styles.cardStack}>
+                {bids.map((bid) => (
+                  <BidRow
+                    key={bid.bidId}
+                    bid={bid}
+                    onRaiseBid={(b) => setBidSheetTier(b.tier)}
+                    onWithdrawBid={handleWithdrawBid}
+                  />
+                ))}
+              </View>
+            ) : (
+              <View style={styles.emptyCard}>
+                <Text style={styles.emptyCardText}>
+                  No bids yet. When an auction opens, your bids appear here.
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* [7] Crown journey timeline */}
+          {journey.length > 0 ? (
+            <View style={styles.section}>
+              <SectionHeader title="Crown journey" caption="Every title and badge you've earned" />
+              <CrownJourneyTimeline nodes={journey} />
+            </View>
+          ) : null}
+        </ScrollView>
+      )}
+
+      {/* ── Sheets ── */}
+      <SleepSafeSheet
+        visible={sleepSheetOpen}
+        initialSettings={sleepSettings}
+        onSave={handleSaveSleepSafe}
+        onClose={() => setSleepSheetOpen(false)}
       />
 
-      {/* ── Tab bar ── */}
-      <TabBar activeTab={activeTab} onTabPress={setTab} />
+      <RankDetailSheet
+        visible={detailTier !== null}
+        data={detailCard}
+        breakdown={null}
+        onClose={() => setDetailTier(null)}
+      />
 
-      {/* ── Loading — content-matched shimmer skeleton ── */}
-      {loading && <LeaderboardSkeleton />}
+      {bidSheetTier ? (
+        <BidSheet
+          visible={bidSheetTier !== null}
+          tier={bidSheetTier}
+          geographyLabel={geographies[bidSheetTier].label}
+          basePrice={bidSheetCycle?.baseBidPrice ?? 0}
+          currentHighBid={bidSheetCycle?.highestBid?.amount ?? null}
+          userCredits={crown?.credits ?? 0}
+          submitting={placingBid}
+          onPlaceBid={handlePlaceBid}
+          onClose={() => setBidSheetTier(null)}
+        />
+      ) : null}
 
-      {/* ── Challenges tab ── */}
-      {!loading && activeTab === 'Challenges' && (
-        <ChallengesTab bottomPad={bottomPad} />
-      )}
-
-      {/* ── Global / Weekly leaderboard ── */}
-      {!loading && activeTab !== 'Challenges' && (
-        <View style={{ flex: 1 }}>
-          <FlatList
-            ref={flatListRef}
-            data={sortedLeaders}
-            keyExtractor={item => item.id}
-            onViewableItemsChanged={handleViewableItemsChanged}
-            viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: bottomPad }}
-            removeClippedSubviews
-            maxToRenderPerBatch={15}
-            initialNumToRender={20}
-            windowSize={8}
-            ListHeaderComponent={
-              <>
-                {/* Weekly reset countdown bar */}
-                {isWeekly && (
-                  <View style={{ paddingTop: 4 }}>
-                    <WeeklyResetBar countdown={countdown} />
-                  </View>
-                )}
-
-                {/* Podium — top 3 */}
-                {sortedLeaders.length >= 3 && (
-                  <PodiumStrip
-                    top3={sortedLeaders.slice(0, 3)}
-                    isWeekly={isWeekly}
-                  />
-                )}
-
-                {/* Section separator under podium */}
-                <View style={styles.listDivider} />
-
-                {/* Rank section label */}
-                <Text style={[styles.sectionLabel, { paddingTop: 12 }]}>
-                  FULL RANKINGS
-                </Text>
-              </>
-            }
-            renderItem={renderRankRow}
-            ItemSeparatorComponent={() => (
-              <View
-                style={{
-                  height:       1,
-                  backgroundColor: orbit.borderSubtle,
-                  marginLeft:   SEPARATOR_INDENT,
-                }}
-              />
-            )}
-          />
-
-          {/* Sticky YOU pill — visible only when own row is off-screen */}
-          {me && (
-            <StickyYouPill
-              me={me}
-              myIndex={myIndex}
-              isWeekly={isWeekly}
-              show={!myRowVisible}
-              bottom={youPillBottom}
-              onPress={scrollToMe}
-            />
-          )}
-        </View>
-      )}
+      {/* ── Decision Prompt overlay (LAW 3 — non-dismissible, Phase 5) ── */}
+      <DecisionPromptOverlay decision={decision} />
     </View>
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════════
- *  STYLES — all token-referenced, 4dp grid, zero raw hex
- * ═══════════════════════════════════════════════════════════════════ */
+// ─────────────────────────────────────────────────────────────────────────────
+// STYLES
+// ─────────────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-
-  /* ── Screen ── */
-  screen: { flex: 1 },
-
-  /* ── Demo pill ── */
-  demoPill: {
-    flexDirection:   'row',
-    alignItems:      'center',
-    backgroundColor: orbit.surface2,
-    paddingHorizontal: 10,
-    paddingVertical:  4,
-    borderRadius:    6,
+  root: {
+    flex: 1,
+    backgroundColor: COLORS_DARK.bgSurface,
   },
-  demoPillText: {
-    color:        orbit.textTertiary,
-    fontSize:     10,
-    fontWeight:   '700',
-    letterSpacing: 0.8,
-    fontFamily:   FONT_MONO,
-  },
-
-  /* ── Tab bar ── */
-  tabBarOuter: {
-    paddingHorizontal: 20,
-    paddingTop:    4,
-    paddingBottom: 12,
-  },
-  tabBar: {
-    flexDirection:   'row',
-    backgroundColor: orbit.surface1,
-    borderRadius:    12,
-    padding:         TAB_INSET,
-    borderWidth:     1,
-    borderColor:     orbit.borderSubtle,
-    position:        'relative',
-    overflow:        'hidden',
-  },
-  tabIndicator: {
-    position:        'absolute',
-    top:             TAB_INSET,
-    left:            0,
-    backgroundColor: orbit.surface3,
-    borderRadius:    8,
-    /* PERF: transform translateX — compositor, zero layout cost */
-  },
-  tab: {
-    flex:            1,
-    flexDirection:   'row',
-    paddingVertical: 9,
-    alignItems:      'center',
-    justifyContent:  'center',
-    gap:             5,
-    zIndex:          1,
-  },
-  tabText: {
-    color:      orbit.textTertiary,
-    fontSize:   13,
-    fontWeight: '500',
-    fontFamily: FONT_BODY,
-  },
-  tabTextActive: {
-    color:      orbit.textPrimary,
-    fontWeight: '700',
-  },
-
-  /* ── Weekly reset bar ── */
-  weeklyResetBar: {
-    flexDirection: 'row',
-    alignItems:    'center',
-    marginHorizontal: 20,
-    marginBottom:  16,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: orbit.surface1,
-    borderWidth:   1,
-    borderColor:   orbit.borderSubtle,
-    borderRadius:  12,
-    gap:           8,
-  },
-  weeklyResetText: {
-    flex:       1,
-    color:      orbit.textSecond,
-    fontSize:   12,
-    fontWeight: '500',
-    fontFamily: FONT_BODY,
-  },
-  weeklyResetCountdown: {
-    color:      RANK_GOLD_FG,
-    fontWeight: '700',
-  },
-
-  /* ── Podium ── */
-  podiumStrip: {
-    flexDirection:  'row',
-    justifyContent: 'space-around',
-    alignItems:     'flex-end',  // ← aligns pillar bases, creates elevation
-    paddingHorizontal: 24,
-    paddingTop:     24,
-  },
-  podiumColumn: {
+  centered: {
     alignItems: 'center',
-    flex:       1,
-  },
-  podiumAvatarWrap: {
-    position:    'relative',
-    marginBottom: 10,
-  },
-  podiumBadgePos: {
-    position:     'absolute',
-    bottom:       -2,
-    right:        -4,
-    borderWidth:  2,
-    borderRadius: 12,
-  },
-  podiumName: {
-    fontSize:     11,
-    fontWeight:   '700',
-    fontFamily:   FONT_BODY,
-    marginBottom: 2,
-    maxWidth:     88,
-    textAlign:    'center',
-  },
-  podiumKarma: {
-    color:        orbit.textTertiary,
-    fontSize:     11,
-    fontWeight:   '500',
-    fontFamily:   FONT_BODY,
-    marginBottom: 10,
-    textAlign:    'center',
-  },
-  podiumPillar: {
-    width:              PODIUM_PILLAR_WIDTH,
-    borderTopWidth:     2,
-    borderTopLeftRadius: 4,
-    borderTopRightRadius: 4,
+    justifyContent: 'center',
+    paddingHorizontal: SPACING.xl,
+    gap: SPACING.sm,
   },
 
-  /* ── Rank list rows ── */
-  rankItem: {
+  // Header
+  header: {
+    backgroundColor: COLORS_DARK.bgSurface,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS_DARK.borderSubtle,
+    zIndex: Z_INDEX.stickyHeader,
+  },
+  headerRow: {
+    height: SCREEN_HEADER_HEIGHT,
     flexDirection: 'row',
-    alignItems:    'center',
-    paddingHorizontal: 20,
-    paddingVertical: 13,
-    gap:           12,
-  },
-  rankItemMe: {
-    backgroundColor: orbit.surface1,
-    borderLeftWidth: 2,
-    borderLeftColor: orbit.accent,
-    paddingLeft:     18,
-  },
-  rankItemGold: {
-    borderLeftWidth: 2,
-    borderLeftColor: RANK_GOLD_FG,
-    paddingLeft:     18,
-  },
-  rankItemSilver: {
-    borderLeftWidth: 1,
-    borderLeftColor: RANK_SILVER_FG,
-    paddingLeft:     19,
-  },
-  rankItemBronze: {
-    borderLeftWidth: 1,
-    borderLeftColor: RANK_BRONZE_FG,
-    paddingLeft:     19,
-  },
-  rankNum: {
-    width:      28,
-    color:      orbit.textTertiary,
-    fontSize:   13,
-    fontWeight: '600',
-    fontFamily: FONT_MONO,
-  },
-  rankNumMe: { color: orbit.accent },
-  rankBody:  { flex: 1 },
-  rankNameRow: {
-    flexDirection: 'row',
-    alignItems:    'center',
-    gap:           8,
-    marginBottom:  4,
-  },
-  rankName: {
-    flex:       1,
-    color:      orbit.textPrimary,
-    fontSize:   14,
-    fontWeight: '600',
-    fontFamily: FONT_BODY,
-  },
-  rankNameMe: { color: orbit.accent },
-  youTag: {
-    backgroundColor: orbit.accent,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius:  4,
-  },
-  youTagText: {
-    color:         orbit.white,
-    fontSize:      9,
-    fontWeight:    '800',
-    letterSpacing: 0.6,
-    fontFamily:    FONT_MONO,
-  },
-  rankBadgeRow: {
-    flexDirection: 'row',
-    alignItems:    'center',
-    gap:           5,
-  },
-  rankScore: { alignItems: 'flex-end' },
-  rankKarmaVal: {
-    color:      orbit.textPrimary,
-    fontSize:   15,
-    fontWeight: '700',
-  },
-  rankKarmaLbl: {
-    color:         orbit.textTertiary,
-    fontSize:      9,
-    fontWeight:    '700',
-    letterSpacing: 0.9,
-    marginTop:     2,
-  },
-
-  /* ── List helpers ── */
-  listDivider: {
-    height:          1,
-    backgroundColor: orbit.borderSubtle,
-    marginHorizontal: 20,
-    marginTop:       4,
-  },
-  sectionLabel: {
-    color:         orbit.textTertiary,
-    fontSize:      10,
-    fontWeight:    '700',
-    letterSpacing: 1.2,
-    paddingHorizontal: 20,
-    marginBottom:  8,
-    fontFamily:    FONT_MONO,
-  },
-
-  /* ── Challenges ── */
-  challengesSection: { paddingTop: 8 },
-  challengeItem: {
-    flexDirection: 'row',
-    alignItems:    'center',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    gap:           12,
-  },
-  challengeBody: { flex: 1 },
-  challengeTitle: {
-    color:        orbit.textPrimary,
-    fontSize:     14,
-    fontWeight:   '600',
-    fontFamily:   FONT_BODY,
-    marginBottom: 3,
-  },
-  challengeMeta: {
-    color:        orbit.textTertiary,
-    fontSize:     11,
-    fontFamily:   FONT_BODY,
-    marginBottom: 8,
-  },
-  progressTrack: {
-    height:          3,
-    backgroundColor: orbit.surface2,
-    borderRadius:    2,
-    overflow:        'hidden',
-  },
-  progressFill: {
-    height:          3,
-    backgroundColor: RANK_GOLD_FG,
-    borderRadius:    2,
-  },
-  prizePill: {
-    flexDirection:   'row',
-    alignItems:      'center',
-    backgroundColor: orbit.surface2,
-    paddingHorizontal: 10,
-    paddingVertical:  5,
-    borderRadius:    8,
-    gap:             4,
-    borderWidth:     1,
-    borderColor:     orbit.borderSubtle,
-  },
-  prizeText: {
-    color:      RANK_GOLD_FG,
-    fontSize:   11,
-    fontWeight: '800',
-    fontFamily: FONT_MONO,
-  },
-
-  /* ── Sticky YOU pill ── */
-  stickyYou: {
-    position: 'absolute',
-    left:     20,
-    right:    20,
     alignItems: 'center',
-    /* PERF: transform (translateY) — compositor thread, zero layout cost */
+    justifyContent: 'space-between',
+    paddingHorizontal: SPACING.base,
   },
-  stickyYouInner: {
-    flexDirection: 'row',
-    alignItems:    'center',
-    backgroundColor: orbit.surface3,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius:  28,
-    gap:           12,
-    minWidth:      STICKY_PILL_MIN_W,
-    borderWidth:   1,
-    borderColor:   orbit.borderSubtle,
-    /* Platform-specific elevation — token bg for shadow colour */
-    ...Platform.select({
-      ios: {
-        shadowColor:   orbit.bg,
-        shadowOpacity: 0.55,
-        shadowRadius:  24,
-        shadowOffset:  { width: 0, height: 10 },
-      },
-      android: { elevation: 12 },
-      default: {},
-    }),
+  wordmark: {
+    fontFamily: FONTS.displayAlt,
+    fontSize: FONT_SIZES.title,
+    color: COLORS_DARK.fgTextStrong,
+    letterSpacing: 1,
   },
-  stickyYouTextCol: { flex: 1 },
-  stickyYouLabel: {
-    color:         orbit.textPrimary,
-    fontSize:      11,
-    fontWeight:    '800',
-    letterSpacing: 0.5,
-    fontFamily:    FONT_BODY,
+  gearBtn: {
+    width: TOUCH_TARGET,
+    height: TOUCH_TARGET,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  stickyYouKarma: {
-    color:      orbit.textSecond,
-    fontSize:   11,
-    fontWeight: '500',
-    marginTop:  2,
+  gearIcon: {
+    fontSize: 20,
+    color: COLORS_DARK.fgTextMuted,
+  },
+
+  // Scroll
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: SPACING.base,
+    paddingTop: SPACING.base,
+    gap: SPACING.xl,
+  },
+
+  // Sections
+  section: {
+    gap: SPACING.md,
+  },
+  sectionHeader: {
+    gap: 2,
+  },
+  sectionTitle: {
+    fontFamily: FONTS.displayAlt,
+    fontSize: FONT_SIZES.heroSub,
+    color: COLORS_DARK.fgTextStrong,
+    letterSpacing: 0.2,
+  },
+  sectionCaption: {
+    fontFamily: FONTS.body,
+    fontSize: FONT_SIZES.sub,
+    color: COLORS_DARK.fgTextMuted,
+  },
+  cardStack: {
+    gap: SPACING.md,
+  },
+
+  // Empty states
+  emptyCard: {
+    backgroundColor: COLORS_DARK.bgCard,
+    borderRadius: RADIUS.card,
+    borderWidth: 1,
+    borderColor: COLORS_DARK.borderSubtle,
+    padding: SPACING.lg,
+  },
+  emptyCardText: {
+    fontFamily: FONTS.body,
+    fontSize: FONT_SIZES.body,
+    color: COLORS_DARK.fgTextMuted,
+    textAlign: 'center',
+    lineHeight: 21,
+  },
+  emptyTitle: {
+    fontFamily: FONTS.displayAlt,
+    fontSize: FONT_SIZES.hero,
+    color: COLORS_DARK.fgTextStrong,
+  },
+  emptyBody: {
+    fontFamily: FONTS.body,
+    fontSize: FONT_SIZES.body,
+    color: COLORS_DARK.fgTextMuted,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+
+  // Skeleton
+  skeletonWrap: {
+    flex: 1,
+    paddingHorizontal: SPACING.base,
+    paddingTop: SPACING.base,
+    gap: SPACING.md,
   },
 });
