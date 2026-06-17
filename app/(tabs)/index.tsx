@@ -1,1308 +1,1301 @@
 /**
- * CROWN — Home Screen (app/(tabs)/index.tsx)
- * PRD v3.2 FINAL · §9 App Architecture · §10 Home Screen · §19 Visual Design
- * Updated: §9.3.4 + §9.3.5 Swiggy-Style Scroll Coordination + Organism Components
- *
- * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- * LAYOUT STACK (top → bottom):
- * [1]  HomeHeader (organism) — 3 rows (136px total):
- * Row 1 (56px): "CROWN" wordmark + 🔔 bell + 💬 DM icon
- * Row 2 (48px): 4-Scope Switcher (World / Country / City / Sector)
- * → No track background (PRD v3.1 patch)
- * → Sliding gold capsule under active tab
- * → NEVER hides when isInputFocused=true (§9.2)
- * Row 3 (32px): Online strip — always names active scope geography
- * Hides on scroll-down · Reappears on scroll-up (§9.3.4)
- * [2]  Offline Banner (conditional · 32px)
- * [3]  LiveTop30Bar (Task Card #19) — View Mode Switcher
- * [4]  Inverted FlatList — 6 message variants + 8-skeleton state + Top30 variant
- * [5]  ScrollFAB — new-message chip (conditional)
- * [6]  ChatInput — sticky; slides down to fill gap when nav hidden (§9.3.5)
- * [7]  CrownBottomNav (organism) — fixed full-width bar (§9.3 PRD)
- * Tabs: Home · Explore · Crown · Profile
- * Hides on scroll-down (translateY 100%) · Reappears on scroll-up
- * NO floating glass island · NO backdrop-filter
- * bg: --bg-surface (white) · border-top: 1px --border-subtle
- *
- * SCROLL COORDINATION (§9.3.4 + §9.3.5 — Swiggy-Style):
- * navHidden=true  → header slides up, nav slides down, input fills gap
- * navHidden=false → all three snap back (200ms ease)
- * atBottom (y<10) → force navHidden=false always
- * isInputFocused  → Row 2 never hides regardless of navHidden
- *
- * SHEETS / MODALS:
- * CityPickerSheet     — tap active City scope button
- * SectorPickerSheet   — tap active Sector scope button
- * AuthGateSheet       — unauth write attempt (LAW 4)
- * MessageActionSheet  — long-press any bubble
- * SendFailedModal     — send failure recovery
- *
- * PRD LAWS ENFORCED:
- * §9.2  — 3-row header · Row 2 no track bg (v3.1 patch)
- * §9.3  — Simple fixed full-width bottom nav (not floating)
- * §9.3.3 — Tab switching: Home→scrollToBottom, others→router.push
- * §9.3.4 — Hide/show coordination on scroll delta
- * §9.3.5 — Input gap-fill trick (bottom shifts 56px → 0 when nav hidden)
- * §10.1 — Home screen anatomy locked
- * §19.1 — "CROWN" wordmark (uppercase, Syne 700)
- * §19.2 — Color tokens: bg-surface white, brand gold #D4A017
- * Rule 03 — NO avatar in header (lives only in Profile tab)
- *
- * FIRESTORE (UNCHANGED — DO NOT MODIFY):
- * subscribeToMessages() — real-time chat stream (50 messages)
- * subscribeToRoom()     — room metadata (onlineCount, heatScore)
- * sendMessage()         — optimistic write with status lifecycle
- * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * ╔══════════════════════════════════════════════════════════════════════════╗
+ * ║  CROWN — app/(tabs)/ranks.tsx                                          ║
+ * ║  The CROWN tab · Live rank standings, battle cycle, journey timeline   ║
+ * ║  Layer: Tab Root Screen (Expo Router)                                  ║
+ * ║                                                                        ║
+ * ║  States handled:                                                       ║
+ * ║    loading   → skeleton cards (shimmer)                                ║
+ * ║    aspiring  → "Claim Your Crown" hero + zeroed cards                  ║
+ * ║    title-held → golden glow hero (THE signature moment) + live cards   ║
+ * ║    error     → inline banner + one-tap retry                           ║
+ * ║    offline   → amber banner, stale data shown                          ║
+ * ║                                                                        ║
+ * ║  Design: LIGHT default — bg.surface white · bg.card cream #F7ECD0 ·   ║
+ * ║           fg.brand gold #D4A017 fills · fg.brandText gold[700] text   ║
+ * ║           Space Mono on ALL numeric data (rank, score, countdown, %)   ║
+ * ║  Signature moment: CrownHeroBanner gold pulse — bold ONLY here        ║
+ * ║  WCAG AA: gold text via fg.brandText (gold[700], 5.0:1 on white)      ║
+ * ║  Motion: easeOut enters · spring release · reduced-motion opacity-only ║
+ * ║                                                                        ║
+ * ║  Deps: @/constants/colors · @/constants/animations · AuthContext       ║
+ * ║         @/hooks/useHaptics · react-native-reanimated v4               ║
+ * ║         lucide-react-native · react-native-safe-area-context           ║
+ * ║                                                                        ║
+ * ║  Replace path: app/(tabs)/ranks.tsx                                    ║
+ * ╚══════════════════════════════════════════════════════════════════════════╝
  */
 
 import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
   useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  memo,
 } from 'react';
 import {
-  Animated,
-  AppState,
-  type AppStateStatus,
-  Dimensions,
-  FlatList,
-  Keyboard,
-  KeyboardAvoidingView,
-  type NativeScrollEvent,
-  type NativeSyntheticEvent,
-  Platform,
-  StatusBar,
-  StyleSheet,
-  Text,
   View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  RefreshControl,
+  Pressable,
 } from 'react-native';
-import { useSafeAreaInsets }     from 'react-native-safe-area-context';
-import { useRouter }             from 'expo-router';
-import { Feather }               from '@expo/vector-icons';
-import NetInfo, { type NetInfoState } from '@react-native-community/netinfo';
-
-// ── Async storage (Task Card #19 — view-mode persistence) ─────────────────
-import AsyncStorage              from '@react-native-async-storage/async-storage';
-// ── Auth ──────────────────────────────────────────────────────────────────
-import { useAuth }               from '@/contexts/AuthContext';
-// ── Design tokens ─────────────────────────────────────────────────────────
-import { colors, palette, zIndex, spacing } from '@/constants/colors';
-import { layout }                            from '@/constants/spacing';
-import { FONT_BODY, FONT_HEADING }           from '@/constants/typography';
-// ── Organisms (PRD §9.2 + §9.3) ───────────────────────────────────────────
-import HomeHeader, {
-  hideHeader,
-  showHeader,
-} from '@/components/organisms/HomeHeader';
-import CrownBottomNav, {
-  hideNav,
-  showNav,
-} from '@/components/organisms/CrownBottomNav';
-
-// ── Molecules ─────────────────────────────────────────────────────────────
-import ChatInput                  from '@/components/molecules/ChatInput';
-import SegmentedControl, {
-  type SegmentOption,
-}                                  from '@/components/molecules/SegmentedControl';
-// ── Atoms / Molecules ─────────────────────────────────────────────────────
-import MessageBubble              from '@/components/MessageBubble';
-import Avatar                     from '@/components/atoms/Avatar';
-import ScrollFAB                  from '@/components/atoms/ScrollFAB';
-import SkeletonBubble             from '@/components/atoms/SkeletonBubble';
-// ── Sheet / Modal organisms ───────────────────────────────────────────────
-import CityPickerSheet            from '@/components/organisms/CityPickerSheet';
-import SectorPickerSheet          from '@/components/organisms/SectorPickerSheet';
-import CountryPickerSheet         from '@/components/organisms/CountryPickerSheet';
-import { MessageActionSheet }     from '@/components/organisms/MessageActionSheet';
-import { AuthGateSheet }          from '@/components/organisms/AuthGateSheet';
-import { SendFailedModal }        from '@/components/organisms/SendFailedModal';
-// ── Firestore (UNCHANGED) ─────────────────────────────────────────────────
+import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSpring,
+  withDelay,
+  withRepeat,
+  withSequence,
+  FadeIn,
+  FadeInUp,
+  Easing,
+} from 'react-native-reanimated';
 import {
-  subscribeToMessages,
-  sendMessage,
-  type Unsubscribe as MsgUnsubscribe,
-}                                 from '@/lib/firestore-messages';
+  Bell,
+  Crown,
+  Clock,
+  ChevronRight,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  Star,
+  AlertCircle,
+  RefreshCw,
+  WifiOff,
+} from 'lucide-react-native';
+
+import { useAuth } from '@/contexts/AuthContext';
 import {
-  subscribeToRoom,
-  incrementOnlineCount,
-  decrementOnlineCount,
-  type Unsubscribe as RoomUnsubscribe,
-}                                 from '@/lib/firestore-rooms';
-// ── Types ─────────────────────────────────────────────────────────────────
-import type { CWMessage, CWRoom } from '@/types/cw';
+  colors,
+  typography,
+  spacing,
+  radii,
+  dimensions,
+  semanticSuccess,
+  semanticError,
+} from '@/constants/colors';
+import { durations, springConfigs, useReducedMotion } from '@/constants/animations';
+import { useHaptics } from '@/hooks/useHaptics';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// § 1 — CONSTANTS
-// ─────────────────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// TYPES
+// ═══════════════════════════════════════════════════════════════════════════
 
-const MESSAGE_PAGE_SIZE  = 50;
-const SKELETON_COUNT     = 8;
-const TRUST_ANCHOR_MS    = 60000;
+type Tier = 'baron' | 'viceroy' | 'sovereign' | 'imperator';
+type Movement = 'up' | 'down' | 'same';
+type CyclePhase = 1 | 2 | 3 | 4 | 5 | 6;
 
-const DEFAULT_CITY_ID       = 'chandigarh';
-const DEFAULT_CITY_LABEL    = 'Chandigarh';
-const DEFAULT_COUNTRY_ID    = 'IN';
-const DEFAULT_COUNTRY_LABEL = 'India';
-const DEFAULT_COUNTRY_EMOJI = '🇮🇳';
-const DEFAULT_SECTOR_ID     = 'sector-17';
-const DEFAULT_SECTOR_LABEL  = 'Sector 17';
-
-// PRD §19.2 — Brand color tokens (light mode)
-const BRAND_GOLD    = '#D4A017';
-const TEXT_STRONG   = '#1A1A1A';
-const TEXT_MUTED    = '#6B5B2E';
-const BG_SURFACE    = '#FFFFFF';
-const BORDER_SUBTLE = '#E8D5A0';
-
-// PRD §9.3 — Bottom nav height (content area, excluding safe-area)
-const BOTTOM_NAV_HEIGHT = 56;
-
-// ── Task Card #19 — Live / Top 30 Toggle ─────────────────────────────────
-/** Messages older than this are excluded from the Top 30 pool */
-const TWO_HOURS_MS       = 7200000; // 2 * 60 * 60 * 1000
-/** Hard cap on Top 30 list size */
-const TOP30_LIMIT        = 30;
-/** AsyncStorage key prefix for per-scope view mode pref */
-const VIEW_PREF_KEY_PFX  = 'crown:view_mode:';
-
-// PRD §9.3.4 — Scroll delta threshold for hide/show (prevents jitter)
-const SCROLL_DELTA_THRESHOLD = 4;
-// PRD §9.3.5 — Scroll y threshold for "at bottom" detection (inverted list)
-const AT_BOTTOM_Y_THRESHOLD = 10;
-// PRD §10.6 — ScrollFAB appears after scrolling this many px up
-const SCROLL_FAB_THRESHOLD = 80;
-// PRD §10.1 — Trust anchor hides after scrolling past this y
-const TRUST_ANCHOR_SCROLL_THRESHOLD = 20;
-
-/** Derive scope-aware roomId */
-function buildRoomId(
-  scope: ScopeKey,
-  countryId: string,
-  cityId: string,
-  sectorId: string,
-): string {
-  switch (scope) {
-    case 'world':   return 'world';
-    case 'country': return countryId.toLowerCase();
-    case 'city':    return cityId;
-    case 'sector':  return `${cityId}_${sectorId}`;
-  }
+interface RankStanding {
+  tier: Tier;
+  position: number | null;   // null = unranked
+  score: number;
+  progressPercent: number;   // 0–100 toward milestone
+  movement: Movement;
+  movementDelta: number;
+  geographyLabel: string;
+  ptsToNextMilestone: number;
+  milestoneLabel: string;
+  cyclePhase: CyclePhase;
+  freezeInMs: number;        // milliseconds until freeze
+  titleHeld: boolean;
+  cyclesHeld: number;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// § 2 — LOCAL TYPES
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** The 4 geographic scopes — PRD §9.1 / §10.1 */
-type ScopeKey = 'world' | 'country' | 'city' | 'sector';
-
-/**
- * Task Card #19 — Live vs Top 30 view mode.
- * 'live' = chronological real-time stream (existing behaviour).
- * 'top30' = 30 most-reacted messages from the last 2 hours, client-side derived.
- */
-type ViewMode = 'live' | 'top30';
-
-/** Bottom nav tabs — PRD §9.3.2 */
-type BottomTab = 'home' | 'explore' | 'crown' | 'profile';
-
-/** Adapter for MessageActionSheet.message */
-interface ActionSheetMsg {
-  id:           string;
-  variant:      'own' | 'other_user' | 'ai_companion' | 'mayor_announcement' | 'system' | 'date_separator';
-  /**
-   * REAL Firestore room document ID — e.g. 'world' | 'in' | 'chandigarh'
-   * | 'chandigarh_sector-17'. This is what every reaction / delete / pin /
-   * report write MUST target. (sector_id alone is NEVER a valid room path —
-   * see buildRoomId.) Previously the sheet wrongly used sector_id as the room,
-   * which silently no-op'd every action (the "like button doesn't work" bug).
-   */
-  room_id:      string;
-  sector_id:    string;
-  city_id:      string;
-  timestamp:    number;
-  text?:        string;
-  sender_id?:   string;
-  sender_name?: string;
-  mayor_id?:    string;
-  mayor_name?:  string;
-  is_pinned?:   boolean;
+interface JourneyNode {
+  id: string;
+  type: 'first_title' | 'title' | 'badge';
+  tier?: Tier;
+  label: string;
+  geographyLabel?: string;
+  earnedAt: Date;
 }
 
-interface FailedMsg {
-  id:     string;
-  text:   string;
-  roomId: string;
-}
+// ═══════════════════════════════════════════════════════════════════════════
+// CONSTANTS — never hardcode these in components
+// ═══════════════════════════════════════════════════════════════════════════
 
-// ─────────────────────────────────────────────────────────────────────────────
-// § 3 — PURE HELPERS
-// ─────────────────────────────────────────────────────────────────────────────
+const TIER_ORDER: Tier[] = ['baron', 'viceroy', 'sovereign', 'imperator'];
 
-function formatTime(ts: { toDate(): Date } | null | undefined): string {
-  try {
-    const date: Date = ts?.toDate?.() ?? new Date(ts as unknown as number);
-    let h = date.getHours();
-    const m = date.getMinutes();
-    const ap = h >= 12 ? 'PM' : 'AM';
-    h = h % 12 || 12;
-    return `${h}:${m < 10 ? '0' + m : m} ${ap}`;
-  } catch {
-    return '';
-  }
-}
+const TIER_META: Record<Tier, { emoji: string; name: string }> = {
+  baron:     { emoji: '🏘️', name: 'BARON' },
+  viceroy:   { emoji: '🏙️', name: 'VICEROY' },
+  sovereign: { emoji: '🏳️', name: 'SOVEREIGN' },
+  imperator: { emoji: '🌍', name: 'IMPERATOR' },
+};
 
-function mapVariant(
-  msg: CWMessage,
-  currentUid: string | null,
-): React.ComponentProps<typeof MessageBubble>['variant'] {
-  if (msg.variant === 'date')   return 'date';
-  if (msg.variant === 'system') return 'system';
-  if (msg.variant === 'ai')     return 'ai';
-  if (msg.variant === 'mayor')  return 'mayor';
-  if (msg.variant === 'right' || (!!currentUid && msg.uid === currentUid)) return 'right';
-  return 'left';
-}
+const CYCLE_PHASES: Record<CyclePhase, { label: string; emoji: string }> = {
+  1: { label: 'Dark Tunnel', emoji: '🌑' },
+  2: { label: 'Merit War',   emoji: '⚔️' },
+  3: { label: 'Spotlight',   emoji: '🔦' },
+  4: { label: 'Freeze',      emoji: '🧊' },
+  5: { label: 'Auction',     emoji: '🔨' },
+  6: { label: 'Decision',    emoji: '⚡' },
+};
 
-function mapStatus(msg: CWMessage): React.ComponentProps<typeof MessageBubble>['status'] {
-  if (!msg.status)                               return undefined;
-  if (msg.status === 'sent')                     return 'sent';
-  if (msg.status === 'delivered' || msg.status === 'read') return 'delivered';
-  if (msg.status === 'failed')                   return 'failed';
-  return undefined;
-}
+// ═══════════════════════════════════════════════════════════════════════════
+// MOCK DATA — swap these for real Firestore subscriptions in production
+// ═══════════════════════════════════════════════════════════════════════════
 
-function adaptToActionMsg(
-  msg: CWMessage,
-  currentUid: string | null,
-  roomId: string,
-  cityId: string,
-  sectorId: string,
-): ActionSheetMsg {
-  const isOwn = !!currentUid && msg.uid === currentUid;
-  let variant: ActionSheetMsg['variant'];
-  switch (msg.variant) {
-    case 'system': variant = 'system';             break;
-    case 'date':   variant = 'date_separator';     break;
-    case 'ai':     variant = 'ai_companion';       break;
-    case 'mayor':  variant = 'mayor_announcement'; break;
-    case 'right':  variant = 'own';                break;
-    default:       variant = isOwn ? 'own' : 'other_user';
-  }
-  return {
-    id:          msg.id,
-    variant,
-    room_id:     roomId,
-    sector_id:   sectorId,
-    city_id:     cityId,
-    timestamp:   (msg.timestamp as any)?.toMillis?.() ?? Date.now(),
-    text:        msg.text ?? undefined,
-    sender_id:   msg.uid || undefined,
-    sender_name: msg.senderName ?? undefined,
-    is_pinned:   false,
-  };
-}
-
-/** PRD §10.1 — scope-aware online strip label */
-function getScopeOnlineLabel(
-  scope: ScopeKey,
-  cityLabel: string,
-  sectorLabel: string,
-  count: number | null,
-  countryLabel: string = 'India',
-): string {
-  const n = count !== null
-    ? count >= 100_000
-      ? `${(count / 100_000).toFixed(1)} Lakh`
-      : count >= 1_000
-      ? `${(count / 1_000).toFixed(0)}K`
-      : count.toString()
-    : '—';
-  switch (scope) {
-    case 'world':   return `${n} duniya bhar mein online`;
-    case 'country': return `${n} ${countryLabel} mein online`;
-    case 'city':    return `${n} ${cityLabel} mein online`;
-    case 'sector':  return `${n} ${sectorLabel} mein online`;
-  }
-}
-
-/** PRD §10.1 — scope-aware input placeholder */
-function getScopePlaceholder(
-  scope: ScopeKey,
-  cityLabel: string,
-  sectorLabel: string,
-  countryLabel: string = 'India',
-): string {
-  switch (scope) {
-    case 'world':   return 'World ki chat mein message likho...';
-    case 'country': return `${countryLabel} ki chat mein message likho...`;
-    case 'city':    return `${cityLabel} ki chat mein message likho...`;
-    case 'sector':  return `${sectorLabel} mein message likho...`;
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// § 4 — OFFLINE BANNER
-// ─────────────────────────────────────────────────────────────────────────────
-
-function OfflineBanner({ visible }: { visible: boolean }) {
-  if (!visible) return null;
-  return (
-    <View
-      style={S.offlineBanner}
-      accessibilityLiveRegion="polite"
-      accessibilityRole="alert"
-      testID="home-offline-banner"
-    >
-      <Feather name="wifi-off" size={13} color={palette.white} style={S.offlineIcon} />
-      <Text style={S.offlineText} numberOfLines={1}>
-        Offline · saved messages dikha rahe hain
-      </Text>
-    </View>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// § 5 — MESSAGE ROW (renders one MessageBubble per CWMessage)
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface MessageRowProps {
-  msg:        CWMessage;
-  currentUid: string | null;
-  onLongPress:(msg: CWMessage) => void;
-}
-
-const MessageRow = React.memo(function MessageRow({
-  msg,
-  currentUid,
-  onLongPress,
-}: MessageRowProps) {
-  const variant  = mapVariant(msg, currentUid);
-  const status   = mapStatus(msg);
-
-  const reactions = useMemo<Array<{ emoji: string; count: number }>>(() => {
-    if (!msg.reactions) return [];
-    return Object.entries(msg.reactions).map(([emoji, count]) => ({
-      emoji,
-      count: count as number,
-    }));
-  }, [msg.reactions]);
-
-  const tags = useMemo<React.ComponentProps<typeof MessageBubble>['tags']>(() => {
-    if (variant === 'ai')  return { isAI: true };
-    if (variant === 'mayor') return { isMayor: true };
-    return undefined;
-  }, [variant]);
-
-  const handleLongPress = useCallback(() => {
-    onLongPress(msg);
-  }, [msg, onLongPress]);
-
-  const displayText = msg.isDeleted
-    ? '🚫 Yeh message delete ho gaya'
-    : (msg.text ?? '');
-
-  // Avatar shows for other-user + AI rows only — own messages (right) never show
-  // an avatar (WhatsApp pattern); system/date are centered; mayor is a centered
-  // card. Sender name renders above the bubble for left/ai/mayor.
-  const isAvatarVariant = variant === 'left' || variant === 'ai';
-  const username =
-    variant === 'left' || variant === 'ai' || variant === 'mayor'
-      ? (msg.senderName ?? msg.senderHandle ?? undefined)
-      : undefined;
-
-  const bubble = (
-    <MessageBubble
-      variant={variant}
-      text={displayText}
-      time={formatTime(msg.timestamp)}
-      status={status}
-      reactions={reactions}
-      tags={tags}
-      username={username}
-      onLongPress={handleLongPress}
-    />
-  );
-
-  // Other-user / AI rows: avatar column on the left, bubble column on the right.
-  if (isAvatarVariant) {
-    return (
-      <View style={S.avatarRow}>
-        <Avatar
-          name={msg.senderName ?? undefined}
-          emoji={variant === 'ai' ? undefined : (msg.senderEmoji ?? undefined)}
-          color={msg.senderColor ?? undefined}
-          ai={variant === 'ai'}
-          size={32}
-          style={S.avatarRowAvatar}
-        />
-        <View style={S.avatarRowBubble}>{bubble}</View>
-      </View>
-    );
-  }
-
-  return bubble;
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// § 4b — LIVE / TOP 30 TOGGLE BAR  (Task Card #19)
-//
-// • Shown only for City / Country / World scope — Sector is always Live.
-// • Uses the existing SegmentedControl molecule (dark pill, gold indicator).
-// • Bar height: 8px V-padding × 2 + 32px control = 48px total.
-// • Sits between the sticky HomeHeader and the KAV/FlatList so it scrolls
-//   ONLY when the header hides (it's part of the sticky zone above the chat).
-// ─────────────────────────────────────────────────────────────────────────────
-
-const LIVE_TOP30_OPTIONS: SegmentOption[] = [
-  { label: '⚡ Live', value: 'live'   },
-  { label: '🏆 Top 30', value: 'top30' },
+const MOCK_STANDINGS: RankStanding[] = [
+  {
+    tier: 'baron',
+    position: 3,
+    score: 1240,
+    progressPercent: 67,
+    movement: 'up',
+    movementDelta: 2,
+    geographyLabel: 'Sector 7, Delhi',
+    ptsToNextMilestone: 180,
+    milestoneLabel: 'BARON threshold',
+    cyclePhase: 2,
+    freezeInMs: (4 * 3600 + 23 * 60) * 1000,
+    titleHeld: true,
+    cyclesHeld: 3,
+  },
+  {
+    tier: 'viceroy',
+    position: 12,
+    score: 480,
+    progressPercent: 22,
+    movement: 'same',
+    movementDelta: 0,
+    geographyLabel: 'Delhi',
+    ptsToNextMilestone: 920,
+    milestoneLabel: 'VICEROY threshold',
+    cyclePhase: 2,
+    freezeInMs: (4 * 3600 + 23 * 60) * 1000,
+    titleHeld: false,
+    cyclesHeld: 0,
+  },
+  {
+    tier: 'sovereign',
+    position: null,
+    score: 120,
+    progressPercent: 4,
+    movement: 'up',
+    movementDelta: 1,
+    geographyLabel: 'India',
+    ptsToNextMilestone: 3200,
+    milestoneLabel: 'SOVEREIGN threshold',
+    cyclePhase: 1,
+    freezeInMs: 6 * 3600 * 1000,
+    titleHeld: false,
+    cyclesHeld: 0,
+  },
+  {
+    tier: 'imperator',
+    position: null,
+    score: 40,
+    progressPercent: 1,
+    movement: 'same',
+    movementDelta: 0,
+    geographyLabel: 'The World',
+    ptsToNextMilestone: 12000,
+    milestoneLabel: 'IMPERATOR threshold',
+    cyclePhase: 1,
+    freezeInMs: 6 * 3600 * 1000,
+    titleHeld: false,
+    cyclesHeld: 0,
+  },
 ];
 
-interface LiveTop30BarProps {
-  viewMode: ViewMode;
-  onChange: (mode: ViewMode) => void;
+const MOCK_JOURNEY: JourneyNode[] = [
+  {
+    id: 'j1',
+    type: 'title',
+    tier: 'baron',
+    label: 'BARON',
+    geographyLabel: 'Sector 7, Delhi',
+    earnedAt: new Date(Date.now() - 3 * 86400000),
+  },
+  {
+    id: 'j2',
+    type: 'first_title',
+    tier: 'baron',
+    label: 'First Crown',
+    geographyLabel: 'Sector 7, Delhi',
+    earnedAt: new Date(Date.now() - 15 * 86400000),
+  },
+];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// UTILITIES
+// ═══════════════════════════════════════════════════════════════════════════
+
+function fmtCountdown(ms: number): string {
+  if (ms <= 0) return '00:00:00';
+  const s = Math.floor(ms / 1000);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  return [h, m, sec].map((n) => String(n).padStart(2, '0')).join(':');
 }
 
-function LiveTop30Bar({ viewMode, onChange }: LiveTop30BarProps) {
+function fmtScore(n: number): string {
+  return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
+}
+
+function fmtDate(d: Date): string {
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SUB-COMPONENTS — all memo'd for list performance
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ── LiveCountdown ──────────────────────────────────────────────────────────
+// Ticks every second. Space Mono (timer = numeric data, CROWN law).
+const LiveCountdown = memo(({ initialMs }: { initialMs: number }) => {
+  const [remaining, setRemaining] = useState(initialMs);
+  useEffect(() => {
+    const id = setInterval(() => setRemaining((p) => Math.max(0, p - 1000)), 1000);
+    return () => clearInterval(id);
+  }, []);
   return (
-    <View
-      style={S.liveTop30Bar}
-      accessibilityRole="tablist"
-      accessibilityLabel="View mode — Live chat ya Top 30"
-      testID="live-top30-bar"
-    >
-      <SegmentedControl
-        options={LIVE_TOP30_OPTIONS}
-        selected={viewMode}
-        onChange={(v) => onChange(v as ViewMode)}
-        style={S.liveTop30Control}
-      />
-    </View>
+    <Text style={styles.countdown} allowFontScaling={false}>
+      {fmtCountdown(remaining)}
+    </Text>
   );
-}
+});
 
-// ─────────────────────────────────────────────────────────────────────────────
-// § 5b — TOP 30 MESSAGE ROW  (Task Card #19)
-//
-// Wraps the existing MessageRow with:
-//   • Rank badge (#1, #2 … #30) in Space Mono (numerics token)
-//   • Percentile chip: "🏆 Top 0.06% · 142 reactions"
-//     Percentile ≈ (rank / total_msgs_in_memory) × 100 (Phase 1 approximation)
-//
-// Phase 2: replace totalSeen with a Cloud Function daily count per scope.
-// ─────────────────────────────────────────────────────────────────────────────
+// ── MovementBadge ──────────────────────────────────────────────────────────
+const MovementBadge = memo(
+  ({ movement, delta }: { movement: Movement; delta: number }) => {
+    const neutral = movement === 'same' || delta === 0;
+    const isUp = movement === 'up' && !neutral;
+    const isDown = movement === 'down' && !neutral;
 
-interface Top30MessageRowProps {
-  msg:        CWMessage;
-  currentUid: string | null;
-  onLongPress:(msg: CWMessage) => void;
-  rank:       number;
-  // 1-based (1 = most reactions)
-  totalSeen:  number;
-  // total messages in local memory (for percentile approx)
-}
-
-const Top30MessageRow = React.memo(function Top30MessageRow({
-  msg,
-  currentUid,
-  onLongPress,
-  rank,
-  totalSeen,
-}: Top30MessageRowProps) {
-
-  // Sum all emoji reaction counts for this message
-  const totalReactions = useMemo(
-    () => Object.values(msg.reactions ?? {}).reduce((s: number, n: number | any) => s + Number(n), 0),
-    [msg.reactions],
-  );
-
-  // Percentile: lower rank number = better → "Top X%"
-  // Minimum shown: 0.1% (avoids "Top 0.0%")
-  const percentile = totalSeen > 0
-    ? Math.max(0.1, (rank / totalSeen) * 100).toFixed(1)
-    : null;
-
-  return (
-    <View style={S.top30Row} testID={`top30-row-${rank}`}>
-
-      {/* ── Rank line ─────────────────────────────────────────────────── */}
-      <View style={S.top30RankLine}>
-        <Text style={S.top30RankNum} accessibilityLabel={`Rank ${rank}`}>
-          #{rank}
-        </Text>
-        {percentile !== null && (
-          <View style={S.top30PercentilePill}>
-            <Text style={S.top30PercentileText}>
-              🏆 Top {percentile}% · {totalReactions} reactions
-            </Text>
-          </View>
+    return (
+      <View
+        style={[
+          styles.movBadge,
+          isUp && styles.movUp,
+          isDown && styles.movDown,
+          neutral && styles.movNeutral,
+        ]}
+      >
+        {isUp   && <TrendingUp   size={10} color={colors.fg.success} strokeWidth={2.5} />}
+        {isDown && <TrendingDown size={10} color={colors.fg.error}   strokeWidth={2.5} />}
+        {neutral && <Minus       size={10} color={colors.fg.secondary} strokeWidth={2.5} />}
+        {!neutral && (
+          <Text
+            style={[styles.movText, { color: isUp ? colors.fg.success : colors.fg.error }]}
+            allowFontScaling={false}
+          >
+            {delta}
+          </Text>
         )}
       </View>
+    );
+  },
+);
 
-      {/* ── Message bubble ──────────────────────────────────────────────── */}
-      <MessageRow
-        msg={msg}
-        currentUid={currentUid}
-        onLongPress={onLongPress}
-      />
+// ── ProgressBar ────────────────────────────────────────────────────────────
+// Animates fill width from 0 → percent on mount. Gold fill + soft sheen.
+const ProgressBar = memo(({ percent }: { percent: number }) => {
+  const reduced = useReducedMotion();
+  const pct = useSharedValue(0);
+
+  useEffect(() => {
+    pct.value = reduced
+      ? percent
+      : withDelay(
+          280,
+          withTiming(percent, {
+            duration: durations.slow,
+            easing: Easing.out(Easing.cubic),
+          }),
+        );
+  }, [percent, reduced]);
+
+  const fillStyle  = useAnimatedStyle(() => ({ width: `${pct.value}%` as any }));
+  const sheenStyle = useAnimatedStyle(() => ({
+    width: `${pct.value}%` as any,
+    opacity: pct.value > 5 ? 0.3 : 0,
+  }));
+
+  return (
+    <View style={styles.progressTrack}>
+      <Animated.View style={[styles.progressFill, fillStyle]} />
+      <Animated.View style={[styles.progressSheen, sheenStyle]} />
     </View>
   );
 });
 
-function ChatSkeleton() {
-  return (
-    <View style={S.chatList} testID="home-chat-skeleton">
-      {Array.from({ length: SKELETON_COUNT }).map((_, i) => (
-        <SkeletonBubble key={i} />
-      ))}
-    </View>
-  );
-}
+// ── SkeletonCard ───────────────────────────────────────────────────────────
+const SkeletonCard = memo(({ index }: { index: number }) => {
+  const reduced = useReducedMotion();
+  const opacity = useSharedValue(1);
 
-// ─────────────────────────────────────────────────────────────────────────────
-// § 7 — EMPTY STATE
-// ─────────────────────────────────────────────────────────────────────────────
-
-function ChatEmptyState({ sectorLabel }: { sectorLabel: string }) {
-  return (
-    <View style={S.emptyState} accessibilityRole="text">
-      <Text style={S.emptyIcon}>🏙️</Text>
-      <Text style={S.emptyTitle}>{sectorLabel} abhi quiet hai</Text>
-      <Text style={S.emptySubtitle}>
-        Pehle ho · Apne neighbours ko hi zindagi do
-      </Text>
-    </View>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// § 8 — MAIN HOME SCREEN
-// ─────────────────────────────────────────────────────────────────────────────
-
-export default function HomeScreen() {
-  const insets = useSafeAreaInsets();
-  const router = useRouter();
-  const { user } = useAuth();
-  
-  // ── Location ─────────────────────────────────────────────────────────────
-  const [countryId,    setCountryId]    = useState<string>(DEFAULT_COUNTRY_ID);
-  const [countryLabel, setCountryLabel] = useState<string>(DEFAULT_COUNTRY_LABEL);
-  const [countryEmoji, setCountryEmoji] = useState<string>(DEFAULT_COUNTRY_EMOJI);
-  const [cityId,       setCityId]       = useState<string>(DEFAULT_CITY_ID);
-  const [cityLabel,    setCityLabel]    = useState<string>(DEFAULT_CITY_LABEL);
-  const [sectorId,     setSectorId]     = useState<string>(DEFAULT_SECTOR_ID);
-  const [sectorLabel,  setSectorLabel]  = useState<string>(DEFAULT_SECTOR_LABEL);
-  
-  // ── Scope (4-scope switcher — PRD §9.2 Row 2) ────────────────────────────
-  const [activeScope, setActiveScope] = useState<ScopeKey>('sector');
-  
-  // ── View Mode (Task Card #19) ─────────────────────────────────────────────
-  const [viewMode, setViewMode] = useState<ViewMode>('live');
-  // Sector is always live
-  const effectiveViewMode = activeScope === 'sector' ? 'live' : viewMode;
-
-  // ── Room ID — scope-aware ─────────────────────────────────────────────────
-  const roomId = useMemo(
-    () => buildRoomId(activeScope, countryId, cityId, sectorId),
-    [activeScope, countryId, cityId, sectorId],
-  );
-  
-  // ── Room metadata ─────────────────────────────────────────────────────────
-  const [room,        setRoom]        = useState<CWRoom | null>(null);
-  const [roomLoading, setRoomLoading] = useState(true);
-
-  // ── Messages ──────────────────────────────────────────────────────────────
-  const [messages,   setMessages]    = useState<CWMessage[]>([]);
-  const [isLoading,  setIsLoading]   = useState(true);
-  const [isOffline,  setIsOffline]   = useState(false);
-  
-  // ── ScrollFAB ─────────────────────────────────────────────────────────────
-  const [newMsgCount,  setNewMsgCount]  = useState(0);
-  const [isScrolledUp, setIsScrolledUp] = useState(false);
-  
-  // ── Scroll Coordination — Swiggy-Style (PRD §9.3.4 + §9.3.5) ────────────
-  const [navHidden, setNavHidden] = useState(false);
-  const [isInputFocused, setIsInputFocused] = useState(false);
-  const lastScrollY = useRef(0);
-  
-  // ── Sheets ────────────────────────────────────────────────────────────────
-  const [countrySheetOpen, setCountrySheetOpen] = useState(false);
-  const [citySheetOpen,   setCitySheetOpen]   = useState(false);
-  const [sectorSheetOpen, setSectorSheetOpen] = useState(false);
-  const [authSheetOpen,   setAuthSheetOpen]   = useState(false);
-  const [actionSheetOpen, setActionSheetOpen] = useState(false);
-  const [actionMsg,       setActionMsg]       = useState<ActionSheetMsg | null>(null);
-  
-  // ── Send-failed modal ─────────────────────────────────────────────────────
-  const [failedModalOpen, setFailedModalOpen] = useState(false);
-  const [failedMsg,       setFailedMsg]       = useState<FailedMsg | null>(null);
-  
-  // ── Trust anchor ──────────────────────────────────────────────────────────
-  const [showTrustAnchor, setShowTrustAnchor] = useState(true);
-  
-  // ── Refs ──────────────────────────────────────────────────────────────────
-  const flatListRef   = useRef<FlatList<CWMessage>>(null);
-  const msgUnsubRef   = useRef<MsgUnsubscribe | null>(null);
-  const roomUnsubRef  = useRef<RoomUnsubscribe | null>(null);
-  const firstLoadRef  = useRef(true);
-  
-  // ── Bottom tab state (PRD §9.3) ───────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<BottomTab>('home');
-  
-  // ── User credits + DM count ───────────────────────────────────────────────
-  const [userCredits,   setUserCredits]   = useState(0);
-  const [unreadDmCount, setUnreadDmCount] = useState(0);
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // § 8.0 — LOAD VIEW MODE PERSISTENCE (Task Card #19)
-  // ═══════════════════════════════════════════════════════════════════════════
   useEffect(() => {
-    AsyncStorage.getItem(`${VIEW_PREF_KEY_PFX}${activeScope}`)
-      .then((saved) => {
-        if (saved === 'live' || saved === 'top30') setViewMode(saved);
-        else setViewMode('live');
-      })
-      .catch(() => {});
-  }, [activeScope]);
-
-  const handleViewModeChange = useCallback((mode: ViewMode) => {
-    setViewMode(mode);
-    flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
-    AsyncStorage.setItem(`${VIEW_PREF_KEY_PFX}${activeScope}`, mode).catch(() => {});
-  }, [activeScope]);
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // § 8.1 — KEYBOARD LISTENER (isInputFocused tracking)
-  // ═══════════════════════════════════════════════════════════════════════════
-  useEffect(() => {
-    const showSub = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      () => setIsInputFocused(true),
+    if (reduced) return;
+    opacity.value = withRepeat(
+      withSequence(
+        withTiming(0.45, { duration: 650, easing: Easing.inOut(Easing.sine) }),
+        withTiming(1,    { duration: 650, easing: Easing.inOut(Easing.sine) }),
+      ),
+      -1,
     );
-    const hideSub = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => setIsInputFocused(false),
-    );
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
-  }, []);
+  }, [reduced]);
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // § 8.1b — SCROLL-TO-BOTTOM SIGNAL
-  // ═══════════════════════════════════════════════════════════════════════════
-  useEffect(() => {
-    const { DeviceEventEmitter } = require('react-native');
-    const sub = DeviceEventEmitter.addListener('crown:scrollToBottom', () => {
-      flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
-    });
-    return () => sub.remove();
-  }, []);
+  const skelStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // § 8.2 — FIRESTORE SUBSCRIPTIONS (UNCHANGED)
-  // ═══════════════════════════════════════════════════════════════════════════
-  useEffect(() => {
-    setRoomLoading(true);
-    roomUnsubRef.current?.();
-    roomUnsubRef.current = subscribeToRoom(roomId, (data) => {
-      setRoom(data);
-      setRoomLoading(false);
-    });
-    return () => { roomUnsubRef.current?.(); };
-  }, [roomId]);
+  return (
+    <Animated.View
+      entering={FadeIn.delay(index * 55).duration(180)}
+      style={[styles.cardWrap]}
+    >
+      <Animated.View style={[styles.rankCard, styles.skeletonCard, skelStyle]}>
+        <View style={[styles.skelRow, { width: '45%' }]} />
+        <View style={[styles.skelRow, { width: '25%', marginTop: spacing.md }]} />
+        <View style={[styles.skelRow, { width: '70%', marginTop: spacing.xs }]} />
+        <View style={[styles.skelRow, { width: '90%', marginTop: spacing.md }]} />
+      </Animated.View>
+    </Animated.View>
+  );
+});
 
-  useEffect(() => {
-    setIsLoading(true);
-    setMessages([]);
-    firstLoadRef.current = true;
-    setNewMsgCount(0);
-    msgUnsubRef.current?.();
+// ── TierRankCard ───────────────────────────────────────────────────────────
+// One per tier (Baron → Imperator). Press → scale 0.97, spring back.
+const TierRankCard = memo(
+  ({ standing, index }: { standing: RankStanding; index: number }) => {
+    const haptics  = useHaptics();
+    const reduced  = useReducedMotion();
+    const scale    = useSharedValue(1);
+    const meta     = TIER_META[standing.tier];
+    const phase    = CYCLE_PHASES[standing.cyclePhase];
 
-    msgUnsubRef.current = subscribeToMessages(roomId, MESSAGE_PAGE_SIZE, (msgs) => {
-      setMessages(msgs);
-      setIsLoading(false);
-      if (!firstLoadRef.current && isScrolledUp) {
-        setNewMsgCount((prev) => prev + 1);
-      }
-      firstLoadRef.current = false;
-    });
+    const pressStyle = useAnimatedStyle(() => ({
+      transform: [{ scale: scale.value }],
+    }));
 
-    return () => { msgUnsubRef.current?.(); };
-  }, [roomId]);
-  // eslint-disable-line react-hooks/exhaustive-deps
+    const onPressIn = useCallback(() => {
+      haptics.impactLight();
+      scale.value = reduced
+        ? 1
+        : withTiming(0.97, { duration: durations.instant, easing: Easing.out(Easing.quad) });
+    }, [reduced, haptics]);
 
-  useEffect(() => {
-    if (!user?.uid) return;
-    incrementOnlineCount(roomId).catch(() => {});
+    const onPressOut = useCallback(() => {
+      scale.value = withSpring(1, springConfigs.springStiff);
+    }, []);
 
-    const handleAppState = (state: AppStateStatus) => {
-      if (state === 'background' || state === 'inactive') {
-        decrementOnlineCount(roomId).catch(() => {});
-      } else if (state === 'active') {
-        incrementOnlineCount(roomId).catch(() => {});
-      }
-    };
-    const sub = AppState.addEventListener('change', handleAppState);
-    return () => {
-      sub.remove();
-      decrementOnlineCount(roomId).catch(() => {});
-    };
-  }, [roomId, user?.uid]);
-
-  useEffect(() => {
-    if (!showTrustAnchor) return;
-    const t = setTimeout(() => setShowTrustAnchor(false), TRUST_ANCHOR_MS);
-    return () => clearTimeout(t);
-  }, [showTrustAnchor]);
-
-  useEffect(() => {
-    NetInfo.fetch().then((state: NetInfoState) => {
-      setIsOffline(!(state.isConnected ?? true));
-    }).catch(() => {});
-    const unsub = NetInfo.addEventListener((state: NetInfoState) => {
-      setIsOffline(!(state.isConnected ?? true));
-    });
-    return () => unsub();
-  }, []);
-
-  useEffect(() => {
-    if (!user?.uid) {
-      setUserCredits(0);
-      setUnreadDmCount(0);
-      return;
-    }
-    // Fixed Type mismatch dynamically importing alias
-    import('@/lib/firestore-users').then(({ subscribeToUser }) => {
-      const unsubUser = subscribeToUser(user.uid, (profile: any) => {
-        setUserCredits(profile?.credits ?? 0);
-      });
-      return () => unsubUser();
-    }).catch(() => {});
-
-    import('@/lib/firestore-messages').then(({ subscribeToUnreadDmCount }) => {
-      // Assumes `subscribeToUnreadDmCount` has been implemented in lib.
-      const unsubDm = subscribeToUnreadDmCount(user.uid, (count) => {
-        setUnreadDmCount(count);
-      });
-      return () => unsubDm();
-    }).catch(() => {});
-  }, [user?.uid]);
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // § 8.3 — SEND MESSAGE (optimistic)
-  // ═══════════════════════════════════════════════════════════════════════════
-  const handleSend = useCallback(async (text: string) => {
-    if (!user?.uid) return;
-    const trimmed = text.trim();
-    if (!trimmed) return;
-
-    const optId = `opt_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-
-    // Snapshot the sender's identity so the message renders with avatar + name
-    // (CROWN avatars are emoji-on-color — no photo). Own messages don't show an
-    // avatar, but we still denormalize so OTHER users see it on their screens.
-    const senderName   = user.displayName ?? user.username ?? null;
-    const senderHandle = user.username ?? null;
-    const senderEmoji  = user.emoji ?? null;
-    const senderColor  = user.color ?? null;
-
-    const optimistic: CWMessage = {
-      id:           optId,
-      roomId,
-      uid:          user.uid,
-      text:         trimmed,
-      imageURL:     null,
-      variant:      'right',
-      reactions:    {},
-      replyToId:    null,
-      isMicDrop:    false,
-      isDeleted:    false,
-      editedAt:     null,
-      timestamp:    { toDate: () => new Date(), toMillis: () => Date.now() } as any,
-      status:       'sent',
-      senderName,
-      senderHandle,
-      senderEmoji,
-      senderColor,
-    };
-
-    setMessages((prev) => [...prev, optimistic]);
-    setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }), 60);
-
-    try {
-      await sendMessage(roomId, {
-        id: optId, uid: user.uid, text: trimmed, variant: 'right', status: 'sent',
-        senderName, senderHandle, senderEmoji, senderColor,
-      });
-    } catch {
-      setMessages((prev) =>
-        prev.map((m) => m.id === optId ? { ...m, status: 'failed' as const } : m)
-      );
-      setFailedMsg({ id: optId, text: trimmed, roomId });
-      setFailedModalOpen(true);
-    }
-  }, [user?.uid, roomId]);
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // § 8.4 — FAILED MESSAGE RETRY
-  // ═══════════════════════════════════════════════════════════════════════════
-  const handleRetryFailed = useCallback(async () => {
-    if (!failedMsg) return;
-    const failed = failedMsg;
-    setFailedModalOpen(false);
-    setFailedMsg(null);
-    setMessages((prev) => prev.filter((m) => m.id !== failed.id));
-    await handleSend(failed.text);
-  }, [failedMsg, handleSend]);
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // § 8.5 — AUTH GATE (LAW 4)
-  // ═══════════════════════════════════════════════════════════════════════════
-  const handleAuthGate = useCallback(() => {
-    setAuthSheetOpen(true);
-  }, []);
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // § 8.6 — LONG PRESS
-  // ═══════════════════════════════════════════════════════════════════════════
-  const handleLongPress = useCallback((msg: CWMessage) => {
-    const adapted = adaptToActionMsg(msg, user?.uid ?? null, roomId, cityId, sectorId);
-    setActionMsg(adapted);
-    setActionSheetOpen(true);
-  }, [user?.uid, roomId, cityId, sectorId]);
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // § 8.7 — SCROLL HANDLER
-  // ═══════════════════════════════════════════════════════════════════════════
-  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const currentY = event.nativeEvent.contentOffset.y;
-    const delta    = currentY - lastScrollY.current;
-    lastScrollY.current = currentY;
-
-    const atBottom = currentY < AT_BOTTOM_Y_THRESHOLD;
-
-    if (atBottom || delta < -SCROLL_DELTA_THRESHOLD) {
-      showHeader();
-      showNav();
-      setNavHidden(false);
-    } else if (delta > SCROLL_DELTA_THRESHOLD) {
-      hideHeader();
-      hideNav();
-      setNavHidden(true);
-    }
-
-    const scrolledUp = currentY > SCROLL_FAB_THRESHOLD;
-    if (scrolledUp !== isScrolledUp) setIsScrolledUp(scrolledUp);
-
-    if (currentY > TRUST_ANCHOR_SCROLL_THRESHOLD && showTrustAnchor) {
-      setShowTrustAnchor(false);
-    }
-  }, [isScrolledUp, showTrustAnchor]);
-
-  const handleScrollToBottom = useCallback(() => {
-    flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
-    setNewMsgCount(0);
-    setIsScrolledUp(false);
-  }, []);
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // § 8.8 — SCOPE PRESS
-  // ═══════════════════════════════════════════════════════════════════════════
-  const handleScopeChange = useCallback((scope: ScopeKey) => {
-    setActiveScope(scope);
-  }, []);
-
-  const handlePickerOpen = useCallback((scope: ScopeKey) => {
-    if (scope === 'country') { setCountrySheetOpen(true); return; }
-    if (scope === 'city')    { setCitySheetOpen(true);    return; }
-    if (scope === 'sector')  { setSectorSheetOpen(true);  return; }
-  }, []);
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // § 8.9 — CITY / SECTOR / COUNTRY SELECTION
-  // ═══════════════════════════════════════════════════════════════════════════
-  const handleCountrySelect = useCallback((id: string, name: string, emoji: string) => {
-    setCountryId(id);
-    setCountryLabel(name);
-    setCountryEmoji(emoji);
-  }, []);
-  const handleCitySelect = useCallback((selectedCityId: string) => {
-    setCityId(selectedCityId);
-    setCityLabel(selectedCityId.charAt(0).toUpperCase() + selectedCityId.slice(1));
-  }, []);
-  const handleSectorSelect = useCallback((selectedSectorId: string) => {
-    setSectorId(selectedSectorId);
-    const label = selectedSectorId
-      .split('-')
-      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-      .join(' ');
-    setSectorLabel(label);
-  }, []);
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // § 8.10 — BOTTOM TAB PRESS
-  // ═══════════════════════════════════════════════════════════════════════════
-  const handleTabPress = useCallback((tab: BottomTab) => {
-    setActiveTab(tab);
-    if (tab === 'home') {
-      flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
-      return;
-    }
-    if (tab === 'explore') { router.push('/(tabs)/discover' as never); return; }
-    if (tab === 'crown')   { router.push('/(tabs)/ranks'    as never); return; }
-    if (tab === 'profile') { router.push('/(tabs)/profile'  as never); return; }
-  }, [router]);
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // § 8.11 — FLATLIST DATA (Live vs Top 30)
-  // ═══════════════════════════════════════════════════════════════════════════
-  const displayMessages = useMemo(() => {
-    if (effectiveViewMode === 'live') {
-      return [...messages].reverse();
-    }
-
-    // Top 30 Logic
-    const now = Date.now();
-    const valid = messages.filter((m) => {
-      const ts = (m.timestamp as any)?.toMillis?.() ?? (typeof m.timestamp === 'number' ? m.timestamp : now);
-      return (now - ts) <= TWO_HOURS_MS && !m.isDeleted;
-    });
-
-    const sorted = valid.sort((a, b) => {
-      const aReacts = Object.values(a.reactions ?? {}).reduce((s: number, n: any) => s + Number(n), 0);
-      const bReacts = Object.values(b.reactions ?? {}).reduce((s: number, n: any) => s + Number(n), 0);
-      return bReacts - aReacts;
-    });
-
-    // Reversed because the FlatList is inverted (index 0 is at the bottom visually)
-    // We want #1 rank to appear at the Top of the Flatlist visually.
-    return sorted.slice(0, TOP30_LIMIT).reverse();
-  }, [messages, effectiveViewMode]);
-
-  const renderItem = useCallback(({ item, index }: { item: CWMessage; index: number }) => {
-    if (effectiveViewMode === 'live') {
-      return (
-        <MessageRow
-          msg={item}
-          currentUid={user?.uid ?? null}
-          onLongPress={handleLongPress}
-        />
-      );
-    }
-    
-    // For Top 30 in an inverted list, rank depends on array length vs index
-    const rank = displayMessages.length - index;
-    
     return (
-      <Top30MessageRow
-        msg={item}
-        currentUid={user?.uid ?? null}
-        onLongPress={handleLongPress}
-        rank={rank}
-        totalSeen={messages.length}
-      />
-    );
-  }, [user?.uid, handleLongPress, effectiveViewMode, displayMessages.length, messages.length]);
-
-  const keyExtractor = useCallback((item: CWMessage) => item.id, []);
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // § 8.12 — KAV OFFSET
-  // ═══════════════════════════════════════════════════════════════════════════
-  const kavOffset = insets.top + 56 + 48 + 32;
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // § 8.13 — RENDER
-  // ═══════════════════════════════════════════════════════════════════════════
-  return (
-    <View style={S.screen}>
-      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
-
-      <HomeHeader
-        activeScope={activeScope}
-        scopeLabels={{
-          country:      countryLabel,
-          city:         cityLabel,
-          sector:       sectorLabel,
-          countryEmoji: countryEmoji,
-        }}
-        onScopeChange={handleScopeChange}
-        onPickerOpen={handlePickerOpen}
-        onlineCount={room?.onlineCount ?? 0}
-        heatScore={room?.heatScore ?? 0}
-        unreadNotifications={0}
-        unreadDms={unreadDmCount}
-        showTrustAnchor={showTrustAnchor}
-        onNotificationPress={() => router.push('/notifications/index' as never)}
-        onDmPress={() => router.push('/(tabs)/inbox' as never)}
-        composerFocused={isInputFocused}
-      />
-
-      <OfflineBanner visible={isOffline} />
-
-      <KeyboardAvoidingView
-        style={S.kav}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? kavOffset : undefined}
+      <Animated.View
+        entering={
+          reduced
+            ? FadeIn.duration(200)
+            : FadeInUp.delay(index * 75).springify().damping(20).stiffness(200)
+        }
+        style={pressStyle}
       >
-        {/* VIEW MODE SWITCHER (Visible only for non-sector scopes) */}
-        {activeScope !== 'sector' && (
-          <LiveTop30Bar viewMode={effectiveViewMode} onChange={handleViewModeChange} />
-        )}
+        <Pressable
+          onPressIn={onPressIn}
+          onPressOut={onPressOut}
+          accessibilityRole="button"
+          accessibilityLabel={`${meta.name} standings — ${standing.geographyLabel}`}
+          style={[styles.rankCard, standing.titleHeld && styles.rankCardHeld]}
+        >
+          {/* ── Header: tier chip + geography ────────────────────────────── */}
+          <View style={styles.cardHeader}>
+            <View style={styles.tierChip}>
+              <Text style={styles.tierEmoji}>{meta.emoji}</Text>
+              <Text style={styles.tierName} allowFontScaling={false}>
+                {meta.name}
+              </Text>
+              {standing.titleHeld && (
+                <Crown size={11} color={colors.fg.brand} strokeWidth={2.5} />
+              )}
+            </View>
+            <Text style={styles.geoText} numberOfLines={1}>
+              {standing.geographyLabel}
+            </Text>
+          </View>
 
-        {isLoading ? (
-          <ChatSkeleton />
-        ) : (
-          <FlatList<CWMessage>
-            ref={flatListRef}
-            data={displayMessages}
-            renderItem={renderItem}
-            keyExtractor={keyExtractor}
-            inverted
-            style={S.chatList}
-            contentContainerStyle={[
-              S.chatContent,
-              {
-                paddingTop:    BOTTOM_NAV_HEIGHT + insets.bottom + 72,
-                paddingBottom: insets.top + 136 + 8,
-              },
-            ]}
-            showsVerticalScrollIndicator={false}
-            initialNumToRender={12}
-            maxToRenderPerBatch={8}
-            windowSize={10}
-            removeClippedSubviews={Platform.OS === 'android'}
-            onEndReachedThreshold={0.6}
-            keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="interactive"
-            onScroll={handleScroll}
-            scrollEventThrottle={16}
-            maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
-            testID="home-chat-list"
-            ListEmptyComponent={
-              <View style={{
-                transform: Platform.select({
-                  android: [{ scaleY: -1 }],
-                  default: [{ scaleY: -1 }],
-                }),
-              }}>
-                <ChatEmptyState sectorLabel={sectorLabel} />
+          {/* ── Rank number + score + movement ───────────────────────────── */}
+          <View style={styles.rankRow}>
+            <View>
+              <View style={styles.rankNumRow}>
+                {standing.position != null ? (
+                  <>
+                    <Text style={styles.rankHash} allowFontScaling={false}>#</Text>
+                    <Text style={styles.rankNum} allowFontScaling={false}>
+                      {standing.position}
+                    </Text>
+                  </>
+                ) : (
+                  <Text style={styles.rankUnranked}>Unranked</Text>
+                )}
               </View>
-            }
-          />
-        )}
+              <Text style={styles.scoreText} allowFontScaling={false}>
+                {fmtScore(standing.score)} pts
+              </Text>
+            </View>
+            <View style={styles.rankRight}>
+              <MovementBadge movement={standing.movement} delta={standing.movementDelta} />
+              <ChevronRight size={18} color={colors.fg.tertiary} strokeWidth={1.5} />
+            </View>
+          </View>
 
-        <ScrollFAB
-          visible={isScrolledUp && newMsgCount > 0}
-          label={newMsgCount > 0 ? `${newMsgCount} nayi messages` : 'New messages'}
-          onPress={handleScrollToBottom}
-        />
+          {/* ── Progress bar + labels ─────────────────────────────────────── */}
+          <View style={styles.progressBlock}>
+            <ProgressBar percent={standing.progressPercent} />
+            <View style={styles.progressMeta}>
+              <Text style={styles.progressPct} allowFontScaling={false}>
+                {standing.progressPercent}%
+              </Text>
+              <Text style={styles.progressNote} numberOfLines={1}>
+                {standing.ptsToNextMilestone.toLocaleString()} pts → {standing.milestoneLabel}
+              </Text>
+            </View>
+          </View>
 
-        <ChatInput
-          onSend={handleSend}
-          isAuthenticated={!!user}
-          onAuthGate={handleAuthGate}
-          placeholder={getScopePlaceholder(activeScope, cityLabel, sectorLabel, 'India')}
-          disabled={isOffline}
-          navHidden={navHidden}
-          navVisible={!navHidden}
-        />
-      </KeyboardAvoidingView>
+          {/* ── Phase footer: emoji · label · live countdown ─────────────── */}
+          <View style={styles.phaseFooter}>
+            <Text style={styles.phaseEmoji}>{phase.emoji}</Text>
+            <Text style={styles.phaseLabel} numberOfLines={1}>
+              Phase {standing.cyclePhase} · {phase.label}
+            </Text>
+            <View style={styles.freezeInfo}>
+              <Clock size={11} color={colors.fg.secondary} strokeWidth={1.5} />
+              <LiveCountdown initialMs={standing.freezeInMs} />
+            </View>
+          </View>
+        </Pressable>
+      </Animated.View>
+    );
+  },
+);
 
-      <CrownBottomNav
-        activeTab={activeTab}
-        onTabPress={handleTabPress}
-        bottomInset={insets.bottom}
-        navHidden={navHidden}
+// ── CrownHeroBanner ───────────────────────────────────────────────────────
+// ★ THE SIGNATURE MOMENT on this screen.
+//   title-held  → cream card + golden glow pulse, title name large in Syne
+//   aspiring    → quiet call-to-action with best standing info
+const CrownHeroBanner = memo(({ standings }: { standings: RankStanding[] }) => {
+  const reduced    = useReducedMotion();
+  const heldTitles = useMemo(() => standings.filter((s) => s.titleHeld), [standings]);
+  const hasTitle   = heldTitles.length > 0;
+
+  // Gold glow — breathes when title held, stays off otherwise
+  const glowOpacity = useSharedValue(0);
+  useEffect(() => {
+    if (!hasTitle) { glowOpacity.value = withTiming(0, { duration: durations.normal }); return; }
+    if (reduced)   { glowOpacity.value = 0.14; return; }
+    glowOpacity.value = withRepeat(
+      withSequence(
+        withTiming(0.22, { duration: durations.ripple, easing: Easing.inOut(Easing.sine) }),
+        withTiming(0.08, { duration: durations.ripple, easing: Easing.inOut(Easing.sine) }),
+      ),
+      -1,
+      true,
+    );
+  }, [hasTitle, reduced]);
+  const glowStyle = useAnimatedStyle(() => ({ opacity: glowOpacity.value }));
+
+  // ── Aspiration state ────────────────────────────────────────────────────
+  if (!hasTitle) {
+    if (standings.length === 0) return null;
+    const best = standings.reduce((b, s) => (s.score > b.score ? s : b), standings[0]);
+    const meta = TIER_META[best.tier];
+    return (
+      <Animated.View entering={FadeIn.duration(300)} style={[styles.hero, styles.heroAspire]}>
+        <Text style={styles.heroAspireEmoji}>⚔️</Text>
+        <Text style={styles.heroAspireTitle} allowFontScaling={false}>Claim Your Crown</Text>
+        <Text style={styles.heroAspireSub}>
+          {best.position != null
+            ? `You're #${best.position} in ${best.geographyLabel}`
+            : `You're unranked in ${best.geographyLabel}`}
+        </Text>
+        <View style={styles.heroAspireHint}>
+          <Text style={styles.heroAspireHintText}>
+            {best.ptsToNextMilestone.toLocaleString()} more pts →{' '}
+            <Text style={styles.heroAspireHintBold}>{meta.name}</Text>
+          </Text>
+        </View>
+      </Animated.View>
+    );
+  }
+
+  // ── Title-held state (the golden moment) ────────────────────────────────
+  const primary = heldTitles[0];
+  const meta    = TIER_META[primary.tier];
+
+  return (
+    <Animated.View
+      entering={reduced ? FadeIn.duration(300) : FadeInUp.springify().damping(22).stiffness(180)}
+      style={[styles.hero, styles.heroHeld]}
+    >
+      {/* Breathing glow — absolute, behind content, rounded to match card */}
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.heroGlow, glowStyle]}
       />
 
-      {/* ═══════════════════════════════════════════════════════════════════
-          SHEETS & MODALS
-          ═══════════════════════════════════════════════════════════════════ */}
+      <View style={styles.heroContent}>
+        <Text style={styles.heroEmoji}>{meta.emoji}</Text>
 
-      <CountryPickerSheet
-        visible={countrySheetOpen}
-        onClose={() => setCountrySheetOpen(false)}
-        selected={countryId}
-        onSelect={handleCountrySelect}
-      />
+        <Text style={styles.heroEyebrow} allowFontScaling={false}>
+          YOU HOLD THE CROWN
+        </Text>
 
-      <CityPickerSheet
-        visible={citySheetOpen}
-        onClose={() => setCitySheetOpen(false)}
-        selected={cityId}
-        countryCode={countryId}
-        onSelect={handleCitySelect}
-      />
+        <Text style={styles.heroTitleName} allowFontScaling={false}>
+          {meta.name}
+        </Text>
 
-      <SectorPickerSheet
-        visible={sectorSheetOpen}
-        onClose={() => setSectorSheetOpen(false)}
-        cityId={cityId}
-        selected={sectorId}
-        onSelect={handleSectorSelect}
-      />
+        <Text style={styles.heroGeo}>{primary.geographyLabel}</Text>
 
-      <AuthGateSheet
-        visible={authSheetOpen}
-        onClose={() => setAuthSheetOpen(false)}
-        onSignIn={() => setAuthSheetOpen(false)}
-        triggerAction="input_tap"
-      />
+        <View style={styles.heroStatsRow}>
+          <View style={styles.heroStat}>
+            <Text style={styles.heroStatVal} allowFontScaling={false}>
+              {primary.cyclesHeld}
+            </Text>
+            <Text style={styles.heroStatLbl}>cycles held</Text>
+          </View>
+          {heldTitles.length > 1 && (
+            <>
+              <View style={styles.heroStatDiv} />
+              <View style={styles.heroStat}>
+                <Text style={styles.heroStatVal} allowFontScaling={false}>
+                  {heldTitles.length}
+                </Text>
+                <Text style={styles.heroStatLbl}>active titles</Text>
+              </View>
+            </>
+          )}
+        </View>
+      </View>
+    </Animated.View>
+  );
+});
 
-      {actionMsg && user?.uid && (
-        <MessageActionSheet
-          visible={actionSheetOpen}
-          onClose={() => { setActionSheetOpen(false); setActionMsg(null); }}
-          message={actionMsg as any}
-          currentUid={user.uid}
-          isMayor={room?.mayorUid === user.uid}
-        />
-      )}
+// ── JourneyTimeline ────────────────────────────────────────────────────────
+const JourneyTimeline = memo(({ nodes }: { nodes: JourneyNode[] }) => {
+  if (nodes.length === 0) return null;
+  return (
+    <View>
+      <Text style={styles.secTitle}>Crown Journey</Text>
+      <Text style={styles.secSub}>Your milestones, permanently recorded</Text>
 
-      {failedMsg !== null && (
-        <SendFailedModal
-          visible={failedModalOpen}
-          failedMessage={failedMsg.text}
-          onClose={() => { setFailedModalOpen(false); setFailedMsg(null); }}
-          onRetry={handleRetryFailed}
-          onSaveDraft={() => { setFailedModalOpen(false); setFailedMsg(null); }}
-          onDiscard={() => {
-            if (failedMsg) {
-              setMessages((prev) => prev.filter((m) => m.id !== failedMsg.id));
-            }
-            setFailedModalOpen(false);
-            setFailedMsg(null);
-          }}
-        />
-      )}
+      <View style={styles.timeline}>
+        {nodes.map((node, i) => {
+          const isLast  = i === nodes.length - 1;
+          const isFirst = node.type === 'first_title';
+          const meta    = node.tier ? TIER_META[node.tier] : null;
+
+          return (
+            <View key={node.id} style={styles.tlRow}>
+              {/* Connector column */}
+              <View style={styles.tlLeft}>
+                <View style={[styles.tlDot, isFirst && styles.tlDotFirst]}>
+                  {isFirst ? (
+                    <Crown size={11} color={colors.bg.surface} strokeWidth={2.5} />
+                  ) : (
+                    <Star size={8} color={colors.fg.brandText} fill={colors.fg.brandText} />
+                  )}
+                </View>
+                {!isLast && <View style={styles.tlLine} />}
+              </View>
+
+              {/* Content column */}
+              <View style={styles.tlBody}>
+                <View style={styles.tlTopRow}>
+                  <Text style={styles.tlLabel}>
+                    {meta ? `${meta.emoji} ${meta.name}` : node.label}
+                    {node.geographyLabel ? ` · ${node.geographyLabel}` : ''}
+                  </Text>
+                  <Text style={styles.tlDate}>{fmtDate(node.earnedAt)}</Text>
+                </View>
+                {isFirst && (
+                  <Text style={styles.tlFirstTag}>🏆 First title earned</Text>
+                )}
+              </View>
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
+});
+
+// ── HeaderBar ──────────────────────────────────────────────────────────────
+function HeaderBar() {
+  return (
+    <View style={styles.header}>
+      <View style={styles.brandRow}>
+        <Text style={styles.crownGlyph} accessibilityElementsHidden>
+          👑
+        </Text>
+        <Text style={styles.wordmark} allowFontScaling={false}>
+          CROWN
+        </Text>
+      </View>
+      <Pressable
+        style={styles.iconBtn}
+        accessibilityRole="button"
+        accessibilityLabel="Notifications"
+        hitSlop={8}
+      >
+        <Bell size={20} color={colors.fg.secondary} strokeWidth={1.5} />
+      </Pressable>
     </View>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// § 9 — STYLES
-// ─────────────────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// MAIN SCREEN
+// ═══════════════════════════════════════════════════════════════════════════
 
-const S = StyleSheet.create({
-  screen: {
-    flex:            1,
-    backgroundColor: BG_SURFACE,            
-  },
-  offlineBanner: {
-    height:            32,
-    backgroundColor:   palette.ink?.[950] || '#111827',
-    flexDirection:     'row',
-    alignItems:        'center',
-    paddingHorizontal: spacing.base,        
-    zIndex:            zIndex.fixedHeader,  
-  },
-  offlineIcon: {
-    marginRight: 6,
-  },
-  offlineText: {
-    fontFamily: FONT_BODY.medium,
-    fontSize:   12,
-    fontWeight: '500',
-    color:      palette.white,
-    flex:       1,
-  },
-  kav: {
+export default function RanksScreen() {
+  const { user } = useAuth();
+
+  const [loading,    setLoading]    = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error,      setError]      = useState<string | null>(null);
+  const [offline,    setOffline]    = useState(false);
+  const [standings,  setStandings]  = useState<RankStanding[]>([]);
+  const [journey,    setJourney]    = useState<JourneyNode[]>([]);
+
+  // ── Load data (replace timeout with real Firestore subscription) ─────────
+  const loadData = useCallback(async (silent = false) => {
+    try {
+      setError(null);
+      if (!silent) setLoading(true);
+
+      // ─ TODO: subscribeToUserRankStandings(user.uid, setStandings) ─────────
+      await new Promise<void>((r) => setTimeout(r, 900));
+      setStandings(MOCK_STANDINGS);
+      setJourney(MOCK_JOURNEY);
+    } catch {
+      setError("Couldn't load your standings. Check your connection and try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadData(true);
+    setRefreshing(false);
+  }, [loadData]);
+
+  // ── Loading state ──────────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        <HeaderBar />
+        <View style={styles.loadingWrap}>
+          {/* Hero skeleton */}
+          <View style={[styles.skeletonHero]}>
+            <View style={[styles.skelRow, { width: '30%', alignSelf: 'center' }]} />
+            <View style={[styles.skelRow, { width: '50%', alignSelf: 'center', marginTop: spacing.sm }]} />
+            <View style={[styles.skelRow, { width: '40%', alignSelf: 'center', marginTop: spacing.xs }]} />
+          </View>
+          {/* Card skeletons */}
+          {[0, 1, 2, 3].map((i) => <SkeletonCard key={i} index={i} />)}
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.safe} edges={['top']}>
+      <HeaderBar />
+
+      {/* ── Offline banner ────────────────────────────────────────────────── */}
+      {offline && (
+        <View style={styles.offlineBanner}>
+          <WifiOff size={14} color={colors.fg.warning} strokeWidth={2} />
+          <Text style={styles.offlineText}>
+            You're offline · Showing last known standings
+          </Text>
+        </View>
+      )}
+
+      {/* ── Error banner ──────────────────────────────────────────────────── */}
+      {error && (
+        <View style={styles.errorBanner}>
+          <AlertCircle size={14} color={colors.fg.error} strokeWidth={2} />
+          <Text style={styles.errorText} numberOfLines={2}>{error}</Text>
+          <Pressable
+            onPress={() => loadData()}
+            style={styles.retryBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Retry loading standings"
+            hitSlop={8}
+          >
+            <RefreshCw size={13} color={colors.fg.brandText} strokeWidth={2} />
+            <Text style={styles.retryText}>Retry</Text>
+          </Pressable>
+        </View>
+      )}
+
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.fg.brand}
+            colors={[colors.fg.brand]}
+          />
+        }
+      >
+        {/* 🌟 Signature moment — must be the only loud element on screen */}
+        <View style={styles.heroWrap}>
+          <CrownHeroBanner standings={standings} />
+        </View>
+
+        {/* ── Standings section ─────────────────────────────────────────── */}
+        <View style={styles.secHeaderWrap}>
+          <Text style={styles.secTitle}>Your Standings</Text>
+          <Text style={styles.secSub}>All 4 scopes · tap for full breakdown</Text>
+        </View>
+
+        {standings.map((s, i) => (
+          <View key={s.tier} style={styles.cardWrap}>
+            <TierRankCard standing={s} index={i} />
+          </View>
+        ))}
+
+        {/* ── Crown Journey ─────────────────────────────────────────────── */}
+        {journey.length > 0 && (
+          <View style={styles.journeySection}>
+            <JourneyTimeline nodes={journey} />
+          </View>
+        )}
+
+        <View style={{ height: spacing.xxl }} />
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STYLES — tokens only · zero raw hex (CROWN LAW 2)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const styles = StyleSheet.create({
+
+  // ── Screen ────────────────────────────────────────────────────────────────
+  safe: {
     flex: 1,
+    backgroundColor: colors.bg.surface,
   },
-  chatList: {
-    flex:            1,
-    backgroundColor: BG_SURFACE,           
-  },
-  chatContent: {
-    paddingHorizontal: spacing.sm,         
-    paddingTop:        8,
-    paddingBottom:     16,
-  },
-  // ── Other-user / AI row: avatar on the left, bubble column on the right ─────
-  avatarRow: {
-    flexDirection: 'row',
-    alignItems:    'flex-start',
-    paddingLeft:   spacing.sm,             // 8 — screen-edge breathing room
-  },
-  avatarRowAvatar: {
-    marginTop:   2,                        // nudge to sit beside the sender name
-    marginRight: 2,
-  },
-  avatarRowBubble: {
-    flex:     1,
-    minWidth: 0,                           // allow the bubble to shrink-wrap text
-  },
-  emptyState: {
-    flex:              1,
-    alignItems:        'center',
-    justifyContent:    'center',
-    paddingHorizontal: 32,
-    paddingVertical:   64,
-    gap:               12,
-  },
-  emptyIcon: {
-    fontSize:  64,
-    textAlign: 'center',
-  },
-  emptyTitle: {
-    fontFamily: FONT_BODY.bold,
-    fontSize:   22,
-    fontWeight: '700',
-    color:      TEXT_STRONG,
-    textAlign:  'center',
-  },
-  emptySubtitle: {
-    fontFamily: FONT_BODY.regular,
-    fontSize:   15,
-    fontWeight: '400',
-    color:      TEXT_MUTED,
-    textAlign:  'center',
-    lineHeight: 22,
-  },
-  // ── Missing Top 30 / Toggle Styles (Fix Applied) ──────────────────────────
-  liveTop30Bar: {
-    paddingHorizontal: spacing.base,
-    paddingVertical: 8,
-    backgroundColor: BG_SURFACE,
-    zIndex: zIndex.fixedHeader,
-  },
-  liveTop30Control: {
-    height: 32,
-  },
-  top30Row: {
-    marginBottom: spacing.sm,
-  },
-  top30RankLine: {
+
+  // ── Header (56px, hairline bottom) ───────────────────────────────────────
+  header: {
+    height: dimensions.headerHeight,   // 56
+    paddingHorizontal: spacing.base,   // 16
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.bg.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border.default,
+  },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  crownGlyph: {
+    fontSize: 22,
+  },
+  wordmark: {
+    ...typography.title,       // 22/700 Syne
+    letterSpacing: -0.4,
+    color: colors.fg.brandSubtle,  // gold[800] — 6.4:1 on white, AA
+  },
+  iconBtn: {
+    width: dimensions.btnIcon,    // 44
+    height: dimensions.btnIcon,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // ── Banners ───────────────────────────────────────────────────────────────
+  offlineBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.bg.subtle,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border.default,
+  },
+  offlineText: {
+    ...typography.bodySmall,
+    color: colors.fg.warning,
+    flex: 1,
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.bg.subtle,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border.default,
+  },
+  errorText: {
+    ...typography.bodySmall,
+    color: colors.fg.error,
+    flex: 1,
+  },
+  retryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
     paddingHorizontal: spacing.sm,
-    marginBottom: 4,
-    gap: 8,
-  },
-  top30RankNum: {
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', 
-    fontSize: 14,
-    fontWeight: '700',
-    color: BRAND_GOLD,
-  },
-  top30PercentilePill: {
-    backgroundColor: palette.ink?.[50] || '#F9F9F9',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 12,
+    paddingVertical: spacing.xs,
+    backgroundColor: colors.bg.card,
+    borderRadius: radii.base,
     borderWidth: 1,
-    borderColor: BORDER_SUBTLE,
+    borderColor: colors.border.default,
+    minWidth: dimensions.touch?.minIos ?? 44,
+    minHeight: dimensions.touch?.minIos ?? 44,
+    justifyContent: 'center',
   },
-  top30PercentileText: {
-    fontFamily: FONT_BODY.medium,
-    fontSize: 11,
-    fontWeight: '500',
-    color: TEXT_MUTED,
+  retryText: {
+    ...typography.label,
+    color: colors.fg.brandText,
+  },
+
+  // ── Scroll ────────────────────────────────────────────────────────────────
+  scroll: { flex: 1 },
+  scrollContent: { paddingTop: spacing.lg },
+
+  // ── Hero Banner ───────────────────────────────────────────────────────────
+  heroWrap: {
+    paddingHorizontal: spacing.base,
+    marginBottom: spacing.xl,
+  },
+  hero: {
+    borderRadius: radii.lg,       // 16
+    borderWidth: 1,
+    overflow: 'visible',
+  },
+  // Aspiration (no title yet) — calm, motivating
+  heroAspire: {
+    backgroundColor: colors.bg.subtle,
+    borderColor: colors.border.card,
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.xl,
+    alignItems: 'center',
+  },
+  heroAspireEmoji: {
+    fontSize: 40,
+    marginBottom: spacing.sm,
+  },
+  heroAspireTitle: {
+    ...typography.headline,    // 18/700 Syne
+    color: colors.fg.primary,
+    marginBottom: spacing.xs,
+  },
+  heroAspireSub: {
+    ...typography.body,
+    color: colors.fg.secondary,
+    textAlign: 'center',
+    marginBottom: spacing.md,
+  },
+  heroAspireHint: {
+    backgroundColor: colors.bg.card,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+  },
+  heroAspireHintText: {
+    ...typography.bodySmall,
+    color: colors.fg.secondary,
+  },
+  heroAspireHintBold: {
+    color: colors.fg.brandText,
+    fontWeight: '700',
+  },
+
+  // Title-held (signature moment) — cream base, gold glow on top
+  heroHeld: {
+    backgroundColor: colors.bg.card,
+    borderColor: colors.border.cardEmphasis,  // gold[600] 2px emphasis
+    ...colors.shadow.tier2,
+  },
+  heroGlow: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.fg.brand,
+    borderRadius: radii.lg,  // rounds the glow to match card
+    zIndex: 0,
+  },
+  heroContent: {
+    alignItems: 'center',
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.xl,
+    zIndex: 1,
+    position: 'relative',
+  },
+  heroEmoji: {
+    fontSize: 44,
+    marginBottom: spacing.sm,
+  },
+  heroEyebrow: {
+    ...typography.label,    // 12/600
+    color: colors.fg.brandText,
+    letterSpacing: 2.5,
+    marginBottom: spacing.xs,
+  },
+  heroTitleName: {
+    ...typography.display,  // 28/700 Syne — override size below
+    fontSize: 34,
+    letterSpacing: -0.6,
+    color: colors.fg.brandSubtle,   // gold[800] — 6.4:1, AA
+    marginBottom: spacing.xs,
+  },
+  heroGeo: {
+    ...typography.body,
+    color: colors.fg.secondary,
+    marginBottom: spacing.lg,
+  },
+  heroStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xl,
+  },
+  heroStat: {
+    alignItems: 'center',
+  },
+  heroStatVal: {
+    ...typography.statValue,    // Space Mono numeric token
+    fontSize: 26,
+    color: colors.fg.primary,
+  },
+  heroStatLbl: {
+    ...typography.caption,
+    color: colors.fg.secondary,
+    marginTop: spacing.xs,
+  },
+  heroStatDiv: {
+    width: 1,
+    height: 32,
+    backgroundColor: colors.border.default,
+  },
+
+  // ── Section headers ───────────────────────────────────────────────────────
+  secHeaderWrap: {
+    paddingHorizontal: spacing.base,
+    marginBottom: spacing.md,
+  },
+  secTitle: {
+    ...typography.title,    // 22/700 Syne
+    color: colors.fg.primary,
+  },
+  secSub: {
+    ...typography.bodySmall,
+    color: colors.fg.secondary,
+    marginTop: spacing.xs,
+  },
+
+  // ── Rank Cards ────────────────────────────────────────────────────────────
+  cardWrap: {
+    paddingHorizontal: spacing.base,
+    marginBottom: spacing.md,
+  },
+  rankCard: {
+    backgroundColor: colors.bg.card,
+    borderRadius: radii.md,      // 12
+    borderWidth: 1,
+    borderColor: colors.border.card,
+    padding: spacing.base,
+    ...colors.shadow.tier1,
+  },
+  rankCardHeld: {
+    borderColor: colors.border.cardEmphasis,
+    ...colors.shadow.tier2,
+  },
+
+  // Card header row (tier chip + geo label)
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.md,
+  },
+  tierChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    backgroundColor: colors.bg.surface,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: radii.xl,      // pill
+    borderWidth: 1,
+    borderColor: colors.border.default,
+  },
+  tierEmoji: {
+    fontSize: 14,
+  },
+  tierName: {
+    ...typography.label,          // 12/600
+    color: colors.fg.brandText,   // gold[700] — AA on white
+    letterSpacing: 0.8,
+  },
+  geoText: {
+    ...typography.bodySmall,
+    color: colors.fg.secondary,
+    flex: 1,
+    textAlign: 'right',
+    marginLeft: spacing.sm,
+  },
+
+  // Rank number + score
+  rankRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    marginBottom: spacing.md,
+  },
+  rankNumRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 2,
+  },
+  rankHash: {
+    ...typography.bodySmall,
+    color: colors.fg.tertiary,
+    fontWeight: '600',
+  },
+  rankNum: {
+    ...typography.statValue,     // Space Mono
+    fontSize: 30,
+    color: colors.fg.primary,
+    lineHeight: 34,
+  },
+  rankUnranked: {
+    ...typography.body,
+    color: colors.fg.tertiary,
+    fontStyle: 'italic',
+  },
+  scoreText: {
+    ...typography.caption,
+    color: colors.fg.secondary,
+    marginTop: 2,
+  },
+  rankRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginBottom: spacing.xs,
+  },
+
+  // Movement badge
+  movBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 3,
+    borderRadius: radii.sm,
+    minHeight: 22,
+    minWidth: 22,
+    justifyContent: 'center',
+  },
+  movUp:      { backgroundColor: semanticSuccess.bg },
+  movDown:    { backgroundColor: semanticError.bg },
+  movNeutral: { backgroundColor: colors.bg.subtle },
+  movText: {
+    ...typography.caption,
+    fontWeight: '700',
+  },
+
+  // Progress bar
+  progressBlock: {
+    marginBottom: spacing.md,
+  },
+  progressTrack: {
+    height: 6,
+    backgroundColor: colors.bg.surface,
+    borderRadius: radii.pill,
+    overflow: 'hidden',
+    marginBottom: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    position: 'relative',
+  },
+  progressFill: {
+    position: 'absolute',
+    top: 0, left: 0, bottom: 0,
+    backgroundColor: colors.fg.brand,    // gold fill
+    borderRadius: radii.pill,
+  },
+  progressSheen: {
+    position: 'absolute',
+    top: 0, left: 0, bottom: 0,
+    backgroundColor: colors.fg.celebrate, // gold[400] sheen
+    borderRadius: radii.pill,
+  },
+  progressMeta: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  progressPct: {
+    ...typography.label,
+    color: colors.fg.brandText,
+  },
+  progressNote: {
+    ...typography.caption,
+    color: colors.fg.secondary,
+    flex: 1,
+    textAlign: 'right',
+    marginLeft: spacing.sm,
+  },
+
+  // Phase footer
+  phaseFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border.default,
+  },
+  phaseEmoji: {
+    fontSize: 13,
+  },
+  phaseLabel: {
+    ...typography.caption,
+    color: colors.fg.secondary,
+    flex: 1,
+  },
+  freezeInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  countdown: {
+    ...typography.caption,
+    fontFamily: 'SpaceMono_400Regular',  // Space Mono (timer = numeric data)
+    color: colors.fg.warning,
+    letterSpacing: 0.5,
+  },
+
+  // ── Journey Timeline ──────────────────────────────────────────────────────
+  journeySection: {
+    paddingHorizontal: spacing.base,
+    marginTop: spacing.xl,
+  },
+  timeline: {
+    marginTop: spacing.lg,
+  },
+  tlRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  tlLeft: {
+    width: 28,
+    alignItems: 'center',
+  },
+  tlDot: {
+    width: 28,
+    height: 28,
+    borderRadius: radii.pill,
+    backgroundColor: colors.bg.card,
+    borderWidth: 1.5,
+    borderColor: colors.border.cardEmphasis,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tlDotFirst: {
+    backgroundColor: colors.fg.brand,
+    borderColor: colors.fg.brand,
+  },
+  tlLine: {
+    flex: 1,
+    width: 1,
+    backgroundColor: colors.border.default,
+    marginVertical: spacing.xs,
+    minHeight: spacing.lg,
+  },
+  tlBody: {
+    flex: 1,
+    paddingBottom: spacing.xl,
+    paddingTop: spacing.xs,
+  },
+  tlTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  tlLabel: {
+    ...typography.body,
+    color: colors.fg.primary,
+    flex: 1,
+    marginRight: spacing.sm,
+  },
+  tlDate: {
+    ...typography.caption,
+    color: colors.fg.secondary,
+  },
+  tlFirstTag: {
+    ...typography.caption,
+    color: colors.fg.brandText,
+    marginTop: spacing.xs,
+  },
+
+  // ── Loading / Skeleton ────────────────────────────────────────────────────
+  loadingWrap: {
+    flex: 1,
+    padding: spacing.base,
+    paddingTop: spacing.lg,
+  },
+  skeletonHero: {
+    backgroundColor: colors.bg.subtle,
+    borderRadius: radii.lg,
+    height: 140,
+    marginBottom: spacing.xl,
+    padding: spacing.xl,
+    justifyContent: 'center',
+    gap: spacing.sm,
+  },
+  skeletonCard: {
+    minHeight: 130,
+    gap: spacing.sm,
+  },
+  skelRow: {
+    height: 13,
+    backgroundColor: colors.bg.surface,
+    borderRadius: radii.base,
+    opacity: 0.7,
   },
 });
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * NEXT STEPS (for the founder):
+ *
+ * 1. Replace MOCK_STANDINGS + MOCK_JOURNEY with real Firestore subscriptions
+ *    from your crown-rank/api layer. The types (RankStanding, JourneyNode)
+ *    are already defined — write adapter functions like the old ranks.tsx did.
+ *
+ * 2. Wire offline detection:
+ *    import NetInfo from '@react-native-community/netinfo';
+ *    useEffect(() => {
+ *      return NetInfo.addEventListener(s => setOffline(!s.isConnected));
+ *    }, []);
+ *
+ * 3. The font families (Syne_700Bold, SpaceMono_400Regular) must be loaded
+ *    in app/_layout.tsx via useFonts(). If not already done:
+ *    npx expo install @expo-google-fonts/syne @expo-google-fonts/space-mono
+ *    and add them to your useFonts() call.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
