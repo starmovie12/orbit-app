@@ -1,1256 +1,329 @@
-/**
- * CROWN — Crown Tab Screen (app/(tabs)/ranks.tsx)
- *
- * The status & bidding center. Opens to the user's current standing in big type,
- * then the four tier rank cards, the live cycle phase panel, the battle schedule,
- * a conditional city-invasion card, the bid-history feed, and the crown-journey
- * timeline. A non-dismissible Decision Prompt overlay (LAW 3) takes over during
- * Phase 5 if the user is the Merit Winner. Sleep-Safe Auto-Accept settings open
- * from the header.
- *
- * Implements CROWN-TAB PRD §4.1 (wireframe order) and §18 (laws). Visual language
- * is lifted from the home screen: WHITE page, CREAM cards, DARK-GOLD + AMBER
- * accents. No black, no dark panels. Every colour comes from tokens.
- *
- * Data layer: @react-native-firebase namespaced listeners (crown-rank/api/*),
- * scoped strictly to the authenticated user.
- *
- * PRD-alignment pass (v1.0):
- *   • LAW 3  — screen-level BackHandler blocks back nav while the Decision Prompt
- *              is live (defence-in-depth on top of the overlay's own handler).
- *   • LAW 10 — bid history shows 3 skeleton rows while loading; the empty state
- *              renders ONLY after a confirmed empty load (never during loading).
- *   • §1.1   — header badge dot when the user is a live Merit Winner or a Decision
- *              is waiting.
- *   • §4.1   — header Auto-Accept affordance + wireframe-accurate section labels
- *              ("Your ranks", "Active cycle", "Next freezes", "Invasion", "Your
- *              bids", "Crown journey").
- *   • §10.2  — bid empty state uses the PRD Hinglish copy.
- *   • §11.2  — Crown Journey shows its aspirational empty state instead of hiding.
- *   • §20.4  — skeleton shimmer honours the OS "reduce motion" setting.
- */
+import React, { useEffect, useRef } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, Animated, SafeAreaView, StatusBar } from 'react-native';
+import { Settings, Info, ArrowUp, ArrowDown, ChevronRight, CheckCircle2, AlertTriangle, RefreshCw } from 'lucide-react-native';
 
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  RefreshControl,
-  TouchableOpacity,
-  Animated,
-  StatusBar,
-  BackHandler,
-  AccessibilityInfo,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-import { useAuth } from '@/contexts/AuthContext';
-import { firestore, serverTimestamp } from '@/lib/firebase';
-
-import {
-  COLORS_DARK,
-  FONTS,
-  FONT_SIZES,
-  SPACING,
-  RADIUS,
-  Z_INDEX,
-  TOUCH_TARGET,
-  SCREEN_HEADER_HEIGHT,
-  BOTTOM_NAV_HEIGHT,
-  MOTION,
-} from '@/crown-rank/tokens';
-import type {
-  Tier,
-  RankCardData,
-  CyclePhaseInfo,
-  TitleHolderState,
-  UserTitle,
-  FreezeTime,
-  TimelineNode,
-  BidRecord,
-  InvasionData,
-  DecisionPromptData,
-  SleepSafeSettings,
-} from '@/crown-rank/types';
-import {
-  TIER_TO_TITLE,
-  getTitleString,
-  formatScore,
-  PHASE_META,
-} from '@/crown-rank/constants/titles';
-import {
-  getProgressPercent,
-  getMilestoneLabel,
-  computeAcceptAmount,
-} from '@/crown-rank/core/rank';
-
-import {
-  subscribeToUserCrownData,
-  subscribeToRankScore,
-  pollRankPosition,
-  fetchBattleSchedule,
-  fetchCrownJourney,
-  clearRankCaches,
-  type UserCrownData,
-  type RankTier,
-  type JourneyEntry,
-} from '@/crown-rank/api/rank';
-import {
-  subscribeToAllActiveCycles,
-  PHASE_DURATIONS_MS,
-  type ActiveCycle,
-} from '@/crown-rank/api/cycles';
-import { subscribeToUserBids, placeBid, withdrawBid } from '@/crown-rank/api/bids';
-import { subscribeToActiveInvasion, joinInvasion } from '@/crown-rank/api/invasions';
-
-import CrownHeroCard from '@/crown-rank/components/CrownHeroCard';
-import RankCard from '@/crown-rank/components/RankCard';
-import CyclePhasePanel from '@/crown-rank/components/CyclePhasePanel';
-import BattleScheduleStrip from '@/crown-rank/components/BattleScheduleStrip';
-import InvasionCard from '@/crown-rank/components/InvasionCard';
-import BidRow from '@/crown-rank/components/BidRow';
-import CrownJourneyTimeline from '@/crown-rank/components/CrownJourneyTimeline';
-import DecisionPromptOverlay from '@/crown-rank/components/DecisionPromptOverlay';
-import SleepSafeSheet from '@/crown-rank/components/SleepSafeSheet';
-import RankDetailSheet from '@/crown-rank/components/RankDetailSheet';
-import BidSheet from '@/crown-rank/components/BidSheet';
-
-import { useDecision } from '@/crown-rank/hooks/useDecision';
-
-// ─────────────────────────────────────────────────────────────────────────────
-// CONSTANTS
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** Display order: local → global. */
-const TIER_ORDER: Tier[] = ['baron', 'viceroy', 'sovereign', 'imperator'];
-
-const TIER_TO_SCOPE: Record<Tier, 'sector' | 'city' | 'country' | 'world'> = {
-  baron: 'sector',
-  viceroy: 'city',
-  sovereign: 'country',
-  imperator: 'world',
+// --- TOKENS & CONSTANTS (From PRD §3.1) ---
+const COLORS = {
+  bgSurface: '#0D1018',
+  bgCard: '#161B26',
+  brand: '#F59E0B',
+  brandLight: '#F5C842',
+  textStrong: '#FFFFFF',
+  textMuted: 'rgba(255,255,255,0.7)',
+  accentOrange: '#E07B20',
+  success: '#10B981',
+  danger: '#EF4444',
+  borderSubtle: 'rgba(255,255,255,0.08)',
 };
 
-const TIER_PRIORITY: Record<Tier, number> = {
-  imperator: 0,
-  sovereign: 1,
-  viceroy: 2,
-  baron: 3,
-};
+// --- SUB-COMPONENTS ---
 
-const MIN_REFRESH_MS = 400;
-
-/** Bid skeleton rows to render while the bid feed loads (LAW 10). */
-const BID_SKELETON_ROWS = 3;
-
-// ─────────────────────────────────────────────────────────────────────────────
-// HELPERS
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface Geo {
-  id: string;
-  label: string;
-}
-
-function capitalize(s: string | null | undefined): string | null {
-  if (!s) return null;
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
-
-/** Resolve a geography per tier from the crown doc, with profile/default fallbacks. */
-function resolveGeographies(
-  crown: UserCrownData | null,
-  regionCity: string | null,
-): Record<Tier, Geo> {
-  const ct = crown?.currentTitles;
-  return {
-    baron: {
-      id: ct?.sector?.geographyId || '_sector_',
-      label: ct?.sector?.geographyName || 'Your Sector',
-    },
-    viceroy: {
-      id: ct?.city?.geographyId || regionCity || '_city_',
-      label: ct?.city?.geographyName || capitalize(regionCity) || 'Your City',
-    },
-    sovereign: {
-      id: ct?.country?.geographyId || '_country_',
-      label: ct?.country?.geographyName || 'India',
-    },
-    imperator: {
-      id: ct?.world?.geographyId || '_world_',
-      label: ct?.world?.geographyName || 'World',
-    },
-  };
-}
-
-function defaultPhaseInfo(): CyclePhaseInfo {
-  const now = Date.now();
-  const next = now + PHASE_DURATIONS_MS[1];
-  return {
-    phase: 1,
-    phaseName: PHASE_META[1].name,
-    phaseEmoji: PHASE_META[1].emoji,
-    phaseStartedAt: new Date(now).toISOString(),
-    nextPhaseAt: new Date(next).toISOString(),
-    freezeAt: new Date(next).toISOString(),
-    auctionEndsAt: null,
-    decisionEndsAt: null,
-    meritWinnerId: null,
-    highestBid: null,
-    baseBidPrice: null,
-  };
-}
-
-/** Convert an api ActiveCycle to the typed CyclePhaseInfo the UI consumes. */
-function toPhaseInfo(cycle: ActiveCycle | null | undefined): CyclePhaseInfo {
-  if (!cycle) return defaultPhaseInfo();
-  const phase = cycle.phase;
-  const nextPhaseAtMs = cycle.phaseStartedAtMs + PHASE_DURATIONS_MS[phase];
-  return {
-    phase,
-    phaseName: PHASE_META[phase].name,
-    phaseEmoji: PHASE_META[phase].emoji,
-    phaseStartedAt: new Date(cycle.phaseStartedAtMs).toISOString(),
-    nextPhaseAt: new Date(nextPhaseAtMs).toISOString(),
-    freezeAt: new Date(cycle.freezeAtMs).toISOString(),
-    auctionEndsAt:
-      cycle.auctionEndsAtMs != null
-        ? new Date(cycle.auctionEndsAtMs).toISOString()
-        : null,
-    decisionEndsAt:
-      cycle.decisionEndsAtMs != null
-        ? new Date(cycle.decisionEndsAtMs).toISOString()
-        : null,
-    meritWinnerId: cycle.meritWinnerId,
-    highestBid: cycle.highestBid
-      ? { amount: cycle.highestBid.amount, bidderId: cycle.highestBid.bidderId }
-      : null,
-    baseBidPrice: cycle.baseBidPrice,
-  };
-}
-
-/** Next round-number milestone target for the progress bar. */
-function nextMilestoneTarget(score: number): number {
-  if (score < 100) return 100;
-  if (score < 500) return 500;
-  if (score < 1000) return 1000;
-  if (score < 5000) return 5000;
-  return Math.ceil((score + 1) / 5000) * 5000;
-}
-
-/** Top-N milestone label from a rank position, or null. */
-function milestoneFromPosition(position: number | null): string | null {
-  if (position == null || position < 1) return null;
-  if (position <= 10) return 'Top 10';
-  if (position <= 50) return 'Top 50';
-  if (position <= 100) return 'Top 100';
-  return null;
-}
-
-function buildTitleState(crown: UserCrownData | null): TitleHolderState {
-  if (!crown) return { has: false };
-  const titles: UserTitle[] = [];
-  (Object.keys(TIER_TO_SCOPE) as Tier[]).forEach((tier) => {
-    const scope = TIER_TO_SCOPE[tier];
-    const t = crown.currentTitles[scope];
-    if (t && t.active) {
-      titles.push({
-        tier,
-        geographyId: t.geographyId,
-        geographyLabel: t.geographyName,
-        cyclesHeld: t.cyclesHeld,
-        cycleReward: t.cycleReward,
-        pinViews: null,
-        heldSince:
-          t.heldSinceTs != null
-            ? new Date(t.heldSinceTs).toISOString()
-            : new Date().toISOString(),
-      });
-    }
-  });
-  if (titles.length === 0) return { has: false };
-  const primaryTitle = titles.reduce((best, cur) =>
-    TIER_PRIORITY[cur.tier] < TIER_PRIORITY[best.tier] ? cur : best,
-  );
-  return { has: true, titles, primaryTitle };
-}
-
-function dayLabel(targetMs: number): string {
-  const now = new Date();
-  const target = new Date(targetMs);
-  const startOfDay = (d: Date) =>
-    new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  const diffDays = Math.round((startOfDay(target) - startOfDay(now)) / 86400000);
-  if (diffDays <= 0) return 'TODAY';
-  if (diffDays === 1) return 'TOMORROW';
-  if (diffDays < 7) {
-    return target.toLocaleDateString(undefined, { weekday: 'short' }).toUpperCase();
-  }
-  return '+' + diffDays + ' DAYS';
-}
-
-function localTimeLabel(targetMs: number): string {
-  try {
-    return new Date(targetMs).toLocaleTimeString(undefined, {
-      hour: 'numeric',
-      minute: '2-digit',
-    });
-  } catch {
-    return '';
-  }
-}
-
-function journeyToNodes(entries: JourneyEntry[]): TimelineNode[] {
-  return entries.map((e) => {
-    const label =
-      e.type === 'title'
-        ? e.tier
-          ? TIER_TO_TITLE[e.tier as Tier]
-          : 'Title'
-        : e.type === 'first_title'
-        ? 'First Title'
-        : e.badgeType ?? 'Badge';
-    return {
-      nodeId: e.entryId,
-      type: e.type,
-      tier: (e.tier as Tier) ?? null,
-      label,
-      geographyLabel: e.geographyName || null,
-      earnedAt: new Date(e.earnedAtMs).toISOString(),
-      detail: {
-        rankScore: e.rankScore,
-        bidReceived: e.bidReceived,
-        userDecision:
-          e.keptTitle === true ? 'kept' : e.keptTitle === false ? 'accepted' : null,
-        cycleDurationHeld: null,
-        cycleNumber: 0,
-      },
-    };
-  });
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SKELETON (loading shimmer) — PRD §19.1 / §20.4 (reduced-motion aware)
-// ─────────────────────────────────────────────────────────────────────────────
-
-const SkeletonBlock: React.FC<{
-  height: number;
-  radius?: number;
-  /** When false (reduced motion), the shimmer loop is disabled per §20.4. */
-  animate?: boolean;
-}> = ({ height, radius = RADIUS.card, animate = true }) => {
-  const opacity = useRef(new Animated.Value(0.4)).current;
-
-  useEffect(() => {
-    if (!animate) {
-      // §20.4 — static fill, no animation under reduced motion.
-      opacity.setValue(0.7);
-      return;
-    }
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(opacity, {
-          toValue: 1,
-          duration: MOTION.shimmer / 2,
-          useNativeDriver: true,
-        }),
-        Animated.timing(opacity, {
-          toValue: 0.4,
-          duration: MOTION.shimmer / 2,
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [opacity, animate]);
-
-  return (
-    <Animated.View
-      style={{
-        height,
-        width: '100%',
-        borderRadius: radius,
-        backgroundColor: COLORS_DARK.shimmerPeak,
-        opacity,
-      }}
-    />
-  );
-};
-
-const ScreenSkeleton: React.FC<{ animate?: boolean }> = ({ animate = true }) => (
-  <View style={styles.skeletonWrap}>
-    <SkeletonBlock height={148} radius={RADIUS.dais} animate={animate} />
-    {TIER_ORDER.map((t) => (
-      <SkeletonBlock key={t} height={108} animate={animate} />
-    ))}
-    <SkeletonBlock height={120} animate={animate} />
+const ScreenHeader = () => (
+  <View className="flex-row items-center justify-between px-5 py-4 border-b border-white/5 bg-[#0D1018] z-10 sticky top-0">
+    <View className="flex-row items-center gap-2">
+      <Text className="text-[#F59E0B] text-2xl">👑</Text>
+      <Text className="text-white text-2xl font-extrabold tracking-tighter" style={{ fontFamily: 'System' }}>CROWN</Text>
+    </View>
+    <TouchableOpacity activeOpacity={0.7} className="flex-row items-center bg-[#161B26] border border-white/10 rounded-full px-3 py-1.5 gap-2">
+      <Text className="text-white text-xs font-medium">🛡 Auto-Accept</Text>
+      <Settings size={14} color={COLORS.textMuted} />
+    </TouchableOpacity>
   </View>
 );
 
-/** LAW 10 — three skeleton rows shown while the bid feed is still loading. */
-const BidFeedSkeleton: React.FC<{ animate?: boolean }> = ({ animate = true }) => (
-  <View style={styles.cardStack}>
-    {Array.from({ length: BID_SKELETON_ROWS }).map((_, i) => (
-      <SkeletonBlock key={i} height={88} animate={animate} />
-    ))}
-  </View>
-);
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SECTION HEADER
-// ─────────────────────────────────────────────────────────────────────────────
-
-const SectionHeader: React.FC<{ title: string; caption?: string }> = ({
-  title,
-  caption,
-}) => (
-  <View style={styles.sectionHeader}>
-    <Text style={styles.sectionTitle}>{title}</Text>
-    {caption ? <Text style={styles.sectionCaption}>{caption}</Text> : null}
-  </View>
-);
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SCREEN
-// ─────────────────────────────────────────────────────────────────────────────
-
-export default function CrownScreen() {
-  const insets = useSafeAreaInsets();
-  const { firebaseUser, user } = useAuth();
-  const uid = firebaseUser?.uid ?? null;
-  const regionCity = user?.region ?? null;
-  const myHandle = user?.username ?? user?.displayName ?? 'you';
-
-  // ── Remote state ────────────────────────────────────────────────────────────
-  const [crown, setCrown] = useState<UserCrownData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [cycles, setCycles] = useState<Partial<Record<Tier, ActiveCycle | null>>>({});
-  const [scores, setScores] = useState<Partial<Record<Tier, number>>>({});
-  const [positions, setPositions] = useState<
-    Partial<Record<Tier, { position: number; delta: number }>>
-  >({});
-  const [freezeTimes, setFreezeTimes] = useState<FreezeTime[]>([]);
-  const [journey, setJourney] = useState<TimelineNode[]>([]);
-  const [journeyLoaded, setJourneyLoaded] = useState(false);
-  const [bids, setBids] = useState<BidRecord[]>([]);
-  const [bidsLoaded, setBidsLoaded] = useState(false); // LAW 10 gate
-  const [invasion, setInvasion] = useState<InvasionData | null>(null);
-
-  // ── UI state ─────────────────────────────────────────────────────────────────
-  const [refreshing, setRefreshing] = useState(false);
-  const [, setRefreshKey] = useState(0);
-  const [sleepSheetOpen, setSleepSheetOpen] = useState(false);
-  const [detailTier, setDetailTier] = useState<Tier | null>(null);
-  const [bidSheetTier, setBidSheetTier] = useState<Tier | null>(null);
-  const [placingBid, setPlacingBid] = useState(false);
-  const [reduceMotion, setReduceMotion] = useState(false); // §20.4
-
-  // ── Reduced-motion preference (§20.4) ─────────────────────────────────────────
-  useEffect(() => {
-    let mounted = true;
-    AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
-      if (mounted) setReduceMotion(enabled);
-    });
-    const sub = AccessibilityInfo.addEventListener(
-      'reduceMotionChanged',
-      (enabled) => setReduceMotion(enabled),
-    );
-    return () => {
-      mounted = false;
-      // RN >= 0.65 returns a subscription with remove(); guard for older shapes.
-      // @ts-expect-error — legacy removeEventListener signature tolerated.
-      sub?.remove?.() ?? AccessibilityInfo.removeEventListener?.('reduceMotionChanged', setReduceMotion);
-    };
-  }, []);
-
-  const geographies = useMemo(
-    () => resolveGeographies(crown, regionCity),
-    [crown, regionCity],
-  );
-
-  const geoKey = useMemo(
-    () => TIER_ORDER.map((t) => geographies[t].id).join('|'),
-    [geographies],
-  );
-
-  // ── Subscribe: user crown document ────────────────────────────────────────────
-  useEffect(() => {
-    if (!uid) {
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    const unsub = subscribeToUserCrownData(
-      uid,
-      (data) => {
-        setCrown(data);
-        setLoading(false);
-      },
-      () => {
-        setCrown(null);
-        setLoading(false);
-      },
-    );
-    return () => {
-      unsub();
-      clearRankCaches();
-    };
-  }, [uid]);
-
-  // ── Subscribe: all active cycles (per tier) ───────────────────────────────────
-  // Public spectacle — runs for signed-out viewers too (Open Read).
-  useEffect(() => {
-    const tierGeo: Partial<Record<RankTier, string>> = {};
-    TIER_ORDER.forEach((t) => {
-      tierGeo[t] = geographies[t].id;
-    });
-    const stop = subscribeToAllActiveCycles(
-      tierGeo,
-      (tier, cycle) => setCycles((prev) => ({ ...prev, [tier]: cycle })),
-      (tier) => setCycles((prev) => ({ ...prev, [tier]: null })),
-    );
-    return stop;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uid, geoKey]);
-
-  // ── Subscribe: rank scores + poll positions (per tier, when cycle known) ──────
-  useEffect(() => {
-    if (!uid) return;
-    const unsubs: Array<() => void> = [];
-
-    TIER_ORDER.forEach((tier) => {
-      const geo = geographies[tier];
-      const cycle = cycles[tier];
-      const cycleId = cycle?.cycleId;
-      if (!geo.id || !cycleId) return;
-
-      unsubs.push(
-        subscribeToRankScore(
-          uid,
-          tier,
-          geo.id,
-          cycleId,
-          (data) =>
-            setScores((prev) => ({ ...prev, [tier]: data.breakdown.totalScore })),
-          () => {},
-        ),
-      );
-
-      unsubs.push(
-        pollRankPosition(
-          uid,
-          tier,
-          geo.id,
-          cycleId,
-          (pos) =>
-            setPositions((prev) => ({
-              ...prev,
-              [tier]: { position: pos.position, delta: pos.delta },
-            })),
-          () => {},
-        ),
-      );
-    });
-
-    return () => unsubs.forEach((u) => u());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uid, geoKey, cycles]);
-
-  // ── Subscribe: user bid history ───────────────────────────────────────────────
-  useEffect(() => {
-    if (!uid) {
-      // Signed-out: nothing to load, but mark "loaded" so the empty state can show.
-      setBids([]);
-      setBidsLoaded(true);
-      return;
-    }
-    setBidsLoaded(false);
-    const unsub = subscribeToUserBids(
-      uid,
-      (list) => {
-        setBids(list);
-        setBidsLoaded(true); // LAW 10 — only flip after a real result arrives.
-      },
-      () => {
-        setBids([]);
-        setBidsLoaded(true);
-      },
-    );
-    return unsub;
-  }, [uid]);
-
-  // ── Subscribe: active city invasion ───────────────────────────────────────────
-  useEffect(() => {
-    if (!uid) return;
-    const cityId = geographies.viceroy.id;
-    if (!cityId || cityId === '_city_') {
-      setInvasion(null);
-      return;
-    }
-    const unsub = subscribeToActiveInvasion(
-      cityId,
-      uid,
-      (inv) => setInvasion(inv),
-      () => setInvasion(null),
-    );
-    return unsub;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uid, geographies.viceroy.id]);
-
-  // ── Fetch: battle schedule (public) + crown journey (auth only) ───────────────
-  const loadAsyncData = useCallback(async () => {
-    const tierGeo: Partial<Record<RankTier, string>> = {};
-    TIER_ORDER.forEach((t) => {
-      tierGeo[t] = geographies[t].id;
-    });
-
-    const items = await fetchBattleSchedule(tierGeo);
-    const entries = uid ? await fetchCrownJourney(uid) : [];
-
-    const mapped: FreezeTime[] = items.map((it) => ({
-      tier: it.tier,
-      geographyId: it.geographyId,
-      geographyLabel: it.geographyName,
-      cycleId: it.cycleId,
-      freezeAt: new Date(it.freezeAtMs).toISOString(),
-      freezeIn: Math.max(0, Math.round((it.freezeAtMs - Date.now()) / 1000)),
-      dateLabel: dayLabel(it.freezeAtMs),
-      localTime: localTimeLabel(it.freezeAtMs),
-      isSleepWindow: it.isSleepWindow,
-    }));
-
-    setFreezeTimes(mapped);
-    setJourney(journeyToNodes(entries));
-    setJourneyLoaded(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uid, geoKey]);
-
-  useEffect(() => {
-    loadAsyncData();
-  }, [loadAsyncData]);
-
-  // ── Derived: rank card data per tier ──────────────────────────────────────────
-  const rankCards = useMemo<RankCardData[]>(() => {
-    return TIER_ORDER.map((tier) => {
-      const geo = geographies[tier];
-      const phaseInfo = toPhaseInfo(cycles[tier]);
-      const score = scores[tier] ?? 0;
-      const posData = positions[tier];
-      const rawPosition =
-        posData && posData.position > 0 ? posData.position : null;
-      // LAW 1 — rank position is NEVER surfaced during Phase 1 (Dark Tunnel).
-      const rankPosition = phaseInfo.phase === 1 ? null : rawPosition;
-      const delta = posData?.delta ?? 0;
-      const movement: 'up' | 'down' | 'same' =
-        delta > 0 ? 'up' : delta < 0 ? 'down' : 'same';
-
-      const target = nextMilestoneTarget(score);
-      const scoreNeeded = Math.max(0, target - score);
-      const milestoneHeld = milestoneFromPosition(rankPosition);
-      const milestoneLabel = getMilestoneLabel(
-        rankPosition,
-        score,
-        scoreNeeded,
-        milestoneHeld,
-        null,
-      );
-
-      return {
-        tier,
-        geographyId: geo.id,
-        geographyLabel: geo.label,
-        rankPosition,
-        rankScore: score,
-        progressPercent: getProgressPercent(score, target),
-        milestoneLabel,
-        milestoneHeld,
-        milestoneHeldSince: null,
-        movement,
-        movementDelta: Math.abs(delta),
-        cyclePhase: phaseInfo,
-      };
-    });
-  }, [geographies, cycles, scores, positions]);
-
-  const titleState = useMemo(() => buildTitleState(crown), [crown]);
-
-  // ── Derived: primary cycle for the phase panel (highest-tier the user touches)
-  const primaryTier = useMemo<Tier>(() => {
-    if (titleState.has) return titleState.primaryTitle.tier;
-    return 'viceroy';
-  }, [titleState]);
-
-  const primaryCard = useMemo(
-    () => rankCards.find((c) => c.tier === primaryTier) ?? rankCards[1],
-    [rankCards, primaryTier],
-  );
-
-  // ── Derived: Decision Prompt data (Phase 5 + user is Merit Winner) ────────────
-  const decisionData = useMemo<DecisionPromptData | null>(() => {
-    if (!uid) return null;
-    for (const tier of TIER_ORDER) {
-      const cycle = cycles[tier];
-      if (
-        cycle &&
-        cycle.phase === 5 &&
-        cycle.meritWinnerId === uid &&
-        cycle.decisionEndsAtMs != null
-      ) {
-        const geo = geographies[tier];
-        const hb = cycle.highestBid;
-        const scope = TIER_TO_SCOPE[tier];
-        const keepReward = crown?.currentTitles[scope]?.cycleReward ?? 0;
-        return {
-          tier,
-          geographyId: geo.id,
-          geographyLabel: geo.label,
-          titleString: getTitleString(tier, geo.label),
-          highestBid: hb
-            ? {
-                amount: hb.amount,
-                bidderId: hb.bidderId,
-                bidderHandle: hb.bidderHandle,
-                bidderTrustScore: hb.bidderTrustScore,
-              }
-            : null,
-          acceptAmount: hb ? computeAcceptAmount(hb.amount) : 0,
-          keepCycleReward: keepReward,
-          decisionEndsIn: Math.max(
-            0,
-            Math.round((cycle.decisionEndsAtMs - Date.now()) / 1000),
-          ),
-        };
-      }
-    }
-    return null;
-  }, [uid, cycles, geographies, crown]);
-
-  // ── §1.1 — header badge dot ───────────────────────────────────────────────────
-  // Red dot when: (a) a Decision Prompt is waiting, or (b) the user is the live
-  // Merit Winner in any active cycle. (Invasion <30m is owned by the invasion
-  // subscription's own surfacing and intentionally not duplicated here.)
-  const headerBadge = useMemo<boolean>(() => {
-    if (decisionData != null) return true;
-    if (!uid) return false;
-    return TIER_ORDER.some((tier) => {
-      const cycle = cycles[tier];
-      return !!cycle && cycle.meritWinnerId === uid && cycle.phase >= 3;
-    });
-  }, [decisionData, uid, cycles]);
-
-  // ── LAW 3 — block hardware back while the Decision Prompt is live ─────────────
-  useEffect(() => {
-    if (decisionData == null) return;
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => true);
-    return () => sub.remove();
-  }, [decisionData]);
-
-  // ── Decision execution callbacks ──────────────────────────────────────────────
-  const executeAccept = useCallback(
-    async (geographyId: string, tier: string) => {
-      const amount = decisionData?.highestBid?.amount ?? 0;
-      if (uid) {
-        await firestore()
-          .collection('users')
-          .doc(uid)
-          .collection('crown_decisions')
-          .doc(tier + '_' + geographyId)
-          .set(
-            {
-              choice: 'accept',
-              tier,
-              geography_id: geographyId,
-              decided_at: serverTimestamp(),
-            },
-            { merge: true },
-          );
-      }
-      return { creditsReceived: computeAcceptAmount(amount) };
-    },
-    [uid, decisionData],
-  );
-
-  const executeKeep = useCallback(
-    async (geographyId: string, tier: string) => {
-      if (!uid) return;
-      await firestore()
-        .collection('users')
-        .doc(uid)
-        .collection('crown_decisions')
-        .doc(tier + '_' + geographyId)
-        .set(
-          {
-            choice: 'keep',
-            tier,
-            geography_id: geographyId,
-            decided_at: serverTimestamp(),
-          },
-          { merge: true },
-        );
-    },
-    [uid],
-  );
-
-  const decision = useDecision(decisionData, executeAccept, executeKeep);
-
-  // ── Sleep-Safe settings ───────────────────────────────────────────────────────
-  const sleepSettings = useMemo<SleepSafeSettings>(() => {
-    const ss = crown?.sleepSafe;
-    return {
-      baronThreshold: ss?.baronThreshold ?? null,
-      viceroyThreshold: ss?.viceroyThreshold ?? null,
-      sovereignThreshold: ss?.sovereignThreshold ?? null,
-      imperatorThreshold: ss?.imperatorThreshold ?? null,
-      wakeForAny: ss?.wakeForAny ?? false,
-      minWakeAmount: ss?.minWakeAmount ?? 0,
-    };
-  }, [crown]);
-
-  const handleSaveSleepSafe = useCallback(
-    async (settings: SleepSafeSettings) => {
-      if (!uid) return;
-      await firestore()
-        .collection('users')
-        .doc(uid)
-        .set(
-          {
-            sleep_safe: {
-              baron_threshold: settings.baronThreshold,
-              viceroy_threshold: settings.viceroyThreshold,
-              sovereign_threshold: settings.sovereignThreshold,
-              imperator_threshold: settings.imperatorThreshold,
-              wake_for_any: settings.wakeForAny,
-              min_wake_amount: settings.minWakeAmount,
-            },
-          },
-          { merge: true },
-        );
-      setSleepSheetOpen(false);
-    },
-    [uid],
-  );
-
-  // ── Handlers ──────────────────────────────────────────────────────────────────
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    const started = Date.now();
-    clearRankCaches();
-    try {
-      await loadAsyncData();
-    } finally {
-      const elapsed = Date.now() - started;
-      if (elapsed < MIN_REFRESH_MS) {
-        await new Promise<void>((r) => setTimeout(r, MIN_REFRESH_MS - elapsed));
-      }
-      setRefreshKey((k) => k + 1);
-      setRefreshing(false);
-    }
-  }, [loadAsyncData]);
-
-  const handlePlaceBid = useCallback(
-    async (amount: number) => {
-      if (!uid || !bidSheetTier) return;
-      const geo = geographies[bidSheetTier];
-      const cycle = cycles[bidSheetTier];
-      if (!cycle) return;
-      setPlacingBid(true);
-      try {
-        await placeBid({
-          userId: uid,
-          userHandle: myHandle,
-          userTrustScore: crown?.trustScore ?? 0,
-          tier: bidSheetTier,
-          geographyId: geo.id,
-          geographyLabel: geo.label,
-          cycleId: cycle.cycleId,
-          amount,
-        });
-        setBidSheetTier(null);
-      } catch {
-        // Surface handled by sheet remaining open; no crash.
-      } finally {
-        setPlacingBid(false);
-      }
-    },
-    [uid, bidSheetTier, geographies, cycles, myHandle, crown],
-  );
-
-  const handleWithdrawBid = useCallback(async (bid: BidRecord) => {
-    try {
-      await withdrawBid({
-        tier: bid.tier,
-        geographyId: bid.geographyId,
-        bidId: bid.bidId,
-      });
-    } catch {
-      // no-op on failure
-    }
-  }, []);
-
-  const handleJoinInvasion = useCallback(async () => {
-    if (!uid || !invasion) return;
-    try {
-      await joinInvasion(invasion.invasionId, uid, myHandle, 'going');
-    } catch {
-      // no-op
-    }
-  }, [uid, invasion, myHandle]);
-
-  const detailCard = useMemo(
-    () => (detailTier ? rankCards.find((c) => c.tier === detailTier) ?? null : null),
-    [detailTier, rankCards],
-  );
-
-  const bidSheetCycle = bidSheetTier ? cycles[bidSheetTier] : null;
-
-  // ── Render ────────────────────────────────────────────────────────────────────
-  // CROWN "Open Read": the screen renders for everyone. Signed-out viewers see the
-  // live cycle + structure; personal rank/titles/bids populate once authenticated.
-  return (
-    <View style={styles.root}>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS_DARK.bgSurface} />
-
-      {/* Sticky header (§4.1 / §14) */}
-      <View style={[styles.header, { paddingTop: insets.top }]}>
-        <View style={styles.headerRow}>
-          <Text style={styles.wordmark}>👑 CROWN</Text>
-          <TouchableOpacity
-            style={styles.autoAcceptBtn}
-            onPress={() => setSleepSheetOpen(true)}
-            accessibilityRole="button"
-            accessibilityLabel={
-              headerBadge
-                ? 'Sleep-Safe Auto-Accept settings. Action needed.'
-                : 'Sleep-Safe Auto-Accept settings'
-            }
-            hitSlop={8}
-          >
-            <Text style={styles.shieldIcon}>🛡</Text>
-            <Text style={styles.autoAcceptLabel}>Auto-Accept</Text>
-            <Text style={styles.gearIcon}>⚙</Text>
-            {headerBadge ? (
-              <View style={styles.headerBadgeDot} accessibilityElementsHidden />
-            ) : null}
-          </TouchableOpacity>
+const CrownHeroCard = () => (
+  <View className="mx-4 mt-6 bg-[#161B26] rounded-2xl border border-[#F59E0B]/30 p-5 overflow-hidden">
+    {/* Subtle Glow Background Effect */}
+    <View className="absolute top-0 right-0 w-32 h-32 bg-[#F59E0B]/10 rounded-full blur-3xl -mr-10 -mt-10" />
+    
+    <View className="flex-row items-start justify-between">
+      <View className="flex-1">
+        <View className="flex-row items-center gap-2 mb-1">
+          <Text className="text-[#F59E0B] text-xl">👑</Text>
+          <Text className="text-[#F59E0B] text-xl font-bold tracking-tight">BARON of Sector 35, Chandigarh</Text>
+        </View>
+        <View className="flex-row items-center gap-3 mt-1">
+          <Text className="text-white/70 text-sm">@YourHandle</Text>
+          <View className="flex-row items-center gap-1">
+            <Text className="text-white/50 text-xs">👁</Text>
+            <Text className="text-white/70 text-xs">312 saw your pin</Text>
+          </View>
         </View>
       </View>
+    </View>
 
-      {loading && !crown ? (
-        <ScreenSkeleton animate={!reduceMotion} />
-      ) : (
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={[
-            styles.scrollContent,
-            { paddingBottom: insets.bottom + BOTTOM_NAV_HEIGHT + SPACING.xl },
-          ]}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={COLORS_DARK.fgBrand}
-              colors={[COLORS_DARK.fgBrand]}
-            />
-          }
-        >
-          {/* [1] Crown Hero */}
-          <CrownHeroCard
-            titleState={titleState}
-            onSeeAllTitles={() => {}}
-          />
+    <View className="mt-5 space-y-1">
+      <Text className="text-white text-sm font-medium">Held since: 2 cycles <Text className="text-[#10B981]"> (↑ from 1 last week)</Text></Text>
+      <View className="flex-row items-center gap-2">
+        <Text className="text-white/70 text-sm">Cycle reward:</Text>
+        <Text className="text-[#10B981] font-mono text-base font-bold tracking-tight">500 Cr / cycle</Text>
+        <TouchableOpacity>
+          <Text className="text-[#F59E0B] text-xs font-medium ml-1">[ℹ︎ How it's paid]</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
 
-          {/* [2] Four tier rank cards (§4.1 — "YOUR RANKS") */}
-          <View style={styles.section}>
-            <SectionHeader
-              title="Your ranks"
-              caption="Tap a tier for the full breakdown"
-            />
-            <View style={styles.cardStack}>
-              {rankCards.map((card) => (
-                <RankCard
-                  key={card.tier}
-                  data={card}
-                  onPress={() => setDetailTier(card.tier)}
-                />
-              ))}
-            </View>
+    <View className="mt-5 bg-[#10B981]/10 border border-[#10B981]/20 rounded-lg p-3 flex-row items-center gap-2">
+      <CheckCircle2 size={16} color={COLORS.success} />
+      <Text className="text-[#10B981] text-xs font-semibold uppercase tracking-wider">Your title is ACTIVE this cycle</Text>
+    </View>
+  </View>
+);
+
+const RankCard = ({ emoji, tier, location, rank, progress, progressLabel, stats, phase, isMonospaced = true }) => (
+  <TouchableOpacity activeOpacity={0.8} className="mx-4 mb-4 bg-[#161B26] rounded-xl border border-white/10 p-4">
+    <View className="flex-row items-center justify-between mb-3">
+      <View className="flex-row items-center gap-2">
+        <Text className="text-lg">{emoji}</Text>
+        <Text className="text-white font-bold tracking-tight text-sm uppercase">{tier} — {location}</Text>
+      </View>
+      <View className="bg-white/5 px-2 py-1 rounded border border-white/10">
+        <Text className="text-white/70 text-[10px] font-semibold">{phase}</Text>
+      </View>
+    </View>
+
+    <View className="mb-4">
+      <Text className="text-white/50 text-[11px] font-medium uppercase tracking-widest mb-1">Rank</Text>
+      <Text className={`text-[#F59E0B] text-3xl font-bold ${isMonospaced ? 'font-mono tracking-tighter' : ''}`}>
+        {rank}
+      </Text>
+    </View>
+
+    {progress !== null && (
+      <View className="space-y-2 mb-4">
+        <View className="flex-row justify-between items-center">
+          <View className="flex-1 h-1.5 bg-[#0D1018] rounded-full overflow-hidden mr-3">
+            <View className="h-full bg-[#F59E0B] rounded-full" style={{ width: `${progress}%` }} />
           </View>
+          <Text className="text-white/80 text-xs font-medium">{progressLabel}</Text>
+        </View>
+      </View>
+    )}
 
-          {/* [3] Active cycle phase panel (§4.1 — "ACTIVE CYCLE") */}
-          {primaryCard ? (
-            <View style={styles.section}>
-              <SectionHeader title="Active cycle" caption="What's happening right now" />
-              <CyclePhasePanel
-                cyclePhase={primaryCard.cyclePhase}
-                geographyLabel={primaryCard.geographyLabel}
-                tierLabel={TIER_TO_TITLE[primaryCard.tier]}
-                rankScore={primaryCard.rankScore}
-                onPlaceBid={() => setBidSheetTier(primaryCard.tier)}
-              />
+    {stats && (
+      <View className="flex-row items-center gap-3 pt-3 border-t border-white/5">
+        <Text className="text-white/60 font-mono text-xs">{stats.score} pts</Text>
+        <Text className="text-white/40 text-[10px]">•</Text>
+        <Text className="text-white/60 text-xs">Reactions: {stats.reactions}</Text>
+        {stats.delta && (
+          <>
+            <Text className="text-white/40 text-[10px]">•</Text>
+            <View className="flex-row items-center">
+              <ArrowUp size={12} color={COLORS.success} />
+              <Text className="text-[#10B981] text-xs font-mono ml-1">{stats.delta}</Text>
             </View>
-          ) : null}
+          </>
+        )}
+      </View>
+    )}
+  </TouchableOpacity>
+);
 
-          {/* [4] Battle schedule strip (§4.1 — "NEXT FREEZES") */}
-          {freezeTimes.length > 0 ? (
-            <View style={styles.section}>
-              <SectionHeader title="Next freezes" caption="Schedule for your geographies" />
-              <BattleScheduleStrip
-                freezeTimes={freezeTimes}
-                onSleepWarningTap={() => setSleepSheetOpen(true)}
-              />
-            </View>
-          ) : null}
+const ActiveCyclePanel = () => {
+  const pulseAnim = useRef(new Animated.Value(1)).current;
 
-          {/* [5] Conditional invasion card (§4.1 / §9 — "INVASION") */}
-          {invasion ? (
-            <View style={styles.section}>
-              <SectionHeader title="Invasion" />
-              <InvasionCard invasion={invasion} onJoinInvasion={handleJoinInvasion} />
-            </View>
-          ) : null}
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 0.5, duration: 1000, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 1000, useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
 
-          {/* [6] Bid history feed (§4.1 — "YOUR BIDS" · LAW 10) */}
-          <View style={styles.section}>
-            <SectionHeader title="Your bids" />
-            {!bidsLoaded ? (
-              // LAW 10 — skeleton while loading; NEVER the empty state here.
-              <BidFeedSkeleton animate={!reduceMotion} />
-            ) : bids.length > 0 ? (
-              <View style={styles.cardStack}>
-                {bids.map((bid) => (
-                  <BidRow
-                    key={bid.bidId}
-                    bid={bid}
-                    onRaiseBid={(b) => setBidSheetTier(b.tier)}
-                    onWithdrawBid={handleWithdrawBid}
-                  />
-                ))}
-              </View>
-            ) : (
-              // §10.2 — PRD empty-state copy (Hinglish).
-              <View style={styles.emptyCard}>
-                <Text style={styles.emptyEmoji}>💰</Text>
-                <Text style={styles.emptyTitle}>Tumne abhi tak koi bid nahi lagayi</Text>
-                <Text style={styles.emptyCardText}>
-                  Jab BOLI active ho, yahan se bid lagao.
-                </Text>
-              </View>
-            )}
+  return (
+    <View className="mx-4 mb-8 bg-[#161B26] rounded-xl border-2 border-[#E07B20] p-5 shadow-lg shadow-[#E07B20]/20">
+      <View className="flex-row items-center justify-between mb-4">
+        <View className="flex-row items-center gap-2">
+          <Text className="text-lg">⚔️</Text>
+          <Text className="text-white font-bold tracking-widest text-sm uppercase">BATTLE HOUR</Text>
+          <Animated.View style={{ opacity: pulseAnim }} className="w-2 h-2 bg-red-500 rounded-full ml-1" />
+          <Text className="text-red-500 text-[10px] font-bold">LIVE</Text>
+        </View>
+        <Text className="text-white/60 text-xs">Sector 35 · BARON</Text>
+      </View>
+
+      <Text className="text-white/80 text-sm mb-2">Leaderboard is LIVE. Every reaction matters.</Text>
+      <View className="flex-row items-center justify-between mb-5">
+        <Text className="text-white/60 text-xs">Cycle freezes in:</Text>
+        <Text className="text-[#E07B20] font-mono text-xl font-bold">00 : 47 : 13</Text>
+      </View>
+
+      <View className="bg-[#0D1018] rounded-lg p-4 mb-4 border border-white/5">
+        <View className="flex-row items-center justify-between mb-2">
+          <Text className="text-white/60 text-[11px] uppercase tracking-widest">Your Rank</Text>
+          <Text className="text-[#10B981] text-xs font-medium">↑ from #14 (live)</Text>
+        </View>
+        <Text className="text-[#F59E0B] font-mono text-2xl font-bold mb-3">#8</Text>
+        <View className="h-1.5 bg-white/10 rounded-full mb-2">
+          <View className="h-full bg-[#F59E0B] rounded-full w-[80%]" />
+        </View>
+        <Text className="text-white/60 text-[10px] text-right">Top 10 — held for 12 min</Text>
+      </View>
+
+      <View className="mb-5">
+        <Text className="text-white/40 text-[10px] uppercase tracking-widest mb-3">── Leaderboard Top 5 ─────────</Text>
+        {[
+          { rank: '#1', handle: '@AyeshaT', pts: '512', isYou: false, hasCrown: true },
+          { rank: '#2', handle: '@Bittu_92', pts: '488', isYou: false },
+          { rank: '#3', handle: '@Pooja_M', pts: '421', isYou: false },
+          { rank: '#8', handle: 'YOU', pts: '247', isYou: true },
+        ].map((user, i) => (
+          <View key={i} className={`flex-row items-center py-2 ${user.isYou ? 'bg-white/5 rounded px-2 -mx-2' : ''}`}>
+            <Text className={`w-8 font-mono text-sm ${user.isYou ? 'text-[#F59E0B] font-bold' : 'text-white/60'}`}>{user.rank}</Text>
+            <Text className={`flex-1 text-sm ${user.isYou ? 'text-[#F59E0B] font-bold' : 'text-white/80'}`}>{user.handle}</Text>
+            <Text className="font-mono text-sm text-white/60">{user.pts} pts</Text>
+            {user.hasCrown && <Text className="ml-2 text-xs">👑</Text>}
           </View>
+        ))}
+      </View>
 
-          {/* [7] Crown journey timeline (§4.1 — "CROWN JOURNEY" · §11.2 empty state) */}
-          <View style={styles.section}>
-            <SectionHeader
-              title="Crown journey"
-              caption="Every title and badge you've earned"
-            />
-            {journey.length > 0 ? (
-              <CrownJourneyTimeline nodes={journey} />
-            ) : journeyLoaded ? (
-              // §11.2 — aspirational empty state instead of hiding the section.
-              <View style={styles.emptyCard}>
-                <Text style={styles.emptyTitle}>Start your journey here</Text>
-                <Text style={styles.emptyCardText}>
-                  Win a cycle in any sector, city, or country to earn your first crown.
-                </Text>
-              </View>
-            ) : (
-              <SkeletonBlock height={120} animate={!reduceMotion} />
-            )}
-          </View>
-        </ScrollView>
-      )}
-
-      {/* ── Sheets ── */}
-      <SleepSafeSheet
-        visible={sleepSheetOpen}
-        initialSettings={sleepSettings}
-        onSave={handleSaveSleepSafe}
-        onClose={() => setSleepSheetOpen(false)}
-      />
-
-      <RankDetailSheet
-        visible={detailTier !== null}
-        data={detailCard}
-        breakdown={null}
-        onClose={() => setDetailTier(null)}
-      />
-
-      {bidSheetTier ? (
-        <BidSheet
-          visible={bidSheetTier !== null}
-          tier={bidSheetTier}
-          geographyLabel={geographies[bidSheetTier].label}
-          basePrice={bidSheetCycle?.baseBidPrice ?? 0}
-          currentHighBid={bidSheetCycle?.highestBid?.amount ?? null}
-          userCredits={crown?.credits ?? 0}
-          submitting={placingBid}
-          onPlaceBid={handlePlaceBid}
-          onClose={() => setBidSheetTier(null)}
-        />
-      ) : null}
-
-      {/* ── Decision Prompt overlay (LAW 3 — non-dismissible, Phase 5) ── */}
-      <DecisionPromptOverlay decision={decision} />
+      <TouchableOpacity className="bg-[#F59E0B] rounded-lg py-3 flex-row justify-center items-center gap-2">
+        <Text className="text-[#0D1018] font-bold text-sm">Go earn now → Open HOME</Text>
+      </TouchableOpacity>
     </View>
   );
+};
+
+const SectionTitle = ({ title }) => (
+  <View className="mx-4 mb-4 flex-row items-center overflow-hidden">
+    <Text className="text-white/40 text-[10px] font-bold tracking-widest uppercase mr-3">─── {title}</Text>
+    <View className="flex-1 h-[1px] bg-white/5" />
+  </View>
+);
+
+// --- MAIN SCREEN EXPORT ---
+export default function RanksScreen() {
+  return (
+    <SafeAreaView className="flex-1 bg-[#0D1018]">
+      <StatusBar barStyle="light-content" backgroundColor="#0D1018" />
+      
+      <ScreenHeader />
+
+      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+        
+        {/* Section 1 - Hero */}
+        <View className="pb-8">
+          <CrownHeroCard />
+        </View>
+
+        {/* Section 2 - Live Rank Cards */}
+        <SectionTitle title="Your Ranks" />
+        <RankCard 
+          emoji="🏘️" tier="BARON" location="Sector 35, Chandigarh" 
+          rank="#8" phase="🌒 Dark Tunnel"
+          progress={80} progressLabel="Top 10 held"
+          stats={{ score: 247, reactions: 38, delta: '+89' }}
+        />
+        <RankCard 
+          emoji="🏙️" tier="Mayor (VICEROY)" location="Mumbai" 
+          rank="#1,247" phase="⚔️ Battle Hour"
+          progress={40} progressLabel="Need 192 more reactions"
+        />
+        <RankCard 
+          emoji="🇮🇳" tier="SOVEREIGN" location="India" 
+          rank="#18,994" phase="🔒 Frozen"
+          progress={15} progressLabel="Need 3,400 more"
+        />
+        <RankCard 
+          emoji="🌍" tier="IMPERATOR" location="World" 
+          rank="Not in Top 10K" phase="💰 BOLI"
+          progress={null} progressLabel="Keep going!"
+          isMonospaced={false}
+        />
+
+        {/* Section 3 - Active Cycle */}
+        <View className="mt-6">
+          <SectionTitle title="Active Cycle" />
+          <ActiveCyclePanel />
+        </View>
+
+        {/* Section 4 - Battle Schedule Strip */}
+        <SectionTitle title="Next Freezes" />
+        <View className="mx-4 mb-8 bg-[#161B26] rounded-xl border border-white/10 p-4">
+          <Text className="text-white/50 text-xs font-semibold mb-4">Schedule for YOUR geographies</Text>
+          {[
+            { emoji: '🏘️', name: 'Sector 35 BARON', date: 'TODAY', time: '8:00 PM', wait: '2h 47m' },
+            { emoji: '🏙️', name: 'Mumbai VICEROY', date: 'TODAY', time: '1:00 AM', wait: '7h 47m' },
+            { emoji: '🇮🇳', name: 'India SOVEREIGN', date: 'TODAY', time: '9:00 PM', wait: '3h 47m' },
+          ].map((item, i) => (
+            <View key={i} className="flex-row items-center justify-between py-2 border-b border-white/5">
+              <View className="flex-row items-center gap-3">
+                <Text className="text-base">{item.emoji}</Text>
+                <Text className="text-white/90 text-sm font-medium">{item.name}</Text>
+              </View>
+              <View className="flex-row items-center gap-4">
+                <Text className="text-white/50 text-xs font-mono">{item.date} {item.time}</Text>
+                <Text className="text-[#F59E0B] text-xs font-bold w-12 text-right">{item.wait}</Text>
+              </View>
+            </View>
+          ))}
+          <TouchableOpacity className="mt-4 flex-row items-center justify-center py-2">
+            <Text className="text-white/40 text-xs font-medium">See all upcoming [+4 more]</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Section 6 - Bids */}
+        <SectionTitle title="Your Bids" />
+        <View className="mx-4 mb-4 bg-[#161B26] rounded-xl border border-white/10 p-4">
+          <View className="flex-row justify-between items-start mb-3">
+            <Text className="text-white font-bold text-sm">🏙️ Tokyo Mayor (VICEROY)</Text>
+            <View className="bg-[#10B981]/10 px-2 py-0.5 rounded border border-[#10B981]/20">
+              <Text className="text-[#10B981] text-[10px] font-bold">ACTIVE BID</Text>
+            </View>
+          </View>
+          <View className="bg-[#0D1018] rounded-lg p-3 border border-[#EF4444]/20 flex-row items-center gap-3">
+            <AlertTriangle size={16} color={COLORS.danger} />
+            <View>
+              <Text className="text-[#EF4444] text-xs font-bold">You've been outbid</Text>
+              <Text className="text-white/60 text-xs mt-0.5">Your bid: <Text className="font-mono text-white/80">8,400 Cr</Text>  ·  High: <Text className="font-mono text-[#F59E0B]">9,200 Cr</Text></Text>
+            </View>
+          </View>
+        </View>
+        <View className="mx-4 mb-8 bg-[#161B26] rounded-xl border border-white/5 p-4 opacity-70">
+          <View className="flex-row justify-between items-center mb-2">
+            <Text className="text-white/80 font-bold text-sm">🏘️ Sector 22, Lagos</Text>
+            <View className="flex-row items-center gap-1">
+              <RefreshCw size={12} color={COLORS.textMuted} />
+              <Text className="text-white/50 text-[10px] font-bold">SETTLED</Text>
+            </View>
+          </View>
+          <Text className="text-white/60 text-xs font-mono mb-1">5,000 Cr  ·  ✓ Refunded</Text>
+          <Text className="text-white/40 text-[10px]">25 Apr · 2:47 PM</Text>
+        </View>
+
+        {/* Section 7 - Crown Journey Timeline */}
+        <SectionTitle title="Crown Journey" />
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mx-4 mb-12 bg-[#161B26] rounded-xl border border-white/10 p-5">
+          <View className="flex-row items-center pt-2 pb-4">
+            {/* Timeline Track */}
+            <View className="absolute left-0 right-0 h-0.5 bg-white/10 top-4 z-0" />
+            
+            {[
+              { type: 'badge', title: 'Heard', date: 'Apr 3' },
+              { type: 'badge', title: 'Heard', date: 'Apr 7' },
+              { type: 'title', title: 'BARON\nSector 35', date: 'Apr 12' },
+              { type: 'current', title: 'BARON\n(current)', date: 'Apr 17' }
+            ].map((node, i) => (
+              <View key={i} className="items-center mr-10 z-10 w-16">
+                <View className={`w-4 h-4 rounded-full border-2 border-[#161B26] items-center justify-center mb-3
+                  ${node.type === 'badge' ? 'bg-white/40' : 
+                    node.type === 'title' ? 'bg-[#F5C842] w-5 h-5 rounded' : 
+                    'bg-[#F59E0B] w-6 h-6 shadow-lg shadow-[#F59E0B]/50'}`}>
+                </View>
+                <Text className="text-white/80 text-[11px] font-bold text-center leading-tight">{node.title}</Text>
+                <Text className="text-white/40 text-[10px] mt-1">{node.date}</Text>
+              </View>
+            ))}
+            <View className="items-center z-10 w-16 opacity-50">
+               <Text className="text-white/40 text-xs">→</Text>
+               <Text className="text-white/40 text-[10px] mt-4">now</Text>
+            </View>
+          </View>
+        </ScrollView>
+        
+        <View className="h-10" />
+      </ScrollView>
+    </SafeAreaView>
+  );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// STYLES
-// ─────────────────────────────────────────────────────────────────────────────
-
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: COLORS_DARK.bgSurface,
-  },
-  centered: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: SPACING.xl,
-    gap: SPACING.sm,
-  },
-
-  // Header
-  header: {
-    backgroundColor: COLORS_DARK.bgSurface,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS_DARK.borderSubtle,
-    zIndex: Z_INDEX.stickyHeader,
-  },
-  headerRow: {
-    height: SCREEN_HEADER_HEIGHT,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SPACING.base,
-  },
-  wordmark: {
-    fontFamily: FONTS.displayAlt,
-    fontSize: FONT_SIZES.title,
-    color: COLORS_DARK.fgTextStrong,
-    letterSpacing: 1,
-  },
-  // §14 — "🛡 Auto-Accept ⚙" affordance (min 44dp tap target).
-  autoAcceptBtn: {
-    minHeight: TOUCH_TARGET,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.xs,
-    paddingHorizontal: SPACING.sm,
-    borderRadius: RADIUS.pill,
-    borderWidth: 1,
-    borderColor: COLORS_DARK.borderSubtle,
-    backgroundColor: COLORS_DARK.bgCard,
-  },
-  shieldIcon: {
-    fontSize: 14,
-  },
-  autoAcceptLabel: {
-    fontFamily: FONTS.body,
-    fontSize: FONT_SIZES.chip,
-    fontWeight: '600',
-    color: COLORS_DARK.fgTextStrong,
-  },
-  gearIcon: {
-    fontSize: 16,
-    color: COLORS_DARK.fgTextMuted,
-  },
-  // §1.1 — red dot indicator.
-  headerBadgeDot: {
-    position: 'absolute',
-    top: -2,
-    right: -2,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: COLORS_DARK.fgDanger,
-    borderWidth: 1,
-    borderColor: COLORS_DARK.bgSurface,
-  },
-
-  // Scroll
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: SPACING.base,
-    paddingTop: SPACING.base,
-    gap: SPACING.xl,
-  },
-
-  // Sections
-  section: {
-    gap: SPACING.md,
-  },
-  sectionHeader: {
-    gap: 2,
-  },
-  sectionTitle: {
-    fontFamily: FONTS.displayAlt,
-    fontSize: FONT_SIZES.heroSub,
-    color: COLORS_DARK.fgTextStrong,
-    letterSpacing: 0.2,
-  },
-  sectionCaption: {
-    fontFamily: FONTS.body,
-    fontSize: FONT_SIZES.sub,
-    color: COLORS_DARK.fgTextMuted,
-  },
-  cardStack: {
-    gap: SPACING.md,
-  },
-
-  // Empty states
-  emptyCard: {
-    backgroundColor: COLORS_DARK.bgCard,
-    borderRadius: RADIUS.card,
-    borderWidth: 1,
-    borderColor: COLORS_DARK.borderSubtle,
-    padding: SPACING.lg,
-    alignItems: 'center',
-    gap: SPACING.xs,
-  },
-  emptyEmoji: {
-    fontSize: 28,
-    marginBottom: SPACING.xs,
-  },
-  emptyCardText: {
-    fontFamily: FONTS.body,
-    fontSize: FONT_SIZES.body,
-    color: COLORS_DARK.fgTextMuted,
-    textAlign: 'center',
-    lineHeight: 21,
-  },
-  emptyTitle: {
-    fontFamily: FONTS.displayAlt,
-    fontSize: FONT_SIZES.heroSub,
-    color: COLORS_DARK.fgTextStrong,
-    textAlign: 'center',
-  },
-  emptyBody: {
-    fontFamily: FONTS.body,
-    fontSize: FONT_SIZES.body,
-    color: COLORS_DARK.fgTextMuted,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-
-  // Skeleton
-  skeletonWrap: {
-    flex: 1,
-    paddingHorizontal: SPACING.base,
-    paddingTop: SPACING.base,
-    gap: SPACING.md,
-  },
-});
