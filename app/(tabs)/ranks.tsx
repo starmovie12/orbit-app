@@ -335,8 +335,8 @@ const SkeletonCard = memo(({ index }: { index: number }) => {
     if (reduced) return;
     opacity.value = withRepeat(
       withSequence(
-        withTiming(0.45, { duration: 650, easing: Easing.inOut(Easing.sine) }),
-        withTiming(1,    { duration: 650, easing: Easing.inOut(Easing.sine) }),
+        withTiming(0.45, { duration: 650, easing: Easing.inOut(Easing.sin) }),
+        withTiming(1,    { duration: 650, easing: Easing.inOut(Easing.sin) }),
       ),
       -1,
     );
@@ -487,8 +487,8 @@ const CrownHeroBanner = memo(({ standings }: { standings: RankStanding[] }) => {
     if (reduced)   { glowOpacity.value = 0.14; return; }
     glowOpacity.value = withRepeat(
       withSequence(
-        withTiming(0.22, { duration: durations.ripple, easing: Easing.inOut(Easing.sine) }),
-        withTiming(0.08, { duration: durations.ripple, easing: Easing.inOut(Easing.sine) }),
+        withTiming(0.22, { duration: durations.ripple, easing: Easing.inOut(Easing.sin) }),
+        withTiming(0.08, { duration: durations.ripple, easing: Easing.inOut(Easing.sin) }),
       ),
       -1,
       true,
