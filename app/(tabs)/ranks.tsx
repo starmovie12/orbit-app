@@ -450,8 +450,8 @@ export default function CrownScreen() {
   }, [uid]);
 
   // ── Subscribe: all active cycles (per tier) ───────────────────────────────────
+  // Public spectacle — runs for signed-out viewers too (Open Read).
   useEffect(() => {
-    if (!uid) return;
     const tierGeo: Partial<Record<RankTier, string>> = {};
     TIER_ORDER.forEach((t) => {
       tierGeo[t] = geographies[t].id;
@@ -537,18 +537,15 @@ export default function CrownScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uid, geographies.viceroy.id]);
 
-  // ── Fetch: battle schedule + crown journey (on load + refresh) ────────────────
+  // ── Fetch: battle schedule (public) + crown journey (auth only) ───────────────
   const loadAsyncData = useCallback(async () => {
-    if (!uid) return;
     const tierGeo: Partial<Record<RankTier, string>> = {};
     TIER_ORDER.forEach((t) => {
       tierGeo[t] = geographies[t].id;
     });
 
-    const [items, entries] = await Promise.all([
-      fetchBattleSchedule(tierGeo),
-      fetchCrownJourney(uid),
-    ]);
+    const items = await fetchBattleSchedule(tierGeo);
+    const entries = uid ? await fetchCrownJourney(uid) : [];
 
     const mapped: FreezeTime[] = items.map((it) => ({
       tier: it.tier,
@@ -824,20 +821,9 @@ export default function CrownScreen() {
 
   const bidSheetCycle = bidSheetTier ? cycles[bidSheetTier] : null;
 
-  // ── No-auth fallback ──────────────────────────────────────────────────────────
-  if (!uid) {
-    return (
-      <View style={[styles.root, styles.centered, { paddingTop: insets.top }]}>
-        <StatusBar barStyle="dark-content" backgroundColor={COLORS_DARK.bgSurface} />
-        <Text style={styles.emptyTitle}>Your Crown</Text>
-        <Text style={styles.emptyBody}>
-          Sign in to see your rank, titles and the live battle cycle.
-        </Text>
-      </View>
-    );
-  }
-
   // ── Render ────────────────────────────────────────────────────────────────────
+  // CROWN "Open Read": the screen renders for everyone. Signed-out viewers see the
+  // live cycle + structure; personal rank/titles/bids populate once authenticated.
   return (
     <View style={styles.root}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS_DARK.bgSurface} />
