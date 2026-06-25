@@ -58,8 +58,8 @@ import HeatPulseDot from '@/components/atoms/HeatPulseDot';
 
 const HDR = {
   // ── Row heights ─────────────────────────────────────────────────────────
-  ROW1_H:          56,   // brand + bell + DM          (Part 7 §5 locked)
-  ROW_ADDR_H:      36,   // compact address selector   (replaces hero row)
+  ROW1_H:          44,   // brand + bell + DM — compact to match icon circles
+  ROW_ADDR_H:      26,   // compact address selector   (replaces hero row)
   ROW_SEARCH_H:    48,   // animated search bar        (NEW)
   ROW_PINNED_H:    60,   // pinned-message card        (NEW — optional row)
   ROW2_H:          48,   // 4-scope tab switcher       (Part 7 §5 locked)
@@ -67,12 +67,12 @@ const HDR = {
 
   // Derived — base excludes optional pinned row; actual collapse is computed
   // dynamically in the component so the scroll animation always fits exactly.
-  COLLAPSE_H_BASE: 188,  // rows 1 + addr + search + tabs = 56+36+48+48
-  TOTAL_H_BASE:    220,  // COLLAPSE_H_BASE + ROW3_H
+  COLLAPSE_H_BASE: 166,  // rows 1 + addr + search + tabs = 44+26+48+48
+  TOTAL_H_BASE:    198,  // COLLAPSE_H_BASE + ROW3_H
 
   // ── Wordmark ────────────────────────────────────────────────────────────
-  WORDMARK_SIZE:     16,
-  WORDMARK_TRACKING: 2.5,
+  WORDMARK_SIZE:     14,
+  WORDMARK_TRACKING: 2,
 
   // ── Action icons ────────────────────────────────────────────────────────
   ACTION_TOUCH:  44,
@@ -350,8 +350,8 @@ export function HomeHeader({
 
   // ── Dynamic collapse height (adapts when pinned message is present) ──────────
   const collapseH = pinnedMessage
-    ? HDR.COLLAPSE_H_BASE + HDR.ROW_PINNED_H   // 188 + 60 = 248
-    : HDR.COLLAPSE_H_BASE;                       // 188
+    ? HDR.COLLAPSE_H_BASE + HDR.ROW_PINNED_H   // 166 + 60 = 226
+    : HDR.COLLAPSE_H_BASE;                       // 166
   const totalH = collapseH + HDR.ROW3_H;
 
   // ── Animated interpolations ───────────────────────────────────────────────
@@ -463,7 +463,7 @@ export function HomeHeader({
         <View style={styles.row1} pointerEvents="box-none">
           <View style={styles.wordmarkRow} accessibilityRole="header" accessibilityLabel="CROWN">
             {/* Crown glyph */}
-            <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+            <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
               <Path
                 d="m2 4 4 7 6-8 6 8 4-7-3 14H5z"
                 stroke={colors.fg.brand}
@@ -522,18 +522,16 @@ export function HomeHeader({
           accessibilityRole="button"
           accessibilityLabel={`Current location: ${addressLine}. Tap to change.`}
         >
-          <Text style={styles.addrEmoji} allowFontScaling={false}>
-            {scopeLabels.countryEmoji}
-          </Text>
-          <Text style={styles.addrText} allowFontScaling={false} numberOfLines={1}>
-            {addressLine}
-          </Text>
-          <Feather
-            name="chevron-down"
-            size={14}
-            color={colors.fg.secondary}
-            style={styles.addrChevron}
-          />
+          {/* Inner row: shrinks with text so ▾ stays right after the last word */}
+          <View style={styles.addrInner}>
+            <Text style={styles.addrEmoji} allowFontScaling={false}>
+              {scopeLabels.countryEmoji}
+            </Text>
+            <Text style={styles.addrText} allowFontScaling={false} numberOfLines={1}>
+              {addressLine}
+            </Text>
+            <Feather name="chevron-down" size={12} color={colors.fg.secondary} />
+          </View>
         </TouchableOpacity>
 
         {/* ── ROW 3 · Animated Search Bar ─────────────────────────────────────
@@ -698,7 +696,7 @@ const styles = StyleSheet.create({
     fontSize:      HDR.WORDMARK_SIZE,
     color:         colors.fg.brand,
     letterSpacing: HDR.WORDMARK_TRACKING,
-    lineHeight:    20,
+    lineHeight:    18,
   },
   actions: {
     flexDirection: 'row',
@@ -748,22 +746,25 @@ const styles = StyleSheet.create({
     flexDirection:     'row',
     alignItems:        'center',
     paddingHorizontal: HDR.PAD_H,
-    gap:               6,
+  },
+  /** Shrink-wraps to content — keeps ▾ immediately after the last word */
+  addrInner: {
+    flexDirection: 'row',
+    alignItems:    'center',
+    gap:           4,
+    flexShrink:    1,  // allows truncation on very long names
   },
   addrEmoji: {
-    fontSize:   16,
-    lineHeight: 20,
+    fontSize:   13,
+    lineHeight: 17,
   },
   addrText: {
-    flex:          1,
+    flexShrink:    1,        // shrinks text before chevron disappears
     fontFamily:    FONT_BODY.semiBold,
-    fontSize:      14,
+    fontSize:      12,
     color:         colors.fg.primary,
-    lineHeight:    18,
+    lineHeight:    16,
     letterSpacing: 0.1,
-  },
-  addrChevron: {
-    marginLeft: 2,
   },
 
   // ── Row 4 · Pinned Message card ───────────────────────────────────────────
