@@ -1,39 +1,35 @@
-/**
- * CROWN — EXPLORE Tab (discover.tsx)  ·  PREMIUM EDITION
- * ════════════════════════════════════════════════════════════════════════════
- * PRD §9.1: EXPLORE = "Discover other cities, leaderboards, schedules, search".
- * Contains: 4-tier leaderboards · Battle Schedule · City Picker · Search.
- *
- * DESIGN LANGUAGE — premium royal cream-gold (matches the founder's reference):
- *   • Cormorant Garamond serif for hero titles & section headings (the signature
- *     premium feel) · Inter for body/labels · Space Mono for all numerics/timers.
- *   • Warm cream→gold LinearGradient cards with a 3px top accent bar and a soft
- *     "royal shine" overlay, gold hairline borders, layered gold-tinted shadows.
- *   • Glowing pulse dots, gradient divider chips, shimmering gold CTAs.
- *   • Everything is themed via the repo `orbit` token set (brand gold = #D4A017).
- *     No banned values, no raw off-brand hex. 8pt grid. Title strings come ONLY
- *     from @/constants/titles (hardcoding them is a PR-block).
- *
- * Replaces the legacy ORBIT discover screen (a posts/views/"Watch" feed with
- * Spotlight Auctions, Mood Rooms, Crates — all CUT by the MAIN PRD). EXPLORE is
- * a discovery surface for titles, battles and geography, not a feed.
- *
- * ── Every interactive element does real work ─────────────────────────────────
- *   Search        → live user search (Firestore) + city filter; tap → profile.
- *   Scope tabs     → World / Country / City / Sector leaderboards (live).
- *   Hero + podium  → tap a contender → that user's profile (/user/[id]).
- *   Board rows     → tap → that user's profile.
- *   "Change"       → opens the City Picker to switch the City/Sector board.
- *   Schedule rows  → tap → jump Home to that scope's live chat before freeze.
- *   City Picker    → tap a city → view its board + visit its chat.
- *   Wallet pill     → credits drawer.
- *
- * ── Data ─────────────────────────────────────────────────────────────────────
- * Same proven Firestore pattern as ranks.tsx, with graceful mock fallback (a
- * "DEMO" pill marks mock data) so the screen is never blank during seeding.
- *   World/Country → /users orderBy('karma','desc')
- *   City/Sector   → /users where('region','==',cityId) orderBy('karma','desc')
- */
+/* ════════════════════════════════════════════════════════════════════════════
+   CROWN — EXPLORE / DISCOVER  ·  app/(tabs)/discover.tsx
+   ════════════════════════════════════════════════════════════════════════════
+   Discovery surface for STATUS + GEOGRAPHY (Screen PRD: CROWN-Explore).
+   A read-mostly map of "who is winning right now" across the four scopes,
+   "when the next title freezes" (Battle Schedule), "which cities are alive"
+   (City Picker), and "find a person or city" (search). Not a feed — a ranked,
+   navigable map. Every row is a doorway into a profile or a live chat.
+
+   GROUNDED IN THE LIVE REPO (cloned + read, not guessed):
+     • Tokens only — constants/colors.ts (orbit / palette). No hardcoded hex.
+     • Titles only — constants/titles.ts (TITLES / TITLE_LABELS / TITLE_COLORS).
+     • Fonts — Inter (body), Space Mono (every numeric), Cormorant (decorative).
+     • Components — @/components/shared (ScreenHeader, CreditPill, WalletDrawer,
+       Avatar, Divider). Custom in-repo sheet (NOT @gorhom/bottom-sheet).
+     • Data — lib/firebase (firestore()), lib/firestore-users (searchUsers,
+       UserDoc), contexts/AuthContext (user / firebaseUser).
+     • Design law — match HOME (app/(tabs)/index.tsx) only. The scope switcher
+       mirrors HOME's FourScopeSwitcher Reanimated sliding capsule.
+
+   CANON / WCAG (binding — accessibility outranks design canon):
+     • White-on-gold is PROHIBITED (gold[600] ≈ 2.37:1 — FAILS). All gold fills
+       use DARK ink text (#1A1A1A → ≥7:1). [Fixes a contrast bug in the previous
+       discover.tsx, which used white-on-gold; Button.tsx "primary" likewise
+       mislabels white-on-gold[600] as 4.6:1.]
+     • #F59E0B is a DARK-mode token — unused in this light-default screen. City
+       accent maps to the light brand gold (gold[600] #D4A017); only the Sector
+       tier keeps emerald (#10B981, the light success token).
+     • Bottom nav stays the global flush solid bar (radius 0) — not this file.
+
+   ENGLISH-ONLY: every user-facing string is plain English (global product).
+   ════════════════════════════════════════════════════════════════════════════ */
 
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import {
@@ -49,11 +45,18 @@ import {
   Modal,
   TextInput,
   Pressable,
+  AccessibilityInfo,
+  BackHandler,
+  type LayoutChangeEvent,
 } from 'react-native';
+import Reanimated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
+import NetInfo from '@react-native-community/netinfo';
+import analytics from '@react-native-firebase/analytics';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import {
   ScreenHeader,
   Divider,
@@ -70,22 +73,24 @@ import { searchUsers } from '@/lib/firestore-users';
 import type { UserDoc } from '@/lib/firestore-users';
 import { RANKS_DATA, MY_PROFILE } from '@/constants/data';
 
-/* ════════════════════════════════════════════════════════════════════════════
-   DESIGN TOKENS (derived from `orbit` + `palette` — premium cream-gold)
-   ════════════════════════════════════════════════════════════════════════════ */
-
-const GOLD = orbit.accent; // #D4A017 — primary brand gold
-const GOLD_DEEP = palette.gold[800]; // #8B6F18 — deep gold for serif headings on cream
-const GOLD_MID = palette.gold[700]; // #A88A24 — links / accents on white
-const GOLD_LIGHT = palette.gold[400]; // #E2C66B — gradient highlight
-const GOLD_BORDER = palette.gold[300]; // #ECD58F — warm gold hairline
-const CREAM_HI = palette.cream[50]; // #FFF9EC — card gradient top
-const CREAM_LO = palette.gold[100]; // #F9EFCE — card gradient bottom
-const TEXT_BODY = palette.ink[900]; // near-black warm body text
-const TEXT_SOFT = '#8B7040'; // warm brown muted (matches reference)
+/* ── Color constants (semantic tokens only — never raw hex below) ──────────── */
+const GOLD = orbit.accent; //              #D4A017 — primary brand gold
+const GOLD_DEEP = palette.gold[800]; //    #8B6F18 — gold serif headings on cream
+const GOLD_MID = palette.gold[700]; //     #A88A24 — links / accents on white
+const GOLD_LIGHT = palette.gold[400]; //   #E2C66B — gradient highlight
+const GOLD_BORDER = palette.gold[300]; //  #ECD58F — warm gold hairline
+const CREAM_HI = palette.cream[50]; //     #FFF9EC — card gradient top
+const CREAM_LO = palette.gold[100]; //     #F9EFCE — card gradient bottom
+const TEXT_BODY = palette.ink[900]; //     near-black warm body text
+const TEXT_SOFT = '#8B7040'; //            warm brown muted
+const INK_STRONG = palette.ink[950]; //    #1A1A1A — DARK text on gold fills (WCAG ≥7:1)
+const SCOPE_INACTIVE = '#7A5C2E'; //       muted warm brown — inactive tab (matches HOME)
+const EMERALD = TITLE_COLORS.SECTOR; //    #10B981 — Sector tier (light-safe)
+const PRISMATIC = TITLE_COLORS.WORLD; //   World #1 spectrum crown gradient
 
 const CREAM_CARD_GRAD = [CREAM_HI, CREAM_LO] as const;
-const GOLD_CTA_GRAD = [GOLD_DEEP, GOLD, GOLD_LIGHT] as const;
+// Gold CTA fill — light-anchored so DARK ink text passes WCAG (≈7.6–9:1).
+const GOLD_CTA_GRAD = [palette.gold[500], palette.gold[400]] as const; // #D4B244 → #E2C66B
 
 /* ════════════════════════════════════════════════════════════════════════════
    TYPES
@@ -115,6 +120,17 @@ type UserHit = {
   karma: number;
 };
 
+type ScopeCfg = {
+  key: ScopeKey;
+  tab: string;
+  icon: React.ComponentProps<typeof Feather>['name'];
+  emoji: string;
+  title: string;
+  /** Light-safe accent for badges / crown / pulse. World shows PRISMATIC in the hero. */
+  accent: string;
+  geographic: boolean;
+};
+
 /* ════════════════════════════════════════════════════════════════════════════
    CONSTANTS
    ════════════════════════════════════════════════════════════════════════════ */
@@ -122,48 +138,75 @@ type UserHit = {
 const USERS_COLL = 'users';
 const LEADERBOARD_LIMIT = 50;
 const SEARCH_LIMIT = 12;
+const SEARCH_MIN_CHARS = 2;
+const SEARCH_DEBOUNCE_MS = 280;
+/** Bounded fallback so the board never spins forever (offline / silent socket). */
+const BOARD_FALLBACK_MS = 6000;
 
-const SCOPES: {
-  key: ScopeKey;
-  tab: string;
-  icon: React.ComponentProps<typeof Feather>['name'];
-  emoji: string;
-  title: string;
-  accent: string;
-  geographic: boolean;
-}[] = [
-  { key: 'WORLD', tab: 'World', icon: 'globe', emoji: '🌍', title: TITLES.WORLD, accent: GOLD, geographic: false },
-  { key: 'COUNTRY', tab: 'Country', icon: 'flag', emoji: '🏳️', title: TITLES.COUNTRY, accent: GOLD, geographic: false },
-  { key: 'CITY', tab: 'City', icon: 'map-pin', emoji: '🏙️', title: TITLES.CITY, accent: TITLE_COLORS.CITY, geographic: true },
-  { key: 'SECTOR', tab: 'Sector', icon: 'home', emoji: '🏘️', title: TITLES.SECTOR, accent: TITLE_COLORS.SECTOR, geographic: true },
+// Title strings are NEVER hardcoded — sourced from constants/titles.ts.
+// City accent uses the light brand gold (gold[600]); #F59E0B is dark-mode only.
+const SCOPES: ScopeCfg[] = [
+  { key: 'WORLD',   tab: 'World',   icon: 'globe',   emoji: '🌍', title: TITLES.WORLD,   accent: GOLD,    geographic: false },
+  { key: 'COUNTRY', tab: 'Country', icon: 'flag',    emoji: '🏳️', title: TITLES.COUNTRY, accent: GOLD,    geographic: false },
+  { key: 'CITY',    tab: 'City',    icon: 'map-pin', emoji: '🏙️', title: TITLES.CITY,    accent: GOLD,    geographic: true  },
+  { key: 'SECTOR',  tab: 'Sector',  icon: 'home',    emoji: '🏘️', title: TITLES.SECTOR,  accent: EMERALD, geographic: true  },
 ];
 
-/** Fallback city list (English-only — global product). Sorted by online count. */
+/**
+ * Fallback city index (English-only). 16 cities with STATIC online counts.
+ * PRD Open Q #2/#3: the real source is /cities + a presence aggregation for
+ * live counts; this stub is wired-but-flagged until then.
+ */
 const FALLBACK_PLACES: Place[] = [
-  { id: 'mumbai', name: 'Mumbai', country: 'India', online: 247891 },
-  { id: 'delhi', name: 'Delhi', country: 'India', online: 198450 },
-  { id: 'bengaluru', name: 'Bengaluru', country: 'India', online: 156200 },
-  { id: 'hyderabad', name: 'Hyderabad', country: 'India', online: 92100 },
-  { id: 'chennai', name: 'Chennai', country: 'India', online: 88400 },
-  { id: 'kolkata', name: 'Kolkata', country: 'India', online: 79300 },
-  { id: 'pune', name: 'Pune', country: 'India', online: 71200 },
-  { id: 'chandigarh', name: 'Chandigarh', country: 'India', online: 48230 },
-  { id: 'jaipur', name: 'Jaipur', country: 'India', online: 41800 },
-  { id: 'lucknow', name: 'Lucknow', country: 'India', online: 34600 },
-  { id: 'new-york', name: 'New York', country: 'USA', online: 142000 },
-  { id: 'london', name: 'London', country: 'UK', online: 118700 },
-  { id: 'dubai', name: 'Dubai', country: 'UAE', online: 64200 },
-  { id: 'singapore', name: 'Singapore', country: 'Singapore', online: 58900 },
-  { id: 'toronto', name: 'Toronto', country: 'Canada', online: 47100 },
-  { id: 'sydney', name: 'Sydney', country: 'Australia', online: 39400 },
+  { id: 'mumbai',    name: 'Mumbai',    country: 'India',     online: 247891 },
+  { id: 'delhi',     name: 'Delhi',     country: 'India',     online: 198450 },
+  { id: 'bengaluru', name: 'Bengaluru', country: 'India',     online: 156200 },
+  { id: 'hyderabad', name: 'Hyderabad', country: 'India',     online: 92100  },
+  { id: 'chennai',   name: 'Chennai',   country: 'India',     online: 88400  },
+  { id: 'kolkata',   name: 'Kolkata',   country: 'India',     online: 79300  },
+  { id: 'pune',      name: 'Pune',      country: 'India',     online: 71200  },
+  { id: 'chandigarh',name: 'Chandigarh',country: 'India',     online: 48230  },
+  { id: 'jaipur',    name: 'Jaipur',    country: 'India',     online: 41800  },
+  { id: 'lucknow',   name: 'Lucknow',   country: 'India',     online: 34600  },
+  { id: 'new-york',  name: 'New York',  country: 'USA',       online: 142000 },
+  { id: 'london',    name: 'London',    country: 'UK',        online: 118700 },
+  { id: 'dubai',     name: 'Dubai',     country: 'UAE',       online: 64200  },
+  { id: 'singapore', name: 'Singapore', country: 'Singapore', online: 58900  },
+  { id: 'toronto',   name: 'Toronto',   country: 'Canada',    online: 47100  },
+  { id: 'sydney',    name: 'Sydney',    country: 'Australia', online: 39400  },
 ];
 
 const DEFAULT_CITY: Place = FALLBACK_PLACES[7]; // Chandigarh
 
 /* ════════════════════════════════════════════════════════════════════════════
+   GUARDED SIDE-EFFECT HELPERS (analytics / haptics — never crash the screen)
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/** PRD §6 — fire-and-forget analytics. No-ops on web / if analytics isn't set up. */
+function track(event: string, params?: Record<string, string | number | boolean>): void {
+  if (Platform.OS === 'web') return;
+  try {
+    void analytics().logEvent(event, params);
+  } catch {
+    /* analytics is optional — never block the UI */
+  }
+}
+
+/** Selection haptic (scope switch / row tap). Silent on web / unsupported. */
+function selectionHaptic(): void {
+  if (Platform.OS === 'web') return;
+  try {
+    void Haptics.selectionAsync();
+  } catch {
+    /* haptics optional */
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
    HELPERS
    ════════════════════════════════════════════════════════════════════════════ */
 
+/** Compact, no-reflow numbers (Space Mono renders these). 1.2M / 4.8K / 920. */
 function fmtCount(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
@@ -181,12 +224,21 @@ function mockToContender(m: (typeof RANKS_DATA)[number]): Contender {
   return { id: m.id, name: m.name, karma: m.karma, badge: m.badge ?? 'ACTIVE', region: null };
 }
 
-/* ── Battle Schedule timing (deterministic 5h cycle, staggered per scope) ───── */
+/** Non-navigable mock id? (RANKS_DATA ids are purely numeric: "1".."10".) */
+function isMockId(id: string): boolean {
+  return id.startsWith('mock_') || /^\d+$/.test(id);
+}
+
+/* ── Battle Schedule timing — deterministic 5h cycle, staggered per scope ────
+   PRD Open Q #4: authoritative freeze times should come from /cycles (clock-
+   skew-safe per Rule 13). Until that's wired, this derives from the device
+   clock + a fixed IST offset, which drifts on a wrong clock and ignores the
+   local stagger windows / IMPERATOR rotating-UTC table. Flagged, not silent. */
 const IST_OFFSET_MIN = 5 * 60 + 30;
 const FIVE_H = 5 * 3_600_000;
 
-function istMsOfDay(): number {
-  const istMs = Date.now() + IST_OFFSET_MIN * 60_000;
+function istMsOfDay(now: number): number {
+  const istMs = now + IST_OFFSET_MIN * 60_000;
   const d = new Date(istMs);
   return (
     d.getUTCHours() * 3_600_000 +
@@ -198,13 +250,13 @@ function istMsOfDay(): number {
 
 const SCOPE_FREEZE_OFFSET: Record<ScopeKey, number> = {
   WORLD: 0,
-  COUNTRY: 0, // 00:00 / 05:00 / 10:00 / 15:00 / 20:00 IST
-  CITY: 90 * 60_000, // +1h30m
+  COUNTRY: 0, //         00:00 / 05:00 / 10:00 / 15:00 / 20:00 IST
+  CITY: 90 * 60_000, //  +1h30m
   SECTOR: 180 * 60_000, // +3h
 };
 
-function msUntilFreeze(scope: ScopeKey): number {
-  const msOfDay = istMsOfDay();
+function msUntilFreeze(scope: ScopeKey, now: number): number {
+  const msOfDay = istMsOfDay(now);
   if (scope === 'WORLD') {
     const target = CYCLE.WORLD_FREEZE_HOUR_IST * 3_600_000 + CYCLE.WORLD_FREEZE_MINUTE_IST * 60_000;
     let delta = target - msOfDay;
@@ -229,31 +281,68 @@ function fmtClock(ms: number): string {
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
-   SHARED PRIMITIVE — PulseDot (glowing live indicator)
+   HOOK — reduce-motion (capsule / pulse / sheet fall back to instant)
    ════════════════════════════════════════════════════════════════════════════ */
 
-function PulseDot({ color = GOLD, size = 7 }: { color?: string; size?: number }) {
+function useReduceMotion(): boolean {
+  const [rm, setRm] = useState(false);
+  useEffect(() => {
+    let mounted = true;
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then((v) => {
+        if (mounted) setRm(!!v);
+      })
+      .catch(() => {});
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', (v) => setRm(!!v));
+    return () => {
+      mounted = false;
+      (sub as { remove?: () => void } | undefined)?.remove?.();
+    };
+  }, []);
+  return rm;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   SHARED PRIMITIVE — PulseDot (glowing live indicator; honors reduce-motion)
+   ════════════════════════════════════════════════════════════════════════════ */
+
+function PulseDot({
+  color = GOLD,
+  size = 7,
+  reduceMotion = false,
+}: {
+  color?: string;
+  size?: number;
+  reduceMotion?: boolean;
+}) {
   const a = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    Animated.loop(
+    if (reduceMotion) return;
+    const loop = Animated.loop(
       Animated.timing(a, { toValue: 1, duration: 1400, easing: Easing.out(Easing.ease), useNativeDriver: true }),
-    ).start();
-  }, [a]);
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [a, reduceMotion]);
+
   const ringScale = a.interpolate({ inputRange: [0, 1], outputRange: [1, 2.6] });
   const ringOpacity = a.interpolate({ inputRange: [0, 1], outputRange: [0.5, 0] });
+
   return (
     <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
-      <Animated.View
-        style={{
-          position: 'absolute',
-          width: size,
-          height: size,
-          borderRadius: size / 2,
-          backgroundColor: color,
-          transform: [{ scale: ringScale }],
-          opacity: ringOpacity,
-        }}
-      />
+      {!reduceMotion && (
+        <Animated.View
+          style={{
+            position: 'absolute',
+            width: size,
+            height: size,
+            borderRadius: size / 2,
+            backgroundColor: color,
+            transform: [{ scale: ringScale }],
+            opacity: ringOpacity,
+          }}
+        />
+      )}
       <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: color }} />
     </View>
   );
@@ -261,6 +350,7 @@ function PulseDot({ color = GOLD, size = 7 }: { color?: string; size?: number })
 
 /* ════════════════════════════════════════════════════════════════════════════
    SHARED PRIMITIVE — PremiumCard (cream→gold gradient, top accent, royal shine)
+   accent may be a single color OR a gradient array (World = PRISMATIC).
    ════════════════════════════════════════════════════════════════════════════ */
 
 function PremiumCard({
@@ -269,18 +359,16 @@ function PremiumCard({
   style,
 }: {
   children: React.ReactNode;
-  accent?: string;
-  style?: any;
+  accent?: string | readonly string[];
+  style?: object;
 }) {
+  const barColors = (
+    Array.isArray(accent) ? accent : [GOLD_DEEP, accent as string, GOLD_LIGHT]
+  ) as string[];
   return (
     <View style={[styles.premCardShadow, style]}>
       <LinearGradient colors={CREAM_CARD_GRAD} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.premCard}>
-        <LinearGradient
-          colors={[GOLD_DEEP, accent, GOLD_LIGHT]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={styles.premAccentBar}
-        />
+        <LinearGradient colors={barColors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.premAccentBar} />
         <LinearGradient colors={['rgba(255,255,255,0.6)', 'rgba(255,255,255,0)']} style={styles.premShine} pointerEvents="none" />
         {children}
       </LinearGradient>
@@ -305,14 +393,24 @@ function DividerChip({ label }: { label: string }) {
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
-   COMPONENT — Premium search field
+   COMPONENT — PremiumSearch (owns default ↔ search-mode trigger)
    ════════════════════════════════════════════════════════════════════════════ */
 
-function PremiumSearch({ value, onChange, placeholder }: { value: string; onChange: (t: string) => void; placeholder: string }) {
+function PremiumSearch({
+  value,
+  onChange,
+  placeholder,
+  editable = true,
+}: {
+  value: string;
+  onChange: (t: string) => void;
+  placeholder: string;
+  editable?: boolean;
+}) {
   const [focused, setFocused] = useState(false);
   return (
     <View style={styles.searchWrap}>
-      <View style={[styles.searchRow, focused && styles.searchRowFocus]}>
+      <View style={[styles.searchRow, focused && styles.searchRowFocus, !editable && styles.searchRowDisabled]}>
         <Feather name="search" size={16} color={focused ? GOLD : TEXT_SOFT} />
         <TextInput
           value={value}
@@ -320,15 +418,17 @@ function PremiumSearch({ value, onChange, placeholder }: { value: string; onChan
           placeholder={placeholder}
           placeholderTextColor={TEXT_SOFT}
           style={styles.searchInput}
+          editable={editable}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           autoCorrect={false}
+          autoCapitalize="none"
           returnKeyType="search"
           accessibilityRole="search"
           accessibilityLabel={placeholder}
         />
         {value.length > 0 && (
-          <TouchableOpacity onPress={() => onChange('')} hitSlop={8} accessibilityLabel="Clear search">
+          <TouchableOpacity onPress={() => onChange('')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Clear search">
             <Feather name="x" size={16} color={TEXT_SOFT} />
           </TouchableOpacity>
         )}
@@ -338,54 +438,98 @@ function PremiumSearch({ value, onChange, placeholder }: { value: string; onChan
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
-   COMPONENT — Scope Switcher (premium gold segmented control)
+   COMPONENT — ScopeSwitcher
+   Four EQUAL-WIDTH tabs + one sliding capsule (Reanimated), mirroring HOME's
+   FourScopeSwitcher. Capsule = soft gold tint; active tab = accent icon + dark
+   label (WCAG-safe). Reduce-motion = instant. PRD §4a · §5 · Telegram §7.
    ════════════════════════════════════════════════════════════════════════════ */
 
-function ScopeSwitcher({ active, onChange }: { active: ScopeKey; onChange: (s: ScopeKey) => void }) {
+const SC_H_PAD = 4; //       track horizontal padding
+const SC_GAP = 4; //         fixed separator width (keeps tabs equal-width)
+const SC_CAP_INSET = 3; //   capsule horizontal inset inside its tab
+const SC_SPRING = { damping: 18, stiffness: 210, mass: 0.6 };
+
+function ScopeSwitcher({
+  active,
+  onChange,
+  reduceMotion,
+}: {
+  active: ScopeKey;
+  onChange: (s: ScopeKey) => void;
+  reduceMotion: boolean;
+}) {
+  const [trackW, setTrackW] = useState(0);
+  const activeIndex = Math.max(0, SCOPES.findIndex((s) => s.key === active));
+
+  const capsuleX = useSharedValue(0);
+  const capsuleW = useSharedValue(0);
+
+  // Equal-width tabs: (track − padding − (N−1) separators) / N
+  const tabWidth = useMemo(() => {
+    if (trackW <= 0) return 0;
+    const content = trackW - SC_H_PAD * 2;
+    const available = content - SC_GAP * (SCOPES.length - 1);
+    return available > 0 ? available / SCOPES.length : 0;
+  }, [trackW]);
+
+  const calcX = useCallback((idx: number, tw: number) => idx * (tw + SC_GAP) + SC_CAP_INSET, []);
+
+  useEffect(() => {
+    if (tabWidth <= 0) return;
+    capsuleW.value = tabWidth - SC_CAP_INSET * 2;
+    const target = calcX(activeIndex, tabWidth);
+    capsuleX.value = reduceMotion ? target : withSpring(target, SC_SPRING);
+  }, [tabWidth, activeIndex, reduceMotion, calcX, capsuleW, capsuleX]);
+
+  const capsuleStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: capsuleX.value }],
+    width: capsuleW.value,
+  }));
+
+  const onTrackLayout = useCallback((e: LayoutChangeEvent) => {
+    setTrackW(e.nativeEvent.layout.width);
+  }, []);
+
   return (
     <View style={styles.scopeWrap}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scopeRow}>
-        {SCOPES.map((s) => {
-          const isActive = s.key === active;
-          if (isActive) {
+      <View style={styles.scopeCard}>
+        <View style={styles.scopeTrack} onLayout={onTrackLayout} accessibilityRole="tablist" accessibilityLabel="Leaderboard scope selector">
+          {tabWidth > 0 && <Reanimated.View pointerEvents="none" style={[styles.scopeCapsule, capsuleStyle]} />}
+
+          {SCOPES.map((s, idx) => {
+            const isActive = s.key === active;
             return (
-              <TouchableOpacity
-                key={s.key}
-                activeOpacity={0.85}
-                onPress={() => onChange(s.key)}
-                accessibilityRole="tab"
-                accessibilityState={{ selected: true }}
-                accessibilityLabel={`${s.tab} leaderboard`}
-              >
-                <LinearGradient colors={GOLD_CTA_GRAD} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.scopePillActive}>
+              <React.Fragment key={s.key}>
+                <TouchableOpacity
+                  style={styles.scopeTab}
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    if (isActive) return;
+                    selectionHaptic();
+                    onChange(s.key);
+                  }}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: isActive }}
+                  accessibilityLabel={`${s.tab} leaderboard`}
+                >
+                  <Feather name={s.icon} size={13} color={isActive ? s.accent : SCOPE_INACTIVE} />
                   <Text style={styles.scopeEmoji}>{s.emoji}</Text>
-                  <Text style={styles.scopePillTextActive}>{s.tab}</Text>
-                </LinearGradient>
-              </TouchableOpacity>
+                  <Text style={[styles.scopeTabLabel, isActive ? styles.scopeTabLabelActive : styles.scopeTabLabelInactive]} numberOfLines={1}>
+                    {s.tab}
+                  </Text>
+                </TouchableOpacity>
+                {idx < SCOPES.length - 1 && <View style={styles.scopeSep} pointerEvents="none" />}
+              </React.Fragment>
             );
-          }
-          return (
-            <TouchableOpacity
-              key={s.key}
-              style={styles.scopePill}
-              activeOpacity={0.85}
-              onPress={() => onChange(s.key)}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: false }}
-              accessibilityLabel={`${s.tab} leaderboard`}
-            >
-              <Text style={styles.scopeEmoji}>{s.emoji}</Text>
-              <Text style={styles.scopePillText}>{s.tab}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
+          })}
+        </View>
+      </View>
     </View>
   );
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
-   COMPONENT — Hero leaderboard banner (the premium centerpiece)
+   COMPONENT — LeaderHero (the marquee #1-holder card)
    ════════════════════════════════════════════════════════════════════════════ */
 
 function LeaderHero({
@@ -393,43 +537,43 @@ function LeaderHero({
   placeName,
   leader,
   contenderCount,
+  reduceMotion,
   onChangePlace,
   onTapLeader,
   onGoChat,
 }: {
-  scope: (typeof SCOPES)[number];
+  scope: ScopeCfg;
   placeName: string;
   leader: Contender | null;
   contenderCount: number;
+  reduceMotion: boolean;
   onChangePlace?: () => void;
   onTapLeader: (uid: string) => void;
   onGoChat: () => void;
 }) {
+  const isWorld = scope.key === 'WORLD';
+
   let titleLine: string;
   if (scope.key === 'CITY') titleLine = TITLE_LABELS.WITH_SCOPE.CITY(placeName);
   else if (scope.key === 'SECTOR') titleLine = TITLE_LABELS.WITH_SCOPE.SECTOR(placeName);
-  else titleLine = `${scope.title}`;
+  else titleLine = scope.title;
 
-  const subLine =
-    scope.key === 'CITY' || scope.key === 'SECTOR'
-      ? placeName
-      : scope.key === 'COUNTRY'
-      ? 'Your country'
-      : 'Worldwide';
+  // PRD §4b place line: city (City/Sector) · country (Country) · "Worldwide" (World)
+  const subLine = scope.geographic ? placeName : scope.key === 'COUNTRY' ? placeName : 'Worldwide';
 
   return (
     <View style={styles.heroOuter}>
-      <PremiumCard accent={scope.accent}>
+      <PremiumCard accent={isWorld ? PRISMATIC : scope.accent}>
         <View style={styles.heroInner}>
           <View style={styles.heroLabel}>
-            <PulseDot color={scope.accent} size={6} />
+            <PulseDot color={isWorld ? GOLD : scope.accent} size={6} reduceMotion={reduceMotion} />
             <Text style={styles.heroLabelText}>RACE FOR THE CROWN · LIVE</Text>
           </View>
 
           <Text style={styles.heroTitle} numberOfLines={2}>
             {titleLine}
           </Text>
-          <Text style={styles.heroSub}>
+          <Text style={styles.heroSub} numberOfLines={1}>
             {subLine} · {contenderCount > 0 ? `${contenderCount} contending` : 'be the first'}
           </Text>
 
@@ -438,13 +582,19 @@ function LeaderHero({
               style={styles.heroLeaderRow}
               onPress={() => onTapLeader(leader.id)}
               accessibilityRole="button"
-              accessibilityLabel={`Current leader ${leader.name}`}
+              accessibilityLabel={`Current leader @${leader.name}, ${leader.karma} reactions. Open profile.`}
             >
               <View style={styles.heroCrownWrap}>
                 <Avatar name={leader.name} size={56} ringed />
-                <View style={[styles.heroCrownBadge, { backgroundColor: scope.accent }]}>
-                  <Text style={styles.heroCrownEmoji}>👑</Text>
-                </View>
+                {isWorld ? (
+                  <LinearGradient colors={PRISMATIC as unknown as string[]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.heroCrownBadge}>
+                    <Text style={styles.heroCrownEmoji}>👑</Text>
+                  </LinearGradient>
+                ) : (
+                  <View style={[styles.heroCrownBadge, { backgroundColor: scope.accent }]}>
+                    <Text style={styles.heroCrownEmoji}>👑</Text>
+                  </View>
+                )}
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.heroLeaderLabel}>CURRENT LEADER</Text>
@@ -470,16 +620,16 @@ function LeaderHero({
               onPress={onChangePlace}
               activeOpacity={0.8}
               accessibilityRole="button"
-              accessibilityLabel="Change location"
+              accessibilityLabel={`Viewing ${placeName}. Change city.`}
             >
               <Feather name="repeat" size={13} color={GOLD_MID} />
               <Text style={styles.heroChangeText}>Viewing {placeName} — tap to change</Text>
             </TouchableOpacity>
           )}
 
-          <TouchableOpacity activeOpacity={0.88} onPress={onGoChat} accessibilityRole="button" accessibilityLabel={`Open ${scope.tab} chat`}>
+          <TouchableOpacity activeOpacity={0.88} onPress={onGoChat} accessibilityRole="button" accessibilityLabel={`Open the ${scope.tab} chat and climb`}>
             <LinearGradient colors={GOLD_CTA_GRAD} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.heroCta}>
-              <Feather name="zap" size={15} color="#FFF" />
+              <Feather name="zap" size={15} color={INK_STRONG} />
               <Text style={styles.heroCtaText}>Enter the {scope.tab} chat & climb</Text>
             </LinearGradient>
           </TouchableOpacity>
@@ -513,7 +663,7 @@ function Podium({ top3, accent, onTap }: { top3: Contender[]; accent: string; on
           style={[styles.podiumCol, { marginTop: lift }]}
           onPress={() => onTap(c.id)}
           accessibilityRole="button"
-          accessibilityLabel={`Rank ${place}: ${c.name}`}
+          accessibilityLabel={`Rank ${place}: @${c.name}, ${c.karma} reactions. Open profile.`}
         >
           <View>
             <Avatar name={c.name} size={size} ringed={place === 1} />
@@ -535,7 +685,7 @@ function Podium({ top3, accent, onTap }: { top3: Contender[]; accent: string; on
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
-   COMPONENT — Leaderboard row (rank 4+)
+   COMPONENT — LeaderRow (rank 4+)
    ════════════════════════════════════════════════════════════════════════════ */
 
 function LeaderRow({
@@ -557,7 +707,7 @@ function LeaderRow({
       onPress={onPress}
       activeOpacity={0.7}
       accessibilityRole="button"
-      accessibilityLabel={`Rank ${rank}: ${item.name}, ${item.karma} reactions`}
+      accessibilityLabel={`Rank ${rank}: @${item.name}, ${item.karma} reactions${isMe ? ', you' : ''}. Open profile.`}
     >
       <Text style={[styles.rowRank, isMe && { color: GOLD_DEEP }]}>{rank}</Text>
       <Avatar name={item.name} size={42} />
@@ -566,7 +716,9 @@ function LeaderRow({
           @{item.name}
           {isMe ? <Text style={styles.youTag}>  · You</Text> : null}
         </Text>
-        <Text style={styles.rowSub}>{item.badge && item.badge !== 'ACTIVE' ? item.badge : 'Contender'}</Text>
+        <Text style={styles.rowSub} numberOfLines={1}>
+          {item.badge && item.badge !== 'ACTIVE' ? item.badge : 'Contender'}
+        </Text>
       </View>
       <View style={styles.rowKarma}>
         <Feather name="heart" size={12} color={accent} />
@@ -578,11 +730,18 @@ function LeaderRow({
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
-   COMPONENT — Battle Schedule (live countdowns, premium card)
+   COMPONENT — BattleSchedule (live countdowns; 1 Hz tick from nowMs)
    ════════════════════════════════════════════════════════════════════════════ */
 
-function BattleSchedule({ tick, homeCity, onGoScope }: { tick: number; homeCity: string; onGoScope: (s: ScopeKey) => void }) {
-  void tick; // re-render each second
+function BattleSchedule({
+  nowMs,
+  homeCity,
+  onGoScope,
+}: {
+  nowMs: number;
+  homeCity: string;
+  onGoScope: (s: ScopeKey) => void;
+}) {
   return (
     <View style={styles.section}>
       <DividerChip label="⚔️  Battle Schedule" />
@@ -591,14 +750,17 @@ function BattleSchedule({ tick, homeCity, onGoScope }: { tick: number; homeCity:
         <PremiumCard>
           <View style={styles.schedInner}>
             {SCOPES.map((s, i) => {
-              const ms = msUntilFreeze(s.key);
+              const ms = msUntilFreeze(s.key, nowMs);
               const soon = ms <= 10 * 60_000;
               const label = s.key === 'WORLD' ? 'Worldwide' : s.key === 'COUNTRY' ? 'Your country' : homeCity;
               return (
                 <React.Fragment key={s.key}>
                   <TouchableOpacity
                     style={styles.schedRow}
-                    onPress={() => onGoScope(s.key)}
+                    onPress={() => {
+                      selectionHaptic();
+                      onGoScope(s.key);
+                    }}
                     activeOpacity={0.7}
                     accessibilityRole="button"
                     accessibilityLabel={`${s.title} freezes in ${fmtClock(ms)}. Open chat.`}
@@ -631,19 +793,23 @@ function BattleSchedule({ tick, homeCity, onGoScope }: { tick: number; homeCity:
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
-   COMPONENT — City Picker bottom sheet (premium)
+   COMPONENT — CityPickerSheet (the discovery picker; in-repo sheet, not gorhom)
    ════════════════════════════════════════════════════════════════════════════ */
 
 function CityPickerSheet({
   visible,
   places,
   activeId,
+  homeId,
+  reduceMotion,
   onClose,
   onPick,
 }: {
   visible: boolean;
   places: Place[];
   activeId: string;
+  homeId: string;
+  reduceMotion: boolean;
   onClose: () => void;
   onPick: (p: Place) => void;
 }) {
@@ -652,14 +818,18 @@ function CityPickerSheet({
   const [q, setQ] = useState('');
 
   useEffect(() => {
-    Animated.timing(slide, {
-      toValue: visible ? 0 : 700,
-      duration: visible ? 280 : 200,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start();
+    if (reduceMotion) {
+      slide.setValue(visible ? 0 : 700);
+    } else {
+      Animated.timing(slide, {
+        toValue: visible ? 0 : 700,
+        duration: visible ? 280 : 200,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start();
+    }
     if (!visible) setQ('');
-  }, [visible, slide]);
+  }, [visible, slide, reduceMotion]);
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -671,11 +841,11 @@ function CityPickerSheet({
 
   return (
     <Modal visible={visible} transparent animationType="none" statusBarTranslucent onRequestClose={onClose}>
-      <Pressable style={styles.sheetBackdrop} onPress={onClose} accessibilityLabel="Close city picker">
+      <Pressable style={styles.sheetBackdrop} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close city picker">
         <Animated.View style={[styles.sheet, { paddingBottom: insets.bottom + 12, transform: [{ translateY: slide }] }]}>
           <Pressable onPress={() => {}}>
             <View style={styles.sheetHandle} />
-            <Text style={styles.sheetTitle}>Visit another city</Text>
+            <Text style={styles.sheetTitle}>Pick a city to visit</Text>
             <Text style={styles.sheetSub}>Jump into any city's live chat — post anywhere on Earth.</Text>
 
             <View style={styles.sheetSearch}>
@@ -683,15 +853,17 @@ function CityPickerSheet({
               <TextInput
                 value={q}
                 onChangeText={setQ}
-                placeholder="Search cities or countries…"
+                placeholder="Search any city worldwide…"
                 placeholderTextColor={TEXT_SOFT}
                 style={styles.sheetSearchInput}
                 autoCorrect={false}
+                autoCapitalize="none"
                 returnKeyType="search"
-                accessibilityLabel="Search cities"
+                accessibilityRole="search"
+                accessibilityLabel="Search any city worldwide"
               />
               {q.length > 0 && (
-                <TouchableOpacity onPress={() => setQ('')} hitSlop={8} accessibilityLabel="Clear">
+                <TouchableOpacity onPress={() => setQ('')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Clear">
                   <Feather name="x" size={15} color={TEXT_SOFT} />
                 </TouchableOpacity>
               )}
@@ -701,10 +873,11 @@ function CityPickerSheet({
               {filtered.length === 0 ? (
                 <View style={styles.sheetEmpty}>
                   <Feather name="map" size={28} color={TEXT_SOFT} />
-                  <Text style={styles.sheetEmptyText}>No cities match “{q}”.</Text>
+                  <Text style={styles.sheetEmptyText}>No cities match “{q.trim()}”.</Text>
                 </View>
               ) : (
                 filtered.map((p) => {
+                  const isHome = p.id === homeId;
                   const isActive = p.id === activeId;
                   return (
                     <TouchableOpacity
@@ -713,17 +886,24 @@ function CityPickerSheet({
                       onPress={() => onPick(p)}
                       activeOpacity={0.7}
                       accessibilityRole="button"
-                      accessibilityLabel={`${p.name}, ${p.country}, ${fmtCount(p.online)} online${isActive ? ' — current' : ''}`}
+                      accessibilityLabel={`${p.name}, ${p.country}, ${fmtCount(p.online)} online${isHome ? ', your home' : ''}${isActive ? ', currently viewing' : ''}. Visit.`}
                     >
                       <LinearGradient colors={[GOLD_DEEP, GOLD]} style={styles.placeMono}>
                         <Text style={styles.placeMonoText}>{p.name.charAt(0).toUpperCase()}</Text>
                       </LinearGradient>
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.placeName} numberOfLines={1}>
-                          {p.name}
-                        </Text>
+                        <View style={styles.placeNameRow}>
+                          <Text style={styles.placeName} numberOfLines={1}>
+                            {p.name}
+                          </Text>
+                          {isHome && (
+                            <View style={styles.homeTag}>
+                              <Text style={styles.homeTagText}>HOME</Text>
+                            </View>
+                          )}
+                        </View>
                         <View style={styles.placeMetaRow}>
-                          <PulseDot color={orbit.success} size={5} />
+                          <PulseDot color={orbit.success} size={5} reduceMotion={reduceMotion} />
                           <Text style={styles.placeMeta} numberOfLines={1}>
                             {p.country} · {fmtCount(p.online)} online
                           </Text>
@@ -747,12 +927,13 @@ function CityPickerSheet({
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
-   MAIN SCREEN
+   MAIN SCREEN — ExploreScreen
    ════════════════════════════════════════════════════════════════════════════ */
 
 export default function ExploreScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const reduceMotion = useReduceMotion();
   const { user, firebaseUser } = useAuth();
 
   const myUid = firebaseUser?.uid ?? null;
@@ -781,20 +962,37 @@ export default function ExploreScreen() {
 
   const [walletVisible, setWallet] = useState(false);
   const [pickerVisible, setPicker] = useState(false);
+  const [offline, setOffline] = useState(false);
 
-  const [tick, setTick] = useState(0);
+  // 1 Hz wall clock — drives the Battle Schedule countdowns.
+  const [nowMs, setNowMs] = useState(() => Date.now());
   useEffect(() => {
-    const id = setInterval(() => setTick((t) => (t + 1) % 86_400), 1000);
+    const id = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
 
-  const activeScope = SCOPES.find((s) => s.key === scope)!;
+  // Network reachability — drives the offline affordance + DEMO fallback.
+  useEffect(() => {
+    const unsub = NetInfo.addEventListener((state) => {
+      setOffline(state.isConnected === false);
+    });
+    return () => unsub();
+  }, []);
+
+  const activeScope = SCOPES.find((s) => s.key === scope) ?? SCOPES[0];
   const isGeo = activeScope.geographic;
   const boardPlaceName = isGeo ? viewCity.name : scope === 'COUNTRY' ? viewCity.country || 'Your country' : 'Worldwide';
+  const showingSearch = search.trim().length >= SEARCH_MIN_CHARS;
+  const leader = contenders.length > 0 ? contenders[0] : null;
 
-  /* ── Subscribe leaderboard for the active scope ── */
+  /* ── Subscribe leaderboard for the active scope/place ───────────────────────
+     onSnapshot is acceptable for a capped 50-row board (PRD Open Q #5 flags the
+     at-scale cost; Rule 13's onSnapshot ban targets the message hot path, not
+     this). A bounded timer guarantees we never spin forever offline; the live
+     listener keeps updating and a later real snapshot always replaces DEMO. */
   useEffect(() => {
     let unsub: (() => void) | undefined;
+    let gotSnap = false;
     setLoading(true);
 
     const applyMock = () => {
@@ -802,9 +1000,18 @@ export default function ExploreScreen() {
       setUsingMock(true);
       setLoading(false);
     };
+    const applyReal = (list: Contender[]) => {
+      setContenders(list);
+      setUsingMock(false);
+      setLoading(false);
+    };
+
+    const fallbackTimer = setTimeout(() => {
+      if (!gotSnap) applyMock();
+    }, BOARD_FALLBACK_MS);
 
     try {
-      let query = firestore().collection(USERS_COLL) as any;
+      let query: any = firestore().collection(USERS_COLL);
       if (scope === 'CITY' || scope === 'SECTOR') {
         query = query.where('region', '==', viewCity.id).orderBy('karma', 'desc').limit(LEADERBOARD_LIMIT);
       } else {
@@ -813,10 +1020,7 @@ export default function ExploreScreen() {
 
       unsub = query.onSnapshot(
         (qs: any) => {
-          if (qs.empty) {
-            applyMock();
-            return;
-          }
+          gotSnap = true;
           const list: Contender[] = [];
           qs.forEach((doc: any) => {
             const d = doc.data() as UserDoc;
@@ -830,11 +1034,7 @@ export default function ExploreScreen() {
             });
           });
           if (list.length === 0) applyMock();
-          else {
-            setContenders(list);
-            setUsingMock(false);
-            setLoading(false);
-          }
+          else applyReal(list);
         },
         () => applyMock(),
       );
@@ -842,13 +1042,19 @@ export default function ExploreScreen() {
       applyMock();
     }
 
-    return () => unsub?.();
+    return () => {
+      clearTimeout(fallbackTimer);
+      unsub?.();
+    };
   }, [scope, viewCity.id]);
 
-  /* ── Live user search (debounced) ── */
+  /* ── Live user search (debounced, last-query-wins) ──────────────────────────
+     A monotonically-increasing seq drops stale responses; the 280 ms debounce +
+     min-2-chars throttle protects the index. (Telegram §7: a server-side flood
+     guard belongs on top of this — see §9, backend-owned.) */
   useEffect(() => {
     const needle = search.trim();
-    if (needle.length < 2) {
+    if (needle.length < SEARCH_MIN_CHARS || offline) {
       setHits([]);
       setSearching(false);
       return;
@@ -858,7 +1064,7 @@ export default function ExploreScreen() {
     const t = setTimeout(async () => {
       try {
         const res = await searchUsers(needle, SEARCH_LIMIT);
-        if (seq !== searchSeq.current) return;
+        if (seq !== searchSeq.current) return; // stale — drop
         const mapped: UserHit[] = (res ?? [])
           .filter((u: UserDoc) => !!u.username)
           .map((u: UserDoc) => ({
@@ -868,42 +1074,82 @@ export default function ExploreScreen() {
             karma: u.karma ?? 0,
           }));
         setHits(mapped);
+        track('explore_search', { len: needle.length, results: mapped.length });
       } catch {
         if (seq === searchSeq.current) setHits([]);
       } finally {
         if (seq === searchSeq.current) setSearching(false);
       }
-    }, 280);
+    }, SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(t);
-  }, [search]);
+  }, [search, offline]);
+
+  /* ── Hardware back: clear search before leaving the tab (Android) ──────────── */
+  useFocusEffect(
+    useCallback(() => {
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        if (search.length > 0) {
+          setSearch('');
+          return true; // consumed
+        }
+        return false; // default behavior
+      });
+      return () => sub.remove();
+    }, [search]),
+  );
 
   /* ── Handlers ── */
   const openUser = useCallback(
     (uid: string) => {
-      if (uid.startsWith('mock_') || /^\d+$/.test(uid)) return;
+      if (isMockId(uid)) return; // mock/DEMO rows never navigate
+      track('explore_open_profile', { uid });
       router.push(`/user/${uid}` as never);
     },
     [router],
   );
 
   const goScopeChat = useCallback(
-    (s: ScopeKey) => {
+    (s: ScopeKey, cityIdOverride?: string) => {
+      // PRD Open Q #6: HOME's incoming-param scheme (scope / cityId) is unbuilt;
+      // we pass the canonical shape so HOME can read it once wired.
       const params: Record<string, string> = { scope: s.toLowerCase() };
-      if (s === 'CITY' || s === 'SECTOR') params.cityId = viewCity.id;
+      if (s === 'CITY' || s === 'SECTOR') params.cityId = cityIdOverride ?? viewCity.id;
+      track('explore_open_chat', { scope: s.toLowerCase(), city: params.cityId ?? '' });
       router.push({ pathname: '/(tabs)', params } as never);
     },
     [router, viewCity.id],
   );
 
+  const onSwitchScope = useCallback((s: ScopeKey) => {
+    setScope(s);
+    track('explore_scope_switch', { scope: s.toLowerCase() });
+  }, []);
+
   const pickPlace = useCallback((p: Place) => {
     setViewCity(p);
     setPicker(false);
     setScope((cur) => (cur === 'CITY' || cur === 'SECTOR' ? cur : 'CITY'));
+    track('explore_city_visit', { city: p.id });
   }, []);
 
+  const onSearchCityRow = useCallback((p: Place) => {
+    selectionHaptic();
+    setViewCity(p);
+    setScope('CITY');
+    setSearch('');
+    track('explore_city_visit', { city: p.id, from: 'search' });
+  }, []);
+
+  /* ── Derived: city search hits (local, instant — works offline) ── */
+  const cityHits = useMemo(() => {
+    if (!showingSearch) return [];
+    const needle = search.trim().toLowerCase();
+    return FALLBACK_PLACES.filter(
+      (p) => p.name.toLowerCase().includes(needle) || p.country.toLowerCase().includes(needle),
+    ).sort((a, b) => b.online - a.online);
+  }, [search, showingSearch]);
+
   const bottomPad = Platform.OS === 'web' ? 100 : insets.bottom + 80;
-  const showingSearch = search.trim().length >= 2;
-  const leader = contenders.length > 0 ? contenders[0] : null;
 
   return (
     <View style={styles.screen}>
@@ -911,7 +1157,7 @@ export default function ExploreScreen() {
         title="Explore"
         right={
           usingMock && !loading && !showingSearch ? (
-            <View style={styles.demoPill}>
+            <View style={styles.demoPill} accessibilityRole="text" accessibilityLabel="Showing placeholder leaderboard data">
               <Text style={styles.demoPillText}>DEMO</Text>
             </View>
           ) : (
@@ -920,86 +1166,19 @@ export default function ExploreScreen() {
         }
       />
 
-      <PremiumSearch value={search} onChange={setSearch} placeholder="Search people, cities…" />
+      <PremiumSearch value={search} onChange={setSearch} placeholder="Search people, cities…" editable={!offline} />
+      {offline && (
+        <View style={styles.offlineNote}>
+          <Feather name="wifi-off" size={13} color={TEXT_SOFT} />
+          <Text style={styles.offlineNoteText}>You're offline — search is paused. Showing the latest available board.</Text>
+        </View>
+      )}
 
-      {showingSearch ? (
-        /* ── SEARCH MODE ── */
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: bottomPad }} keyboardShouldPersistTaps="handled">
-          <Text style={styles.searchGroupLabel}>PEOPLE</Text>
-          {searching && hits.length === 0 ? (
-            <View style={styles.loadingWrap}>
-              <ActivityIndicator color={GOLD} />
-            </View>
-          ) : hits.length === 0 ? (
-            <Text style={styles.searchEmpty}>No people found for “{search.trim()}”.</Text>
-          ) : (
-            hits.map((h, i) => (
-              <React.Fragment key={h.uid}>
-                <TouchableOpacity
-                  style={styles.hitRow}
-                  onPress={() => openUser(h.uid)}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Open ${h.username}'s profile`}
-                >
-                  <Avatar name={h.displayName ?? h.username} size={42} />
-                  <View style={styles.hitBody}>
-                    <Text style={styles.hitName} numberOfLines={1}>
-                      {h.displayName ?? `@${h.username}`}
-                    </Text>
-                    <Text style={styles.hitSub} numberOfLines={1}>
-                      @{h.username} · {fmtCount(h.karma)} karma
-                    </Text>
-                  </View>
-                  <Feather name="chevron-right" size={16} color={TEXT_SOFT} />
-                </TouchableOpacity>
-                {i < hits.length - 1 && <Divider inset={70} />}
-              </React.Fragment>
-            ))
-          )}
-
-          <Text style={[styles.searchGroupLabel, { marginTop: 20 }]}>CITIES</Text>
-          {(() => {
-            const needle = search.trim().toLowerCase();
-            const cityHits = FALLBACK_PLACES.filter(
-              (p) => p.name.toLowerCase().includes(needle) || p.country.toLowerCase().includes(needle),
-            ).sort((a, b) => b.online - a.online);
-            if (cityHits.length === 0) return <Text style={styles.searchEmpty}>No cities found.</Text>;
-            return cityHits.map((p, i) => (
-              <React.Fragment key={p.id}>
-                <TouchableOpacity
-                  style={styles.hitRow}
-                  onPress={() => {
-                    setViewCity(p);
-                    setScope('CITY');
-                    setSearch('');
-                  }}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel={`View ${p.name} leaderboard`}
-                >
-                  <LinearGradient colors={[GOLD_DEEP, GOLD]} style={styles.placeMono}>
-                    <Text style={styles.placeMonoText}>{p.name.charAt(0).toUpperCase()}</Text>
-                  </LinearGradient>
-                  <View style={styles.hitBody}>
-                    <Text style={styles.hitName} numberOfLines={1}>
-                      {p.name}
-                    </Text>
-                    <Text style={styles.hitSub} numberOfLines={1}>
-                      {p.country} · {fmtCount(p.online)} online
-                    </Text>
-                  </View>
-                  <Feather name="chevron-right" size={16} color={TEXT_SOFT} />
-                </TouchableOpacity>
-                {i < cityHits.length - 1 && <Divider inset={70} />}
-              </React.Fragment>
-            ));
-          })()}
-        </ScrollView>
-      ) : (
-        /* ── DEFAULT MODE ── */
-        <>
-          <ScopeSwitcher active={scope} onChange={setScope} />
+      {/* content = the area below the search bar; default body + search overlay both live here */}
+      <View style={styles.content}>
+        {/* ── DEFAULT MODE (always mounted; search overlays it to preserve scroll) ── */}
+        <View style={styles.bodyFill}>
+          <ScopeSwitcher active={scope} onChange={onSwitchScope} reduceMotion={reduceMotion} />
 
           {loading ? (
             <View style={styles.loadingWrap}>
@@ -1013,6 +1192,7 @@ export default function ExploreScreen() {
                 placeName={boardPlaceName}
                 leader={leader}
                 contenderCount={contenders.length}
+                reduceMotion={reduceMotion}
                 onChangePlace={isGeo ? () => setPicker(true) : undefined}
                 onTapLeader={openUser}
                 onGoChat={() => goScopeChat(scope)}
@@ -1031,19 +1211,32 @@ export default function ExploreScreen() {
                 <View style={styles.boardList}>
                   {contenders.slice(3).map((c, i, arr) => (
                     <React.Fragment key={c.id}>
-                      <LeaderRow item={c} rank={i + 4} accent={activeScope.accent} isMe={c.id === myUid} onPress={() => openUser(c.id)} />
+                      <LeaderRow
+                        item={c}
+                        rank={i + 4}
+                        accent={activeScope.accent}
+                        isMe={!!myUid && c.id === myUid}
+                        onPress={() => {
+                          selectionHaptic();
+                          openUser(c.id);
+                        }}
+                      />
                       {i < arr.length - 1 && <Divider inset={66} />}
                     </React.Fragment>
                   ))}
                 </View>
               )}
 
-              <BattleSchedule tick={tick} homeCity={homeCityName} onGoScope={goScopeChat} />
+              <BattleSchedule
+                nowMs={nowMs}
+                homeCity={homeCityName}
+                onGoScope={(s) => goScopeChat(s, s === 'CITY' || s === 'SECTOR' ? homeCityId : undefined)}
+              />
 
               <View style={styles.section}>
                 <DividerChip label="🌆  Discover Cities" />
                 <View style={styles.visitOuter}>
-                  <TouchableOpacity activeOpacity={0.9} onPress={() => setPicker(true)} accessibilityRole="button" accessibilityLabel="Open city picker">
+                  <TouchableOpacity activeOpacity={0.9} onPress={() => setPicker(true)} accessibilityRole="button" accessibilityLabel="Visit another city">
                     <PremiumCard>
                       <View style={styles.visitInner}>
                         <View style={styles.visitIcon}>
@@ -1051,7 +1244,9 @@ export default function ExploreScreen() {
                         </View>
                         <View style={{ flex: 1 }}>
                           <Text style={styles.visitTitle}>Visit another city</Text>
-                          <Text style={styles.visitSub}>Currently viewing {viewCity.name}. Explore any city on Earth.</Text>
+                          <Text style={styles.visitSub} numberOfLines={2}>
+                            Currently viewing {viewCity.name}. Explore any city on Earth.
+                          </Text>
                         </View>
                         <Feather name="chevron-right" size={20} color={TEXT_SOFT} />
                       </View>
@@ -1061,10 +1256,93 @@ export default function ExploreScreen() {
               </View>
             </ScrollView>
           )}
-        </>
-      )}
+        </View>
 
-      <CityPickerSheet visible={pickerVisible} places={FALLBACK_PLACES} activeId={viewCity.id} onClose={() => setPicker(false)} onPick={pickPlace} />
+        {/* ── SEARCH MODE — overlays the default body (preserves its mount + scroll) ── */}
+        {showingSearch && (
+          <View style={styles.searchOverlay}>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: bottomPad }} keyboardShouldPersistTaps="handled">
+              {/* PEOPLE */}
+              <Text style={styles.searchGroupLabel}>PEOPLE</Text>
+              {offline ? (
+                <Text style={styles.searchEmpty}>Connect to the internet to search people.</Text>
+              ) : searching && hits.length === 0 ? (
+                <View style={styles.loadingWrap}>
+                  <ActivityIndicator color={GOLD} />
+                </View>
+              ) : hits.length === 0 ? (
+                <Text style={styles.searchEmpty}>No people found for “{search.trim()}”.</Text>
+              ) : (
+                hits.map((h, i) => (
+                  <React.Fragment key={h.uid}>
+                    <TouchableOpacity
+                      style={styles.hitRow}
+                      onPress={() => openUser(h.uid)}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Open @${h.username}'s profile`}
+                    >
+                      <Avatar name={h.displayName ?? h.username} size={42} />
+                      <View style={styles.hitBody}>
+                        <Text style={styles.hitName} numberOfLines={1}>
+                          {h.displayName ?? `@${h.username}`}
+                        </Text>
+                        <Text style={styles.hitSub} numberOfLines={1}>
+                          @{h.username} · {fmtCount(h.karma)} karma
+                        </Text>
+                      </View>
+                      <Feather name="chevron-right" size={16} color={TEXT_SOFT} />
+                    </TouchableOpacity>
+                    {i < hits.length - 1 && <Divider inset={70} />}
+                  </React.Fragment>
+                ))
+              )}
+
+              {/* CITIES */}
+              <Text style={[styles.searchGroupLabel, { marginTop: 20 }]}>CITIES</Text>
+              {cityHits.length === 0 ? (
+                <Text style={styles.searchEmpty}>No cities found.</Text>
+              ) : (
+                cityHits.map((p, i) => (
+                  <React.Fragment key={p.id}>
+                    <TouchableOpacity
+                      style={styles.hitRow}
+                      onPress={() => onSearchCityRow(p)}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel={`View ${p.name} leaderboard`}
+                    >
+                      <LinearGradient colors={[GOLD_DEEP, GOLD]} style={styles.placeMono}>
+                        <Text style={styles.placeMonoText}>{p.name.charAt(0).toUpperCase()}</Text>
+                      </LinearGradient>
+                      <View style={styles.hitBody}>
+                        <Text style={styles.hitName} numberOfLines={1}>
+                          {p.name}
+                        </Text>
+                        <Text style={styles.hitSub} numberOfLines={1}>
+                          {p.country} · {fmtCount(p.online)} online
+                        </Text>
+                      </View>
+                      <Feather name="chevron-right" size={16} color={TEXT_SOFT} />
+                    </TouchableOpacity>
+                    {i < cityHits.length - 1 && <Divider inset={70} />}
+                  </React.Fragment>
+                ))
+              )}
+            </ScrollView>
+          </View>
+        )}
+      </View>
+
+      <CityPickerSheet
+        visible={pickerVisible}
+        places={FALLBACK_PLACES}
+        activeId={viewCity.id}
+        homeId={homeCityId}
+        reduceMotion={reduceMotion}
+        onClose={() => setPicker(false)}
+        onPick={pickPlace}
+      />
       <WalletDrawer visible={walletVisible} onClose={() => setWallet(false)} credits={credits} />
     </View>
   );
@@ -1076,9 +1354,17 @@ export default function ExploreScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: orbit.bg },
+  content: { flex: 1, position: 'relative' },
+  bodyFill: { flex: 1 },
+  searchOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: orbit.bg },
 
+  /* DEMO pill */
   demoPill: { backgroundColor: orbit.surface2, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   demoPillText: { fontFamily: FONT_BODY.bold, color: TEXT_SOFT, fontSize: 10, letterSpacing: 0.6 },
+
+  /* Offline note */
+  offlineNote: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 18, paddingTop: 2, paddingBottom: 4 },
+  offlineNoteText: { flex: 1, fontFamily: FONT_BODY.medium, color: TEXT_SOFT, fontSize: 11.5, lineHeight: 16 },
 
   /* Premium card primitive */
   premCardShadow: {
@@ -1112,7 +1398,7 @@ const styles = StyleSheet.create({
   },
   divChipText: { fontFamily: FONT_CORMORANT.bold, fontSize: 14, color: GOLD_DEEP, letterSpacing: 0.4 },
 
-  /* Search */
+  /* Search field */
   searchWrap: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
   searchRow: {
     flexDirection: 'row',
@@ -1131,38 +1417,37 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   searchRowFocus: { borderColor: GOLD, shadowOpacity: 0.2 },
+  searchRowDisabled: { backgroundColor: orbit.surface3, borderColor: orbit.borderSubtle, opacity: 0.7 },
   searchInput: { flex: 1, fontFamily: FONT_BODY.medium, color: TEXT_BODY, fontSize: 14, paddingVertical: 0 },
 
-  /* Scope switcher */
-  scopeWrap: { paddingTop: 10, paddingBottom: 4 },
-  scopeRow: { paddingHorizontal: 16, gap: 8 },
-  scopePill: {
+  /* Scope switcher — equal-width tabs + sliding capsule (HOME pattern) */
+  scopeWrap: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 4 },
+  scopeCard: { backgroundColor: '#FFF', borderWidth: 1.5, borderColor: GOLD_BORDER, borderRadius: 22, overflow: 'hidden' },
+  scopeTrack: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SC_H_PAD, position: 'relative' },
+  scopeCapsule: {
+    position: 'absolute',
+    left: SC_H_PAD,
+    top: SC_CAP_INSET,
+    bottom: SC_CAP_INSET,
+    borderRadius: 18,
+    backgroundColor: 'rgba(212,160,23,0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(212,160,23,0.32)',
+  },
+  scopeTab: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 22,
-    backgroundColor: '#FFF',
-    borderWidth: 1.5,
-    borderColor: GOLD_BORDER,
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: 10,
+    zIndex: 1,
   },
-  scopePillActive: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 22,
-    shadowColor: GOLD,
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
-  },
-  scopeEmoji: { fontSize: 13 },
-  scopePillText: { fontFamily: FONT_BODY.bold, fontSize: 13, color: GOLD_DEEP },
-  scopePillTextActive: { fontFamily: FONT_BODY.bold, fontSize: 13, color: '#FFF' },
+  scopeSep: { width: SC_GAP },
+  scopeEmoji: { fontSize: 12 },
+  scopeTabLabel: { fontFamily: FONT_BODY.bold, fontSize: 12.5 },
+  scopeTabLabelActive: { color: INK_STRONG },
+  scopeTabLabelInactive: { color: SCOPE_INACTIVE },
 
   /* Hero */
   heroOuter: { paddingHorizontal: 16, paddingTop: 14 },
@@ -1241,7 +1526,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     elevation: 5,
   },
-  heroCtaText: { fontFamily: FONT_BODY.bold, fontSize: 14, color: '#FFF', letterSpacing: 0.2 },
+  heroCtaText: { fontFamily: FONT_BODY.bold, fontSize: 14, color: INK_STRONG, letterSpacing: 0.2 },
 
   /* Podium */
   podiumRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-start', gap: 22, paddingHorizontal: 20, paddingTop: 6, paddingBottom: 18 },
@@ -1361,6 +1646,9 @@ const styles = StyleSheet.create({
   placeRowActive: { backgroundColor: orbit.accentSoft, borderRadius: 14, paddingHorizontal: 10 },
   placeMono: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
   placeMonoText: { fontFamily: FONT_BODY.bold, color: '#FFF', fontSize: 16 },
+  placeNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  homeTag: { backgroundColor: orbit.accentSoft, borderWidth: 1, borderColor: GOLD_BORDER, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+  homeTagText: { fontFamily: FONT_BODY.bold, color: GOLD_DEEP, fontSize: 8.5, letterSpacing: 0.5 },
   placeName: { fontFamily: FONT_BODY.bold, color: TEXT_BODY, fontSize: 15 },
   placeMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 },
   placeMeta: { fontFamily: FONT_BODY.medium, color: TEXT_SOFT, fontSize: 12 },
