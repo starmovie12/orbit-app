@@ -58,18 +58,20 @@ import HeatPulseDot from '@/components/atoms/HeatPulseDot';
 
 const HDR = {
   // ── Row heights ─────────────────────────────────────────────────────────
-  ROW1_H:        56,   // brand + bell + DM        (Part 7 §5 locked)
-  ROW_HERO_H:    52,   // scope status hero         (NEW)
-  ROW_SEARCH_H:  48,   // animated search bar       (NEW)
-  ROW2_H:        48,   // 4-scope tab switcher      (Part 7 §5 locked)
-  ROW3_H:        32,   // pinned heat / online strip(Part 7 §5 locked)
+  ROW1_H:          56,   // brand + bell + DM          (Part 7 §5 locked)
+  ROW_ADDR_H:      36,   // compact address selector   (replaces hero row)
+  ROW_SEARCH_H:    48,   // animated search bar        (NEW)
+  ROW_PINNED_H:    60,   // pinned-message card        (NEW — optional row)
+  ROW2_H:          48,   // 4-scope tab switcher       (Part 7 §5 locked)
+  ROW3_H:          32,   // online / heat strip        (Part 7 §5 locked)
 
-  // Derived (kept named so no magic numbers anywhere)
-  COLLAPSE_H:   204,   // rows 1–4 — the collapsible block
-  TOTAL_H:      236,   // rows 1–5 — full header height (excl. safe-area)
+  // Derived — base excludes optional pinned row; actual collapse is computed
+  // dynamically in the component so the scroll animation always fits exactly.
+  COLLAPSE_H_BASE: 188,  // rows 1 + addr + search + tabs = 56+36+48+48
+  TOTAL_H_BASE:    220,  // COLLAPSE_H_BASE + ROW3_H
 
   // ── Wordmark ────────────────────────────────────────────────────────────
-  WORDMARK_SIZE:     24,
+  WORDMARK_SIZE:     16,
   WORDMARK_TRACKING: 2.5,
 
   // ── Action icons ────────────────────────────────────────────────────────
@@ -107,17 +109,6 @@ const SEARCH_HINTS = [
   'Search rooms & players…',
   'Join a live Crown battle…',
 ] as const;
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SCOPE METADATA  (OMNI-BUILDER Part 7 §2 titles/icons)
-// ─────────────────────────────────────────────────────────────────────────────
-
-const SCOPE_ICONS: Record<ChatScope, string> = {
-  world:   '🌍',
-  country: '🏳️',
-  city:    '🏙️',
-  sector:  '🏘️',
-};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SCROLL ANIMATION  (0 = visible · 1 = hidden) — module-level singleton,
@@ -206,6 +197,49 @@ function AnimatedSearchHint() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// PINNED MESSAGE  — broadcasts from the scope crown-holder shown below the
+//   search bar; optional (only renders when the prop is provided).
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface PinnedMsgProps {
+  authorName:  string;
+  authorRank:  string;   // e.g. "Viceroy" | "Imperator" | "Sovereign" | "Baron"
+  text:        string;
+}
+
+function PinnedMessage({ authorName, authorRank, text }: PinnedMsgProps) {
+  return (
+    <View
+      style={styles.pinnedRow}
+      accessibilityLabel={`Pinned message from ${authorName} (${authorRank}): ${text}`}
+    >
+      {/* Gold left-accent bar — CROWN brand signature */}
+      <View style={styles.pinnedAccentBar} />
+
+      <View style={styles.pinnedBody}>
+        {/* ── Meta line: pin emoji · rank badge · author name ── */}
+        <View style={styles.pinnedMeta}>
+          <Text style={styles.pinnedPinEmoji} allowFontScaling={false}>📌</Text>
+          <View style={styles.pinnedRankBadge}>
+            <Text style={styles.pinnedRankLabel} allowFontScaling={false}>
+              {authorRank.toUpperCase()}
+            </Text>
+          </View>
+          <Text style={styles.pinnedAuthorName} numberOfLines={1} allowFontScaling={false}>
+            {authorName}
+          </Text>
+        </View>
+
+        {/* ── Message text ── */}
+        <Text style={styles.pinnedMsgText} numberOfLines={2} allowFontScaling={false}>
+          {text}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // ACTION ICON  (bell / DM) in a soft-gold circle
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -283,6 +317,13 @@ interface HomeHeaderProps {
   readonly unreadNotifications: number;
   readonly unreadDms:           number;
   readonly composerFocused:     boolean;
+
+  /** Optional pinned broadcast from the scope crown-holder */
+  readonly pinnedMessage?: {
+    authorName:  string;
+    authorRank:  string;   // e.g. "Viceroy" | "Imperator" | "Sovereign" | "Baron"
+    text:        string;
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -303,20 +344,27 @@ export function HomeHeader({
   unreadNotifications,
   unreadDms,
   composerFocused,
+  pinnedMessage,
 }: HomeHeaderProps) {
   const insets = useSafeAreaInsets();
 
+  // ── Dynamic collapse height (adapts when pinned message is present) ──────────
+  const collapseH = pinnedMessage
+    ? HDR.COLLAPSE_H_BASE + HDR.ROW_PINNED_H   // 188 + 60 = 248
+    : HDR.COLLAPSE_H_BASE;                       // 188
+  const totalH = collapseH + HDR.ROW3_H;
+
   // ── Animated interpolations ───────────────────────────────────────────────
 
-  /** Collapsible block (rows 1–4): slides fully off-screen + fades */
+  /** Collapsible block: slides fully off-screen + fades */
   const collapsibleTranslateY = useMemo(
     () =>
       headerScrollAnim.interpolate({
         inputRange:  [0, 1],
-        outputRange: [0, -(insets.top + HDR.COLLAPSE_H)],
+        outputRange: [0, -(insets.top + collapseH)],
         extrapolate: 'clamp',
       }),
-    [insets.top],
+    [insets.top, collapseH],
   );
 
   const collapsibleOpacity = useMemo(
@@ -329,15 +377,15 @@ export function HomeHeader({
     [],
   );
 
-  /** Pinned strip (row 5): rises by collapsible height → stays under safe-area */
+  /** Pinned strip: rises with the collapsible block */
   const onlineTranslateY = useMemo(
     () =>
       headerScrollAnim.interpolate({
         inputRange:  [0, 1],
-        outputRange: [0, -HDR.COLLAPSE_H],
+        outputRange: [0, -collapseH],
         extrapolate: 'clamp',
       }),
-    [],
+    [collapseH],
   );
 
   // Composer focus → snap header back into view
@@ -356,11 +404,17 @@ export function HomeHeader({
     }
   })();
 
-  const scopePhrase    = buildScopePhrase(activeScope, geoName);
-  const scopeIcon      = SCOPE_ICONS[activeScope];
-  const geoDisplayName = activeScope === 'world'
-    ? 'worldwide'
-    : geoName || activeScope.toUpperCase();
+  const scopePhrase = buildScopePhrase(activeScope, geoName);
+
+  /** Swiggy-style address line: "Sector 17, Chandigarh, India" */
+  const addressLine = (() => {
+    switch (activeScope) {
+      case 'world':   return 'Worldwide';
+      case 'country': return scopeLabels.country;
+      case 'city':    return `${scopeLabels.city}, ${scopeLabels.country}`;
+      case 'sector':  return `${scopeLabels.sector}, ${scopeLabels.city}, ${scopeLabels.country}`;
+    }
+  })();
 
   const showHeat       = heatScore >= HDR.HEAT_VISIBLE_THRESHOLD;
   const formattedCount = formatOnlineCount(onlineCount);
@@ -382,7 +436,7 @@ export function HomeHeader({
 
   return (
     <View
-      style={[styles.root, { height: insets.top + HDR.TOTAL_H }]}
+      style={[styles.root, { height: insets.top + totalH }]}
       pointerEvents="box-none"
     >
       {/* Safe-area cap — opaque fill so notch never bleeds behind the header */}
@@ -409,7 +463,7 @@ export function HomeHeader({
         <View style={styles.row1} pointerEvents="box-none">
           <View style={styles.wordmarkRow} accessibilityRole="header" accessibilityLabel="CROWN">
             {/* Crown glyph */}
-            <Svg width={26} height={26} viewBox="0 0 24 24" fill="none">
+            <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
               <Path
                 d="m2 4 4 7 6-8 6 8 4-7-3 14H5z"
                 stroke={colors.fg.brand}
@@ -457,38 +511,29 @@ export function HomeHeader({
           </View>
         </View>
 
-        {/* ── ROW 2 · Scope Hero (Blinkit "19 min delivery" pattern) ──────────
-            Blinkit:  "19 minutes"  +  "HOME — address ▾"
-            CROWN:    "1.2K"       +  "🏙 Mumbai ▾"  +  [●  online]
+        {/* ── ROW 2 · Address Selector (Swiggy-style) ──────────────────────
+            Format:  {countryEmoji}  Sector 17, Chandigarh, India  ▾
+            Tapping opens the geo-picker for the active scope.
         ──────────────────────────────────────────────────────────────────── */}
         <TouchableOpacity
-          style={styles.heroRow}
+          style={styles.addrRow}
           onPress={handleHeroPress}
           activeOpacity={0.85}
           accessibilityRole="button"
-          accessibilityLabel={`${formattedCount} ${scopePhrase}. Tap to change location.`}
+          accessibilityLabel={`Current location: ${addressLine}. Tap to change.`}
         >
-          <View style={styles.heroLeft}>
-            {/* Big number — like Blinkit's delivery ETA */}
-            <Text style={styles.heroCount} allowFontScaling={false} numberOfLines={1}>
-              {formattedCount}
-            </Text>
-            {/* Geo line with chevron */}
-            <View style={styles.heroGeoRow}>
-              <Text style={styles.heroGeoLabel} allowFontScaling={false} numberOfLines={1}>
-                {scopeIcon}{'  '}{geoDisplayName}
-              </Text>
-              <Feather name="chevron-down" size={12} color={colors.fg.secondary} />
-            </View>
-          </View>
-
-          {/* "online" pill — like Blinkit's "Surge applicable" badge */}
-          <View style={styles.onlinePill}>
-            <HeatPulseDot size={7} score={heatScore} />
-            <Text style={styles.onlinePillText} allowFontScaling={false}>
-              online
-            </Text>
-          </View>
+          <Text style={styles.addrEmoji} allowFontScaling={false}>
+            {scopeLabels.countryEmoji}
+          </Text>
+          <Text style={styles.addrText} allowFontScaling={false} numberOfLines={1}>
+            {addressLine}
+          </Text>
+          <Feather
+            name="chevron-down"
+            size={14}
+            color={colors.fg.secondary}
+            style={styles.addrChevron}
+          />
         </TouchableOpacity>
 
         {/* ── ROW 3 · Animated Search Bar ─────────────────────────────────────
@@ -518,7 +563,16 @@ export function HomeHeader({
           />
         </TouchableOpacity>
 
-        {/* ── ROW 4 · 4-Scope Switcher tabs ────────────────────────────────── */}
+        {/* ── ROW 4 · Pinned Message (optional — shown when crown-holder broadcasts) */}
+        {pinnedMessage ? (
+          <PinnedMessage
+            authorName={pinnedMessage.authorName}
+            authorRank={pinnedMessage.authorRank}
+            text={pinnedMessage.text}
+          />
+        ) : null}
+
+        {/* ── ROW 5 · 4-Scope Switcher tabs ────────────────────────────────── */}
         <View style={styles.row2}>
           <FourScopeSwitcher
             activeScope={activeScope}
@@ -529,7 +583,7 @@ export function HomeHeader({
         </View>
       </Animated.View>
 
-      {/* ════ PINNED STRIP (Row 5) ═════════════════════════════════════════════
+      {/* ════ PINNED STRIP (always visible) ═══════════════════════════════════
           Never hides. Rises with the collapsible block so it pins just
           below the safe-area inset when the user scrolls down.
       ═══════════════════════════════════════════════════════════════════════ */}
@@ -537,7 +591,7 @@ export function HomeHeader({
         style={[
           styles.onlineLayer,
           {
-            top:       insets.top + HDR.COLLAPSE_H,
+            top:       insets.top + collapseH,
             transform: [{ translateY: onlineTranslateY }],
           },
         ]}
@@ -631,7 +685,7 @@ const styles = StyleSheet.create({
   wordmarkRow: {
     flexDirection: 'row',
     alignItems:    'center',
-    gap:           8,
+    gap:           5,
   },
   /**
    * FONT_HEADING.extrabold = Syne_800ExtraBold (Part 7 §4 locked).
@@ -644,7 +698,7 @@ const styles = StyleSheet.create({
     fontSize:      HDR.WORDMARK_SIZE,
     color:         colors.fg.brand,
     letterSpacing: HDR.WORDMARK_TRACKING,
-    lineHeight:    30,
+    lineHeight:    20,
   },
   actions: {
     flexDirection: 'row',
@@ -688,62 +742,92 @@ const styles = StyleSheet.create({
     lineHeight: 11,
   },
 
-  // ── Row 2 · Scope Hero ────────────────────────────────────────────────────
-  heroRow: {
-    height:            HDR.ROW_HERO_H,
+  // ── Row 2 · Address Selector (Swiggy-style) ──────────────────────────────
+  addrRow: {
+    height:            HDR.ROW_ADDR_H,
     flexDirection:     'row',
     alignItems:        'center',
-    justifyContent:    'space-between',
     paddingHorizontal: HDR.PAD_H,
-    paddingBottom:     4,
+    gap:               6,
   },
-  heroLeft: {
-    flex: 1,
-    gap:  2,
+  addrEmoji: {
+    fontSize:   16,
+    lineHeight: 20,
   },
-  /**
-   * The "1.2K" count maps to Blinkit's "19 minutes" large display text.
-   * Part 7 §4: all numerics → Space Mono. If a FONT_MONO constant is
-   * exported from constants/typography.ts, swap to FONT_MONO.bold here.
-   * FONT_HEADING.extrabold (Syne) is a worthy alternative for display numerics
-   * — decide per your visual preference.
-   */
-  heroCount: {
-    fontFamily:    FONT_HEADING.extrabold,
-    fontSize:      HDR.HERO_COUNT_SIZE,
+  addrText: {
+    flex:          1,
+    fontFamily:    FONT_BODY.semiBold,
+    fontSize:      14,
     color:         colors.fg.primary,
-    lineHeight:    36,
-    letterSpacing: -0.5,
+    lineHeight:    18,
+    letterSpacing: 0.1,
   },
-  heroGeoRow: {
+  addrChevron: {
+    marginLeft: 2,
+  },
+
+  // ── Row 4 · Pinned Message card ───────────────────────────────────────────
+  pinnedRow: {
+    marginHorizontal:  HDR.PAD_H,
+    marginBottom:      6,
+    flexDirection:     'row',
+    backgroundColor:   colors.bg.card,
+    borderRadius:      10,
+    overflow:          'hidden',
+    borderWidth:       StyleSheet.hairlineWidth,
+    borderColor:       'rgba(0,0,0,0.07)',
+    // Gold jewel shadow — CROWN signature
+    shadowColor:       colors.fg.brand,
+    shadowOffset:      { width: 0, height: 1 },
+    shadowOpacity:     0.08,
+    shadowRadius:      4,
+    elevation:         2,
+  },
+  pinnedAccentBar: {
+    width:           3,
+    backgroundColor: colors.fg.brand,
+  },
+  pinnedBody: {
+    flex:              1,
+    paddingHorizontal: 10,
+    paddingVertical:   8,
+    justifyContent:    'center',
+    gap:               3,
+  },
+  pinnedMeta: {
     flexDirection: 'row',
     alignItems:    'center',
-    gap:           4,
+    gap:           5,
   },
-  heroGeoLabel: {
-    fontFamily:    FONT_BODY.medium,
-    fontSize:      HDR.HERO_GEO_SIZE,
-    color:         colors.fg.secondary,
-    lineHeight:    17,
+  pinnedPinEmoji: {
+    fontSize:   11,
+    lineHeight: 14,
   },
-  /**
-   * "online" pill — mirrors Blinkit's "Surge applicable" / location badge.
-   * Warm gold bg with pulsing dot = CROWN's visual signature.
-   */
-  onlinePill: {
-    flexDirection:     'row',
-    alignItems:        'center',
-    gap:               5,
-    backgroundColor:   colors.bg.goldSoft,
+  pinnedRankBadge: {
+    backgroundColor:   colors.fg.brand,
     borderRadius:      radii.xs,
-    paddingHorizontal: 10,
-    paddingVertical:   5,
+    paddingHorizontal: 5,
+    paddingVertical:   1,
   },
-  onlinePillText: {
+  pinnedRankLabel: {
+    fontFamily:    FONT_BODY.bold,
+    fontSize:      8,
+    color:         palette.white,
+    lineHeight:    11,
+    letterSpacing: 0.6,
+  },
+  pinnedAuthorName: {
     fontFamily: FONT_BODY.semiBold,
     fontSize:   11,
-    color:      colors.fg.brandText,
+    color:      colors.fg.secondary,
+    flex:       1,
     lineHeight: 14,
+  },
+  pinnedMsgText: {
+    fontFamily: FONT_BODY.regular,
+    fontSize:   12,
+    color:      colors.fg.primary,
+    lineHeight: 17,
   },
 
   // ── Row 3 · Animated Search Bar ───────────────────────────────────────────
