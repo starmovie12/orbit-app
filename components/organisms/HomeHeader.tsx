@@ -1,285 +1,166 @@
 /**
- * CROWN — Home Header (organism) · components/organisms/HomeHeader.tsx
- * ─────────────────────────────────────────────────────────────────────────────
- * BLINKIT-INSPIRED REDESIGN — OMNI-BUILDER Part 7 + Part 3 compliant
+ * components/organisms/HomeHeader.tsx
+ * CROWN — Home Header (organism) · premium Plaza ⇄ Chat morph
+ * ────────────────────────────────────────────────────────────────────────────
+ * PLAZA (at bottom / newest): CROWN + home line · 4-scope tabs · Throne Banner ·
+ *   City Pulse + Live toggle.
+ * CHAT (scrolled into older): a compact WhatsApp-style header cross-fades in —
+ *   ← back · city crest · Name ▾ · online · Heat · Live · ⋮.
  *
- *  ┌──────────────────────────────────────────────┐  Row 1 (56px)
- *  │  👑 CROWN              🔔99+  💬12           │  brand + actions
- *  ├──────────────────────────────────────────────┤  Row 2 (52px)  ← NEW
- *  │  1.2K                          [●  online]   │  scope hero
- *  │  🏙️  Mumbai  ˅                               │  (Blinkit "19 min" pattern)
- *  ├──────────────────────────────────────────────┤  Row 3 (48px)  ← NEW
- *  │  🔍  Find active battles…              🎤    │  animated search bar
- *  ├──────────────────────────────────────────────┤  Row 4 (48px)
- *  │  🌍 World  🏳 India  🏙 City  🏘 Sector      │  4-scope tabs
- *  └──────────────────────────────────────────────┘
- *  ──────── pinned ────────────────────────────────  Row 5 (32px)
- *  │  ● 1.2K online in Mumbai           🔥 Heat 72 │
- *  ────────────────────────────────────────────────
+ * Driven by the module-level `headerScrollAnim` singleton (0 = Plaza, 1 = Chat),
+ * shared with CrownBottomNav; index.tsx calls hideHeader()/showHeader() on scroll.
+ * The Plaza block is measured (onLayout) so the slide distance always fits.
  *
- * OMNI-BUILDER compliance:
- *   • Part 7 §4 — locked gold #D4A017, locked palette tokens, Syne wordmark
- *   • Part 7 §5 — Row 1 = 56 / Row 4 = 48 / Row 5 = 32 (extended with 2 new rows)
- *   • Part 3     — spring-back show, timing hide, reduced-motion respected
- *   • Part 2     — no race: module-level Animated.Value singleton (safe)
- *
- * API changes from v1:
- *   + onSearchPress: () => void   (navigate to search screen)
- *   All original props preserved.
+ * Logic reused from the repo: FourScopeSwitcher, HeatPulseDot, ThroneBanner,
+ * the scroll singleton, semantic tokens. All chrome copy is ENGLISH.
+ * ────────────────────────────────────────────────────────────────────────────
  */
 
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
+  Pressable,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
+  type LayoutChangeEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
-import { colors, palette, spacing, radii } from '@/constants/colors';
-import { FONT_BODY, FONT_HEADING } from '@/constants/typography';
+import { colors, palette, radii, spacing } from '@/constants/colors';
+import { FONT_BODY, FONT_HEADING, FONT_NUMERIC } from '@/constants/typography';
 import { FourScopeSwitcher, type ChatScope } from '@/components/molecules/FourScopeSwitcher';
 import HeatPulseDot from '@/components/atoms/HeatPulseDot';
+import ThroneBanner, {
+  type ThroneHolder,
+  type ThroneCycle,
+} from '@/components/organisms/ThroneBanner';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TOKENS  (OMNI-BUILDER Part 7 §5 extended with two Blinkit-inspired rows)
-// ─────────────────────────────────────────────────────────────────────────────
-
-const HDR = {
-  // ── Row heights ─────────────────────────────────────────────────────────
-  ROW1_H:          44,   // brand + bell + DM — compact to match icon circles
-  ROW_ADDR_H:      26,   // compact address selector   (replaces hero row)
-  ROW_SEARCH_H:    48,   // animated search bar        (NEW)
-  ROW_PINNED_H:    60,   // pinned-message card        (NEW — optional row)
-  ROW2_H:          48,   // 4-scope tab switcher       (Part 7 §5 locked)
-  ROW3_H:          32,   // online / heat strip        (Part 7 §5 locked)
-
-  // Derived — base excludes optional pinned row; actual collapse is computed
-  // dynamically in the component so the scroll animation always fits exactly.
-  COLLAPSE_H_BASE: 166,  // rows 1 + addr + search + tabs = 44+26+48+48
-  TOTAL_H_BASE:    198,  // COLLAPSE_H_BASE + ROW3_H
-
-  // ── Wordmark ────────────────────────────────────────────────────────────
-  WORDMARK_SIZE:     14,
-  WORDMARK_TRACKING: 2,
-
-  // ── Action icons ────────────────────────────────────────────────────────
-  ACTION_TOUCH:  44,
-  ACTION_CIRCLE: 38,
-  ACTION_ICON:   19,
-
-  // ── Hero row ────────────────────────────────────────────────────────────
-  HERO_COUNT_SIZE:  30,   // ~Blinkit "19 minutes" large display
-  HERO_GEO_SIZE:    13,
-
-  // ── Scroll animation ────────────────────────────────────────────────────
-  HIDE_DURATION:        220,
-  SHOW_SPRING_TENSION:  160,
-  SHOW_SPRING_FRICTION: 20,
-
-  // ── Search hint cycling ─────────────────────────────────────────────────
-  HINT_INTERVAL_MS: 2600,
-  HINT_FADE_MS:     260,
-
-  // ── Misc ────────────────────────────────────────────────────────────────
-  PAD_H:                  spacing.base,  // 16
-  BADGE_MAX:              99,
-  HEAT_VISIBLE_THRESHOLD: 30,
-} as const;
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SEARCH HINTS  (Blinkit-style cycling placeholder — matches CROWN voice)
-// ─────────────────────────────────────────────────────────────────────────────
-
-const SEARCH_HINTS = [
-  'Find active battles…',
-  'Explore top IMPERATORs…',
-  'Discover your Sector…',
-  'Search rooms & players…',
-  'Join a live Crown battle…',
-] as const;
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SCROLL ANIMATION  (0 = visible · 1 = hidden) — module-level singleton,
-//   shared with CrownBottomNav.  Public API unchanged.
+// Scroll animation singleton (0 = Plaza visible · 1 = collapsed to Chat)
+//   API preserved so CrownBottomNav + index.tsx coordination is unchanged.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const headerScrollAnim = new Animated.Value(0);
 
+const HIDE_DURATION = 220;
+const SHOW_TENSION = 160;
+const SHOW_FRICTION = 20;
+
 export function hideHeader(): void {
   Animated.timing(headerScrollAnim, {
-    toValue:         1,
-    duration:        HDR.HIDE_DURATION,
+    toValue: 1,
+    duration: HIDE_DURATION,
     useNativeDriver: true,
   }).start();
 }
 
 export function showHeader(): void {
   Animated.spring(headerScrollAnim, {
-    toValue:         0,
-    tension:         HDR.SHOW_SPRING_TENSION,
-    friction:        HDR.SHOW_SPRING_FRICTION,
+    toValue: 0,
+    tension: SHOW_TENSION,
+    friction: SHOW_FRICTION,
     useNativeDriver: true,
   }).start();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HELPERS
+// Tokens
 // ─────────────────────────────────────────────────────────────────────────────
 
-function formatOnlineCount(count: number): string {
-  if (count >= 1_000_000_000) return `${(count / 1_000_000_000).toFixed(1)}B`;
-  if (count >= 1_000_000)     return `${(count / 1_000_000).toFixed(1)}M`;
-  if (count >= 1_000)         return `${(count / 1_000).toFixed(1)}K`;
-  return count.toLocaleString('en-US');
-}
+const ROW1_H = 64; // brand + home line (Plaza)
+const TABS_H = 48;
+const PULSE_H = 56;
+const COMPACT_H = 56; // chat-mode header
+const PAD_H = spacing.base; // 16
+const BADGE_MAX = 99;
 
-function buildScopePhrase(scope: ChatScope, geoName: string): string {
-  switch (scope) {
-    case 'world': return 'worldwide';
-    default:      return `in ${geoName}`;
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Full count with Indian grouping, e.g. 240118 → "2,40,118". */
+function formatCount(n: number): string {
+  try {
+    return n.toLocaleString('en-IN');
+  } catch {
+    return String(n);
   }
 }
 
-function badgeLabel(count: number): string {
-  return count > HDR.BADGE_MAX ? `${HDR.BADGE_MAX}+` : String(count);
+function badgeLabel(n: number): string {
+  return n > BADGE_MAX ? `${BADGE_MAX}+` : String(n);
+}
+
+function buildHomeLine(scope: ChatScope, l: ScopeLabels): string {
+  switch (scope) {
+    case 'world':
+      return 'Worldwide';
+    case 'country':
+      return l.country;
+    case 'city':
+      return `${l.city} · ${l.country}`;
+    case 'sector':
+      return `${l.sector} · ${l.city} · ${l.country}`;
+  }
+}
+
+function activeGeoLabel(scope: ChatScope, l: ScopeLabels): string {
+  switch (scope) {
+    case 'world':
+      return 'World';
+    case 'country':
+      return l.country;
+    case 'city':
+      return l.city;
+    case 'sector':
+      return l.sector;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ANIMATED SEARCH HINT  — isolated component so setInterval never triggers a
-//   full HomeHeader re-render; only the hint text node re-paints.
+// Small pieces
 // ─────────────────────────────────────────────────────────────────────────────
 
-function AnimatedSearchHint() {
-  const [index, setIndex] = useState(0);
-  const opacity           = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      // Fade out → swap text → fade in
-      Animated.timing(opacity, {
-        toValue:         0,
-        duration:        HDR.HINT_FADE_MS,
-        useNativeDriver: true,
-      }).start(() => {
-        setIndex(prev => (prev + 1) % SEARCH_HINTS.length);
-        Animated.timing(opacity, {
-          toValue:         1,
-          duration:        HDR.HINT_FADE_MS,
-          useNativeDriver: true,
-        }).start();
-      });
-    }, HDR.HINT_INTERVAL_MS);
-
-    return () => clearInterval(timer);
-  }, [opacity]);
-
+function CrownCrest({ size = 18, color = colors.fg.celebrate }: { size?: number; color?: string }) {
   return (
-    <Animated.Text
-      style={[styles.searchHint, { opacity }]}
-      allowFontScaling={false}
-      numberOfLines={1}
-    >
-      {SEARCH_HINTS[index]}
-    </Animated.Text>
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="m2 4 4 7 6-8 6 8 4-7-3 14H5z" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M2 20h20" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
   );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// PINNED MESSAGE  — broadcasts from the scope crown-holder shown below the
-//   search bar; optional (only renders when the prop is provided).
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface PinnedMsgProps {
-  authorName:  string;
-  authorRank:  string;   // e.g. "Viceroy" | "Imperator" | "Sovereign" | "Baron"
-  text:        string;
-}
-
-function PinnedMessage({ authorName, authorRank, text }: PinnedMsgProps) {
-  return (
-    <View
-      style={styles.pinnedRow}
-      accessibilityLabel={`Pinned message from ${authorName} (${authorRank}): ${text}`}
-    >
-      {/* Gold left-accent bar — CROWN brand signature */}
-      <View style={styles.pinnedAccentBar} />
-
-      <View style={styles.pinnedBody}>
-        {/* ── Meta line: pin emoji · rank badge · author name ── */}
-        <View style={styles.pinnedMeta}>
-          <Text style={styles.pinnedPinEmoji} allowFontScaling={false}>📌</Text>
-          <View style={styles.pinnedRankBadge}>
-            <Text style={styles.pinnedRankLabel} allowFontScaling={false}>
-              {authorRank.toUpperCase()}
-            </Text>
-          </View>
-          <Text style={styles.pinnedAuthorName} numberOfLines={1} allowFontScaling={false}>
-            {authorName}
-          </Text>
-        </View>
-
-        {/* ── Message text ── */}
-        <Text style={styles.pinnedMsgText} numberOfLines={2} allowFontScaling={false}>
-          {text}
-        </Text>
-      </View>
-    </View>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ACTION ICON  (bell / DM) in a soft-gold circle
-// ─────────────────────────────────────────────────────────────────────────────
 
 interface ActionIconProps {
-  icon:      React.ComponentProps<typeof Feather>['name'];
-  unread:    number;
-  onPress:   () => void;
+  icon: React.ComponentProps<typeof Feather>['name'];
+  unread: number;
+  onPress: () => void;
   a11yLabel: string;
-  a11yHint:  string;
 }
 
-function ActionIcon({ icon, unread, onPress, a11yLabel, a11yHint }: ActionIconProps) {
+function ActionIcon({ icon, unread, onPress, a11yLabel }: ActionIconProps) {
   const hasUnread = unread > 0;
-
   return (
     <TouchableOpacity
       onPress={() => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         onPress();
       }}
-      style={styles.actionButton}
+      style={styles.actionBtn}
       accessibilityRole="button"
       accessibilityLabel={a11yLabel}
-      accessibilityHint={a11yHint}
       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
       activeOpacity={0.7}
     >
       <View style={[styles.iconCircle, hasUnread && styles.iconCircleActive]}>
-        <Feather
-          name={icon}
-          size={HDR.ACTION_ICON}
-          color={hasUnread ? colors.fg.brand : colors.fg.secondary}
-        />
+        <Feather name={icon} size={19} color={hasUnread ? colors.fg.brand : colors.fg.secondary} />
       </View>
-
       {hasUnread ? (
-        <View
-          style={[styles.actionBadge, unread > 9 && styles.actionBadgeWide]}
-          accessibilityElementsHidden
-        >
+        <View style={[styles.badge, unread > 9 && styles.badgeWide]} accessibilityElementsHidden>
           <Text style={styles.badgeText} allowFontScaling={false}>
             {badgeLabel(unread)}
           </Text>
@@ -289,45 +170,76 @@ function ActionIcon({ icon, unread, onPress, a11yLabel, a11yHint }: ActionIconPr
   );
 }
 
+/** Live ⇄ Top 30 pill — opens the Live popup; parent owns viewMode. */
+function LiveToggle({ viewMode, onPress }: { viewMode: 'live' | 'top30'; onPress: () => void }) {
+  const live = viewMode === 'live';
+  return (
+    <Pressable
+      onPress={() => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        onPress();
+      }}
+      accessibilityRole="button"
+      accessibilityLabel={live ? 'View mode: Live. Tap to change.' : 'View mode: Top 30. Tap to change.'}
+      style={({ pressed }) => [styles.liveToggle, live && styles.liveToggleOn, pressed && styles.pressed]}
+    >
+      <View style={[styles.liveDot, { backgroundColor: live ? colors.fg.warning : colors.fg.tertiary }]} />
+      <Text style={[styles.liveLabel, live && styles.liveLabelOn]} allowFontScaling={false}>
+        {live ? 'Live' : 'Top 30'}
+      </Text>
+    </Pressable>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
-// PROPS
+// Props
 // ─────────────────────────────────────────────────────────────────────────────
 
-interface ScopeLabels {
-  readonly country:      string;
-  readonly city:         string;
-  readonly sector:       string;
+export interface ScopeLabels {
+  readonly country: string;
+  readonly city: string;
+  readonly sector: string;
   readonly countryEmoji: string;
 }
 
-interface HomeHeaderProps {
-  readonly activeScope:   ChatScope;
-  readonly scopeLabels:   ScopeLabels;
+export interface HomeHeaderProps {
+  // scope
+  readonly activeScope: ChatScope;
+  readonly scopeLabels: ScopeLabels;
   readonly onScopeChange: (scope: ChatScope) => void;
-  readonly onPickerOpen:  (scope: ChatScope) => void;
-  readonly onSearchPress: () => void;              // NEW — navigate to Search screen
+  readonly onPickerOpen: (scope: ChatScope) => void;
 
+  // live room stats
   readonly onlineCount: number;
-  readonly heatScore:   number;
+  readonly heatScore: number;
 
+  // header-right actions
   readonly onNotificationPress: () => void;
-  readonly onDmPress:           () => void;
-
-  readonly showTrustAnchor:     boolean;
+  readonly onDmPress: () => void;
   readonly unreadNotifications: number;
-  readonly unreadDms:           number;
-  readonly composerFocused:     boolean;
+  readonly unreadDms: number;
+  readonly composerFocused: boolean;
 
-  /** Optional pinned broadcast from the scope crown-holder */
-  readonly pinnedMessage?: {
-    authorName:  string;
-    authorRank:  string;   // e.g. "Viceroy" | "Imperator" | "Sovereign" | "Baron"
-    text:        string;
-  };
+  // throne
+  readonly throneHolder: ThroneHolder | null;
+  readonly throneCycle?: ThroneCycle | null;
+  readonly nextBattleLabel?: string | null;
+  readonly onPressHolder?: () => void;
+  readonly onPressPin?: () => void;
+  readonly onPressClimb?: () => void;
+
+  // live view mode
+  readonly viewMode: 'live' | 'top30';
+  readonly onToggleLive: () => void;
+
+  // chat-mode header actions
+  readonly onOpenCityInfo: () => void;
+  readonly onOpenOverflow: () => void;
+  readonly onBack?: () => void;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// COMPONENT
+// Component
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function HomeHeader({
@@ -335,599 +247,455 @@ export function HomeHeader({
   scopeLabels,
   onScopeChange,
   onPickerOpen,
-  onSearchPress,
   onlineCount,
   heatScore,
   onNotificationPress,
   onDmPress,
-  showTrustAnchor,
   unreadNotifications,
   unreadDms,
   composerFocused,
-  pinnedMessage,
+  throneHolder,
+  throneCycle,
+  nextBattleLabel,
+  onPressHolder,
+  onPressPin,
+  onPressClimb,
+  viewMode,
+  onToggleLive,
+  onOpenCityInfo,
+  onOpenOverflow,
+  onBack,
 }: HomeHeaderProps) {
   const insets = useSafeAreaInsets();
 
-  // ── Dynamic collapse height (adapts when pinned message is present) ──────────
-  const collapseH = pinnedMessage
-    ? HDR.COLLAPSE_H_BASE + HDR.ROW_PINNED_H   // 166 + 60 = 226
-    : HDR.COLLAPSE_H_BASE;                       // 166
-  const totalH = collapseH + HDR.ROW3_H;
+  // Measured height of the Plaza chrome (so the slide distance always fits).
+  const [plazaH, setPlazaH] = useState(ROW1_H + TABS_H + 200 + PULSE_H);
+  const onPlazaLayout = useCallback((e: LayoutChangeEvent) => {
+    const h = Math.round(e.nativeEvent.layout.height);
+    if (h > 0 && Math.abs(h - plazaH) > 1) setPlazaH(h);
+  }, [plazaH]);
 
-  // ── Animated interpolations ───────────────────────────────────────────────
-
-  /** Collapsible block: slides fully off-screen + fades */
-  const collapsibleTranslateY = useMemo(
-    () =>
-      headerScrollAnim.interpolate({
-        inputRange:  [0, 1],
-        outputRange: [0, -(insets.top + collapseH)],
-        extrapolate: 'clamp',
-      }),
-    [insets.top, collapseH],
+  // Plaza chrome: slide up + fade out as we collapse.
+  const plazaTranslateY = useMemo(
+    () => headerScrollAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -plazaH], extrapolate: 'clamp' }),
+    [plazaH],
   );
-
-  const collapsibleOpacity = useMemo(
-    () =>
-      headerScrollAnim.interpolate({
-        inputRange:  [0, 0.5, 1],
-        outputRange: [1,   0,  0],
-        extrapolate: 'clamp',
-      }),
+  const plazaOpacity = useMemo(
+    () => headerScrollAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0, 0], extrapolate: 'clamp' }),
     [],
   );
 
-  /** Pinned strip: rises with the collapsible block */
-  const onlineTranslateY = useMemo(
-    () =>
-      headerScrollAnim.interpolate({
-        inputRange:  [0, 1],
-        outputRange: [0, -collapseH],
-        extrapolate: 'clamp',
-      }),
-    [collapseH],
+  // Compact chat header: cross-fade + small settle in.
+  const compactOpacity = useMemo(
+    () => headerScrollAnim.interpolate({ inputRange: [0.55, 1], outputRange: [0, 1], extrapolate: 'clamp' }),
+    [],
+  );
+  const compactTranslateY = useMemo(
+    () => headerScrollAnim.interpolate({ inputRange: [0.55, 1], outputRange: [-6, 0], extrapolate: 'clamp' }),
+    [],
   );
 
-  // Composer focus → snap header back into view
+  // Composer focus → snap header back to Plaza.
   useEffect(() => {
     if (composerFocused) showHeader();
   }, [composerFocused]);
 
-  // ── Derived display values ────────────────────────────────────────────────
+  const tier = activeScope.toUpperCase() as Uppercase<ChatScope>;
+  const geo = activeGeoLabel(activeScope, scopeLabels);
+  const homeLine = buildHomeLine(activeScope, scopeLabels);
+  const countStr = formatCount(onlineCount);
 
-  const geoName = (() => {
-    switch (activeScope) {
-      case 'world':   return '';
-      case 'country': return scopeLabels.country;
-      case 'city':    return scopeLabels.city;
-      case 'sector':  return scopeLabels.sector;
-    }
-  })();
-
-  const scopePhrase = buildScopePhrase(activeScope, geoName);
-
-  /** Swiggy-style address line: "Sector 17, Chandigarh, India" */
-  const addressLine = (() => {
-    switch (activeScope) {
-      case 'world':   return 'Worldwide';
-      case 'country': return scopeLabels.country;
-      case 'city':    return `${scopeLabels.city}, ${scopeLabels.country}`;
-      case 'sector':  return `${scopeLabels.sector}, ${scopeLabels.city}, ${scopeLabels.country}`;
-    }
-  })();
-
-  const showHeat       = heatScore >= HDR.HEAT_VISIBLE_THRESHOLD;
-  const formattedCount = formatOnlineCount(onlineCount);
-
-  // ── Handlers ──────────────────────────────────────────────────────────────
-
-  const handleSearchPress = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    onSearchPress();
-  }, [onSearchPress]);
-
-  /** Tapping the hero row → open the geo picker for the active scope */
-  const handleHeroPress = useCallback(() => {
+  const handleHomeLine = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onPickerOpen(activeScope);
   }, [onPickerOpen, activeScope]);
 
-  // ── Render ────────────────────────────────────────────────────────────────
-
   return (
-    <View
-      style={[styles.root, { height: insets.top + totalH }]}
-      pointerEvents="box-none"
-    >
-      {/* Safe-area cap — opaque fill so notch never bleeds behind the header */}
-      {insets.top > 0 ? (
-        <View style={[styles.safeCap, { height: insets.top }]} />
-      ) : null}
+    <View style={[styles.root, { height: insets.top + plazaH }]} pointerEvents="box-none">
+      {/* opaque notch fill */}
+      {insets.top > 0 ? <View style={[styles.safeCap, { height: insets.top }]} /> : null}
 
-      {/* ════ COLLAPSIBLE BLOCK (Rows 1–4) ════════════════════════════════════
-          Slides up + fades out when the user scrolls down.
-          Spring-snaps back on composer focus.
-      ═══════════════════════════════════════════════════════════════════════ */}
+      {/* ════ PLAZA CHROME ════ */}
       <Animated.View
-        style={[
-          styles.collapsible,
-          {
-            top:       insets.top,
-            transform: [{ translateY: collapsibleTranslateY }],
-            opacity:   collapsibleOpacity,
-          },
-        ]}
+        onLayout={onPlazaLayout}
+        style={[styles.plaza, { top: insets.top, transform: [{ translateY: plazaTranslateY }], opacity: plazaOpacity }]}
         pointerEvents="box-none"
       >
-        {/* ── ROW 1 · Brand + Actions ──────────────────────────────────────── */}
+        {/* Row 1 — brand + home line + bell + DM */}
         <View style={styles.row1} pointerEvents="box-none">
-          <View style={styles.wordmarkRow} accessibilityRole="header" accessibilityLabel="CROWN">
-            {/* Crown glyph */}
-            <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
-              <Path
-                d="m2 4 4 7 6-8 6 8 4-7-3 14H5z"
-                stroke={colors.fg.brand}
-                strokeWidth={2}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <Path
-                d="M2 20h20"
-                stroke={colors.fg.brand}
-                strokeWidth={2}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </Svg>
-            {/* CROWN wordmark — Syne_800ExtraBold per OMNI-BUILDER Part 7 §4 */}
-            <Text style={styles.wordmark} allowFontScaling={false}>
-              CROWN
-            </Text>
-          </View>
+          <Pressable
+            onPress={handleHomeLine}
+            accessibilityRole="button"
+            accessibilityLabel={`CROWN. Your location ${homeLine}. Tap to change.`}
+            style={({ pressed }) => [styles.brandBlock, pressed && styles.pressed]}
+          >
+            <CrownCrest size={22} color={colors.fg.brand} />
+            <View style={styles.brandText}>
+              <Text style={styles.wordmark} allowFontScaling={false}>
+                CROWN
+              </Text>
+              <View style={styles.homeLineRow}>
+                <Text style={styles.homeLine} numberOfLines={1} allowFontScaling={false}>
+                  {homeLine}
+                </Text>
+                <Feather name="chevron-down" size={12} color={colors.fg.secondary} />
+              </View>
+            </View>
+          </Pressable>
 
           <View style={styles.actions}>
-            <ActionIcon
-              icon="bell"
-              unread={unreadNotifications}
-              onPress={onNotificationPress}
-              a11yLabel="Notifications"
-              a11yHint={
-                unreadNotifications > 0
-                  ? `${unreadNotifications} unread notifications`
-                  : 'No new notifications'
-              }
-            />
-            <ActionIcon
-              icon="message-circle"
-              unread={unreadDms}
-              onPress={onDmPress}
-              a11yLabel="Direct Messages"
-              a11yHint={
-                unreadDms > 0
-                  ? `${unreadDms} unread messages`
-                  : 'No unread messages'
-              }
-            />
+            <ActionIcon icon="bell" unread={unreadNotifications} onPress={onNotificationPress} a11yLabel="Notifications" />
+            <ActionIcon icon="message-circle" unread={unreadDms} onPress={onDmPress} a11yLabel="Direct Messages" />
           </View>
         </View>
 
-        {/* ── ROW 2 · Address Selector (Swiggy-style) ──────────────────────
-            Format:  {countryEmoji}  Sector 17, Chandigarh, India  ▾
-            Tapping opens the geo-picker for the active scope.
-        ──────────────────────────────────────────────────────────────────── */}
-        <TouchableOpacity
-          style={styles.addrRow}
-          onPress={handleHeroPress}
-          activeOpacity={0.85}
-          accessibilityRole="button"
-          accessibilityLabel={`Current location: ${addressLine}. Tap to change.`}
-        >
-          {/* Inner row: shrinks with text so ▾ stays right after the last word */}
-          <View style={styles.addrInner}>
-            <Text style={styles.addrEmoji} allowFontScaling={false}>
-              {scopeLabels.countryEmoji}
+        {/* Row 2 — 4-scope switcher */}
+        <View style={styles.tabs}>
+          <FourScopeSwitcher activeScope={activeScope} onScopeChange={onScopeChange} onPickerOpen={onPickerOpen} labels={scopeLabels} />
+        </View>
+
+        {/* Throne Banner — the luxury centerpiece */}
+        <View style={styles.bannerWrap}>
+          <ThroneBanner
+            tier={tier}
+            scopeLabel={geo}
+            holder={throneHolder}
+            cycle={throneCycle ?? null}
+            nextBattleLabel={nextBattleLabel ?? null}
+            onPressHolder={onPressHolder}
+            onPressPin={onPressPin}
+            onPressClimb={onPressClimb}
+          />
+        </View>
+
+        {/* City Pulse + Live toggle */}
+        <View style={styles.pulseRow}>
+          <View style={styles.pulseChip} accessibilityLiveRegion="polite">
+            <HeatPulseDot size={8} score={heatScore} />
+            <Text style={styles.pulseText} numberOfLines={1} allowFontScaling={false}>
+              <Text style={styles.pulseNum}>{countStr}</Text>
+              {` ${geo} online · 🔥 Heat `}
+              <Text style={styles.pulseNum}>{String(heatScore)}</Text>
             </Text>
-            <Text style={styles.addrText} allowFontScaling={false} numberOfLines={1}>
-              {addressLine}
-            </Text>
-            <Feather name="chevron-down" size={12} color={colors.fg.secondary} />
           </View>
-        </TouchableOpacity>
-
-        {/* ── ROW 3 · Animated Search Bar ─────────────────────────────────────
-            Tap → navigates to Search screen (not an inline TextInput).
-            Placeholder cycles through SEARCH_HINTS every 2.6 s.
-        ──────────────────────────────────────────────────────────────────── */}
-        <TouchableOpacity
-          style={styles.searchBar}
-          onPress={handleSearchPress}
-          activeOpacity={0.85}
-          accessibilityRole="search"
-          accessibilityLabel="Search CROWN"
-          accessibilityHint="Tap to search rooms, players, and battles"
-        >
-          <Feather
-            name="search"
-            size={17}
-            color={colors.fg.tertiary}
-            style={styles.searchIconLeft}
-          />
-          <AnimatedSearchHint />
-          <Feather
-            name="mic"
-            size={17}
-            color={colors.fg.brand}
-            style={styles.searchMicIcon}
-          />
-        </TouchableOpacity>
-
-        {/* ── ROW 4 · Pinned Message (optional — shown when crown-holder broadcasts) */}
-        {pinnedMessage ? (
-          <PinnedMessage
-            authorName={pinnedMessage.authorName}
-            authorRank={pinnedMessage.authorRank}
-            text={pinnedMessage.text}
-          />
-        ) : null}
-
-        {/* ── ROW 5 · 4-Scope Switcher tabs ────────────────────────────────── */}
-        <View style={styles.row2}>
-          <FourScopeSwitcher
-            activeScope={activeScope}
-            onScopeChange={onScopeChange}
-            onPickerOpen={onPickerOpen}
-            labels={scopeLabels}
-          />
+          <LiveToggle viewMode={viewMode} onPress={onToggleLive} />
         </View>
       </Animated.View>
 
-      {/* ════ PINNED STRIP (always visible) ═══════════════════════════════════
-          Never hides. Rises with the collapsible block so it pins just
-          below the safe-area inset when the user scrolls down.
-      ═══════════════════════════════════════════════════════════════════════ */}
+      {/* ════ COMPACT CHAT HEADER (cross-fades in) ════ */}
       <Animated.View
-        style={[
-          styles.onlineLayer,
-          {
-            top:       insets.top + collapseH,
-            transform: [{ translateY: onlineTranslateY }],
-          },
-        ]}
+        style={[styles.compact, { top: insets.top, opacity: compactOpacity, transform: [{ translateY: compactTranslateY }] }]}
+        pointerEvents="box-none"
       >
-        <View style={styles.row3} accessibilityLiveRegion="polite">
-          <View style={styles.row3Left}>
-            <HeatPulseDot size={8} score={heatScore} />
-            <Text style={styles.onlineText} numberOfLines={1} allowFontScaling={false}>
-              {formattedCount}{' '}
-              <Text style={styles.scopeNameText}>{scopePhrase}</Text>
-            </Text>
-          </View>
+        <TouchableOpacity
+          onPress={onBack}
+          style={styles.backBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Back to latest"
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          activeOpacity={0.7}
+        >
+          <Feather name="chevron-down" size={22} color={colors.fg.primary} />
+        </TouchableOpacity>
 
-          <View style={styles.row3Right}>
-            {showHeat ? (
-              <View style={styles.heatPill}>
-                <Text style={styles.heatText} allowFontScaling={false}>
-                  🔥 Heat {heatScore}
-                </Text>
-              </View>
-            ) : null}
-
-            {showTrustAnchor ? (
-              <View style={styles.trustPill}>
-                <Text style={styles.trustText} allowFontScaling={false}>
-                  📍 120K+
-                </Text>
-              </View>
-            ) : null}
-          </View>
+        <View style={styles.compactCrest}>
+          <CrownCrest size={18} color={colors.fg.celebrate} />
         </View>
+
+        <Pressable
+          onPress={onOpenCityInfo}
+          style={({ pressed }) => [styles.compactTitleBlock, pressed && styles.pressed]}
+          accessibilityRole="button"
+          accessibilityLabel={`${geo} info`}
+        >
+          <View style={styles.compactTitleRow}>
+            <Text style={styles.compactTitle} numberOfLines={1} allowFontScaling={false}>
+              {geo}
+            </Text>
+            <Feather name="chevron-down" size={14} color={colors.fg.secondary} />
+          </View>
+          <Text style={styles.compactSub} numberOfLines={1} allowFontScaling={false}>
+            <Text style={styles.compactSubNum}>{countStr}</Text>
+            {` online · 🔥 Heat `}
+            <Text style={styles.compactSubNum}>{String(heatScore)}</Text>
+          </Text>
+        </Pressable>
+
+        <LiveToggle viewMode={viewMode} onPress={onToggleLive} />
+
+        <TouchableOpacity
+          onPress={onOpenOverflow}
+          style={styles.overflowBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Chat options"
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          activeOpacity={0.7}
+        >
+          <Feather name="more-vertical" size={22} color={colors.fg.primary} />
+        </TouchableOpacity>
       </Animated.View>
     </View>
   );
 }
 
+export default HomeHeader;
+
 // ─────────────────────────────────────────────────────────────────────────────
-// STYLES  (all measurements from HDR tokens; all colors from semantic layer)
+// Styles (tokens only)
 // ─────────────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-
-  // ── Shell ──────────────────────────────────────────────────────────────────
   root: {
-    position:        'absolute',
-    top: 0, left: 0, right: 0,
-    zIndex:          100,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 100,
     backgroundColor: 'transparent',
   },
-
-  /** Opaque notch fill so the safe-area cap never bleeds when collapsed. */
   safeCap: {
-    position:        'absolute',
-    top: 0, left: 0, right: 0,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
     backgroundColor: colors.bg.surface,
-    zIndex:          3,
+    zIndex: 3,
   },
 
-  /** Rows 1–4: opaque so chat content never shows behind the brand/search. */
-  collapsible: {
-    position:        'absolute',
-    left: 0, right: 0,
+  // ── Plaza chrome ──
+  plaza: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
     backgroundColor: colors.bg.surface,
-    zIndex:          1,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border.default,
+    zIndex: 1,
   },
 
-  /** Row 5: shadow + bottom border; always visible. */
-  onlineLayer: {
-    position:           'absolute',
-    left: 0, right: 0,
-    height:             HDR.ROW3_H,
-    backgroundColor:    colors.bg.surface,
-    borderBottomWidth:  StyleSheet.hairlineWidth,
-    borderBottomColor:  'rgba(0,0,0,0.06)',
-    shadowColor:        palette.ink[950],
-    shadowOffset:       { width: 0, height: 2 },
-    shadowOpacity:      0.05,
-    shadowRadius:       8,
-    elevation:          4,
-    zIndex:             2,
-  },
-
-  // ── Row 1 · Brand ─────────────────────────────────────────────────────────
+  // Row 1
   row1: {
-    height:            HDR.ROW1_H,
-    flexDirection:     'row',
-    alignItems:        'center',
-    justifyContent:    'space-between',
-    paddingHorizontal: HDR.PAD_H,
-  },
-  wordmarkRow: {
+    height: ROW1_H,
     flexDirection: 'row',
-    alignItems:    'center',
-    gap:           5,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: PAD_H,
   },
-  /**
-   * FONT_HEADING.extrabold = Syne_800ExtraBold (Part 7 §4 locked).
-   * Verify FONT_HEADING export key name in constants/typography.ts.
-   * If the key differs (e.g. FONT_HEADING['800'] or FONT_HEADING.black),
-   * swap it here — the intent is Syne at maximum weight.
-   */
+  brandBlock: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 1,
+    gap: spacing.sm,
+  },
+  brandText: {
+    flexShrink: 1,
+  },
   wordmark: {
-    fontFamily:    FONT_HEADING.extrabold,
-    fontSize:      HDR.WORDMARK_SIZE,
-    color:         colors.fg.brand,
-    letterSpacing: HDR.WORDMARK_TRACKING,
-    lineHeight:    18,
+    fontFamily: FONT_HEADING.bold, // Syne 800
+    fontSize: 18,
+    letterSpacing: -0.4,
+    color: colors.fg.brandSubtle, // #8B6F18 — WCAG-safe gold wordmark
+    lineHeight: 22,
+  },
+  homeLineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    flexShrink: 1,
+  },
+  homeLine: {
+    flexShrink: 1,
+    fontFamily: FONT_BODY.medium,
+    fontSize: 12,
+    color: colors.fg.secondary,
+    lineHeight: 16,
   },
   actions: {
     flexDirection: 'row',
-    alignItems:    'center',
-    gap:           6,
+    alignItems: 'center',
+    gap: 6,
   },
-  actionButton: {
-    width:          HDR.ACTION_TOUCH,
-    height:         HDR.ACTION_TOUCH,
-    alignItems:     'center',
+  actionBtn: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
     justifyContent: 'center',
-    position:       'relative',
   },
   iconCircle: {
-    width:           HDR.ACTION_CIRCLE,
-    height:          HDR.ACTION_CIRCLE,
-    borderRadius:    HDR.ACTION_CIRCLE / 2,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: colors.bg.goldSoft,
-    alignItems:      'center',
-    justifyContent:  'center',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   iconCircleActive: { backgroundColor: palette.gold[100] },
-  actionBadge: {
-    position:          'absolute',
-    top: 4, right: 4,
-    minWidth:          16,
-    height:            16,
-    borderRadius:      8,
-    backgroundColor:   colors.fg.error,
-    borderWidth:       1.5,
-    borderColor:       colors.bg.surface,
-    alignItems:        'center',
-    justifyContent:    'center',
+  badge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: colors.fg.error,
+    borderWidth: 1.5,
+    borderColor: colors.bg.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 3,
   },
-  actionBadgeWide: { minWidth: 20 },
+  badgeWide: { minWidth: 20 },
   badgeText: {
     fontFamily: FONT_BODY.bold,
-    fontSize:   9,
-    color:      palette.white,
+    fontSize: 9,
+    color: palette.white,
     lineHeight: 11,
   },
 
-  // ── Row 2 · Address Selector (Swiggy-style) ──────────────────────────────
-  addrRow: {
-    height:            HDR.ROW_ADDR_H,
-    flexDirection:     'row',
-    alignItems:        'center',
-    paddingHorizontal: HDR.PAD_H,
-  },
-  /** Shrink-wraps to content — keeps ▾ immediately after the last word */
-  addrInner: {
-    flexDirection: 'row',
-    alignItems:    'center',
-    gap:           4,
-    flexShrink:    1,  // allows truncation on very long names
-  },
-  addrEmoji: {
-    fontSize:   13,
-    lineHeight: 17,
-  },
-  addrText: {
-    flexShrink:    1,        // shrinks text before chevron disappears
-    fontFamily:    FONT_BODY.semiBold,
-    fontSize:      12,
-    color:         colors.fg.primary,
-    lineHeight:    16,
-    letterSpacing: 0.1,
-  },
-
-  // ── Row 4 · Pinned Message card ───────────────────────────────────────────
-  pinnedRow: {
-    marginHorizontal:  HDR.PAD_H,
-    marginBottom:      6,
-    flexDirection:     'row',
-    backgroundColor:   colors.bg.card,
-    borderRadius:      10,
-    overflow:          'hidden',
-    borderWidth:       StyleSheet.hairlineWidth,
-    borderColor:       'rgba(0,0,0,0.07)',
-    // Gold jewel shadow — CROWN signature
-    shadowColor:       colors.fg.brand,
-    shadowOffset:      { width: 0, height: 1 },
-    shadowOpacity:     0.08,
-    shadowRadius:      4,
-    elevation:         2,
-  },
-  pinnedAccentBar: {
-    width:           3,
-    backgroundColor: colors.fg.brand,
-  },
-  pinnedBody: {
-    flex:              1,
+  // Row 2 tabs
+  tabs: {
+    height: TABS_H,
     paddingHorizontal: 10,
-    paddingVertical:   8,
-    justifyContent:    'center',
-    gap:               3,
   },
-  pinnedMeta: {
+
+  // Throne
+  bannerWrap: {
+    marginTop: spacing.sm,
+  },
+
+  // Pulse
+  pulseRow: {
+    height: PULSE_H,
     flexDirection: 'row',
-    alignItems:    'center',
-    gap:           5,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: PAD_H,
+    gap: spacing.sm,
   },
-  pinnedPinEmoji: {
-    fontSize:   11,
-    lineHeight: 14,
-  },
-  pinnedRankBadge: {
-    backgroundColor:   colors.fg.brand,
-    borderRadius:      radii.xs,
-    paddingHorizontal: 5,
-    paddingVertical:   1,
-  },
-  pinnedRankLabel: {
-    fontFamily:    FONT_BODY.bold,
-    fontSize:      8,
-    color:         palette.white,
-    lineHeight:    11,
-    letterSpacing: 0.6,
-  },
-  pinnedAuthorName: {
-    fontFamily: FONT_BODY.semiBold,
-    fontSize:   11,
-    color:      colors.fg.secondary,
-    flex:       1,
-    lineHeight: 14,
-  },
-  pinnedMsgText: {
-    fontFamily: FONT_BODY.regular,
-    fontSize:   12,
-    color:      colors.fg.primary,
-    lineHeight: 17,
-  },
-
-  // ── Row 3 · Animated Search Bar ───────────────────────────────────────────
-  /**
-   * bg.card = #F7ECD0 warm cream — warm contrast against white bg.surface,
-   * consistent with CROWN's palette depth ladder (surface → card → subtle).
-   * CROWN gold shadow signature (OMNI Part 7 §4).
-   */
-  searchBar: {
-    height:           HDR.ROW_SEARCH_H,
-    marginHorizontal: HDR.PAD_H,
-    marginBottom:     8,
-    flexDirection:    'row',
-    alignItems:       'center',
-    backgroundColor:  colors.bg.card,
-    borderRadius:     12,
-    paddingHorizontal: 14,
-    borderWidth:      StyleSheet.hairlineWidth,
-    borderColor:      'rgba(0,0,0,0.07)',
-    // CROWN gold jewel shadow
-    shadowColor:      colors.fg.brand,
-    shadowOffset:     { width: 0, height: 1 },
-    shadowOpacity:    0.10,
-    shadowRadius:     6,
-    elevation:        2,
-  },
-  searchIconLeft: {
-    marginRight: 10,
-  },
-  searchHint: {
-    flex:       1,
-    fontFamily: FONT_BODY.regular,
-    fontSize:   14,
-    color:      colors.fg.tertiary,
-    lineHeight: 18,
-  },
-  searchMicIcon: {
-    marginLeft: 10,
-  },
-
-  // ── Row 4 · Scope Tabs ────────────────────────────────────────────────────
-  row2: {
-    height:            HDR.ROW2_H,
-    paddingHorizontal: 10,
-    backgroundColor:   'transparent',
-  },
-
-  // ── Row 5 (pinned) · Heat / Online Strip ──────────────────────────────────
-  row3: {
-    height:            HDR.ROW3_H,
-    flexDirection:     'row',
-    alignItems:        'center',
-    justifyContent:    'space-between',
-    paddingHorizontal: HDR.PAD_H,
-  },
-  row3Left: {
+  pulseChip: {
+    flex: 1,
     flexDirection: 'row',
-    alignItems:    'center',
-    gap:           6,
-    flex:          1,
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radii.pill,
+    backgroundColor: colors.bg.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border.card,
+    // tier1 gold micro-shadow
+    shadowColor: colors.fg.brand,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  onlineText: {
+  pulseText: {
+    flexShrink: 1,
     fontFamily: FONT_BODY.semiBold,
-    fontSize:   12,
-    color:      colors.fg.secondary,
+    fontSize: 12,
+    color: colors.fg.secondary,
     lineHeight: 16,
   },
-  scopeNameText: {
-    fontFamily: FONT_BODY.regular,
-    color:      colors.fg.tertiary,
+  pulseNum: {
+    fontFamily: FONT_NUMERIC.bold, // Space Mono
+    color: colors.fg.primary,
   },
-  row3Right: {
+
+  // Live toggle
+  liveToggle: {
     flexDirection: 'row',
-    alignItems:    'center',
-    gap:           6,
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 7,
+    borderRadius: radii.pill,
+    backgroundColor: colors.bg.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border.card,
   },
-  heatPill: {
+  liveToggleOn: {
+    backgroundColor: palette.gold[100],
+    borderColor: colors.border.cardEmphasis,
+  },
+  liveDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  liveLabel: {
+    fontFamily: FONT_BODY.semiBold,
+    fontSize: 12,
+    color: colors.fg.secondary,
+  },
+  liveLabelOn: {
+    color: colors.fg.brandText,
+  },
+
+  // ── Compact chat header ──
+  compact: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: COMPACT_H,
     flexDirection: 'row',
-    alignItems:    'center',
-    gap:           4,
+    alignItems: 'center',
+    paddingHorizontal: spacing.sm,
+    gap: spacing.sm,
+    backgroundColor: colors.bg.surface,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border.default,
+    zIndex: 2,
   },
-  heatText: {
+  backBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  compactCrest: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.bg.goldSoft,
+  },
+  compactTitleBlock: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  compactTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  compactTitle: {
+    flexShrink: 1,
     fontFamily: FONT_BODY.bold,
-    fontSize:   12,
-    color:      colors.fg.warning,
-    lineHeight: 16,
+    fontSize: 16,
+    color: colors.fg.primary,
+    lineHeight: 20,
   },
-  trustPill: {
-    backgroundColor:   colors.bg.goldSoft,
-    borderRadius:      radii.xs,
-    paddingHorizontal: 6,
-    paddingVertical:   2,
+  compactSub: {
+    fontFamily: FONT_BODY.regular,
+    fontSize: 11,
+    color: colors.fg.secondary,
+    lineHeight: 14,
   },
-  trustText: {
-    fontFamily: FONT_BODY.medium,
-    fontSize:   11,
-    color:      colors.fg.brandText,
-    lineHeight: 15,
+  compactSubNum: {
+    fontFamily: FONT_NUMERIC.regular,
+    color: colors.fg.secondary,
+  },
+  overflowBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  pressed: {
+    opacity: 0.85,
   },
 });
-
-export default HomeHeader;
