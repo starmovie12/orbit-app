@@ -77,35 +77,31 @@ function RouteGuard() {
   const router   = useRouter();
 
   useEffect(() => {
-    // ── BYPASS LOADING ───────────────────────────────────────────────────────
-    // if (loading || firebaseUser === undefined) return;
-
     const group        = segments[0];
     const inAuth       = group === "(auth)";
     const inOnboarding = group === "(onboarding)";
     const inTabs       = group === "(tabs)";
 
-    // ── BYPASS AUTH CHECK ────────────────────────────────────────────────────
-    // if (!firebaseUser) {
-    //   if (!inAuth) router.replace("/(auth)/welcome");
-    //   return;
-    // }
+    // ── POST SIGN-IN HANDOFF ─────────────────────────────────────────────────
+    // After the user verifies their OTP on /(auth)/otp, AuthContext fires
+    // onAuthStateChanged and firebaseUser flips to a real user. The OTP screen
+    // does not navigate itself — it relies on this guard to forward the now
+    // signed-in user into the app.
+    if (firebaseUser && inAuth) {
+      router.replace("/(tabs)");
+      return;
+    }
 
-    // ── BYPASS PROFILE CHECK ─────────────────────────────────────────────────
-    // if (!user) return;
-
-    // ── BYPASS ONBOARDING CHECK ──────────────────────────────────────────────
-    // if (!isOnboarded) {
-    //   const step: string =
-    //     !onboardingStep || onboardingStep === "done" ? "language" : onboardingStep;
-    //   if (!inOnboarding) {
-    //     router.replace(`/(onboarding)/${step}` as never);
-    //   }
-    //   return;
-    // }
-
-    // ── FORCED ENTRY TO TABS (HOME SCREEN) ───────────────────────────────────
-    if (!inTabs) router.replace("/(tabs)");
+    // ── PEEK-BEFORE-JOIN (LAW 4) ─────────────────────────────────────────────
+    // Unauthenticated users are intentionally allowed to browse /(tabs) AND to
+    // walk through the /(auth) sign-in screens (welcome → phone → otp). The
+    // AuthGate bottom sheet pushes to /(auth)/otp, so we must NOT bounce auth /
+    // onboarding routes back to tabs — doing so made the OTP screen unreachable
+    // and broke login entirely. Only force a stray location (no known group,
+    // e.g. cold start) onto the home tab.
+    if (!inTabs && !inAuth && !inOnboarding) {
+      router.replace("/(tabs)");
+    }
   }, [firebaseUser, user, loading, isOnboarded, onboardingStep, segments, router]);
 
   return (

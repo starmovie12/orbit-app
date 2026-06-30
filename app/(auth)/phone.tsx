@@ -108,12 +108,14 @@ const CrownWordmark = memo(function CrownWordmark() {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // § 1 — GLOBAL OTP HANDLE (read by otp.tsx)
-//   Renamed from __orbitOtp → __crownOtp to remove old project residue.
+//   MUST match the key otp.tsx reads (globalThis.__orbitOtp). otp.tsx and
+//   AuthGateSheet both use __orbitOtp; writing a different key here left the
+//   OTP screen with no handle, so it bounced straight back to this screen.
 // ─────────────────────────────────────────────────────────────────────────────
 
 declare global {
   // eslint-disable-next-line no-var
-  var __crownOtp: { handle: unknown; phone: string } | undefined;
+  var __orbitOtp: { handle: unknown; phone: string } | undefined;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -261,8 +263,8 @@ export default memo(function PhoneScreen() {
         ? await sendOtpWeb(e164)
         : await sendOtpNative(e164);
 
-      // Store under __crownOtp — otp.tsx must read from same key
-      globalThis.__crownOtp = { handle, phone: e164 };
+      // Store under __orbitOtp — otp.tsx reads from this same key
+      globalThis.__orbitOtp = { handle, phone: e164 };
       router.push('/(auth)/otp');
     } catch (err: unknown) {
       const detail =
