@@ -69,6 +69,7 @@ import React, {
 } from 'react';
 import {
   AccessibilityInfo,
+  Alert,
   Animated,
   Dimensions,
   KeyboardAvoidingView,
@@ -328,21 +329,45 @@ export const AuthGateSheet = memo(function AuthGateSheet({
 
   // ── Continue handler (OTP send) ───────────────────────────────────────────
   const handleContinue = useCallback(async () => {
-    if (!phoneValid || loading) return;
-    if (!isValidE164(e164)) {
-      setError('Phone number theek nahi lagta. Dobara check karo.');
+    if (loading) return;
+
+    // Full 10-digit + E.164 guard. The button is no longer hard-disabled when
+    // the number is incomplete, so a press here gives clear feedback instead of
+    // doing nothing silently.
+    if (!phoneValid || !isValidE164(e164)) {
+      setError('Pura 10-digit number daalo (jaise 9876755692).');
       return;
     }
 
     logEvent('auth_gate_continue_tap');
     setLoading(true);
     setError(null);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    // Haptics must never block / abort the flow.
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch { /* noop */ }
 
     try {
-      const handle = Platform.OS === 'web'
-        ? await sendOtpWeb(e164)
-        : await sendOtpNative(e164);
+      // Race the send against a timeout so a stuck native phone-verification
+      // (e.g. a number Firebase doesn't recognise as a test number, or missing
+      // SHA-256 / Play Integrity setup) surfaces a message instead of an
+      // infinite silent spinner.
+      const sendPromise: Promise<unknown> =
+        Platform.OS === 'web' ? sendOtpWeb(e164) : sendOtpNative(e164);
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(
+          () =>
+            reject(
+              Object.assign(
+                new Error(
+                  'Firebase ne 20 second mein jawab nahi diya. Check: number console mein +91 ke saath test number ke roop mein add hai, aur Android SHA-256 key Firebase mein add hai.',
+                ),
+                { code: 'timeout' },
+              ),
+            ),
+          20000,
+        ),
+      );
+
+      const handle = await Promise.race([sendPromise, timeout]);
 
       // Store OTP handle globally (same pattern as phone.tsx)
       global.__orbitOtp = { handle, phone: e164 };
@@ -352,9 +377,15 @@ export const AuthGateSheet = memo(function AuthGateSheet({
       onClose();           // dismiss sheet
       router.push('/(auth)/otp');
     } catch (err: unknown) {
-      const code = (err as { code?: string })?.code ?? 'unknown';
+      const code    = (err as { code?: string })?.code ?? 'unknown';
+      const message = (err as { message?: string })?.message ?? String(err);
       logEvent('auth_gate_otp_send_fail', { error_code: code });
-      setError('OTP bhejne mein problem aayi. Thodi der baad try karo.');
+      console.error('AuthGate OTP send failed:', code, message, err);
+      // Surface the REAL error (code + message). Previously this was swallowed
+      // into a generic line, so config / test-number problems looked like
+      // "nothing happened". Now it's diagnosable.
+      setError(`OTP nahi bheja ja saka [${code}]. ${message}`);
+      Alert.alert('OTP nahi bheja ja saka', `[${code}]\n${message}`);
     } finally {
       setLoading(false);
     }
@@ -532,11 +563,14 @@ export const AuthGateSheet = memo(function AuthGateSheet({
               onPress={handleContinue}
               onPressIn={ctaPressIn}
               onPressOut={ctaPressOut}
-              disabled={!phoneValid || loading}
+              // Only block taps while a send is in flight. When the number is
+              // incomplete the button stays dimmed but tappable, so a press
+              // gives feedback instead of silently doing nothing.
+              disabled={loading}
               android_ripple={{ color: T.gold700, borderless: false }}
               accessibilityRole="button"
               accessibilityLabel="Continue · OTP bhejenge"
-              accessibilityState={{ disabled: !phoneValid || loading }}
+              accessibilityState={{ disabled: loading, busy: loading }}
             >
               {loading ? (
                 /* Inline loading state */
