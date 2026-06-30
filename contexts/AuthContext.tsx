@@ -58,11 +58,13 @@ import React, {
   useState,
 } from 'react';
 import { Alert } from 'react-native';
-import { onAuthStateChanged } from 'firebase/auth';
-import { disableNetwork } from 'firebase/firestore';
 
-import { signOut as firebaseSignOut } from '@/lib/auth';
-import { auth, db } from '@/lib/firebase';
+import {
+  onAuthChanged,
+  getCurrentUser,
+  signOutUser,
+  disableFirestoreNetwork,
+} from '@/lib/firebase';
 import type { AuthUser } from '@/lib/auth';
 import {
   ensureUser,
@@ -182,14 +184,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let unsubAuth: (() => void) | undefined;
 
     try {
-      unsubAuth = onAuthStateChanged(auth, async (fbUser) => {
+      unsubAuth = onAuthChanged(async (fbUser) => {
         // ── Cancel any existing Firestore subscription ────────────────────
         // Must happen before setFirebaseUser so any in-flight onSnapshot
         // callback referencing the previous user's uid is stopped first.
         unsubUserRef.current?.();
         unsubUserRef.current = null;
 
-        setFirebaseUser(fbUser);
+        setFirebaseUser(fbUser as AuthUser | null);
 
         // ── Signed-out path ───────────────────────────────────────────────
         if (!fbUser) {
@@ -254,7 +256,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    * this call just ensures the local state is immediately current.
    */
   const refreshUser = useCallback(async (): Promise<void> => {
-    const fbUser = auth.currentUser;
+    const fbUser = getCurrentUser();
     if (!fbUser) return;
 
     try {
@@ -286,12 +288,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // disableNetwork() rejects new writes and waits for pending writes to
       // complete before resolving. On the next sign-in, enableNetwork() is
       // called implicitly by the first Firestore operation.
-      await disableNetwork(db).catch(() => {
+      await disableFirestoreNetwork().catch(() => {
         // If already offline or Firestore not initialized, this is a no-op.
       });
 
       // Step 3 — sign out of Firebase Auth (clears AsyncStorage session)
-      await firebaseSignOut();
+      await signOutUser();
     } catch (error: unknown) {
       Alert.alert(
         'Logout failed',

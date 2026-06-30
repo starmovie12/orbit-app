@@ -16,8 +16,14 @@
  */
 
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
-import { getAuth, type Auth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import {
+  getAuth,
+  onAuthStateChanged,
+  signOut,
+  type Auth,
+  type User,
+} from "firebase/auth";
+import { getFirestore, disableNetwork } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import firebase from "firebase/compat/app";
 import "firebase/compat/firestore";
@@ -64,6 +70,32 @@ export const serverTimestamp = (): firebase.firestore.FieldValue =>
 /** Atomic counter increment helper. */
 export const increment = (by: number): firebase.firestore.FieldValue =>
   firebase.firestore.FieldValue.increment(by);
+
+// ── Platform-correct session helpers (parity with lib/firebase.ts native) ───
+// AuthContext routes through these so the SAME context code works on web
+// (modular SDK) AND native (RNFirebase namespaced API).
+
+/** Subscribe to auth-state changes. Returns the unsubscribe fn. */
+export function onAuthChanged(
+  cb: (user: User | null) => void,
+): () => void {
+  return onAuthStateChanged(auth, cb);
+}
+
+/** Currently signed-in Firebase user, or null. */
+export function getCurrentUser(): User | null {
+  return auth.currentUser;
+}
+
+/** Sign the current user out of Firebase Auth. */
+export function signOutUser(): Promise<void> {
+  return signOut(auth);
+}
+
+/** Flush pending writes + disable Firestore network (sign-out teardown). */
+export async function disableFirestoreNetwork(): Promise<void> {
+  await disableNetwork(db);
+}
 
 // Default export for compatibility
 export default app;
