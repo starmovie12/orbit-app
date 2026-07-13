@@ -105,6 +105,23 @@ async function sendOtpNative(phoneE164: string): Promise<unknown> {
   return rnAuth().signInWithPhoneNumber(phoneE164);
 }
 
+/**
+ * Cached invisible reCAPTCHA verifier (web only).
+ *
+ * Re-creating a RecaptchaVerifier on the same container on every Continue press
+ * throws "reCAPTCHA has already been rendered in this element" on the 2nd tap —
+ * which on web looked like the button "doing nothing". We cache and reuse it,
+ * and clear it on failure so a fresh one is built on the next attempt.
+ */
+let webVerifierRef: { render: () => Promise<unknown>; clear: () => void } | null = null;
+
+export function clearWebVerifier(): void {
+  if (webVerifierRef) {
+    try { webVerifierRef.clear(); } catch { /* noop */ }
+    webVerifierRef = null;
+  }
+}
+
 async function sendOtpWeb(phoneE164: string): Promise<unknown> {
   const { initializeApp, getApps, getApp } = await import('firebase/app');
   const { getAuth, RecaptchaVerifier, signInWithPhoneNumber } = await import('firebase/auth');
@@ -124,9 +141,11 @@ async function sendOtpWeb(phoneE164: string): Promise<unknown> {
     container.id = 'recaptcha-container';
     document.body.appendChild(container);
   }
-  const verifier = new RecaptchaVerifier(webAuth, 'recaptcha-container', { size: 'invisible' });
-  await verifier.render();
-  return signInWithPhoneNumber(webAuth, phoneE164, verifier);
+  if (!webVerifierRef) {
+    webVerifierRef = new RecaptchaVerifier(webAuth, 'recaptcha-container', { size: 'invisible' });
+    await webVerifierRef.render();
+  }
+  return signInWithPhoneNumber(webAuth, phoneE164, webVerifierRef as never);
 }
 
 // ─── Analytics helper (fire-and-forget · no crash on failure) ────────────────
@@ -381,11 +400,15 @@ export const AuthGateSheet = memo(function AuthGateSheet({
       const message = (err as { message?: string })?.message ?? String(err);
       logEvent('auth_gate_otp_send_fail', { error_code: code });
       console.error('AuthGate OTP send failed:', code, message, err);
-      // Surface the REAL error (code + message). Previously this was swallowed
-      // into a generic line, so config / test-number problems looked like
-      // "nothing happened". Now it's diagnosable.
+      // Reset the web reCAPTCHA so the next press builds a fresh one instead of
+      // throwing "already rendered".
+      if (Platform.OS === 'web') clearWebVerifier();
+      // Surface the REAL error (code + message). Inline text works on EVERY
+      // platform (react-native-web does not implement Alert, so it is only a
+      // best-effort extra). Previously this was swallowed → looked like
+      // "nothing happened".
       setError(`OTP nahi bheja ja saka [${code}]. ${message}`);
-      Alert.alert('OTP nahi bheja ja saka', `[${code}]\n${message}`);
+      try { Alert.alert('OTP nahi bheja ja saka', `[${code}]\n${message}`); } catch { /* web: no Alert */ }
     } finally {
       setLoading(false);
     }
@@ -545,6 +568,15 @@ export const AuthGateSheet = memo(function AuthGateSheet({
                 {error}
               </Text>
             )}
+
+            {/* ── DIAGNOSTIC CANARY (temporary) ───────────────────────────────
+                If you can see this line, your browser IS running the latest
+                fix branch. It also proves your typing registers. If this line
+                is ABSENT, localhost is serving old code (wrong branch / cache).
+                Remove once login is confirmed working. */}
+            <Text style={S.diagLine} accessibilityLiveRegion="polite">
+              {`LOGIN-FIX v4 · digits: ${phone.length}/10 ${phoneValid ? '✅' : '⏳'}`}
+            </Text>
           </View>
 
         </ScrollView>
@@ -810,6 +842,18 @@ const S = StyleSheet.create({
     color:      palette.crimson[600],
     lineHeight: 16,
     marginTop:  2,
+  },
+  diagLine: {
+    fontFamily:      FONT_BODY.semiBold,
+    fontSize:        12,
+    fontWeight:      '700',
+    color:           T.gold700,
+    backgroundColor: palette.cream[100],
+    textAlign:       'center',
+    paddingVertical: 4,
+    borderRadius:    6,
+    marginTop:       8,
+    overflow:        'hidden',
   },
 
   // ── [6][7] Sticky footer ──────────────────────────────────────────────────
